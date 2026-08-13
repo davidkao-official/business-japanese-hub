@@ -1,0 +1,286 @@
+/* =====================================================================
+ * Global styles / base layer
+ * ---------------------------------------------------------------------
+ * Reset, Japanese typography baseline, focus visibility, reduced-motion
+ * respect, and the application-shell layout. All values come from the
+ * design tokens (see tokens.css). Import tokens first.
+ * ===================================================================== */
+
+@import './tokens.css';
+
+/* ---------------------------------------------------------------
+ * Reset / base
+ * --------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  min-height: 100dvh;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--leading-body);
+  letter-spacing: var(--tracking-normal);
+  font-feature-settings: var(--font-feature-defaults);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Japanese typography baseline — ensure comfortable reading rhythm for
+ * mixed Japanese text regardless of the authoring locale. */
+:lang(ja) {
+  line-height: var(--leading-body);
+  letter-spacing: var(--tracking-normal);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--color-text);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  font-weight: var(--font-weight-bold);
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+img,
+picture,
+video,
+canvas,
+svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+input,
+button,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+ul,
+ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------
+ * Focus visibility — keyboard-first
+ * --------------------------------------------------------------- */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* ---------------------------------------------------------------
+ * Reduced motion — respect the OS-level preference
+ * --------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* ---------------------------------------------------------------
+ * Application shell layout
+ * --------------------------------------------------------------- */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.app-main {
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: var(--container-max-width);
+  margin-inline: auto;
+  padding-block: var(--space-6) var(--space-8);
+  padding-inline: var(--container-padding);
+}
+
+/* Skip link — visually hidden until focused (keyboard users) */
+.skip-link {
+  position: absolute;
+  inset-inline-start: -9999px;
+  top: 0;
+  z-index: var(--z-skip-link);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.skip-link:focus {
+  position: fixed;
+  inset-inline-start: var(--space-3);
+  top: var(--space-3);
+  box-shadow: var(--shadow-md);
+}
+
+/* ---------------------------------------------------------------
+ * Header
+ * --------------------------------------------------------------- */
+.site-header {
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-elevated);
+}
+
+.site-header__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-4);
+  max-width: var(--container-max-width);
+  margin-inline: auto;
+  padding-block: var(--space-3);
+  padding-inline: var(--container-padding);
+}
+
+.site-header__brand {
+  text-decoration: none;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-tight);
+}
+
+/* ---------------------------------------------------------------
+ * Navigation
+ * --------------------------------------------------------------- */
+.site-nav__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.site-nav__link {
+  display: inline-block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-weight: var(--font-weight-medium);
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.site-nav__link:hover {
+  color: var(--color-text);
+  background: var(--color-surface-muted);
+}
+
+.site-nav__link[aria-current='page'] {
+  color: var(--color-text);
+  background: var(--color-accent-soft);
+}
+
+/* ---------------------------------------------------------------
+ * Footer
+ * --------------------------------------------------------------- */
+.site-footer {
+  margin-top: var(--space-8);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+.site-footer__inner {
+  max-width: var(--container-max-width);
+  margin-inline: auto;
+  padding-block: var(--space-5);
+  padding-inline: var(--container-padding);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* ---------------------------------------------------------------
+ * Page primitives (generic, platform-level)
+ * --------------------------------------------------------------- */
+.page {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.page__title {
+  font-size: var(--text-2xl);
+}
+
+.page__lead {
+  max-width: 60ch;
+  color: var(--color-text-muted);
+}
+
+.page__meta {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.page__action {
+  justify-self: start;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+  text-decoration: none;
+  font-weight: var(--font-weight-medium);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.page__action:hover {
+  background: var(--color-accent-hover);
+  text-decoration: none;
+}
