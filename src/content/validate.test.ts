@@ -548,6 +548,64 @@ describe('validateBook', () => {
     expectIssue(result.issues, '$.futureMetadata', 'not_json_safe');
   });
 
+  it('rejects a Proxy whose toJSON get rewrites serialization (validateBook)', () => {
+    const hostile = new Proxy(clone(sampleBook), {
+      get(target, prop) {
+        if (prop === 'toJSON') return () => ({ hacked: true });
+        return Reflect.get(target, prop, target);
+      },
+    });
+    const result = validateBook(hostile); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
+    }
+  });
+
+  it('rejects a Proxy whose toJSON get rewrites serialization (validateChapter)', () => {
+    const hostile = new Proxy(clone(sampleBook.chapters[0]!), {
+      get(target, prop) {
+        if (prop === 'toJSON') return () => ({ hacked: true });
+        return Reflect.get(target, prop, target);
+      },
+    });
+    const result = validateChapter(hostile); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
+    }
+  });
+
+  it('rejects a Proxy whose toJSON get rewrites serialization (validateContentBlock)', () => {
+    const hostile = new Proxy(clone(sampleBook.chapters[0]!.blocks[0]!), {
+      get(target, prop) {
+        if (prop === 'toJSON') return () => ({ hacked: true });
+        return Reflect.get(target, prop, target);
+      },
+    });
+    const result = validateContentBlock(hostile); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
+    }
+  });
+
+  it('rejects a nested Proxy whose toJSON get rewrites serialization', () => {
+    const book = clone(sampleBook);
+    const hostileChapter = new Proxy(book.chapters[0]!, {
+      get(target, prop) {
+        if (prop === 'toJSON') return () => ({ hacked: true });
+        return Reflect.get(target, prop, target);
+      },
+    });
+    book.chapters[0] = hostileChapter as unknown as (typeof book)['chapters'][number];
+    const result = validateBook(book); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
+    }
+  });
+
   it('accepts a normal dense array', () => {
     const book = clone(sampleBook);
     (book as unknown as Record<string, unknown>).futureMetadata = [{ a: 1 }, 'b', [true]];
@@ -792,6 +850,16 @@ describe('validateChapter / validateContentBlock', () => {
     const paragraph: ContentBlock = sampleBook.chapters[0]!.blocks[1]!;
     const result = validateContentBlock(paragraph);
     expect(result.ok).toBe(true);
+  });
+
+  it('rejects a non-object root as invalid_root (validateContentBlock)', () => {
+    for (const bad of [null, undefined, 42, 'hello', true, []]) {
+      const result = validateContentBlock(bad);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expectIssue(result.issues, '$', 'invalid_root');
+      }
+    }
   });
 
   it('rejects a content block with a missing discriminator', () => {

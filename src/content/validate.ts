@@ -1054,18 +1054,44 @@ function runSchemaPhase(phase: () => void, ctx: ValidationContext): void {
 }
 
 /**
- * Guarded serialization-safety verification. Runs `JSON.stringify` inside a
- * try/catch so a serialization-time trap — e.g. a Proxy that forwards every
- * schema field but throws only when `toJSON` is read — becomes a structured
- * `not_json_safe` failure instead of surfacing later at publish time.
+ * Guards serialization-safety verification so the plain-data / predictable-
+ * serialization contract holds:
  *
- * The JSON-safety preflight has already rejected custom `toJSON` (own data
- * property, non-enumerable own, or inherited via a non-plain prototype), so for
- * a tree that reaches this point `JSON.stringify` never invokes a user `toJSON`
- * and never rewrites the representation: it is a pure plain-data serialization
- * of the validated value.
+ * 1. No node in the tree exposes an invocable `toJSON` (own, inherited, or
+ *    Proxy-faked through a `get` trap). `JSON.stringify` reads `toJSON` on every
+ *    object, so a function here would be invoked and could throw or rewrite the
+ *    representation — even when the descriptor-based preflight and every schema
+ *    field read succeed.
+ * 2. `JSON.stringify` itself must not throw (revoked proxy, throwing traps, …).
+ *
+ * Everything is guarded, so a throwing Proxy trap becomes a structured
+ * `not_json_safe` failure instead of escaping the validator. For a tree that
+ * passed the JSON-safety preflight (which already rejects custom `toJSON` on
+ * plain objects), step 1 finds no `toJSON` and step 2 is a pure plain-data
+ * serialization of the validated value.
  */
 function checkSerializable(input: unknown, ctx: ValidationContext): void {
+  try {
+    if (exposesInvocableToJSON(input, new Set<object>())) {
+      push(
+        ctx.issues,
+        '$',
+        'not_json_safe',
+        'value exposes a toJSON method that would alter its serialized representation',
+      );
+      ctx.unsafeToRead = true;
+      return;
+    }
+  } catch {
+    push(
+      ctx.issues,
+      '$',
+      'not_json_safe',
+      'unable to inspect toJSON during serialization verification (a trap threw)',
+    );
+    ctx.unsafeToRead = true;
+    return;
+  }
   try {
     JSON.stringify(input);
   } catch {
@@ -1077,6 +1103,36 @@ function checkSerializable(input: unknown, ctx: ValidationContext): void {
     );
     ctx.unsafeToRead = true;
   }
+}
+
+/**
+ * Walks the tree and returns true when any object or array exposes an invocable
+ * `toJSON` (own, inherited, or Proxy-faked through a `get` trap). `JSON.stringify`
+ * reads `toJSON` on every node, so any function found here would be invoked and
+ * could throw or rewrite the serialized representation. `seen` guards cycles and
+ * shared references.
+ */
+function exposesInvocableToJSON(value: unknown, seen: Set<object>): boolean {
+  if (value === null || typeof value !== 'object') return false;
+  if (seen.has(value)) return false;
+  seen.add(value);
+
+  if (typeof (value as { toJSON?: unknown }).toJSON === 'function') return true;
+
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      if (index in value && exposesInvocableToJSON(value[index], seen)) return true;
+    }
+    return false;
+  }
+  for (const key of Reflect.ownKeys(value)) {
+    if (typeof key !== 'string') continue;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor !== undefined && 'value' in descriptor) {
+      if (exposesInvocableToJSON(descriptor.value, seen)) return true;
+    }
+  }
+  return false;
 }
 
 /** Validates a whole Book (structure + cross-references). */
@@ -1166,6 +1222,7 @@ export function validateChapter(input: unknown): ValidationResult<Chapter> {
 /** Validates a single ContentBlock in isolation. */
 export function validateContentBlock(input: unknown): ValidationResult<ContentBlock> {
   const ctx = createContext();
+  if (!rootIsRecord(input, 'content block object', ctx)) return finish(ctx, input);
   runJsonSafetyPreflight(input, ctx);
   if (ctx.unsafeToRead) return finish(ctx, input);
   runSchemaPhase(() => validateBlock(input, '$', ctx), ctx);
