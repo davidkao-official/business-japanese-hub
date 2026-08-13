@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { BookPage } from './app/BookPage'
 import { HomePage } from './app/HomePage'
@@ -8,12 +8,31 @@ import { LibraryPage } from './app/LibraryPage'
 import { NotFoundPage } from './app/NotFoundPage'
 import { Layout } from './components/Layout'
 
+/** Test-only page exposing raw router actions so tests can drive push / POP. */
+function RouterProbePage() {
+  const navigate = useNavigate()
+  return (
+    <div>
+      <h1>Router probe</h1>
+      <button type="button" onClick={() => navigate('/library')}>
+        push to library
+      </button>
+      <button type="button" onClick={() => navigate(-1)}>
+        go back
+      </button>
+    </div>
+  )
+}
+
 /**
  * Smoke tests for the application shell. These exercise only the
  * platform-level chrome (routing, landmarks, i18n defaults) and are
  * intentionally independent of the content model.
  */
 describe('application shell', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
   it('renders the semantic landmarks', () => {
     render(<App />)
 
@@ -124,5 +143,43 @@ describe('application shell', () => {
       'page',
     )
     expect(screen.getByRole('heading', { name: 'ページが見つかりません' })).toBeInTheDocument()
+  })
+
+  it('resets scroll to the top on a forward (push) navigation', async () => {
+    const scrollToSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<HomePage />} />
+            <Route path="library" element={<LibraryPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByRole('link', { name: 'マイライブラリ' }))
+    await waitFor(() => expect(scrollToSpy).toHaveBeenCalledWith(0, 0))
+  })
+
+  it('does not force a scroll reset on a POP (back) navigation', async () => {
+    const scrollToSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    render(
+      <MemoryRouter initialEntries={['/', '/probe']} initialIndex={1}>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<HomePage />} />
+            <Route path="probe" element={<RouterProbePage />} />
+            <Route path="library" element={<LibraryPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'go back' }))
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'ビジネス日本語ハブ' })).toBeInTheDocument(),
+    )
+    expect(scrollToSpy).not.toHaveBeenCalledWith(0, 0)
   })
 })

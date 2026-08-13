@@ -345,6 +345,17 @@ describe('validateBook', () => {
     }
   });
 
+  it('rejects an array with a custom prototype inheriting toJSON', () => {
+    const book = clone(sampleBook);
+    const proto = Object.create(Array.prototype) as { toJSON?: () => string };
+    Object.defineProperty(proto, 'toJSON', { value: () => 'hacked', enumerable: false });
+    const arr: unknown[] = [];
+    Object.setPrototypeOf(arr, proto);
+    (book as unknown as Record<string, unknown>).futureMetadata = arr;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.futureMetadata', 'not_json_safe');
+  });
+
   it('accepts a normal dense array', () => {
     const book = clone(sampleBook);
     (book as unknown as Record<string, unknown>).futureMetadata = [{ a: 1 }, 'b', [true]];
@@ -396,6 +407,35 @@ describe('validateBook', () => {
     (book as unknown as { language: string }).language = 'ja_JP';
     const result = expectInvalid(book);
     expectIssue(result.issues, '$.language', 'invalid_format');
+  });
+
+  it('accepts common BCP-47 language tags', () => {
+    for (const tag of ['ja', 'zh-TW', 'en-US']) {
+      const book = clone(sampleBook);
+      (book as unknown as { language: string }).language = tag;
+      expectValid(book);
+    }
+  });
+
+  it('accepts a valid private-use BCP-47 tag', () => {
+    const book = clone(sampleBook);
+    (book as unknown as { language: string }).language = 'x-business';
+    const result = expectValid(book);
+    expect((result as unknown as { language: string }).language).toBe('x-business');
+  });
+
+  it('rejects a malformed BCP-47 tag (extension singleton without subtag)', () => {
+    const book = clone(sampleBook);
+    (book as unknown as { language: string }).language = 'en-a';
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.language', 'invalid_format');
+  });
+
+  it('does not throw for a malformed language tag', () => {
+    const book = clone(sampleBook);
+    (book as unknown as { language: string }).language = 'en-a';
+    const result = validateBook(book); // must not throw
+    expect(result.ok).toBe(false);
   });
 
   it('rejects a releasedAt that is not a date-only ISO 8601 value', () => {

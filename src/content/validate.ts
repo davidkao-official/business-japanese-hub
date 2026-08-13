@@ -66,11 +66,8 @@ export function isBlockType(value: unknown): value is BlockType {
  * the docs must stay in sync. Each format is intentionally small and explicit.
  * ------------------------------------------------------------------------- */
 
-/** Book/Chapter `slug`: URL-safe single path segment (lowercase alphanumerics separated by single hyphens). */
+/** `slug`: URL-safe single path segment (lowercase alphanumerics separated by single hyphens). */
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-/** `language`: BCP-47-style tag (primary language 2-8 letters, optional subtags). */
-const BCP47_PATTERN = /^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/;
 
 /** `publication.releasedAt`: date-only ISO 8601 (YYYY-MM-DD). */
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -81,7 +78,26 @@ const ISO4217_PATTERN = /^[A-Z]{3}$/;
 type FormatValidator = (value: string) => boolean;
 
 const isSlugFormat: FormatValidator = (value) => SLUG_PATTERN.test(value);
-const isBcp47Format: FormatValidator = (value) => BCP47_PATTERN.test(value);
+
+/**
+ * `language`: full BCP-47 language tag. The primary check is the platform's own
+ * locale parser: `Intl.getCanonicalLocales` throws RangeError for structurally
+ * malformed tags (e.g. `en-a`), which we surface as `invalid_format`.
+ *
+ * The platform parser rejects valid private-use tags (e.g. `x-business`), so a
+ * small, well-defined private-use supplement is added first: BCP-47
+ * `privateuse = "x" 1*("-" 1*8alphanum)`. This is the only hand-written rule;
+ * the full grammar stays with the platform parser.
+ */
+function isBcp47Format(value: string): boolean {
+  if (/^x(?:-[a-z0-9]{1,8})+$/i.test(value)) return true;
+  try {
+    return Intl.getCanonicalLocales(value).length === 1;
+  } catch {
+    return false;
+  }
+}
+
 const isIso4217Format: FormatValidator = (value) => ISO4217_PATTERN.test(value);
 
 /** Real-calendar check for a date-only ISO 8601 string (rejects e.g. 2026-02-30). */
@@ -161,6 +177,18 @@ function checkJsonSafe(value: unknown, path: string, ctx: ValidationContext, anc
   }
 
   if (Array.isArray(value)) {
+    // The JSON-safe plain-data contract only accepts canonical arrays. A custom
+    // prototype may carry inherited serialization hooks (e.g. toJSON) that
+    // Array.isArray and own-key inspection cannot see.
+    if (Object.getPrototypeOf(value) !== Array.prototype) {
+      push(
+        ctx.issues,
+        path,
+        'not_json_safe',
+        `expected a canonical array at "${path}", got an array with a custom prototype`,
+      );
+      return;
+    }
     if (ancestors.has(value)) {
       push(ctx.issues, path, 'not_json_safe', `cyclic reference detected at "${path}"`);
       return;
