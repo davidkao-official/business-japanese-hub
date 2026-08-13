@@ -393,6 +393,66 @@ describe('validateBook', () => {
       nested: { enabled: true, count: 0, nullable: null },
     });
   });
+
+  it('rejects a sparse array (new Array(1))', () => {
+    const book = clone(sampleBook);
+    (book as unknown as Record<string, unknown>).futureMetadata = new Array(1);
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.futureMetadata[0]', 'not_json_safe');
+  });
+
+  it('rejects a sparse nested array', () => {
+    const book = clone(sampleBook);
+    const nested = new Array(1);
+    (book as unknown as Record<string, unknown>).futureMetadata = { rows: nested };
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.futureMetadata.rows[0]', 'not_json_safe');
+  });
+
+  it('accepts a dense array in an unknown property', () => {
+    const book = clone(sampleBook);
+    (book as unknown as Record<string, unknown>).futureMetadata = [1, 'two', true, null];
+    const result = expectValid(book);
+    expect((result as unknown as Record<string, unknown>).futureMetadata).toEqual([1, 'two', true, null]);
+  });
+
+  it('does not throw on a throwing getter and reports it as not_json_safe', () => {
+    const book = clone(sampleBook);
+    const objectWithGetter: Record<string, unknown> = {};
+    Object.defineProperty(objectWithGetter, 'danger', {
+      enumerable: true,
+      get() {
+        throw new Error('getter must never run during validation');
+      },
+    });
+    (book as unknown as Record<string, unknown>).futureMetadata = objectWithGetter;
+    const result = validateBook(book); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expectIssue(result.issues, '$.futureMetadata.danger', 'not_json_safe');
+    }
+  });
+
+  it('rejects a hidden non-enumerable toJSON method', () => {
+    const book = clone(sampleBook);
+    const objectWithToJSON: Record<string, unknown> = {};
+    Object.defineProperty(objectWithToJSON, 'toJSON', {
+      value: () => ({ hacked: true }),
+      enumerable: false,
+    });
+    (book as unknown as Record<string, unknown>).futureMetadata = objectWithToJSON;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.futureMetadata.toJSON', 'not_json_safe');
+  });
+
+  it('rejects a symbol-keyed own property', () => {
+    const book = clone(sampleBook);
+    const symbolObject: Record<string, unknown> = {};
+    (symbolObject as Record<PropertyKey, unknown>)[Symbol('meta')] = 1;
+    (book as unknown as Record<string, unknown>).futureMetadata = symbolObject;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.futureMetadata[Symbol(meta)]', 'not_json_safe');
+  });
 });
 
 describe('validateChapter / validateContentBlock', () => {

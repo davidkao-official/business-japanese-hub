@@ -118,7 +118,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  *
  * Allowed: null, string, boolean, finite number, arrays, plain objects.
  * Rejected (as `not_json_safe`): BigInt, undefined, function, symbol, NaN /
- * ±Infinity, non-plain objects, and cyclic references.
+ * ±Infinity, non-plain objects, sparse array holes, and cyclic references.
+ *
+ * Arrays are walked by numeric index (with `in`) so sparse holes are detected
+ * instead of being skipped by `forEach`. Objects are inspected through own
+ * property descriptors (`Reflect.ownKeys` + `getOwnPropertyDescriptor`) so
+ * getters are never invoked: symbol keys, non-enumerable properties (including
+ * a hidden `toJSON`), and accessor properties are rejected; only enumerable
+ * string-keyed data properties are recursed into.
  *
  * `ancestors` holds the objects on the current walk path; it is backtracked
  * after each subtree so shared-but-acyclic references remain valid.
@@ -151,7 +158,19 @@ function checkJsonSafe(value: unknown, path: string, ctx: ValidationContext, anc
       return;
     }
     ancestors.add(value);
-    value.forEach((item, index) => checkJsonSafe(item, `${path}[${index}]`, ctx, ancestors));
+    for (let index = 0; index < value.length; index += 1) {
+      // `in` detects sparse holes that `forEach` would silently skip.
+      if (!(index in value)) {
+        push(
+          ctx.issues,
+          `${path}[${index}]`,
+          'not_json_safe',
+          `array has a missing (sparse) element at "${path}[${index}]"`,
+        );
+        continue;
+      }
+      checkJsonSafe(value[index], `${path}[${index}]`, ctx, ancestors);
+    }
     ancestors.delete(value);
     return;
   }
@@ -170,8 +189,22 @@ function checkJsonSafe(value: unknown, path: string, ctx: ValidationContext, anc
     return;
   }
   ancestors.add(value);
-  for (const key of Object.keys(value)) {
-    checkJsonSafe(value[key], `${path}.${key}`, ctx, ancestors);
+  for (const key of Reflect.ownKeys(value)) {
+    const childPath = typeof key === 'string' ? `${path}.${key}` : `${path}[${String(key)}]`;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (typeof key !== 'string') {
+      push(ctx.issues, childPath, 'not_json_safe', `symbol-keyed property is not JSON-safe at "${childPath}"`);
+      continue;
+    }
+    if (descriptor === undefined || !descriptor.enumerable) {
+      push(ctx.issues, childPath, 'not_json_safe', `non-enumerable own property is not JSON-safe at "${childPath}"`);
+      continue;
+    }
+    if (!('value' in descriptor)) {
+      push(ctx.issues, childPath, 'not_json_safe', `accessor property (getter/setter) is not JSON-safe at "${childPath}"`);
+      continue;
+    }
+    checkJsonSafe(descriptor.value, childPath, ctx, ancestors);
   }
   ancestors.delete(value);
 }

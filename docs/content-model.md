@@ -52,7 +52,7 @@ Book
 | `audience` | `Audience` | | 受眾 metadata（見 2.4）。 |
 | `difficulty` | `Difficulty` | | 難度 metadata（見 2.4）。 |
 | `tableOfContents` | `TableOfContents` | | 目錄；entry 的 `chapterId` 必須指向既存章節 id。 |
-| `tags` | `string[]` | | 非空字串陣列。 |
+| `tags` | `string[]` | | 選用字串陣列；若有元素則每個元素不可為空（陣列本身可為空）。 |
 | `chapters` | `Chapter[]` | ✔ | 非空；書的章節（見 2.2）。 |
 
 ### 2.2 Chapter
@@ -86,7 +86,7 @@ Book
 - **Edition**：`{ number✔, label?, year? }`。`number` 為整數 ≥ 1。
 - **PublicationState**：`{ status✔, releasedAt? }`。`status` ∈ `draft | review | published | archived`；`releasedAt` 為 date-only ISO 8601 字串（`YYYY-MM-DD`，例如 `"2026-04-01"`），並驗證為真實曆日。
 - **Price**：`{ tier✔, amount?, currency? }`。`tier` ∈ `free | preview | paid`；`amount` 為 ≥ 0 的有限數字（僅顯示用途，不做金額運算）；`currency` 為大寫 3 碼 ISO 4217（例如 `"JPY"`）。
-- **Audience**：`{ levels?, languages?, description? }`。`levels`／`languages` 為非空字串陣列。
+- **Audience**：`{ levels?, languages?, description? }`。`levels`／`languages` 為選用字串陣列；若有元素則每個元素不可為空（陣列本身可為空）。
 - **Difficulty**：`{ level✔, label?, description? }`。`level` ∈ 1–5（1 最易、5 最難）。
 - **TableOfContents**：`{ entries: { chapterId✔, title✔ }[] }`；非空，`chapterId` 必須指向既存章節。
 
