@@ -10,6 +10,7 @@
  * should fail early in dev/build/publish rather than at reader runtime.
  */
 
+import { isValidBcp47Tag } from './bcp47';
 import {
   BLOCK_TYPES,
   CALLOUT_KINDS,
@@ -79,75 +80,8 @@ type FormatValidator = (value: string) => boolean;
 
 const isSlugFormat: FormatValidator = (value) => SLUG_PATTERN.test(value);
 
-/**
- * `language`: full BCP-47 language tag. The primary check is the platform's own
- * locale parser: `Intl.getCanonicalLocales` throws RangeError for structurally
- * malformed tags (e.g. `en-a`), which we surface as `invalid_format`.
- *
- * The platform parser only implements Unicode locale identifiers, so two small
- * registered-BCP-47 supplements are added first: private-use tags (e.g.
- * `x-business`) and grandfathered tags (e.g. `i-klingon`, `en-GB-oed`, from the
- * IANA Language Subtag Registry). These are the only hand-written rules; the
- * full grammar stays with the platform parser.
- */
-
-/** Grandfathered tags that are exact strings (RFC 5646 §2.2.8, irregular). */
-const GRANDFATHERED_IRREGULAR = [
-  'en-gb-oed',
-  'i-ami',
-  'i-bnn',
-  'i-default',
-  'i-enochian',
-  'i-hak',
-  'i-klingon',
-  'i-lux',
-  'i-mingo',
-  'i-navajo',
-  'i-pwn',
-  'i-tao',
-  'i-tay',
-  'i-tsu',
-  'sgn-be-fr',
-  'sgn-be-nl',
-  'sgn-ch-de',
-] as const;
-
-/** Grandfathered tags that follow the regular structure (RFC 5646 §2.2.8, regular). */
-const GRANDFATHERED_REGULAR = [
-  'art-lojban',
-  'cel-gaulish',
-  'no-bok',
-  'no-nyn',
-  'zh-guoyu',
-  'zh-hakka',
-  'zh-min',
-  'zh-min-nan',
-  'zh-xiang',
-] as const;
-
-/**
- * Grandfathered registry match: EXACT case-insensitive only. A prefix plus an
- * arbitrary suffix (e.g. `art-lojban-a`, `zh-min-nan-a`) is NOT a registered
- * grandfathered tag; it must fall through to the platform parser
- * (`Intl.getCanonicalLocales`), which rejects the malformed suffix.
- */
-function isGrandfathered(value: string): boolean {
-  const lower = value.toLowerCase();
-  return (
-    (GRANDFATHERED_IRREGULAR as readonly string[]).includes(lower) ||
-    (GRANDFATHERED_REGULAR as readonly string[]).includes(lower)
-  );
-}
-
-function isBcp47Format(value: string): boolean {
-  if (/^x(?:-[a-z0-9]{1,8})+$/i.test(value)) return true; // private-use
-  if (isGrandfathered(value)) return true; // registered grandfathered
-  try {
-    return Intl.getCanonicalLocales(value).length === 1;
-  } catch {
-    return false;
-  }
-}
+/** `language`: full BCP-47 language tag (RFC 5646 structural grammar; see ./bcp47). */
+const isBcp47Format: FormatValidator = (value) => isValidBcp47Tag(value);
 
 const isIso4217Format: FormatValidator = (value) => ISO4217_PATTERN.test(value);
 
@@ -1095,6 +1029,28 @@ function runJsonSafetyPreflight(input: unknown, ctx: ValidationContext): void {
   }
 }
 
+/**
+ * Runs the precise schema-validation phase behind a single exception boundary.
+ * The JSON-safety preflight only inspects descriptors, so a Proxy `get` trap
+ * can still fire during the later field reads (e.g. `input['schemaVersion']`);
+ * any such escape is converted to a structured `not_json_safe` failure instead
+ * of a throw. Ordinary inputs never throw here, so their precise issue codes
+ * and their deterministic ordering are unchanged.
+ */
+function runSchemaPhase(phase: () => void, ctx: ValidationContext): void {
+  try {
+    phase();
+  } catch {
+    push(
+      ctx.issues,
+      '$',
+      'not_json_safe',
+      'unable to read the value as JSON-safe plain data (a property read threw)',
+    );
+    ctx.unsafeToRead = true;
+  }
+}
+
 /** Validates a whole Book (structure + cross-references). */
 export function validateBook(input: unknown): ValidationResult<Book> {
   const ctx = createContext();
@@ -1109,6 +1065,15 @@ export function validateBook(input: unknown): ValidationResult<Book> {
   runJsonSafetyPreflight(input, ctx);
   if (ctx.unsafeToRead) return finish(ctx, input);
 
+  runSchemaPhase(() => validateBookStructure(input, ctx), ctx);
+  return finish(ctx, input);
+}
+
+/**
+ * Precise book schema validation. Runs behind `runSchemaPhase` so a Proxy `get`
+ * trap (or any other user-controlled property read) cannot escape as a throw.
+ */
+function validateBookStructure(input: Record<string, unknown>, ctx: ValidationContext): void {
   const version = input['schemaVersion'];
   if (version === undefined) {
     push(ctx.issues, '$.schemaVersion', 'missing_field', 'missing required field "schemaVersion"');
@@ -1156,7 +1121,6 @@ export function validateBook(input: unknown): ValidationResult<Book> {
   }
 
   resolveReferences(ctx);
-  return finish(ctx, input);
 }
 
 /** Validates a Chapter in isolation (structure only; no cross-reference resolution). */
@@ -1165,7 +1129,7 @@ export function validateChapter(input: unknown): ValidationResult<Chapter> {
   if (!rootIsRecord(input, 'chapter object', ctx)) return finish(ctx, input);
   runJsonSafetyPreflight(input, ctx);
   if (ctx.unsafeToRead) return finish(ctx, input);
-  checkChapter(input, '$', ctx);
+  runSchemaPhase(() => checkChapter(input, '$', ctx), ctx);
   return finish(ctx, input);
 }
 
@@ -1174,7 +1138,7 @@ export function validateContentBlock(input: unknown): ValidationResult<ContentBl
   const ctx = createContext();
   runJsonSafetyPreflight(input, ctx);
   if (ctx.unsafeToRead) return finish(ctx, input);
-  validateBlock(input, '$', ctx);
+  runSchemaPhase(() => validateBlock(input, '$', ctx), ctx);
   return finish(ctx, input);
 }
 

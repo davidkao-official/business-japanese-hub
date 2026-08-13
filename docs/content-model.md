@@ -42,7 +42,7 @@ Book
 | `slug` | `string` | ✔ | URL-safe single path segment（小寫字母、數字、以單一 `-` 分隔），用於 routing。 |
 | `title` | `string` | ✔ | 書名。 |
 | `subtitle` | `string` | | 副標。 |
-| `language` | `string` | ✔ | 主要內容語言，BCP-47 language tag（例如 `"ja"`、`"zh-TW"`）。 |
+| `language` | `string` | ✔ | 主要內容語言，BCP-47 language tag（RFC 5646 structural grammar，含 extlang／variant／extension／private-use／grandfathered exact；例如 `"ja"`、`"zh-cmn-Hans-CN"`）。 |
 | `description` | `string` | | 短描述／行銷文案。 |
 | `authors` | `Author[]` | ✔ | 非空；作者 metadata（見 2.4）。 |
 | `cover` | `Cover` | | 封面 metadata（見 2.4）。 |

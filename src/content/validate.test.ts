@@ -409,6 +409,60 @@ describe('validateBook', () => {
     }
   });
 
+  it('does not throw on a Proxy get trap during schema validation (validateBook)', () => {
+    const hostile = new Proxy(clone(sampleBook), {
+      get() {
+        throw new Error('get trap must not propagate');
+      },
+    });
+    const result = validateBook(hostile); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
+    }
+  });
+
+  it('does not throw on a Proxy get trap during schema validation (validateChapter)', () => {
+    const hostile = new Proxy(clone(sampleBook.chapters[0]!), {
+      get() {
+        throw new Error('get trap must not propagate');
+      },
+    });
+    const result = validateChapter(hostile); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
+    }
+  });
+
+  it('does not throw on a Proxy get trap during schema validation (validateContentBlock)', () => {
+    const hostile = new Proxy(clone(sampleBook.chapters[0]!.blocks[0]!), {
+      get() {
+        throw new Error('get trap must not propagate');
+      },
+    });
+    const result = validateContentBlock(hostile); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
+    }
+  });
+
+  it('does not throw on a nested Proxy get trap during schema validation', () => {
+    const book = clone(sampleBook);
+    const hostileChapter = new Proxy(book.chapters[0]!, {
+      get() {
+        throw new Error('nested get trap must not propagate');
+      },
+    });
+    book.chapters[0] = hostileChapter as unknown as (typeof book)['chapters'][number];
+    const result = validateBook(book); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
+    }
+  });
+
   it('accepts a normal dense array', () => {
     const book = clone(sampleBook);
     (book as unknown as Record<string, unknown>).futureMetadata = [{ a: 1 }, 'b', [true]];
