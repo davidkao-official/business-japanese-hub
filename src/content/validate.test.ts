@@ -256,33 +256,100 @@ describe('validateBook', () => {
     expect(issue?.message).toContain('text');
   });
 
-  // --- finite numbers ---
-  it('rejects price.amount: Infinity', () => {
+  // --- finite numbers (non-finite values fail the JSON-safety preflight) ---
+  it('rejects price.amount: Infinity as not_json_safe (preflight)', () => {
     const book = clone(sampleBook);
     (bookAt(book).price as { amount: number }).amount = Infinity;
     const result = expectInvalid(book);
-    expectIssue(result.issues, '$.price.amount', 'invalid_number');
+    expectIssue(result.issues, '$.price.amount', 'not_json_safe');
   });
 
-  it('rejects price.amount: NaN', () => {
+  it('rejects price.amount: NaN as not_json_safe (preflight)', () => {
     const book = clone(sampleBook);
     (bookAt(book).price as { amount: number }).amount = NaN;
     const result = expectInvalid(book);
-    expectIssue(result.issues, '$.price.amount', 'invalid_number');
+    expectIssue(result.issues, '$.price.amount', 'not_json_safe');
   });
 
-  it('rejects a heading level of NaN', () => {
+  it('rejects a heading level of NaN as not_json_safe (preflight)', () => {
     const book = clone(sampleBook);
     blockAt(book, 0, 0).level = NaN;
     const result = expectInvalid(book);
-    expectIssue(result.issues, '$.chapters[0].blocks[0].level', 'invalid_number');
+    expectIssue(result.issues, '$.chapters[0].blocks[0].level', 'not_json_safe');
   });
 
-  it('rejects a chapter order of NaN', () => {
+  it('rejects a chapter order of NaN as not_json_safe (preflight)', () => {
     const book = clone(sampleBook);
     (bookAt(book).chapters[0] as unknown as { order: number }).order = NaN;
     const result = expectInvalid(book);
-    expectIssue(result.issues, '$.chapters[0].order', 'invalid_number');
+    expectIssue(result.issues, '$.chapters[0].order', 'not_json_safe');
+  });
+
+  it('rejects a finite-but-out-of-range price.amount as invalid_number', () => {
+    const book = clone(sampleBook);
+    (bookAt(book).price as { amount: number }).amount = -1;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.price.amount', 'invalid_number');
+  });
+
+  // --- JSON-safety preflight runs before structural reads ---
+  it('does not throw on a known-field throwing getter and reports not_json_safe', () => {
+    const book = clone(sampleBook);
+    Object.defineProperty(book, 'title', {
+      enumerable: true,
+      get() {
+        throw new Error('title getter must never run');
+      },
+    });
+    const result = validateBook(book); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expectIssue(result.issues, '$.title', 'not_json_safe');
+    }
+  });
+
+  // --- array own properties are fully inspected ---
+  it('rejects an array with an own toJSON property', () => {
+    const book = clone(sampleBook);
+    const arr: string[] = ['a'];
+    (arr as unknown as Record<string, unknown>).toJSON = () => 'hacked';
+    (book as unknown as Record<string, unknown>).futureMetadata = arr;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.futureMetadata.toJSON', 'not_json_safe');
+  });
+
+  it('rejects an array with a symbol-keyed property', () => {
+    const book = clone(sampleBook);
+    const arr: string[] = ['a'];
+    (arr as unknown as Record<PropertyKey, unknown>)[Symbol('meta')] = 1;
+    (book as unknown as Record<string, unknown>).futureMetadata = arr;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.futureMetadata[Symbol(meta)]', 'not_json_safe');
+  });
+
+  it('does not throw on an array accessor index and reports not_json_safe', () => {
+    const book = clone(sampleBook);
+    const arr: string[] = [];
+    Object.defineProperty(arr, '0', {
+      enumerable: true,
+      get() {
+        throw new Error('index getter must never run');
+      },
+    });
+    arr.length = 1;
+    (book as unknown as Record<string, unknown>).futureMetadata = arr;
+    const result = validateBook(book); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expectIssue(result.issues, '$.futureMetadata[0]', 'not_json_safe');
+    }
+  });
+
+  it('accepts a normal dense array', () => {
+    const book = clone(sampleBook);
+    (book as unknown as Record<string, unknown>).futureMetadata = [{ a: 1 }, 'b', [true]];
+    const result = expectValid(book);
+    expect((result as unknown as Record<string, unknown>).futureMetadata).toEqual([{ a: 1 }, 'b', [true]]);
   });
 
   // --- required string arrays ---

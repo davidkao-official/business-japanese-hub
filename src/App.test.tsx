@@ -5,6 +5,7 @@ import App from './App'
 import { BookPage } from './app/BookPage'
 import { HomePage } from './app/HomePage'
 import { LibraryPage } from './app/LibraryPage'
+import { NotFoundPage } from './app/NotFoundPage'
 import { Layout } from './components/Layout'
 
 /**
@@ -84,5 +85,44 @@ describe('application shell', () => {
       expect(screen.getByRole('heading', { name: 'マイライブラリ' })).toBeInTheDocument(),
     )
     expect(document.activeElement).toBe(main)
+  })
+
+  it('marks the Library link as current on its exact route', () => {
+    render(
+      <MemoryRouter initialEntries={['/library']}>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<HomePage />} />
+            <Route path="library" element={<LibraryPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('link', { name: 'マイライブラリ' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+  })
+
+  it('does not mark the Library link as current on an unmatched descendant route', () => {
+    render(
+      <MemoryRouter initialEntries={['/library/missing']}>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<HomePage />} />
+            <Route path="library" element={<LibraryPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    expect(screen.getByRole('link', { name: 'マイライブラリ' })).not.toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(screen.getByRole('heading', { name: 'ページが見つかりません' })).toBeInTheDocument()
   })
 })

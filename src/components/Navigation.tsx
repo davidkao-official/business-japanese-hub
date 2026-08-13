@@ -3,7 +3,10 @@ import { useStrings } from '../i18n/strings'
 
 const NAV_ITEMS = [
   { to: '/', end: true, getLabel: (s: ReturnType<typeof useStrings>) => s.nav.home },
-  { to: '/library', end: false, getLabel: (s: ReturnType<typeof useStrings>) => s.nav.library },
+  // `end: true` keeps aria-current on /library only for its exact route. With a
+  // prefix match, /library/missing would wrongly mark Library as the current
+  // page while the catch-all renders NotFound.
+  { to: '/library', end: true, getLabel: (s: ReturnType<typeof useStrings>) => s.nav.library },
 ] as const
 
 /**

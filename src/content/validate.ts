@@ -111,6 +111,12 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return proto === Object.prototype || proto === null;
 }
 
+/** True for canonical array index keys ("0", "1", …). */
+function isArrayIndexKey(key: string): boolean {
+  const index = Number(key);
+  return Number.isInteger(index) && index >= 0 && index < 4294967295 && String(index) === key;
+}
+
 /**
  * Recursively verifies a value is JSON-safe plain data. Covers unknown
  * forward-compatible properties that the known-field checks intentionally leave
@@ -120,12 +126,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * Rejected (as `not_json_safe`): BigInt, undefined, function, symbol, NaN /
  * ±Infinity, non-plain objects, sparse array holes, and cyclic references.
  *
- * Arrays are walked by numeric index (with `in`) so sparse holes are detected
- * instead of being skipped by `forEach`. Objects are inspected through own
- * property descriptors (`Reflect.ownKeys` + `getOwnPropertyDescriptor`) so
- * getters are never invoked: symbol keys, non-enumerable properties (including
- * a hidden `toJSON`), and accessor properties are rejected; only enumerable
- * string-keyed data properties are recursed into.
+ * Arrays are walked by numeric index via descriptors: sparse holes and accessor
+ * indices are rejected, and any other own property (symbol keys, a hidden
+ * non-enumerable `toJSON`, extra string keys) is rejected — `length` is the one
+ * allowed array intrinsic. Objects are inspected through own property
+ * descriptors (`Reflect.ownKeys` + `getOwnPropertyDescriptor`) so getters are
+ * never invoked: symbol keys, non-enumerable properties, and accessor
+ * properties are rejected; only enumerable string-keyed data properties are
+ * recursed into.
  *
  * `ancestors` holds the objects on the current walk path; it is backtracked
  * after each subtree so shared-but-acyclic references remain valid.
@@ -158,19 +166,48 @@ function checkJsonSafe(value: unknown, path: string, ctx: ValidationContext, anc
       return;
     }
     ancestors.add(value);
+
+    // Numeric indices: walk 0..length-1, reject sparse holes (`in` detects them
+    // where `forEach` would skip), and read each value through its descriptor
+    // so an accessor index is rejected instead of invoked.
     for (let index = 0; index < value.length; index += 1) {
-      // `in` detects sparse holes that `forEach` would silently skip.
+      const indexPath = `${path}[${index}]`;
       if (!(index in value)) {
-        push(
-          ctx.issues,
-          `${path}[${index}]`,
-          'not_json_safe',
-          `array has a missing (sparse) element at "${path}[${index}]"`,
-        );
+        push(ctx.issues, indexPath, 'not_json_safe', `array has a missing (sparse) element at "${indexPath}"`);
         continue;
       }
-      checkJsonSafe(value[index], `${path}[${index}]`, ctx, ancestors);
+      const descriptor = Object.getOwnPropertyDescriptor(value, index);
+      if (descriptor === undefined || !('value' in descriptor)) {
+        push(ctx.issues, indexPath, 'not_json_safe', `array index ${index} is an accessor at "${indexPath}"`);
+        continue;
+      }
+      checkJsonSafe(descriptor.value, indexPath, ctx, ancestors);
     }
+
+    // Any other own property is rejected: `length` is an array intrinsic and
+    // numeric indices were handled above. A hidden non-enumerable `toJSON`, a
+    // symbol key, or an extra string key would otherwise be ignored by the
+    // index loop yet still influence JSON.stringify.
+    for (const key of Reflect.ownKeys(value)) {
+      if (key === 'length') continue;
+      const keyPath = typeof key === 'string' ? `${path}.${key}` : `${path}[${String(key)}]`;
+      if (typeof key !== 'string') {
+        push(ctx.issues, keyPath, 'not_json_safe', `symbol-keyed property is not JSON-safe at "${keyPath}"`);
+        continue;
+      }
+      if (isArrayIndexKey(key) && Number(key) < value.length) continue;
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (descriptor === undefined || !descriptor.enumerable) {
+        push(ctx.issues, keyPath, 'not_json_safe', `non-enumerable own property is not JSON-safe at "${keyPath}"`);
+        continue;
+      }
+      if (!('value' in descriptor)) {
+        push(ctx.issues, keyPath, 'not_json_safe', `accessor property (getter/setter) is not JSON-safe at "${keyPath}"`);
+        continue;
+      }
+      push(ctx.issues, keyPath, 'not_json_safe', `extra enumerable own property is not JSON-safe at "${keyPath}"`);
+    }
+
     ancestors.delete(value);
     return;
   }
@@ -918,6 +955,15 @@ export function validateBook(input: unknown): ValidationResult<Book> {
     return finish(ctx, input);
   }
 
+  // JSON-safety preflight: a descriptor-safe walk over the whole tree (including
+  // unknown forward-compatible properties). If the input is not plain JSON-safe
+  // data — e.g. a known field is a throwing accessor — we return a structured
+  // failure WITHOUT reading any property, so getters/setters are never invoked.
+  // Only once this passes do we run the precise structural checks below, whose
+  // property reads are then guaranteed not to trigger accessors.
+  checkJsonSafe(input, '$', ctx, new Set<object>());
+  if (ctx.issues.length > 0) return finish(ctx, input);
+
   const version = input['schemaVersion'];
   if (version === undefined) {
     push(ctx.issues, '$.schemaVersion', 'missing_field', 'missing required field "schemaVersion"');
@@ -965,7 +1011,6 @@ export function validateBook(input: unknown): ValidationResult<Book> {
   }
 
   resolveReferences(ctx);
-  checkJsonSafe(input, '$', ctx, new Set<object>());
   return finish(ctx, input);
 }
 
@@ -976,16 +1021,18 @@ export function validateChapter(input: unknown): ValidationResult<Chapter> {
     push(ctx.issues, '$', 'invalid_root', `expected chapter object, got ${describeType(input)}`);
     return finish(ctx, input);
   }
-  checkChapter(input, '$', ctx);
   checkJsonSafe(input, '$', ctx, new Set<object>());
+  if (ctx.issues.length > 0) return finish(ctx, input);
+  checkChapter(input, '$', ctx);
   return finish(ctx, input);
 }
 
 /** Validates a single ContentBlock in isolation. */
 export function validateContentBlock(input: unknown): ValidationResult<ContentBlock> {
   const ctx = createContext();
-  validateBlock(input, '$', ctx);
   checkJsonSafe(input, '$', ctx, new Set<object>());
+  if (ctx.issues.length > 0) return finish(ctx, input);
+  validateBlock(input, '$', ctx);
   return finish(ctx, input);
 }
 
