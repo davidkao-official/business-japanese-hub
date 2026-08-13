@@ -100,7 +100,7 @@ Book
 | --- | --- | --- |
 | `paragraph` | 段落／散文 | `text✔` |
 | `heading` | 標題（同時標示 section） | `text✔`、`level?`（1–4，預設 2） |
-| `image` | 圖片／figure | `src✔`、`alt✔`、`caption?`、`credit?`、`width?`、`height?` |
+| `image` | 圖片／figure | `src✔`、`alt✔`（必填；空字串代表 decorative image）、`caption?`、`credit?`、`width?`、`height?` |
 | `quote` | 引言／引文 | `text✔`、`attribution?` |
 | `callout` | 註記／提示框 | `kind✔`（`note`/`tip`/`warning`/`info`）、`title?`、`text✔` |
 | `table` | 結構化表格 | `caption?`、`columns✔`（非空）、`rows✔`（非空；每列欄數須等於 `columns` 長度） |

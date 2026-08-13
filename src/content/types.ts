@@ -107,6 +107,7 @@ export interface HeadingBlock extends BlockBase {
 export interface ImageBlock extends BlockBase {
   type: 'image';
   src: string;
+  /** Required. An empty string marks the image as decorative (assistive tech ignores it). */
   alt: string;
   caption?: string;
   credit?: string;

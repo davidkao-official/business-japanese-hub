@@ -631,7 +631,9 @@ function validateBlockRecord(record: Record<string, unknown>, path: string, ctx:
       break;
     case 'image':
       readRequiredString(record, 'src', `${path}.src`, ctx, { nonEmpty: true });
-      readRequiredString(record, 'alt', `${path}.alt`, ctx, { nonEmpty: true });
+      // `alt` is required but may be empty: an empty string is the accessible
+      // representation of a decorative image (assistive tech ignores it).
+      readRequiredString(record, 'alt', `${path}.alt`, ctx);
       readOptionalString(record, 'caption', `${path}.caption`, ctx);
       readOptionalString(record, 'credit', `${path}.credit`, ctx);
       readOptionalNumber(record, 'width', `${path}.width`, ctx, { integer: true, min: 1 });
@@ -1051,6 +1053,32 @@ function runSchemaPhase(phase: () => void, ctx: ValidationContext): void {
   }
 }
 
+/**
+ * Guarded serialization-safety verification. Runs `JSON.stringify` inside a
+ * try/catch so a serialization-time trap — e.g. a Proxy that forwards every
+ * schema field but throws only when `toJSON` is read — becomes a structured
+ * `not_json_safe` failure instead of surfacing later at publish time.
+ *
+ * The JSON-safety preflight has already rejected custom `toJSON` (own data
+ * property, non-enumerable own, or inherited via a non-plain prototype), so for
+ * a tree that reaches this point `JSON.stringify` never invokes a user `toJSON`
+ * and never rewrites the representation: it is a pure plain-data serialization
+ * of the validated value.
+ */
+function checkSerializable(input: unknown, ctx: ValidationContext): void {
+  try {
+    JSON.stringify(input);
+  } catch {
+    push(
+      ctx.issues,
+      '$',
+      'not_json_safe',
+      'unable to serialize the value as JSON-safe plain data (serialization threw)',
+    );
+    ctx.unsafeToRead = true;
+  }
+}
+
 /** Validates a whole Book (structure + cross-references). */
 export function validateBook(input: unknown): ValidationResult<Book> {
   const ctx = createContext();
@@ -1066,6 +1094,7 @@ export function validateBook(input: unknown): ValidationResult<Book> {
   if (ctx.unsafeToRead) return finish(ctx, input);
 
   runSchemaPhase(() => validateBookStructure(input, ctx), ctx);
+  if (!ctx.unsafeToRead) checkSerializable(input, ctx);
   return finish(ctx, input);
 }
 
@@ -1130,6 +1159,7 @@ export function validateChapter(input: unknown): ValidationResult<Chapter> {
   runJsonSafetyPreflight(input, ctx);
   if (ctx.unsafeToRead) return finish(ctx, input);
   runSchemaPhase(() => checkChapter(input, '$', ctx), ctx);
+  if (!ctx.unsafeToRead) checkSerializable(input, ctx);
   return finish(ctx, input);
 }
 
@@ -1139,6 +1169,7 @@ export function validateContentBlock(input: unknown): ValidationResult<ContentBl
   runJsonSafetyPreflight(input, ctx);
   if (ctx.unsafeToRead) return finish(ctx, input);
   runSchemaPhase(() => validateBlock(input, '$', ctx), ctx);
+  if (!ctx.unsafeToRead) checkSerializable(input, ctx);
   return finish(ctx, input);
 }
 

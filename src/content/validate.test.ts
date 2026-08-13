@@ -176,6 +176,35 @@ describe('validateBook', () => {
     expectIssue(result.issues, '$.chapters[2].blocks[1].question', 'missing_field');
   });
 
+  it('accepts an image with an empty alt (decorative image)', () => {
+    const book = clone(sampleBook);
+    const image = blockAt(book, 2, 4);
+    image.alt = '';
+    const result = expectValid(book);
+    expect(
+      (result as unknown as { chapters: { blocks: { alt: string }[] }[] }).chapters[2]!.blocks[4]!
+        .alt,
+    ).toBe('');
+  });
+
+  it('accepts an image with a non-empty alt (informative image)', () => {
+    expectValid(sampleBook); // the fixture's image block uses a non-empty alt
+  });
+
+  it('rejects an image missing its alt', () => {
+    const book = clone(sampleBook);
+    delete blockAt(book, 2, 4).alt;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.chapters[2].blocks[4].alt', 'missing_field');
+  });
+
+  it('rejects an image whose alt is not a string', () => {
+    const book = clone(sampleBook);
+    blockAt(book, 2, 4).alt = 42;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.chapters[2].blocks[4].alt', 'wrong_type');
+  });
+
   it('rejects a chapter with an empty blocks array', () => {
     const book = clone(sampleBook);
     (bookAt(book).chapters[1] as unknown as { blocks: unknown[] }).blocks = [];
@@ -461,6 +490,62 @@ describe('validateBook', () => {
     if (!result.ok) {
       expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
     }
+  });
+
+  it('does not throw on a Proxy whose toJSON get throws during serialization (validateBook)', () => {
+    const hostile = new Proxy(clone(sampleBook), {
+      get(target, prop) {
+        if (prop === 'toJSON') throw new Error('toJSON get must not propagate');
+        return Reflect.get(target, prop, target);
+      },
+    });
+    const result = validateBook(hostile); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
+    }
+  });
+
+  it('does not throw on a nested Proxy whose toJSON get throws during serialization', () => {
+    const book = clone(sampleBook);
+    const hostileChapter = new Proxy(book.chapters[0]!, {
+      get(target, prop) {
+        if (prop === 'toJSON') throw new Error('nested toJSON get must not propagate');
+        return Reflect.get(target, prop, target);
+      },
+    });
+    book.chapters[0] = hostileChapter as unknown as (typeof book)['chapters'][number];
+    const result = validateBook(book); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
+    }
+  });
+
+  it('rejects an object with a custom own toJSON method', () => {
+    const book = clone(sampleBook);
+    (book as unknown as Record<string, unknown>).futureMetadata = {
+      value: 'ok',
+      toJSON() {
+        return 'hacked';
+      },
+    };
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.futureMetadata.toJSON', 'not_json_safe');
+  });
+
+  it('rejects an object with a custom inherited toJSON method', () => {
+    const book = clone(sampleBook);
+    const proto = {
+      toJSON() {
+        return 'hacked';
+      },
+    };
+    const obj = Object.create(proto) as Record<string, unknown>;
+    obj.value = 'ok';
+    (book as unknown as Record<string, unknown>).futureMetadata = obj;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.futureMetadata', 'not_json_safe');
   });
 
   it('accepts a normal dense array', () => {
