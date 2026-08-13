@@ -1,0 +1,216 @@
+/**
+ * Design Tokens — Business Japanese Hub
+ * =====================================================================
+ * Centralized design decisions for the application shell.
+ *
+ * This is an intentionally neutral, skeleton-level token set. The visual
+ * direction is NOT final — treat every value here as a swap point for the
+ * design research pass (#2). Components should only ever reference tokens,
+ * never hard-coded values, so a visual change is a token-only diff.
+ *
+ * Naming convention: --<category>-<element>-<modifier>
+ *
+ * Light theme is the default; dark-ready overrides live under
+ * `prefers-color-scheme: dark` and are inherited everywhere.
+ * =====================================================================
+ */
+
+:root {
+  /* ---------------------------------------------------------------
+   * Breakpoints — reference only.
+   * CSS custom properties are NOT usable inside media queries, so media
+   * queries use the literal values. These tokens document the scale for
+   * JS consumers and future reference.
+   * --------------------------------------------------------------- */
+  --bp-sm: 36rem; /* 576px */
+  --bp-md: 48rem; /* 768px */
+  --bp-lg: 64rem; /* 1024px */
+  --bp-xl: 80rem; /* 1280px */
+
+  /* ---------------------------------------------------------------
+   * Color — neutrals (warm paper neutrals tuned for long-form reading)
+   * --------------------------------------------------------------- */
+  --color-bg: #f7f5f1;
+  --color-bg-elevated: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-muted: #efece6;
+  --color-text: #21241f;
+  --color-text-muted: #5f655d;
+  --color-text-inverse: #ffffff;
+  --color-border: #dfdacd;
+  --color-border-strong: #c8c2b3;
+
+  /* ---------------------------------------------------------------
+   * Color — accent (placeholder; replace in design pass #2)
+   * --------------------------------------------------------------- */
+  --color-accent: #b5472f;
+  --color-accent-hover: #963a26;
+  --color-accent-soft: #f3e2da;
+  --color-accent-contrast: #ffffff;
+
+  /* ---------------------------------------------------------------
+   * Color — focus / interactive
+   * --------------------------------------------------------------- */
+  --color-focus: #2f6fb3;
+  --color-focus-inverse: #a8c6e8;
+
+  /* ---------------------------------------------------------------
+   * Color — semantic (minimal set for status messaging)
+   * --------------------------------------------------------------- */
+  --color-success: #3c6e4f;
+  --color-warning: #a9712a;
+  --color-danger: #b03a3a;
+  --color-info: #2f6fb3;
+
+  /* ---------------------------------------------------------------
+   * Spacing scale — 4px base
+   * --------------------------------------------------------------- */
+  --space-1: 0.25rem; /*  4px */
+  --space-2: 0.5rem; /*   8px */
+  --space-3: 0.75rem; /* 12px */
+  --space-4: 1rem; /*   16px */
+  --space-5: 1.5rem; /*  24px */
+  --space-6: 2rem; /*   32px */
+  --space-7: 3rem; /*   48px */
+  --space-8: 4rem; /*   64px */
+  --space-9: 6rem; /*   96px */
+  --section-gap: var(--space-8);
+
+  /* ---------------------------------------------------------------
+   * Typography — Japanese-first font stacks
+   * Noto Sans JP / Hiragino / Yu Gothic are the preferred Japanese faces;
+   * system-ui acts as the ultimate fallback for latin + UI glyphs.
+   * --------------------------------------------------------------- */
+  --font-sans:
+    'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans',
+    'Yu Gothic', 'YuGothic', 'Meiryo', system-ui, -apple-system, 'Segoe UI',
+    'Roboto', 'Helvetica Neue', 'Arial', sans-serif;
+  --font-serif:
+    'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', 'YuMincho',
+    'Georgia', 'Times New Roman', serif;
+  --font-mono:
+    'SF Mono', ui-monospace, 'Cascadia Code', 'JetBrains Mono', 'Consolas',
+    'Liberation Mono', monospace;
+
+  /* Type scale */
+  --text-xs: 0.75rem; /*  12px */
+  --text-sm: 0.875rem; /* 14px */
+  --text-base: 1rem; /*   16px */
+  --text-md: 1.125rem; /* 18px */
+  --text-lg: 1.25rem; /*  20px */
+  --text-xl: 1.5rem; /*   24px */
+  --text-2xl: 2rem; /*    32px */
+  --text-3xl: 2.75rem; /* 44px */
+
+  /* Weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line heights — Japanese text benefits from a taller body line-height */
+  --leading-tight: 1.3;
+  --leading-body: 1.75;
+  --leading-relaxed: 1.9;
+
+  /* Letter spacing */
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.06em;
+
+  /* Optional Japanese typesetting features.
+   * `palt` (proportional alternates) is a display-level opt-in; apply only
+   * to large heading/display text where tightened metrics are wanted.
+   * Example:  font-feature-settings: var(--jp-feature-palt);
+   * --------------------------------------------------------------- */
+  --jp-feature-palt: 'palt' 1;
+  --font-feature-defaults: 'kern' 1, 'liga' 1;
+
+  /* ---------------------------------------------------------------
+   * Radius
+   * --------------------------------------------------------------- */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 1rem;
+  --radius-pill: 999px;
+
+  /* Stroke widths */
+  --stroke-thin: 1px;
+  --stroke-medium: 2px;
+
+  /* ---------------------------------------------------------------
+   * Shadows
+   * --------------------------------------------------------------- */
+  --shadow-sm: 0 1px 2px rgb(15 18 14 / 0.06), 0 1px 3px rgb(15 18 14 / 0.05);
+  --shadow-md: 0 4px 12px rgb(15 18 14 / 0.08);
+  --shadow-lg: 0 12px 32px rgb(15 18 14 / 0.12);
+
+  /* ---------------------------------------------------------------
+   * Focus ring
+   * --------------------------------------------------------------- */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: var(--color-focus);
+
+  /* ---------------------------------------------------------------
+   * Motion — duration / easing
+   * --------------------------------------------------------------- */
+  --duration-instant: 90ms;
+  --duration-fast: 160ms;
+  --duration-base: 240ms;
+  --duration-slow: 400ms;
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ---------------------------------------------------------------
+   * Layout
+   * --------------------------------------------------------------- */
+  --container-max-width: 72rem; /* 1152px */
+  --container-padding: 1.25rem; /* 20px, mobile-first */
+  --measure-reading: 60ch; /* comfortable line measure for long-form prose */
+  --z-header: 100;
+  --z-skip-link: 1000;
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --container-padding: 2rem;
+  }
+}
+
+/* ---------------------------------------------------------------
+ * Dark-ready overrides — honor the OS-level color scheme.
+ * Light remains the authored default; dark simply re-skins tokens.
+ * --------------------------------------------------------------- */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #161815;
+    --color-bg-elevated: #1d201c;
+    --color-surface: #1d201c;
+    --color-surface-muted: #262a25;
+    --color-text: #e7e4db;
+    --color-text-muted: #a4ab9e;
+    --color-text-inverse: #161815;
+    --color-border: #2f342d;
+    --color-border-strong: #434940;
+
+    --color-accent: #e08a70;
+    --color-accent-hover: #eaa08c;
+    --color-accent-soft: #3b2721;
+    --color-accent-contrast: #161815;
+
+    --color-focus: #8ab4e8;
+    --color-focus-inverse: #2f6fb3;
+
+    --color-success: #6fae83;
+    --color-warning: #d0a165;
+    --color-danger: #e08585;
+    --color-info: #8ab4e8;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 4px 12px rgb(0 0 0 / 0.45);
+    --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.55);
+  }
+}
