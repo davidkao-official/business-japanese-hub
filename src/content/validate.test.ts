@@ -379,6 +379,36 @@ describe('validateBook', () => {
     }
   });
 
+  it('does not throw on a revoked Proxy as the book root and reports not_json_safe', () => {
+    const { proxy, revoke } = Proxy.revocable({}, {});
+    revoke();
+    const result = validateBook(proxy); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
+    }
+  });
+
+  it('does not throw on a revoked Proxy as the chapter root and reports not_json_safe', () => {
+    const { proxy, revoke } = Proxy.revocable({}, {});
+    revoke();
+    const result = validateChapter(proxy); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
+    }
+  });
+
+  it('does not throw on a revoked Proxy as the content block root and reports not_json_safe', () => {
+    const { proxy, revoke } = Proxy.revocable({}, {});
+    revoke();
+    const result = validateContentBlock(proxy); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((issue) => issue.code === 'not_json_safe')).toBe(true);
+    }
+  });
+
   it('accepts a normal dense array', () => {
     const book = clone(sampleBook);
     (book as unknown as Record<string, unknown>).futureMetadata = [{ a: 1 }, 'b', [true]];
@@ -448,10 +478,19 @@ describe('validateBook', () => {
   });
 
   it('accepts registered grandfathered BCP-47 tags', () => {
-    for (const tag of ['i-klingon', 'en-GB-oed', 'art-lojban']) {
+    for (const tag of ['i-klingon', 'en-GB-oed', 'art-lojban', 'zh-min-nan']) {
       const book = clone(sampleBook);
       (book as unknown as { language: string }).language = tag;
       expectValid(book);
+    }
+  });
+
+  it('rejects malformed suffixes on grandfathered tags', () => {
+    for (const tag of ['art-lojban-a', 'zh-min-nan-a', 'zh-min-!', 'zh-min--x']) {
+      const book = clone(sampleBook);
+      (book as unknown as { language: string }).language = tag;
+      const result = expectInvalid(book);
+      expectIssue(result.issues, '$.language', 'invalid_format');
     }
   });
 

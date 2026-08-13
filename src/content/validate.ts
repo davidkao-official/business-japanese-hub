@@ -112,7 +112,7 @@ const GRANDFATHERED_IRREGULAR = [
   'sgn-ch-de',
 ] as const;
 
-/** Grandfathered tags that may be followed by further subtags (regular). */
+/** Grandfathered tags that follow the regular structure (RFC 5646 §2.2.8, regular). */
 const GRANDFATHERED_REGULAR = [
   'art-lojban',
   'cel-gaulish',
@@ -125,11 +125,17 @@ const GRANDFATHERED_REGULAR = [
   'zh-xiang',
 ] as const;
 
+/**
+ * Grandfathered registry match: EXACT case-insensitive only. A prefix plus an
+ * arbitrary suffix (e.g. `art-lojban-a`, `zh-min-nan-a`) is NOT a registered
+ * grandfathered tag; it must fall through to the platform parser
+ * (`Intl.getCanonicalLocales`), which rejects the malformed suffix.
+ */
 function isGrandfathered(value: string): boolean {
   const lower = value.toLowerCase();
-  if ((GRANDFATHERED_IRREGULAR as readonly string[]).includes(lower)) return true;
-  return (GRANDFATHERED_REGULAR as readonly string[]).some(
-    (tag) => lower === tag || lower.startsWith(`${tag}-`),
+  return (
+    (GRANDFATHERED_IRREGULAR as readonly string[]).includes(lower) ||
+    (GRANDFATHERED_REGULAR as readonly string[]).includes(lower)
   );
 }
 
@@ -370,6 +376,40 @@ function describeType(value: unknown): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Classifies the input's root shape WITHOUT letting a reflective-operation
+ * failure escape: `Array.isArray` throws for a revoked Proxy, so it is only
+ * invoked inside the try here. Returns true for a record. For any other input
+ * it records the appropriate structured issue — `invalid_root` for ordinary
+ * non-records (with `expected` in the message), `not_json_safe` when
+ * classification itself threw (revoked Proxy / trapped input) — marks the
+ * input unsafe to read, and returns false.
+ */
+function rootIsRecord(
+  input: unknown,
+  expected: string,
+  ctx: ValidationContext,
+): input is Record<string, unknown> {
+  let isRecordShape: boolean;
+  try {
+    isRecordShape = isRecord(input);
+  } catch {
+    push(
+      ctx.issues,
+      '$',
+      'not_json_safe',
+      'unable to classify the value as JSON-safe plain data (a reflective operation threw)',
+    );
+    ctx.unsafeToRead = true;
+    return false;
+  }
+  if (!isRecordShape) {
+    push(ctx.issues, '$', 'invalid_root', `expected ${expected}, got ${describeType(input)}`);
+    return false;
+  }
+  return true;
 }
 
 function push(issues: ContentIssue[], path: string, code: IssueCode, message: string): void {
@@ -1058,10 +1098,7 @@ function runJsonSafetyPreflight(input: unknown, ctx: ValidationContext): void {
 /** Validates a whole Book (structure + cross-references). */
 export function validateBook(input: unknown): ValidationResult<Book> {
   const ctx = createContext();
-  if (!isRecord(input)) {
-    push(ctx.issues, '$', 'invalid_root', `expected book object, got ${describeType(input)}`);
-    return finish(ctx, input);
-  }
+  if (!rootIsRecord(input, 'book object', ctx)) return finish(ctx, input);
 
   // JSON-safety preflight: a descriptor-safe walk over the whole tree (including
   // unknown forward-compatible properties). Accessor properties (or a Proxy that
@@ -1125,10 +1162,7 @@ export function validateBook(input: unknown): ValidationResult<Book> {
 /** Validates a Chapter in isolation (structure only; no cross-reference resolution). */
 export function validateChapter(input: unknown): ValidationResult<Chapter> {
   const ctx = createContext();
-  if (!isRecord(input)) {
-    push(ctx.issues, '$', 'invalid_root', `expected chapter object, got ${describeType(input)}`);
-    return finish(ctx, input);
-  }
+  if (!rootIsRecord(input, 'chapter object', ctx)) return finish(ctx, input);
   runJsonSafetyPreflight(input, ctx);
   if (ctx.unsafeToRead) return finish(ctx, input);
   checkChapter(input, '$', ctx);
