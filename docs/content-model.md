@@ -147,6 +147,7 @@ Book
 | `invalid_enum` | 值不在允許集合內（callout `kind`、heading `level`、difficulty `level`…）。 |
 | `invalid_number` | 數字不合約束（非有限值、非整數、低於下限…）。 |
 | `invalid_format` | 字串欄位不符合文件定義的格式（slug、language、releasedAt、currency）。 |
+| `not_json_safe` | 某值不是 JSON-safe plain data（BigInt、undefined、function、symbol、非有限數、循環引用、非 plain object）。 |
 | `unknown_block_type` | block 的 `type` 不在 `BLOCK_TYPES`。 |
 | `missing_discriminator` | block 缺少 `type` discriminator。 |
 | `row_width_mismatch` | table 某列的欄數 ≠ `columns` 長度。 |
@@ -164,7 +165,8 @@ Book
 - **數字一律為有限值**：所有 numeric 欄位拒絕 `NaN`／`Infinity`／`-Infinity`（`invalid_number`），確保內容可被 JSON 安全序列化。
 - **必填陣列非空**：`doDont.do`／`doDont.dont`／comparison row 的 `points` 與其他必填陣列（`chapters`、`blocks`、`authors`、`columns`、`rows`、TOC `entries`）不得為空（`missing_items`）。
 - **文件化格式**：`slug`（URL-safe single segment）、`language`（BCP-47）、`publication.releasedAt`（date-only ISO 8601）、`price.currency`（大寫 3 碼 ISO 4217）；不符時回傳 `invalid_format`。
-- **未知的額外欄位一律保留、不報錯**：這是 forward-compat 策略（見 §5）。因此「選用欄位的拼字錯誤」可能不會被抓到——這是為了相容未來版本而刻意接受的取捨；必填欄位拼錯仍會被 `missing_field` 抓到。
+- **未知的額外欄位一律保留、不報錯**：這是 forward-compat 策略（見 §5）。因此「選用欄位的拼字錯誤」可能不會被抓到——這是為了相容未來版本而刻意接受的取捨；必填欄位拼錯仍會被 `missing_field` 抓到。但保留的未知 property 仍必須是 **JSON-safe plain data**（見下方「整棵 tree 必須 JSON-safe」）。
+- **整棵 tree 必須 JSON-safe**：在成功回傳 validated value 前，validator 會遞迴走訪全部值（含未知的 forward-compatible property），拒絕 `BigInt`／`undefined`／`function`／`symbol`／`NaN`／`±Infinity`／循環引用／非 plain object（`not_json_safe`）。未知但 JSON-safe 的 property 照常保留，forward compatibility 不變。
 - **Deterministic**：issue 依文件順序產生，cross-reference 檢查在結構走訪後進行；相同輸入永遠產生相同的 issue 清單（測試已驗證）。
 
 ### 4.4 使用時機

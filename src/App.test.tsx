@@ -1,9 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import App from './App'
 import { BookPage } from './app/BookPage'
+import { HomePage } from './app/HomePage'
 import { LibraryPage } from './app/LibraryPage'
+import { Layout } from './components/Layout'
 
 /**
  * Smoke tests for the application shell. These exercise only the
@@ -58,5 +60,29 @@ describe('application shell', () => {
     )
 
     expect(screen.getByTestId('book-slug')).toHaveTextContent('nihongo-notebook')
+  })
+
+  it('moves focus to the main landmark after client-side navigation', async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<HomePage />} />
+            <Route path="library" element={<LibraryPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    )
+
+    const main = screen.getByRole('main')
+    // A fresh page load must not steal focus.
+    expect(document.activeElement).not.toBe(main)
+
+    fireEvent.click(screen.getByRole('link', { name: 'マイライブラリ' }))
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'マイライブラリ' })).toBeInTheDocument(),
+    )
+    expect(document.activeElement).toBe(main)
   })
 })

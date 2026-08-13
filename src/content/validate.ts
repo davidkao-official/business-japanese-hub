@@ -49,7 +49,8 @@ export type IssueCode =
   | 'duplicate_id'
   | 'duplicate_slug'
   | 'reference_not_found'
-  | 'missing_items';
+  | 'missing_items'
+  | 'not_json_safe';
 
 /** Discriminated result: either the validated value or the list of issues. */
 export type ValidationResult<T> = { ok: true; value: T } | { ok: false; issues: ContentIssue[] };
@@ -93,6 +94,86 @@ function isIsoDateFormat(value: string): boolean {
     date.getUTCMonth() === month - 1 &&
     date.getUTCDate() === day
   );
+}
+
+/* ------------------------------------------------------------------------- *
+ * Whole-tree JSON safety
+ * The content contract promises plain, serializable data (see
+ * docs/content-model.md §1). Known-field checks do not inspect unknown
+ * forward-compatible properties, so before returning success we walk the ENTIRE
+ * tree and reject values that would break `JSON.stringify` at publish time.
+ * ------------------------------------------------------------------------- */
+
+/** True only for plain objects (Object.prototype or null prototype), not class instances / Date / Map / Set. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+/**
+ * Recursively verifies a value is JSON-safe plain data. Covers unknown
+ * forward-compatible properties that the known-field checks intentionally leave
+ * alone, so build/publish validation fails before serialization would throw.
+ *
+ * Allowed: null, string, boolean, finite number, arrays, plain objects.
+ * Rejected (as `not_json_safe`): BigInt, undefined, function, symbol, NaN /
+ * ±Infinity, non-plain objects, and cyclic references.
+ *
+ * `ancestors` holds the objects on the current walk path; it is backtracked
+ * after each subtree so shared-but-acyclic references remain valid.
+ */
+function checkJsonSafe(value: unknown, path: string, ctx: ValidationContext, ancestors: Set<object>): void {
+  if (value === null) return;
+
+  switch (typeof value) {
+    case 'string':
+    case 'boolean':
+      return;
+    case 'number':
+      if (!Number.isFinite(value)) {
+        push(ctx.issues, path, 'not_json_safe', `expected a finite number at "${path}", got ${String(value)}`);
+      }
+      return;
+    case 'bigint':
+    case 'function':
+    case 'symbol':
+      push(ctx.issues, path, 'not_json_safe', `expected a JSON-safe plain value at "${path}", got ${typeof value}`);
+      return;
+    case 'undefined':
+      push(ctx.issues, path, 'not_json_safe', `expected a JSON-safe plain value at "${path}", got undefined`);
+      return;
+  }
+
+  if (Array.isArray(value)) {
+    if (ancestors.has(value)) {
+      push(ctx.issues, path, 'not_json_safe', `cyclic reference detected at "${path}"`);
+      return;
+    }
+    ancestors.add(value);
+    value.forEach((item, index) => checkJsonSafe(item, `${path}[${index}]`, ctx, ancestors));
+    ancestors.delete(value);
+    return;
+  }
+
+  if (!isPlainObject(value)) {
+    push(
+      ctx.issues,
+      path,
+      'not_json_safe',
+      `expected a plain object at "${path}", got a non-plain object (${Object.prototype.toString.call(value)})`,
+    );
+    return;
+  }
+  if (ancestors.has(value)) {
+    push(ctx.issues, path, 'not_json_safe', `cyclic reference detected at "${path}"`);
+    return;
+  }
+  ancestors.add(value);
+  for (const key of Object.keys(value)) {
+    checkJsonSafe(value[key], `${path}.${key}`, ctx, ancestors);
+  }
+  ancestors.delete(value);
 }
 
 /* ------------------------------------------------------------------------- *
@@ -851,6 +932,7 @@ export function validateBook(input: unknown): ValidationResult<Book> {
   }
 
   resolveReferences(ctx);
+  checkJsonSafe(input, '$', ctx, new Set<object>());
   return finish(ctx, input);
 }
 
@@ -862,6 +944,7 @@ export function validateChapter(input: unknown): ValidationResult<Chapter> {
     return finish(ctx, input);
   }
   checkChapter(input, '$', ctx);
+  checkJsonSafe(input, '$', ctx, new Set<object>());
   return finish(ctx, input);
 }
 
@@ -869,6 +952,7 @@ export function validateChapter(input: unknown): ValidationResult<Chapter> {
 export function validateContentBlock(input: unknown): ValidationResult<ContentBlock> {
   const ctx = createContext();
   validateBlock(input, '$', ctx);
+  checkJsonSafe(input, '$', ctx, new Set<object>());
   return finish(ctx, input);
 }
 

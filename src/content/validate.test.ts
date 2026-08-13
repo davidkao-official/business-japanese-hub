@@ -344,6 +344,55 @@ describe('validateBook', () => {
     const result = expectInvalid(book);
     expectIssue(result.issues, '$.price.currency', 'invalid_format');
   });
+
+  // --- whole-tree JSON safety ---
+  it('rejects a forward-compatible unknown property containing a BigInt', () => {
+    const book = clone(sampleBook);
+    (book as unknown as Record<string, unknown>).futureMetadata = { expiresAt: 1n };
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.futureMetadata.expiresAt', 'not_json_safe');
+  });
+
+  it('rejects a forward-compatible unknown property containing a function', () => {
+    const book = clone(sampleBook);
+    (book as unknown as Record<string, unknown>).futureMetadata = { compute: () => 1 };
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.futureMetadata.compute', 'not_json_safe');
+  });
+
+  it('rejects a forward-compatible unknown property containing undefined', () => {
+    const book = clone(sampleBook);
+    (book as unknown as Record<string, unknown>).futureMetadata = { note: undefined };
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.futureMetadata.note', 'not_json_safe');
+  });
+
+  it('rejects a cyclic object', () => {
+    const book = clone(sampleBook);
+    const extra: Record<string, unknown> = {};
+    extra.self = extra;
+    (book as unknown as Record<string, unknown>).futureMetadata = extra;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.futureMetadata.self', 'not_json_safe');
+  });
+
+  it('accepts a valid unknown JSON-safe property (forward compatibility)', () => {
+    const book = clone(sampleBook);
+    (book as unknown as Record<string, unknown>).futureMetadata = {
+      note: 'ok',
+      score: 5,
+      tags: ['a', 'b'],
+      nested: { enabled: true, count: 0, nullable: null },
+    };
+    const result = expectValid(book);
+    // The unknown property is preserved, not stripped.
+    expect((result as unknown as Record<string, unknown>).futureMetadata).toEqual({
+      note: 'ok',
+      score: 5,
+      tags: ['a', 'b'],
+      nested: { enabled: true, count: 0, nullable: null },
+    });
+  });
 });
 
 describe('validateChapter / validateContentBlock', () => {
