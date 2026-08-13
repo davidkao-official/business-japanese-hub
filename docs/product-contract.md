@@ -134,4 +134,4 @@ Business Japanese Hub 是一個 **premium、web-first 的數位出版與學習�
 
 ---
 
-*相關文件：`README.md`（專案入口）、`docs/content-model.md`（內容資料模型）。*
+*相關文件：`README.md`（專案入口）、`docs/content-model.md`（內容資料模型）、`docs/ui-ux-research.md`（UI/UX 設計方向，§8 的具體化）。*

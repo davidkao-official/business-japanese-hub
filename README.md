@@ -8,6 +8,7 @@ Business Japanese Hub 是 premium、web-first 的數位出版與學習平台，�
 
 - **[`docs/product-contract.md`](docs/product-contract.md)** — durable product contract。產品定位、受眾、商業模型、平台 abstraction、P0 優先級、payment 決策、MVP non-goals 的 canonical source of truth。
 - **[`docs/content-model.md`](docs/content-model.md)** — 內容資料模型。`Book → Chapter → Content Blocks` 的具體定義與結構（由並行工作產出）。
+- **[`docs/ui-ux-research.md`](docs/ui-ux-research.md)** — UI/UX 設計方向研究（canonical）。`Quiet Editorial Modernism` 設計方向、日本文排版規格、design tokens、content-block rendering grammar、anti-patterns，以及 #5 Universal Reader 的 measurable baseline。
 
 ## 技術方向
 
