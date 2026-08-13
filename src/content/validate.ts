@@ -11,6 +11,7 @@
  */
 
 import { isValidBcp47Tag } from './bcp47';
+import { isCurrentIso4217Code } from './iso4217';
 import {
   BLOCK_TYPES,
   CALLOUT_KINDS,
@@ -73,9 +74,6 @@ const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 /** `publication.releasedAt`: date-only ISO 8601 (YYYY-MM-DD). */
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-/** `price.currency`: uppercase ISO 4217 3-letter code. */
-const ISO4217_PATTERN = /^[A-Z]{3}$/;
-
 type FormatValidator = (value: string) => boolean;
 
 const isSlugFormat: FormatValidator = (value) => SLUG_PATTERN.test(value);
@@ -83,18 +81,16 @@ const isSlugFormat: FormatValidator = (value) => SLUG_PATTERN.test(value);
 /** `language`: full BCP-47 language tag (RFC 5646 structural grammar; see ./bcp47). */
 const isBcp47Format: FormatValidator = (value) => isValidBcp47Tag(value);
 
-const isIso4217Format: FormatValidator = (value) => ISO4217_PATTERN.test(value);
+const isIso4217Format: FormatValidator = (value) => isCurrentIso4217Code(value);
 
 /** Real-calendar check for a date-only ISO 8601 string (rejects e.g. 2026-02-30). */
 function isIsoDateFormat(value: string): boolean {
   if (!ISO_DATE_PATTERN.test(value)) return false;
   const [year, month, day] = value.split('-').map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
+  if (month < 1 || month > 12 || day < 1) return false;
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= daysInMonth[month - 1]!;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -1071,6 +1067,22 @@ function runSchemaPhase(phase: () => void, ctx: ValidationContext): void {
  * serialization of the validated value.
  */
 function checkSerializable(input: unknown, ctx: ValidationContext): void {
+  // A Proxy can emulate a plain object during descriptor/schema inspection but
+  // change later reads. The structured-clone algorithm rejects Proxy objects at
+  // any depth, giving this zero-dependency validator a reliable way to keep the
+  // successful result within its promised plain-data contract.
+  try {
+    structuredClone(input);
+  } catch {
+    push(
+      ctx.issues,
+      '$',
+      'not_json_safe',
+      'value cannot be cloned as stable JSON-safe plain data',
+    );
+    ctx.unsafeToRead = true;
+    return;
+  }
   try {
     if (exposesInvocableToJSON(input, new Set<object>())) {
       push(

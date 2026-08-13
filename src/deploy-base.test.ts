@@ -15,6 +15,12 @@ import { join } from 'node:path';
  * would 404 once the host serves index.html as the SPA fallback).
  */
 describe('deployment base contract', () => {
+  it('keeps visual colors and stroke widths centralized in design tokens', () => {
+    const globalStyles = readFileSync('src/styles/global.css', 'utf8');
+    expect(globalStyles).not.toMatch(/#[0-9a-f]{3,8}\b|\brgba?\(|\bhsla?\(/i);
+    expect(globalStyles).not.toMatch(/(?:border(?:-(?:top|right|bottom|left))?|text-decoration-thickness):\s*[12]px\b/);
+  });
+
   it('emits absolute asset URLs so nested routes do not rely on document-relative assets', async () => {
     const outDir = mkdtempSync(join(tmpdir(), 'bjh-deploy-base-'));
     try {

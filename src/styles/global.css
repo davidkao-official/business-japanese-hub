@@ -68,12 +68,12 @@ p {
 a {
   color: inherit;
   text-decoration: underline;
-  text-decoration-thickness: 1px;
+  text-decoration-thickness: var(--stroke-thin);
   text-underline-offset: 0.2em;
 }
 
 a:hover {
-  text-decoration-thickness: 2px;
+  text-decoration-thickness: var(--stroke-medium);
 }
 
 img,
@@ -159,7 +159,7 @@ ol {
   z-index: var(--z-skip-link);
   padding: var(--space-3) var(--space-4);
   background: var(--color-surface);
-  border: 1px solid var(--color-border-strong);
+  border: var(--stroke-thin) solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   font-weight: var(--font-weight-medium);
 }
@@ -175,7 +175,7 @@ ol {
  * Header
  * --------------------------------------------------------------- */
 .site-header {
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: var(--stroke-thin) solid var(--color-border);
   background: var(--color-bg-elevated);
 }
 
@@ -234,7 +234,7 @@ ol {
  * --------------------------------------------------------------- */
 .site-footer {
   margin-top: var(--space-8);
-  border-top: 1px solid var(--color-border);
+  border-top: var(--stroke-thin) solid var(--color-border);
   background: var(--color-surface-muted);
 }
 

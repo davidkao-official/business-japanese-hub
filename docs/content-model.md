@@ -85,7 +85,7 @@ Book
 - **Cover**：`{ src✔, alt✔, caption?, credit?, width?, height? }`。`width`／`height` 為正整數。
 - **Edition**：`{ number✔, label?, year? }`。`number` 為整數 ≥ 1。
 - **PublicationState**：`{ status✔, releasedAt? }`。`status` ∈ `draft | review | published | archived`；`releasedAt` 為 date-only ISO 8601 字串（`YYYY-MM-DD`，例如 `"2026-04-01"`），並驗證為真實曆日。
-- **Price**：`{ tier✔, amount?, currency? }`。`tier` ∈ `free | preview | paid`；`amount` 為 ≥ 0 的有限數字（僅顯示用途，不做金額運算）；`currency` 為大寫 3 碼 ISO 4217（例如 `"JPY"`）。
+- **Price**：`{ tier✔, amount?, currency? }`。`tier` ∈ `free | preview | paid`；`amount` 為 ≥ 0 的有限數字（僅顯示用途，不做金額運算）；`currency` 必須是 validator 支援的 current ISO 4217 List One 貨幣／fund identifier（例如 `"JPY"`；集合來源與 snapshot 日期見 `src/content/iso4217.ts`）。
 - **Audience**：`{ levels?, languages?, description? }`。`levels`／`languages` 為選用字串陣列；若有元素則每個元素不可為空（陣列本身可為空）。
 - **Difficulty**：`{ level✔, label?, description? }`。`level` ∈ 1–5（1 最易、5 最難）。
 - **TableOfContents**：`{ entries: { chapterId✔, title✔ }[] }`；非空，`chapterId` 必須指向既存章節。
@@ -164,9 +164,9 @@ Book
 - **結構約束**：table 每列欄數必須等於欄標題數；章節非空；章節 slug 唯一。
 - **數字一律為有限值**：所有 numeric 欄位拒絕 `NaN`／`Infinity`／`-Infinity`（`invalid_number`），確保內容可被 JSON 安全序列化。
 - **必填陣列非空**：`doDont.do`／`doDont.dont`／comparison row 的 `points` 與其他必填陣列（`chapters`、`blocks`、`authors`、`columns`、`rows`、TOC `entries`）不得為空（`missing_items`）。
-- **文件化格式**：`slug`（URL-safe single segment）、`language`（BCP-47）、`publication.releasedAt`（date-only ISO 8601）、`price.currency`（大寫 3 碼 ISO 4217）；不符時回傳 `invalid_format`。
+- **文件化格式**：`slug`（URL-safe single segment）、`language`（BCP-47）、`publication.releasedAt`（date-only ISO 8601）、`price.currency`（current ISO 4217 List One identifier）；不符時回傳 `invalid_format`。
 - **未知的額外欄位一律保留、不報錯**：這是 forward-compat 策略（見 §5）。因此「選用欄位的拼字錯誤」可能不會被抓到——這是為了相容未來版本而刻意接受的取捨；必填欄位拼錯仍會被 `missing_field` 抓到。但保留的未知 property 仍必須是 **JSON-safe plain data**（見下方「整棵 tree 必須 JSON-safe」）。
-- **整棵 tree 必須 JSON-safe**：在成功回傳 validated value 前，validator 會遞迴走訪全部值（含未知的 forward-compatible property），拒絕 `BigInt`／`undefined`／`function`／`symbol`／`NaN`／`±Infinity`／循環引用／非 plain object（`not_json_safe`）。未知但 JSON-safe 的 property 照常保留，forward compatibility 不變。
+- **整棵 tree 必須 JSON-safe plain data**：在成功回傳 validated value 前，validator 會遞迴走訪全部值（含未知的 forward-compatible property），拒絕 `BigInt`／`undefined`／`function`／`symbol`／`NaN`／`±Infinity`／循環引用／非 plain object／Proxy（`not_json_safe`）。未知但 JSON-safe 的 property 照常保留，forward compatibility 不變。
 - **Deterministic**：issue 依文件順序產生，cross-reference 檢查在結構走訪後進行；相同輸入永遠產生相同的 issue 清單（測試已驗證）。
 
 ### 4.4 使用時機

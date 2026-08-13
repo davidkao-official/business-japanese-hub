@@ -562,6 +562,24 @@ describe('validateBook', () => {
     }
   });
 
+  it('rejects an otherwise transparent Proxy as unstable non-plain data', () => {
+    const result = validateBook(new Proxy(clone(sampleBook), {}));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expectIssue(result.issues, '$', 'not_json_safe');
+    }
+  });
+
+  it('rejects an otherwise transparent nested Proxy', () => {
+    const book = clone(sampleBook);
+    book.chapters[0] = new Proxy(book.chapters[0]!, {});
+    const result = validateBook(book);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expectIssue(result.issues, '$', 'not_json_safe');
+    }
+  });
+
   it('rejects a Proxy whose toJSON get rewrites serialization (validateChapter)', () => {
     const hostile = new Proxy(clone(sampleBook.chapters[0]!), {
       get(target, prop) {
@@ -712,11 +730,41 @@ describe('validateBook', () => {
     expectIssue(result.issues, '$.publication.releasedAt', 'invalid_format');
   });
 
+  it('accepts real date-only values in years 0000 through 0099', () => {
+    for (const releasedAt of ['0000-02-29', '0099-12-31']) {
+      const book = clone(sampleBook);
+      (bookAt(book).publication as { releasedAt: string }).releasedAt = releasedAt;
+      expectValid(book);
+    }
+  });
+
+  it('rejects impossible early-year date-only values', () => {
+    const book = clone(sampleBook);
+    (bookAt(book).publication as { releasedAt: string }).releasedAt = '0001-02-29';
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.publication.releasedAt', 'invalid_format');
+  });
+
   it('rejects a currency that is not an uppercase ISO 4217 code', () => {
     const book = clone(sampleBook);
     (bookAt(book).price as { currency: string }).currency = 'jpy';
     const result = expectInvalid(book);
     expectIssue(result.issues, '$.price.currency', 'invalid_format');
+  });
+
+  it('rejects an unassigned uppercase currency identifier', () => {
+    const book = clone(sampleBook);
+    (bookAt(book).price as { currency: string }).currency = 'AAA';
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.price.currency', 'invalid_format');
+  });
+
+  it('accepts current ISO 4217 currency and fund identifiers', () => {
+    for (const currency of ['JPY', 'USD', 'XAD', 'XTS']) {
+      const book = clone(sampleBook);
+      (bookAt(book).price as { currency: string }).currency = currency;
+      expectValid(book);
+    }
   });
 
   // --- whole-tree JSON safety ---
