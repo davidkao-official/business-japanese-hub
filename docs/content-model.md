@@ -11,7 +11,7 @@
 
 內容模型是固定的三層階層，對應產品的核心抽象（contract §5）：
 
-```
+```text
 Book
  └── Chapter[]          （有序章節）
       └── ContentBlock[] （有序內容單元）
@@ -39,10 +39,10 @@ Book
 | --- | --- | --- | --- |
 | `schemaVersion` | `typeof SCHEMA_VERSION` | ✔ | 必須等於 `SCHEMA_VERSION`（見 §5）。 |
 | `id` | `string` | ✔ | 穩定且全書唯一（含章節與 block 的 id 共用同一個 namespace）。 |
-| `slug` | `string` | ✔ | URL-safe slug，用於 routing。 |
+| `slug` | `string` | ✔ | URL-safe single path segment（小寫字母、數字、以單一 `-` 分隔），用於 routing。 |
 | `title` | `string` | ✔ | 書名。 |
 | `subtitle` | `string` | | 副標。 |
-| `language` | `string` | ✔ | 主要內容語言，BCP-47（例如 `"ja"`）。 |
+| `language` | `string` | ✔ | 主要內容語言，BCP-47 language tag（例如 `"ja"`、`"zh-TW"`）。 |
 | `description` | `string` | | 短描述／行銷文案。 |
 | `authors` | `Author[]` | ✔ | 非空；作者 metadata（見 2.4）。 |
 | `cover` | `Cover` | | 封面 metadata（見 2.4）。 |
@@ -60,7 +60,7 @@ Book
 | 欄位 | 型別 | 必填 | 說明 |
 | --- | --- | --- | --- |
 | `id` | `string` | ✔ | 全書唯一。 |
-| `slug` | `string` | ✔ | 書內唯一、URL-safe。 |
+| `slug` | `string` | ✔ | 書內唯一、URL-safe single path segment（小寫字母、數字、以單一 `-` 分隔）。 |
 | `order` | `number` | ✔ | 1 起始的顯示順序（整數 ≥ 1）。 |
 | `title` | `string` | ✔ | 章名。 |
 | `subtitle` | `string` | | 副標。 |
@@ -84,8 +84,8 @@ Book
 - **Author**：`{ id?, name✔, role?, bio?, website? }`。`name` 必填非空；`id` 為選用、不與全書 id namespace 衝突檢查（獨立 namespace，供 byline 引用）。
 - **Cover**：`{ src✔, alt✔, caption?, credit?, width?, height? }`。`width`／`height` 為正整數。
 - **Edition**：`{ number✔, label?, year? }`。`number` 為整數 ≥ 1。
-- **PublicationState**：`{ status✔, releasedAt? }`。`status` ∈ `draft | review | published | archived`；`releasedAt` 為 ISO 8601 日期字串。
-- **Price**：`{ tier✔, amount?, currency? }`。`tier` ∈ `free | preview | paid`；`amount` 為 ≥ 0 的數字，表示主要貨幣單位（僅顯示用途，不做金額運算）；`currency` 為 ISO 4217（例如 `"JPY"`）。
+- **PublicationState**：`{ status✔, releasedAt? }`。`status` ∈ `draft | review | published | archived`；`releasedAt` 為 date-only ISO 8601 字串（`YYYY-MM-DD`，例如 `"2026-04-01"`），並驗證為真實曆日。
+- **Price**：`{ tier✔, amount?, currency? }`。`tier` ∈ `free | preview | paid`；`amount` 為 ≥ 0 的有限數字（僅顯示用途，不做金額運算）；`currency` 為大寫 3 碼 ISO 4217（例如 `"JPY"`）。
 - **Audience**：`{ levels?, languages?, description? }`。`levels`／`languages` 為非空字串陣列。
 - **Difficulty**：`{ level✔, label?, description? }`。`level` ∈ 1–5（1 最易、5 最難）。
 - **TableOfContents**：`{ entries: { chapterId✔, title✔ }[] }`；非空，`chapterId` 必須指向既存章節。
@@ -107,9 +107,9 @@ Book
 | `vocabulary` | 詞彙／術語 | `term✔`、`reading?`、`meaning✔`、`partOfSpeech?`、`example?` |
 | `dialogue` | 對話（例如會議腳本） | `context?`、`lines✔`（非空；每行 `speaker✔`/`text✔`/`note?`） |
 | `example` | 用法例句 | `text✔`、`translation?`、`note?` |
-| `comparison` | 並排比較 | `title?`、`rows✔`（非空；每列 `label✔`/`points✔` 字串陣列） |
+| `comparison` | 並排比較 | `title?`、`rows✔`（非空；每列 `label✔`/`points✔`（非空字串陣列）） |
 | `caseStudy` | 情境案例 | `title?`、`scenario✔`、`questions?`、`outcome?` |
-| `doDont` | Do／Don't 檢查表 | `title?`、`do✔`（字串陣列）、`dont✔`（字串陣列） |
+| `doDont` | Do／Don't 檢查表 | `title?`、`do✔`（非空字串陣列）、`dont✔`（非空字串陣列） |
 | `exercise` | 練習／測驗 | `question✔`、`hint?`、`options?`、`answer?`、`explanation?` |
 | `authorNote` | 作者／專家註記 | `author?`、`title?`、`text✔` |
 
@@ -133,7 +133,7 @@ Book
 
 每個問題是 `ContentIssue { path, code, message }`：
 
-- `path`：精確的 dot／bracket 路徑，例如 `chapters[0].blocks[2].text`、`tableOfContents.entries[0].chapterId`、`$.schemaVersion`（`$` 代表根）。
+- `path`：精確的 dot／bracket 路徑，統一以 `$` 為根前綴，例如 `$.chapters[0].blocks[2].text`、`$.tableOfContents.entries[0].chapterId`、`$.schemaVersion`。
 - `code`：穩定、可程式化的錯誤碼（見下表）。
 - `message`：人類可讀，含欄位名與實際值。
 
@@ -145,7 +145,8 @@ Book
 | `empty_string` | 必填且非空的字串為空。 |
 | `wrong_type` | 欄位型別錯誤。 |
 | `invalid_enum` | 值不在允許集合內（callout `kind`、heading `level`、difficulty `level`…）。 |
-| `invalid_number` | 數字不合約束（非整數、低於下限…）。 |
+| `invalid_number` | 數字不合約束（非有限值、非整數、低於下限…）。 |
+| `invalid_format` | 字串欄位不符合文件定義的格式（slug、language、releasedAt、currency）。 |
 | `unknown_block_type` | block 的 `type` 不在 `BLOCK_TYPES`。 |
 | `missing_discriminator` | block 缺少 `type` discriminator。 |
 | `row_width_mismatch` | table 某列的欄數 ≠ `columns` 長度。 |
@@ -160,6 +161,9 @@ Book
 - **id 全域唯一**：book id、所有 chapter id、所有 block id 共用單一 namespace，重複即拒絕。這為未來的 annotation／localization（以 id 附著）提供穩定的錨點。
 - **cross-reference**：`tableOfContents.entries[].chapterId` 與 `chapter.navigation.previous/next` 必須指向既存章節 id。
 - **結構約束**：table 每列欄數必須等於欄標題數；章節非空；章節 slug 唯一。
+- **數字一律為有限值**：所有 numeric 欄位拒絕 `NaN`／`Infinity`／`-Infinity`（`invalid_number`），確保內容可被 JSON 安全序列化。
+- **必填陣列非空**：`doDont.do`／`doDont.dont`／comparison row 的 `points` 與其他必填陣列（`chapters`、`blocks`、`authors`、`columns`、`rows`、TOC `entries`）不得為空（`missing_items`）。
+- **文件化格式**：`slug`（URL-safe single segment）、`language`（BCP-47）、`publication.releasedAt`（date-only ISO 8601）、`price.currency`（大寫 3 碼 ISO 4217）；不符時回傳 `invalid_format`。
 - **未知的額外欄位一律保留、不報錯**：這是 forward-compat 策略（見 §5）。因此「選用欄位的拼字錯誤」可能不會被抓到——這是為了相容未來版本而刻意接受的取捨；必填欄位拼錯仍會被 `missing_field` 抓到。
 - **Deterministic**：issue 依文件順序產生，cross-reference 檢查在結構走訪後進行；相同輸入永遠產生相同的 issue 清單（測試已驗證）。
 
@@ -184,12 +188,12 @@ Book
 - 必填 → 選用（反過來會讓舊資料缺欄位，需 migration）。
 - 重命名 discriminator 或改動 enum 集合。
 - 改變某個值的行為意義（例如 difficulty 的尺度）。
+- 新增 **block type**（discriminated union 新增成員）——舊 validator 會以 `unknown_block_type` 拒絕、舊 renderer 無法渲染該 block。
+- 新增 **enum 值**（例如 callout 新增 `kind`）——舊 validator 會以 `invalid_enum` 拒絕未知值。
 
-### 5.2 何時不 bump（non-breaking，直接新增即可）
+### 5.2 何時不 bump（non-breaking）
 
-- 新增**選用**欄位（validator 對未知欄位是 forward-compat，見 4.3）。
-- 新增 **block type**（discriminated union 新增成員）。
-- 新增 enum 值（例如 callout 新增 `kind`）。
+- 新增**選用**欄位，且**舊 consumer 可安全忽略**（validator 對未知欄位是 forward-compat，見 4.3）。
 
 ### 5.3 Migration 流程（v2 之後適用）
 
@@ -220,7 +224,7 @@ Book
 4. **測試**
    - 在 `validate.test.ts` 為新 block 增加至少一正一負案例（例如缺 `entries`、錯誤的 entry 型別）。
    - 在 `model.test.ts` 的「fixture 涵蓋所有 block type」測試會自動涵蓋新 type。
-5. **判斷是否 bump**：新增 block type 是 non-breaking（見 5.2），不 bump；若你同時移除或改動既有 block 的必填欄位，才需要 bump 並寫 migration。
+5. **bump `SCHEMA_VERSION`**：新增 block type 是 breaking change（見 §5.1），必須 bump `SCHEMA_VERSION` 並依 §5.3 提供 migration——舊 validator／renderer 無法處理新 block。若你同時移除或改動既有 block 的必填欄位，也需要 migration。
 
 新 block 的欄位請遵循既有慣例：`id`＋`type` 基底、camelCase 欄位、必填欄位使用非空字串／非空陣列、選用欄位用 `?`。
 

@@ -24,8 +24,9 @@ import type { BlockType, Book, Chapter, ContentBlock } from './types';
 /** A structured validation problem. */
 export interface ContentIssue {
   /**
-   * Dot/bracket path to the offending node, e.g. "chapters[0].blocks[2].text".
-   * The root of a Book validation is "$".
+   * Dot/bracket path to the offending node, e.g. "$.chapters[0].blocks[2].text".
+   * The root of a Book validation is "$" and every nested path keeps that root
+   * prefix, so a node always has a single canonical path spelling.
    */
   path: string;
   code: IssueCode;
@@ -41,6 +42,7 @@ export type IssueCode =
   | 'wrong_type'
   | 'invalid_enum'
   | 'invalid_number'
+  | 'invalid_format'
   | 'unknown_block_type'
   | 'missing_discriminator'
   | 'row_width_mismatch'
@@ -55,6 +57,42 @@ export type ValidationResult<T> = { ok: true; value: T } | { ok: false; issues: 
 /** Type guard: is `value` a supported block type string? */
 export function isBlockType(value: unknown): value is BlockType {
   return typeof value === 'string' && (BLOCK_TYPES as readonly string[]).includes(value);
+}
+
+/* ------------------------------------------------------------------------- *
+ * Documented serialized formats
+ * These contracts are documented in docs/content-model.md; the validator and
+ * the docs must stay in sync. Each format is intentionally small and explicit.
+ * ------------------------------------------------------------------------- */
+
+/** Book/Chapter `slug`: URL-safe single path segment (lowercase alphanumerics separated by single hyphens). */
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** `language`: BCP-47-style tag (primary language 2-8 letters, optional subtags). */
+const BCP47_PATTERN = /^[a-zA-Z]{2,8}(?:-[a-zA-Z0-9]{1,8})*$/;
+
+/** `publication.releasedAt`: date-only ISO 8601 (YYYY-MM-DD). */
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** `price.currency`: uppercase ISO 4217 3-letter code. */
+const ISO4217_PATTERN = /^[A-Z]{3}$/;
+
+type FormatValidator = (value: string) => boolean;
+
+const isSlugFormat: FormatValidator = (value) => SLUG_PATTERN.test(value);
+const isBcp47Format: FormatValidator = (value) => BCP47_PATTERN.test(value);
+const isIso4217Format: FormatValidator = (value) => ISO4217_PATTERN.test(value);
+
+/** Real-calendar check for a date-only ISO 8601 string (rejects e.g. 2026-02-30). */
+function isIsoDateFormat(value: string): boolean {
+  if (!ISO_DATE_PATTERN.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
 }
 
 /* ------------------------------------------------------------------------- *
@@ -183,6 +221,54 @@ function readOptionalString(
   return value;
 }
 
+/** Reads a required string and enforces a documented serialized format. */
+function readRequiredStringFormat(
+  record: Record<string, unknown>,
+  key: string,
+  path: string,
+  ctx: ValidationContext,
+  format: FormatValidator,
+  formatDescription: string,
+): string | null {
+  const value = readRequiredString(record, key, path, ctx, { nonEmpty: true });
+  if (value === null) return null;
+  if (!format(value)) {
+    push(
+      ctx.issues,
+      path,
+      'invalid_format',
+      `field "${key}" must be ${formatDescription}; got ${JSON.stringify(value)}`,
+    );
+    return null;
+  }
+  return value;
+}
+
+/** Validates an optional string against a documented serialized format when present. */
+function readOptionalStringFormat(
+  record: Record<string, unknown>,
+  key: string,
+  path: string,
+  ctx: ValidationContext,
+  format: FormatValidator,
+  formatDescription: string,
+): void {
+  const value = record[key];
+  if (value === undefined) return;
+  if (typeof value !== 'string') {
+    push(ctx.issues, path, 'wrong_type', `field "${key}" expected string, got ${describeType(value)}`);
+    return;
+  }
+  if (!format(value)) {
+    push(
+      ctx.issues,
+      path,
+      'invalid_format',
+      `field "${key}" must be ${formatDescription}; got ${JSON.stringify(value)}`,
+    );
+  }
+}
+
 interface NumberOpts {
   /** Require a finite integer. */
   integer?: boolean;
@@ -200,8 +286,13 @@ function readOptionalNumber(
 ): number | undefined {
   const value = record[key];
   if (value === undefined) return undefined;
-  if (typeof value !== 'number' || Number.isNaN(value)) {
+  if (typeof value !== 'number') {
     push(ctx.issues, path, 'wrong_type', `field "${key}" expected number, got ${describeType(value)}`);
+    return undefined;
+  }
+  // NaN / ±Infinity are numbers but are not JSON-safe and must be rejected.
+  if (!Number.isFinite(value)) {
+    push(ctx.issues, path, 'invalid_number', `field "${key}" must be a finite number, got ${value}`);
     return undefined;
   }
   if (opts.integer === true && !Number.isInteger(value)) {
@@ -396,8 +487,12 @@ function validateBlockRecord(record: Record<string, unknown>, path: string, ctx:
 function readHeadingLevel(record: Record<string, unknown>, path: string, ctx: ValidationContext): void {
   const level = record['level'];
   if (level === undefined) return;
-  if (typeof level !== 'number' || !Number.isInteger(level)) {
+  if (typeof level !== 'number') {
     push(ctx.issues, `${path}.level`, 'wrong_type', `field "level" expected a number, got ${describeType(level)}`);
+    return;
+  }
+  if (!Number.isInteger(level)) {
+    push(ctx.issues, `${path}.level`, 'invalid_number', `field "level" expected an integer, got ${level}`);
     return;
   }
   if (!(HEADING_LEVELS as readonly number[]).includes(level)) {
@@ -417,7 +512,7 @@ function readOptionalArrayOfStrings(
   validateStringArray(value, path, ctx, { nonEmpty: true });
 }
 
-/** Reads a required string-array field; validates each item when present. */
+/** Reads a required string-array field; rejects missing fields and empty arrays. */
 function readRequiredArrayOfStrings(
   record: Record<string, unknown>,
   key: string,
@@ -427,6 +522,10 @@ function readRequiredArrayOfStrings(
   const value = record[key];
   if (value === undefined) {
     push(ctx.issues, path, 'missing_field', `missing required field "${key}"`);
+    return;
+  }
+  if (Array.isArray(value) && value.length === 0) {
+    push(ctx.issues, path, 'missing_items', `field "${key}" must contain at least one item`);
     return;
   }
   validateStringArray(value, path, ctx, { nonEmpty: true });
@@ -504,7 +603,14 @@ function checkChapter(record: Record<string, unknown>, path: string, ctx: Valida
     if (typeof id === 'string') ctx.chapterIds.push(id);
   }
 
-  const slug = readRequiredString(record, 'slug', `${path}.slug`, ctx, { nonEmpty: true });
+  const slug = readRequiredStringFormat(
+    record,
+    'slug',
+    `${path}.slug`,
+    ctx,
+    isSlugFormat,
+    'a URL-safe single path segment (lowercase letters, digits, single hyphens)',
+  );
   if (slug !== null) {
     if (ctx.chapterSlugs.has(slug)) {
       push(ctx.issues, `${path}.slug`, 'duplicate_slug', `duplicate chapter slug "${slug}"`);
@@ -520,10 +626,10 @@ function checkChapter(record: Record<string, unknown>, path: string, ctx: Valida
   const order = record['order'];
   if (order === undefined) {
     push(ctx.issues, `${path}.order`, 'missing_field', 'missing required field "order"');
-  } else if (typeof order !== 'number' || Number.isNaN(order)) {
+  } else if (typeof order !== 'number') {
     push(ctx.issues, `${path}.order`, 'wrong_type', `field "order" expected number, got ${describeType(order)}`);
   } else if (!Number.isInteger(order) || order < 1) {
-    push(ctx.issues, `${path}.order`, 'invalid_number', 'field "order" expected an integer >= 1');
+    push(ctx.issues, `${path}.order`, 'invalid_number', `field "order" expected an integer >= 1, got ${order}`);
   }
 
   const blocks = record['blocks'];
@@ -584,11 +690,10 @@ function checkOptionalObject(
 }
 
 function checkAuthors(record: Record<string, unknown>, path: string, ctx: ValidationContext): void {
-  // `path` already includes `.authors` (callers pass `'$.authors'`), so do not re-append it.
-  const authors = readRequiredArray(record, 'authors', path, ctx, { nonEmpty: true });
+  const authors = readRequiredArray(record, 'authors', `${path}.authors`, ctx, { nonEmpty: true });
   if (authors === null) return;
   authors.forEach((author, index) => {
-    const authorPath = `${path}[${index}]`;
+    const authorPath = `${path}.authors[${index}]`;
     if (!isRecord(author)) {
       push(ctx.issues, authorPath, 'wrong_type', `expected author object, got ${describeType(author)}`);
       return;
@@ -614,10 +719,10 @@ function checkEdition(record: Record<string, unknown>, path: string, ctx: Valida
   const number = record['number'];
   if (number === undefined) {
     push(ctx.issues, `${path}.number`, 'missing_field', 'missing required field "number"');
-  } else if (typeof number !== 'number' || Number.isNaN(number)) {
+  } else if (typeof number !== 'number') {
     push(ctx.issues, `${path}.number`, 'wrong_type', `field "number" expected number, got ${describeType(number)}`);
   } else if (!Number.isInteger(number) || number < 1) {
-    push(ctx.issues, `${path}.number`, 'invalid_number', 'field "number" expected an integer >= 1');
+    push(ctx.issues, `${path}.number`, 'invalid_number', `field "number" expected an integer >= 1, got ${number}`);
   }
   readOptionalString(record, 'label', `${path}.label`, ctx);
   readOptionalNumber(record, 'year', `${path}.year`, ctx, { integer: true });
@@ -625,13 +730,13 @@ function checkEdition(record: Record<string, unknown>, path: string, ctx: Valida
 
 function checkPublication(record: Record<string, unknown>, path: string, ctx: ValidationContext): void {
   readRequiredStringEnum(record, 'status', PUBLICATION_STATUSES, `${path}.status`, ctx);
-  readOptionalString(record, 'releasedAt', `${path}.releasedAt`, ctx);
+  readOptionalStringFormat(record, 'releasedAt', `${path}.releasedAt`, ctx, isIsoDateFormat, 'an ISO 8601 date (YYYY-MM-DD)');
 }
 
 function checkPrice(record: Record<string, unknown>, path: string, ctx: ValidationContext): void {
   readRequiredStringEnum(record, 'tier', PRICE_TIERS, `${path}.tier`, ctx);
   readOptionalNumber(record, 'amount', `${path}.amount`, ctx, { min: 0 });
-  readOptionalString(record, 'currency', `${path}.currency`, ctx);
+  readOptionalStringFormat(record, 'currency', `${path}.currency`, ctx, isIso4217Format, 'an uppercase 3-letter ISO 4217 currency code');
 }
 
 function checkAudience(record: Record<string, unknown>, path: string, ctx: ValidationContext): void {
@@ -644,8 +749,10 @@ function checkDifficulty(record: Record<string, unknown>, path: string, ctx: Val
   const level = record['level'];
   if (level === undefined) {
     push(ctx.issues, `${path}.level`, 'missing_field', 'missing required field "level"');
-  } else if (typeof level !== 'number' || !Number.isInteger(level)) {
+  } else if (typeof level !== 'number') {
     push(ctx.issues, `${path}.level`, 'wrong_type', `field "level" expected a number, got ${describeType(level)}`);
+  } else if (!Number.isInteger(level)) {
+    push(ctx.issues, `${path}.level`, 'invalid_number', `field "level" expected an integer, got ${level}`);
   } else if (!(DIFFICULTY_LEVELS as readonly number[]).includes(level)) {
     push(ctx.issues, `${path}.level`, 'invalid_enum', `field "level" must be an integer between ${DIFFICULTY_LEVELS[0]} and ${DIFFICULTY_LEVELS[DIFFICULTY_LEVELS.length - 1]}; got ${level}`);
   }
@@ -708,13 +815,13 @@ export function validateBook(input: unknown): ValidationResult<Book> {
 
   checkId(input, '$', ctx);
 
-  readRequiredString(input, 'slug', '$.slug', ctx, { nonEmpty: true });
+  readRequiredStringFormat(input, 'slug', '$.slug', ctx, isSlugFormat, 'a URL-safe single path segment (lowercase letters, digits, single hyphens)');
   readRequiredString(input, 'title', '$.title', ctx, { nonEmpty: true });
   readOptionalString(input, 'subtitle', '$.subtitle', ctx);
-  readRequiredString(input, 'language', '$.language', ctx, { nonEmpty: true });
+  readRequiredStringFormat(input, 'language', '$.language', ctx, isBcp47Format, 'a BCP-47 language tag');
   readOptionalString(input, 'description', '$.description', ctx);
 
-  checkAuthors(input, '$.authors', ctx);
+  checkAuthors(input, '$', ctx);
   checkOptionalObject(input, 'cover', '$.cover', ctx, checkCover);
   checkOptionalObject(input, 'edition', '$.edition', ctx, checkEdition);
   checkOptionalObject(input, 'publication', '$.publication', ctx, checkPublication);
@@ -734,7 +841,7 @@ export function validateBook(input: unknown): ValidationResult<Book> {
     push(ctx.issues, '$.chapters', 'missing_items', 'field "chapters" must contain at least one chapter');
   } else {
     chapters.forEach((chapter, index) => {
-      const chapterPath = `chapters[${index}]`;
+      const chapterPath = `$.chapters[${index}]`;
       if (!isRecord(chapter)) {
         push(ctx.issues, chapterPath, 'wrong_type', `expected chapter object, got ${describeType(chapter)}`);
         return;

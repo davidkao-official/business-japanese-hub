@@ -20,6 +20,12 @@ describe('content model', () => {
 
   it('the sample fixture passes validation', () => {
     const result = validateBook(sampleBook);
+    if (!result.ok) {
+      throw new Error(
+        'sample fixture failed validation:\n' +
+          result.issues.map((issue) => `${issue.path} [${issue.code}] ${issue.message}`).join('\n'),
+      );
+    }
     expect(result.ok).toBe(true);
   });
 

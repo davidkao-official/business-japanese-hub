@@ -38,7 +38,7 @@ body {
   background-color: var(--color-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
+  text-rendering: optimizelegibility;
 }
 
 /* Japanese typography baseline — ensure comfortable reading rhythm for
@@ -260,7 +260,7 @@ ol {
 }
 
 .page__lead {
-  max-width: 60ch;
+  max-width: var(--measure-reading);
   color: var(--color-text-muted);
 }
 

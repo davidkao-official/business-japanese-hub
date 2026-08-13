@@ -99,49 +99,49 @@ describe('validateBook', () => {
     const book = clone(sampleBook);
     blockAt(book, 0, 0).id = sampleBook.id;
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[0].blocks[0].id', 'duplicate_id');
+    expectIssue(result.issues, '$.chapters[0].blocks[0].id', 'duplicate_id');
   });
 
   it('rejects a block missing its type discriminator', () => {
     const book = clone(sampleBook);
     delete blockAt(book, 0, 1).type;
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[0].blocks[1].type', 'missing_discriminator');
+    expectIssue(result.issues, '$.chapters[0].blocks[1].type', 'missing_discriminator');
   });
 
   it('rejects an unknown block type', () => {
     const book = clone(sampleBook);
     blockAt(book, 0, 1).type = 'sparkle';
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[0].blocks[1].type', 'unknown_block_type');
+    expectIssue(result.issues, '$.chapters[0].blocks[1].type', 'unknown_block_type');
   });
 
   it('rejects a paragraph missing its required text', () => {
     const book = clone(sampleBook);
     delete blockAt(book, 0, 1).text;
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[0].blocks[1].text', 'missing_field');
+    expectIssue(result.issues, '$.chapters[0].blocks[1].text', 'missing_field');
   });
 
   it('rejects a paragraph whose text is the wrong type', () => {
     const book = clone(sampleBook);
     blockAt(book, 0, 1).text = 42;
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[0].blocks[1].text', 'wrong_type');
+    expectIssue(result.issues, '$.chapters[0].blocks[1].text', 'wrong_type');
   });
 
   it('rejects a callout with an invalid kind', () => {
     const book = clone(sampleBook);
     blockAt(book, 0, 2).kind = 'info2';
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[0].blocks[2].kind', 'invalid_enum');
+    expectIssue(result.issues, '$.chapters[0].blocks[2].kind', 'invalid_enum');
   });
 
   it('rejects a heading with an out-of-range level', () => {
     const book = clone(sampleBook);
     blockAt(book, 0, 0).level = 5;
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[0].blocks[0].level', 'invalid_enum');
+    expectIssue(result.issues, '$.chapters[0].blocks[0].level', 'invalid_enum');
   });
 
   it('rejects a table row whose width does not match the columns', () => {
@@ -150,14 +150,14 @@ describe('validateBook', () => {
     const rows = table.rows as unknown[][];
     (rows[0] as unknown[]).push('extra');
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[1].blocks[4].rows[0]', 'row_width_mismatch');
+    expectIssue(result.issues, '$.chapters[1].blocks[4].rows[0]', 'row_width_mismatch');
   });
 
   it('rejects a dialogue missing its lines', () => {
     const book = clone(sampleBook);
     delete blockAt(book, 1, 2).lines;
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[1].blocks[2].lines', 'missing_field');
+    expectIssue(result.issues, '$.chapters[1].blocks[2].lines', 'missing_field');
   });
 
   it('rejects a dialogue line missing its speaker', () => {
@@ -166,21 +166,21 @@ describe('validateBook', () => {
     const lines = dialogue.lines as unknown[];
     delete (lines[0] as Record<string, unknown>).speaker;
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[1].blocks[2].lines[0].speaker', 'missing_field');
+    expectIssue(result.issues, '$.chapters[1].blocks[2].lines[0].speaker', 'missing_field');
   });
 
   it('rejects an exercise missing its question', () => {
     const book = clone(sampleBook);
     delete blockAt(book, 2, 1).question;
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[2].blocks[1].question', 'missing_field');
+    expectIssue(result.issues, '$.chapters[2].blocks[1].question', 'missing_field');
   });
 
   it('rejects a chapter with an empty blocks array', () => {
     const book = clone(sampleBook);
     (bookAt(book).chapters[1] as unknown as { blocks: unknown[] }).blocks = [];
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[1].blocks', 'missing_items');
+    expectIssue(result.issues, '$.chapters[1].blocks', 'missing_items');
   });
 
   it('rejects a book with no chapters', () => {
@@ -194,7 +194,7 @@ describe('validateBook', () => {
     const book = clone(sampleBook);
     (bookAt(book).chapters[1] as unknown as { slug: string }).slug = bookAt(book).chapters[0]!.slug;
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[1].slug', 'duplicate_slug');
+    expectIssue(result.issues, '$.chapters[1].slug', 'duplicate_slug');
   });
 
   it('rejects a table of contents entry referencing an unknown chapter', () => {
@@ -208,7 +208,7 @@ describe('validateBook', () => {
     const book = clone(sampleBook);
     (bookAt(book).chapters[0] as unknown as { navigation: { next: string } }).navigation = { next: 'missing-chapter' };
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[0].navigation.next', 'reference_not_found');
+    expectIssue(result.issues, '$.chapters[0].navigation.next', 'reference_not_found');
   });
 
   it('rejects an empty authors array', () => {
@@ -231,7 +231,7 @@ describe('validateBook', () => {
     const lines = dialogue.lines as unknown[];
     (lines[1] as Record<string, unknown>).text = true;
     const result = expectInvalid(book);
-    expectIssue(result.issues, 'chapters[1].blocks[2].lines[1].text', 'wrong_type');
+    expectIssue(result.issues, '$.chapters[1].blocks[2].lines[1].text', 'wrong_type');
   });
 
   it('is deterministic: the same input always yields the same issue list', () => {
@@ -251,9 +251,98 @@ describe('validateBook', () => {
     const book = clone(sampleBook);
     delete blockAt(book, 0, 1).text;
     const result = expectInvalid(book);
-    const issue = result.issues.find((i) => i.path === 'chapters[0].blocks[1].text');
+    const issue = result.issues.find((i) => i.path === '$.chapters[0].blocks[1].text');
     expect(issue).toBeDefined();
     expect(issue?.message).toContain('text');
+  });
+
+  // --- finite numbers ---
+  it('rejects price.amount: Infinity', () => {
+    const book = clone(sampleBook);
+    (bookAt(book).price as { amount: number }).amount = Infinity;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.price.amount', 'invalid_number');
+  });
+
+  it('rejects price.amount: NaN', () => {
+    const book = clone(sampleBook);
+    (bookAt(book).price as { amount: number }).amount = NaN;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.price.amount', 'invalid_number');
+  });
+
+  it('rejects a heading level of NaN', () => {
+    const book = clone(sampleBook);
+    blockAt(book, 0, 0).level = NaN;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.chapters[0].blocks[0].level', 'invalid_number');
+  });
+
+  it('rejects a chapter order of NaN', () => {
+    const book = clone(sampleBook);
+    (bookAt(book).chapters[0] as unknown as { order: number }).order = NaN;
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.chapters[0].order', 'invalid_number');
+  });
+
+  // --- required string arrays ---
+  it('rejects an empty do array on doDont', () => {
+    const book = clone(sampleBook);
+    blockAt(book, 1, 3).do = [];
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.chapters[1].blocks[3].do', 'missing_items');
+  });
+
+  it('rejects an empty dont array on doDont', () => {
+    const book = clone(sampleBook);
+    blockAt(book, 1, 3).dont = [];
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.chapters[1].blocks[3].dont', 'missing_items');
+  });
+
+  it('rejects an empty points array on a comparison row', () => {
+    const book = clone(sampleBook);
+    const comparison = blockAt(book, 0, 4);
+    const rows = comparison.rows as { points: string[] }[];
+    rows[0]!.points = [];
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.chapters[0].blocks[4].rows[0].points', 'missing_items');
+  });
+
+  // --- documented formats ---
+  it('rejects a book slug that is not a single URL-safe segment', () => {
+    const book = clone(sampleBook);
+    (book as unknown as { slug: string }).slug = 'sales/intro';
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.slug', 'invalid_format');
+  });
+
+  it('rejects a chapter slug that is not URL-safe', () => {
+    const book = clone(sampleBook);
+    (bookAt(book).chapters[1] as unknown as { slug: string }).slug = 'keigo basics';
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.chapters[1].slug', 'invalid_format');
+  });
+
+  it('rejects a non-BCP-47 book language', () => {
+    const book = clone(sampleBook);
+    (book as unknown as { language: string }).language = 'ja_JP';
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.language', 'invalid_format');
+  });
+
+  it('rejects a releasedAt that is not a date-only ISO 8601 value', () => {
+    const book = clone(sampleBook);
+    (bookAt(book).publication as { releasedAt: string }).releasedAt = '2026-02-30';
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.publication.releasedAt', 'invalid_format');
+  });
+
+  it('rejects a currency that is not an uppercase ISO 4217 code', () => {
+    const book = clone(sampleBook);
+    (bookAt(book).price as { currency: string }).currency = 'jpy';
+    const result = expectInvalid(book);
+    expectIssue(result.issues, '$.price.currency', 'invalid_format');
   });
 });
 

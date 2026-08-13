@@ -16,10 +16,14 @@
  * Current schema version of the content model.
  *
  * Semantics:
- * - Breaking changes (field removal, type change, required → optional,
- *   discriminator rename, behavioral change) bump this integer.
- * - Non-breaking additions (a new optional field, a new block type) do NOT bump
- *   it; the validator tolerates unknown extra fields for forward compatibility.
+ * - Breaking changes bump this integer: field removal, type/semantic change,
+ *   required ↔ optional, discriminator rename, behavioral change, ADDING a new
+ *   content block type, or adding an enum value. Old validators reject unknown
+ *   block discriminators and enum values, and old renderers cannot render
+ *   unknown blocks.
+ * - Non-breaking additions do NOT bump it: a new OPTIONAL field that existing
+ *   consumers can safely ignore (the validator tolerates unknown extra fields
+ *   for forward compatibility).
  */
 export const SCHEMA_VERSION = 1 as const;
 
@@ -27,7 +31,8 @@ export const SCHEMA_VERSION = 1 as const;
  * Canonical list of supported content block types.
  *
  * The vocabulary is intentionally small but extensible. To add a block type,
- * follow the steps in docs/content-model.md (§"新增一個 block type").
+ * follow the steps in docs/content-model.md (§"新增一個 block type"). Adding a
+ * block type is a BREAKING schema change and requires a `SCHEMA_VERSION` bump.
  */
 export const BLOCK_TYPES = [
   'paragraph',
@@ -252,7 +257,7 @@ export interface ChapterNavigation {
 export interface Chapter {
   /** Stable, globally unique id (see BlockBase.id). */
   id: string;
-  /** URL-safe slug, unique within the book. */
+  /** URL-safe single path segment, unique within the book. */
   slug: string;
   /** 1-based display order within the book. */
   order: number;
@@ -294,7 +299,7 @@ export interface Edition {
 
 export interface PublicationState {
   status: PublicationStatus;
-  /** ISO 8601 date string, e.g. "2026-04-01". */
+  /** Date-only ISO 8601 string (YYYY-MM-DD), e.g. "2026-04-01". */
   releasedAt?: string;
 }
 
@@ -302,7 +307,7 @@ export interface Price {
   tier: PriceTier;
   /** Display amount in the currency's major unit; not used for arithmetic. */
   amount?: number;
-  /** ISO 4217 currency code, e.g. "JPY". */
+  /** Uppercase ISO 4217 3-letter currency code, e.g. "JPY". */
   currency?: string;
 }
 
@@ -340,11 +345,11 @@ export interface Book {
   schemaVersion: typeof SCHEMA_VERSION;
   /** Stable, globally unique id (see BlockBase.id). */
   id: string;
-  /** URL-safe slug used for routing. */
+  /** URL-safe single path segment used for routing (lowercase letters, digits, single hyphens). */
   slug: string;
   title: string;
   subtitle?: string;
-  /** Primary content language as a BCP-47 code, e.g. "ja". */
+  /** Primary content language as a BCP-47 language tag, e.g. "ja". */
   language: string;
   /** Short description / sales copy. */
   description?: string;
