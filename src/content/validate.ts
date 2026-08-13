@@ -84,13 +84,58 @@ const isSlugFormat: FormatValidator = (value) => SLUG_PATTERN.test(value);
  * locale parser: `Intl.getCanonicalLocales` throws RangeError for structurally
  * malformed tags (e.g. `en-a`), which we surface as `invalid_format`.
  *
- * The platform parser rejects valid private-use tags (e.g. `x-business`), so a
- * small, well-defined private-use supplement is added first: BCP-47
- * `privateuse = "x" 1*("-" 1*8alphanum)`. This is the only hand-written rule;
- * the full grammar stays with the platform parser.
+ * The platform parser only implements Unicode locale identifiers, so two small
+ * registered-BCP-47 supplements are added first: private-use tags (e.g.
+ * `x-business`) and grandfathered tags (e.g. `i-klingon`, `en-GB-oed`, from the
+ * IANA Language Subtag Registry). These are the only hand-written rules; the
+ * full grammar stays with the platform parser.
  */
+
+/** Grandfathered tags that are exact strings (RFC 5646 §2.2.8, irregular). */
+const GRANDFATHERED_IRREGULAR = [
+  'en-gb-oed',
+  'i-ami',
+  'i-bnn',
+  'i-default',
+  'i-enochian',
+  'i-hak',
+  'i-klingon',
+  'i-lux',
+  'i-mingo',
+  'i-navajo',
+  'i-pwn',
+  'i-tao',
+  'i-tay',
+  'i-tsu',
+  'sgn-be-fr',
+  'sgn-be-nl',
+  'sgn-ch-de',
+] as const;
+
+/** Grandfathered tags that may be followed by further subtags (regular). */
+const GRANDFATHERED_REGULAR = [
+  'art-lojban',
+  'cel-gaulish',
+  'no-bok',
+  'no-nyn',
+  'zh-guoyu',
+  'zh-hakka',
+  'zh-min',
+  'zh-min-nan',
+  'zh-xiang',
+] as const;
+
+function isGrandfathered(value: string): boolean {
+  const lower = value.toLowerCase();
+  if ((GRANDFATHERED_IRREGULAR as readonly string[]).includes(lower)) return true;
+  return (GRANDFATHERED_REGULAR as readonly string[]).some(
+    (tag) => lower === tag || lower.startsWith(`${tag}-`),
+  );
+}
+
 function isBcp47Format(value: string): boolean {
-  if (/^x(?:-[a-z0-9]{1,8})+$/i.test(value)) return true;
+  if (/^x(?:-[a-z0-9]{1,8})+$/i.test(value)) return true; // private-use
+  if (isGrandfathered(value)) return true; // registered grandfathered
   try {
     return Intl.getCanonicalLocales(value).length === 1;
   } catch {
@@ -207,6 +252,7 @@ function checkJsonSafe(value: unknown, path: string, ctx: ValidationContext, anc
       const descriptor = Object.getOwnPropertyDescriptor(value, index);
       if (descriptor === undefined || !('value' in descriptor)) {
         push(ctx.issues, indexPath, 'not_json_safe', `array index ${index} is an accessor at "${indexPath}"`);
+        ctx.unsafeToRead = true;
         continue;
       }
       checkJsonSafe(descriptor.value, indexPath, ctx, ancestors);
@@ -231,6 +277,7 @@ function checkJsonSafe(value: unknown, path: string, ctx: ValidationContext, anc
       }
       if (!('value' in descriptor)) {
         push(ctx.issues, keyPath, 'not_json_safe', `accessor property (getter/setter) is not JSON-safe at "${keyPath}"`);
+        ctx.unsafeToRead = true;
         continue;
       }
       push(ctx.issues, keyPath, 'not_json_safe', `extra enumerable own property is not JSON-safe at "${keyPath}"`);
@@ -267,6 +314,7 @@ function checkJsonSafe(value: unknown, path: string, ctx: ValidationContext, anc
     }
     if (!('value' in descriptor)) {
       push(ctx.issues, childPath, 'not_json_safe', `accessor property (getter/setter) is not JSON-safe at "${childPath}"`);
+      ctx.unsafeToRead = true;
       continue;
     }
     checkJsonSafe(descriptor.value, childPath, ctx, ancestors);
@@ -290,6 +338,15 @@ interface ValidationContext {
   navigationRefs: Array<{ path: string; chapterId: string }>;
   /** Table-of-contents chapter refs collected while walking the TOC. */
   tocRefs: Array<{ path: string; chapterId: string }>;
+  /**
+   * True when reading the input for precise schema validation is unsafe: the
+   * JSON-safety preflight found an accessor property (reading it could invoke a
+   * getter), or a reflective operation failed (e.g. a Proxy trap threw). When
+   * set, the schema pass is skipped; data-value issues (NaN, Infinity, …) do
+   * not set this flag and still let the schema pass run to emit its stable
+   * issue codes (e.g. `invalid_number`).
+   */
+  unsafeToRead: boolean;
 }
 
 function createContext(): ValidationContext {
@@ -300,6 +357,7 @@ function createContext(): ValidationContext {
     chapterSlugs: new Set(),
     navigationRefs: [],
     tocRefs: [],
+    unsafeToRead: false,
   };
 }
 
@@ -975,6 +1033,28 @@ function resolveReferences(ctx: ValidationContext): void {
  * Public API
  * ------------------------------------------------------------------------- */
 
+/**
+ * Runs the whole-tree JSON-safety walk and converts any reflective-operation
+ * failure (e.g. a Proxy trap that throws during `getPrototypeOf`/`ownKeys`/
+ * `getOwnPropertyDescriptor`) into a structured `not_json_safe` failure, so the
+ * validator's non-throwing contract always holds. A trapped input is also
+ * marked unsafe to read, so the precise schema pass is skipped rather than
+ * risking another trap.
+ */
+function runJsonSafetyPreflight(input: unknown, ctx: ValidationContext): void {
+  try {
+    checkJsonSafe(input, '$', ctx, new Set<object>());
+  } catch {
+    push(
+      ctx.issues,
+      '$',
+      'not_json_safe',
+      'unable to inspect the value as JSON-safe plain data (a reflective operation threw)',
+    );
+    ctx.unsafeToRead = true;
+  }
+}
+
 /** Validates a whole Book (structure + cross-references). */
 export function validateBook(input: unknown): ValidationResult<Book> {
   const ctx = createContext();
@@ -984,13 +1064,13 @@ export function validateBook(input: unknown): ValidationResult<Book> {
   }
 
   // JSON-safety preflight: a descriptor-safe walk over the whole tree (including
-  // unknown forward-compatible properties). If the input is not plain JSON-safe
-  // data — e.g. a known field is a throwing accessor — we return a structured
-  // failure WITHOUT reading any property, so getters/setters are never invoked.
-  // Only once this passes do we run the precise structural checks below, whose
-  // property reads are then guaranteed not to trigger accessors.
-  checkJsonSafe(input, '$', ctx, new Set<object>());
-  if (ctx.issues.length > 0) return finish(ctx, input);
+  // unknown forward-compatible properties). Accessor properties (or a Proxy that
+  // throws while being inspected) make later property reads unsafe, so in that
+  // case we return a structured failure WITHOUT reading any property. Data-value
+  // issues (NaN, Infinity, …) do NOT skip the schema pass — it runs afterwards
+  // and still emits its stable issue codes (e.g. invalid_number).
+  runJsonSafetyPreflight(input, ctx);
+  if (ctx.unsafeToRead) return finish(ctx, input);
 
   const version = input['schemaVersion'];
   if (version === undefined) {
@@ -1049,8 +1129,8 @@ export function validateChapter(input: unknown): ValidationResult<Chapter> {
     push(ctx.issues, '$', 'invalid_root', `expected chapter object, got ${describeType(input)}`);
     return finish(ctx, input);
   }
-  checkJsonSafe(input, '$', ctx, new Set<object>());
-  if (ctx.issues.length > 0) return finish(ctx, input);
+  runJsonSafetyPreflight(input, ctx);
+  if (ctx.unsafeToRead) return finish(ctx, input);
   checkChapter(input, '$', ctx);
   return finish(ctx, input);
 }
@@ -1058,8 +1138,8 @@ export function validateChapter(input: unknown): ValidationResult<Chapter> {
 /** Validates a single ContentBlock in isolation. */
 export function validateContentBlock(input: unknown): ValidationResult<ContentBlock> {
   const ctx = createContext();
-  checkJsonSafe(input, '$', ctx, new Set<object>());
-  if (ctx.issues.length > 0) return finish(ctx, input);
+  runJsonSafetyPreflight(input, ctx);
+  if (ctx.unsafeToRead) return finish(ctx, input);
   validateBlock(input, '$', ctx);
   return finish(ctx, input);
 }

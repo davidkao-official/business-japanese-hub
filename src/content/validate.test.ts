@@ -256,32 +256,37 @@ describe('validateBook', () => {
     expect(issue?.message).toContain('text');
   });
 
-  // --- finite numbers (non-finite values fail the JSON-safety preflight) ---
-  it('rejects price.amount: Infinity as not_json_safe (preflight)', () => {
+  // --- finite numbers (non-finite values are data issues: both the JSON-safety
+  // preflight and the schema pass report them, preserving invalid_number) ---
+  it('rejects price.amount: Infinity as invalid_number (and not_json_safe)', () => {
     const book = clone(sampleBook);
     (bookAt(book).price as { amount: number }).amount = Infinity;
     const result = expectInvalid(book);
+    expectIssue(result.issues, '$.price.amount', 'invalid_number');
     expectIssue(result.issues, '$.price.amount', 'not_json_safe');
   });
 
-  it('rejects price.amount: NaN as not_json_safe (preflight)', () => {
+  it('rejects price.amount: NaN as invalid_number (and not_json_safe)', () => {
     const book = clone(sampleBook);
     (bookAt(book).price as { amount: number }).amount = NaN;
     const result = expectInvalid(book);
+    expectIssue(result.issues, '$.price.amount', 'invalid_number');
     expectIssue(result.issues, '$.price.amount', 'not_json_safe');
   });
 
-  it('rejects a heading level of NaN as not_json_safe (preflight)', () => {
+  it('rejects a heading level of NaN as invalid_number (and not_json_safe)', () => {
     const book = clone(sampleBook);
     blockAt(book, 0, 0).level = NaN;
     const result = expectInvalid(book);
+    expectIssue(result.issues, '$.chapters[0].blocks[0].level', 'invalid_number');
     expectIssue(result.issues, '$.chapters[0].blocks[0].level', 'not_json_safe');
   });
 
-  it('rejects a chapter order of NaN as not_json_safe (preflight)', () => {
+  it('rejects a chapter order of NaN as invalid_number (and not_json_safe)', () => {
     const book = clone(sampleBook);
     (bookAt(book).chapters[0] as unknown as { order: number }).order = NaN;
     const result = expectInvalid(book);
+    expectIssue(result.issues, '$.chapters[0].order', 'invalid_number');
     expectIssue(result.issues, '$.chapters[0].order', 'not_json_safe');
   });
 
@@ -356,6 +361,24 @@ describe('validateBook', () => {
     expectIssue(result.issues, '$.futureMetadata', 'not_json_safe');
   });
 
+  it('does not throw on a Proxy whose reflective traps throw and reports not_json_safe', () => {
+    const book = clone(sampleBook);
+    const hostile = new Proxy(
+      {},
+      {
+        getPrototypeOf() {
+          throw new Error('proxy trap must not propagate');
+        },
+      },
+    );
+    (book as unknown as Record<string, unknown>).futureMetadata = hostile;
+    const result = validateBook(book); // must not throw
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expectIssue(result.issues, '$', 'not_json_safe');
+    }
+  });
+
   it('accepts a normal dense array', () => {
     const book = clone(sampleBook);
     (book as unknown as Record<string, unknown>).futureMetadata = [{ a: 1 }, 'b', [true]];
@@ -422,6 +445,14 @@ describe('validateBook', () => {
     (book as unknown as { language: string }).language = 'x-business';
     const result = expectValid(book);
     expect((result as unknown as { language: string }).language).toBe('x-business');
+  });
+
+  it('accepts registered grandfathered BCP-47 tags', () => {
+    for (const tag of ['i-klingon', 'en-GB-oed', 'art-lojban']) {
+      const book = clone(sampleBook);
+      (book as unknown as { language: string }).language = tag;
+      expectValid(book);
+    }
   });
 
   it('rejects a malformed BCP-47 tag (extension singleton without subtag)', () => {
