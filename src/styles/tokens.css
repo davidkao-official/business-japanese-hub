@@ -172,6 +172,26 @@
   --measure-reading: 60ch; /* comfortable line measure for long-form prose */
   --z-header: 100;
   --z-skip-link: 1000;
+
+  /* ---------------------------------------------------------------
+   * Reader typography — long-form Japanese reading surface.
+   * Semantic tokens consumed by src/reader and src/styles/reader.css.
+   * The reader body is its own type system (research §3): it must not
+   * share the marketing type scale. Em values are resolved against the
+   * reader body font-size, so a user size override scales the whole
+   * surface proportionally.
+   * --------------------------------------------------------------- */
+  --font-reader-serif: var(--font-serif);
+  --font-reader-sans: var(--font-sans);
+  --reader-body-mobile: 1.0625rem; /* 17px */
+  --reader-body-desktop: 1.125rem; /* 18px */
+  --reader-leading-mobile: 1.82;
+  --reader-leading-desktop: 1.8;
+  --reader-measure: 34em; /* ~34 full-width glyphs (JLREQ cap is 40) */
+  --reader-measure-max: 40rem; /* 640px absolute ceiling */
+  --reader-gutter-mobile: 1.125rem; /* 18px */
+  --reader-gutter-desktop: 2rem; /* 32px */
+  --reader-topbar-h: 3.25rem; /* 52px touch-safe reader chrome */
 }
 
 @media (min-width: 48rem) {
