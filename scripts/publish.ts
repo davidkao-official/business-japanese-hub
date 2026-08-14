@@ -11,12 +11,14 @@
  *   5. Rewrites `current.json` — the self-contained published artifact the
  *      platform loads (rollback = point this back to a previous snapshot).
  *   6. Appends the snapshot descriptor to `history.json` (append-only log).
- *   7. Copies `books/<slug>/assets/**` to `content-dist/assets/books/<slug>/`.
+ *   7. Snapshots `books/<slug>/assets/**` to
+ *      `content-dist/assets/snapshots/<slug>/<snapshotId>/` and rebuilds the
+ *      flat `content-dist/assets/books/<slug>/` "current" copy.
  *
  * Run: `pnpm workflow:publish` (all books) or `pnpm workflow:publish --slug=keigo-essentials`
  */
 
-import { cpSync, existsSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { validateBook } from '../src/content/validate';
 import { derivePreview } from '../src/authoring/preview';
@@ -52,12 +54,22 @@ function readHistory(historyPath: string): HistoryFile {
   return { snapshots: Array.isArray(parsed.snapshots) ? parsed.snapshots : [] };
 }
 
-/** Copies `books/<slug>/assets/**` to `content-dist/assets/books/<slug>/`. */
-function copyAssets(book: LoadedBook): void {
+/**
+ * Snapshots a book's assets:
+ * - writes the immutable per-snapshot copy under
+ *   `content-dist/assets/snapshots/<slug>/<snapshotId>/` (the rollback source),
+ * - then rebuilds the flat "current" copy at
+ *   `content-dist/assets/books/<slug>/` so `current.json`'s
+ *   `/assets/books/<slug>/...` references always resolve to this revision.
+ */
+function copyAssets(book: LoadedBook, snapshotId: string): void {
   const src = join(book.bookDir, 'assets');
   if (!existsSync(src)) return;
-  const dest = join(contentDistRoot(), 'assets', 'books', book.slug);
-  cpSync(src, dest, { recursive: true });
+  const assetsRoot = join(contentDistRoot(), 'assets');
+  cpSync(src, join(assetsRoot, 'snapshots', book.slug, snapshotId), { recursive: true });
+  const flatDest = join(assetsRoot, 'books', book.slug);
+  rmSync(flatDest, { recursive: true, force: true });
+  cpSync(src, flatDest, { recursive: true });
 }
 
 function publishOne(book: LoadedBook): boolean {
@@ -104,7 +116,7 @@ function publishOne(book: LoadedBook): boolean {
   writeJson(snapshotPath, snapshot);
   writeJson(join(bookDist, 'current.json'), snapshot);
   writeJson(join(bookDist, 'history.json'), { snapshots: [...history.snapshots, descriptor] });
-  copyAssets(book);
+  copyAssets(book, descriptor.id);
 
   console.log(`ok   ${book.slug}: published -> ${descriptor.id} (released ${descriptor.releasedAt})`);
   return true;

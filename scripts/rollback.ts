@@ -8,7 +8,7 @@
  *   `pnpm workflow:rollback --slug=keigo-essentials --to=<snapshotId>`
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { contentDistRoot, writeJson } from './lib/books';
 import type { SnapshotDescriptor } from '../src/authoring/publish';
@@ -76,7 +76,17 @@ function main(): number {
   const snapshot = JSON.parse(readFileSync(snapshotPath, 'utf8'));
   writeJson(currentPath, snapshot);
 
-  console.log(`ok   ${slug}: current -> ${targetId}${currentId === undefined ? '' : ` (from ${currentId})`}`);
+  // Restore the flat "current" assets to match the rolled-back snapshot, so the
+  // published artifact is self-consistent (old content + old assets).
+  const assetsRoot = join(contentDistRoot(), 'assets');
+  const flatDest = join(assetsRoot, 'books', slug);
+  const snapshotAssets = join(assetsRoot, 'snapshots', slug, targetId);
+  rmSync(flatDest, { recursive: true, force: true });
+  if (existsSync(snapshotAssets)) {
+    cpSync(snapshotAssets, flatDest, { recursive: true });
+  }
+
+  console.log(`ok   ${slug}: current -> ${targetId}${currentId === undefined ? '' : ` (from ${currentId})`} (assets restored)`);
   console.log(`     Note: snapshots are immutable; to undo this rollback, republish.`);
   return 0;
 }

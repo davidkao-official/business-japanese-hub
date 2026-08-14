@@ -26,7 +26,8 @@ books/<slug>/assets/**      ← 書的圖片素材
   content-dist/books/<slug>/current.json   ← 平台載入的出版成品（self-contained）
   content-dist/books/<slug>/snapshots/<id>.json  ← 不可變快照
   content-dist/books/<slug>/history.json    ← 出版紀錄（append-only）
-  content-dist/assets/books/<slug>/**      ← 素材副本
+  content-dist/assets/books/<slug>/**      ← 目前出版版本的素材（publish／rollback 重建）
+  content-dist/assets/snapshots/<slug>/<snapshotId>/**  ← 每版不可變素材快照（rollback 來源）
 
             │ pnpm workflow:rollback（需要時）
             ▼
@@ -213,7 +214,7 @@ pnpm workflow:preview
 - `book.json` 內引用路徑一律寫 `/assets/books/<slug>/<檔名>`（**不是**相對路徑）：
   - 封面：`"src": "/assets/books/my-book/cover.png"`（建議 1200×800）。
   - 內容圖片（`image` block）：`"src": "/assets/books/my-book/diagram.png"`。
-- `pnpm workflow:publish` 會把 `books/<slug>/assets/**` 複製到 `content-dist/assets/books/<slug>/`，與快照一起成為出版成品。
+- `pnpm workflow:publish` 會把 `books/<slug>/assets/**` 複製到 `content-dist/assets/snapshots/<slug>/<snapshotId>/`（**每版不可變素材快照**，rollback 的來源），並重建 `content-dist/assets/books/<slug>/` 為該版的素材。`current.json` 的 `/assets/books/<slug>/...` 路徑永遠對應目前出版版本的素材。
 - 請控制檔案大小（MVPN 階段建議單張 < 500 KB），避免 `content-dist` 膨脹。
 - 新增／替換圖片後，重新執行 validate → preview → publish 即可；不需要平台程式碼改動。
 
@@ -236,7 +237,7 @@ pnpm workflow:publish --slug=keigo-essentials  # 只出版一本
 4. 寫**不可變快照** `content-dist/books/<slug>/snapshots/<slug>@e<edition>-r<revision>.json`（已存在則拒絕覆寫）。
 5. 重寫 `content-dist/books/<slug>/current.json` —— 平台載入的 self-contained 出版成品（schema `publish-snapshot-v1`）。
 6. 在 `history.json` 追加一筆快照描述（append-only log）。
-7. 複製 `books/<slug>/assets/**` → `content-dist/assets/books/<slug>/`。
+7. 快照 `books/<slug>/assets/**` → `content-dist/assets/snapshots/<slug>/<snapshotId>/`（不可變），並重建 `content-dist/assets/books/<slug>/`（目前版本素材）。
 
 快照內容：`{ schema, descriptor, preview, book }`。其中：
 
@@ -257,7 +258,7 @@ pnpm workflow:rollback --slug=keigo-essentials                    # 回到前一
 pnpm workflow:rollback --slug=keigo-essentials --to=keigo-essentials@e1-r1
 ```
 
-- 只移動 `current.json` 指標，快照保留。
+- 移動 `current.json` 指標（快照保留），並**把 `content-dist/assets/books/<slug>/` 重建為目標快照的素材**（從 `content-dist/assets/snapshots/<slug>/<snapshotId>/`），確保「舊內容 + 舊素材」一致，不會出現新舊混雜的出版成品。
 - 回滾**可逆**：再執行一次 `publish` 就會產生新 revision 的「新出版」。
 - 原始碼層級的回滾由 git 負責（作者改壞了可 revert）。
 
