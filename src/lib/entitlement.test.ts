@@ -118,6 +118,58 @@ describe('canRead — malformed references deny by default', () => {
     ).toBe(false);
   });
 
+  it('denies an empty-string boundary block id instead of granting the whole chapter', () => {
+    // Regression: `previewBoundary.blockId: ''` is a supplied, malformed id and
+    // must NOT be treated as an absent boundary (whole-chapter preview).
+    expect(
+      canRead(
+        input({
+          owned: false,
+          position: { chapterId: 'ch-2', blockId: 'ch2-blk-03' },
+          previewBoundary: { chapterId: 'ch-2', blockId: '' },
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('denies an empty-string boundary block id even for the chapter-start position', () => {
+    expect(
+      canRead(
+        input({
+          owned: false,
+          position: { chapterId: 'ch-2' },
+          previewBoundary: { chapterId: 'ch-2', blockId: '' },
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('denies a null boundary block id (malformed) instead of granting the whole chapter', () => {
+    // `null` is outside the `blockId?: string` contract; treat it as malformed
+    // and deny rather than interpreting it as "no block prefix".
+    expect(
+      canRead(
+        input({
+          owned: false,
+          position: { chapterId: 'ch-2', blockId: 'ch2-blk-03' },
+          previewBoundary: { chapterId: 'ch-2', blockId: null as unknown as string },
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('denies an empty-string position block id', () => {
+    expect(
+      canRead(
+        input({
+          owned: false,
+          position: { chapterId: 'ch-2', blockId: '' },
+          previewBoundary: boundary,
+        }),
+      ),
+    ).toBe(false);
+  });
+
   it('denies when the position chapter is unknown', () => {
     expect(
       canRead(

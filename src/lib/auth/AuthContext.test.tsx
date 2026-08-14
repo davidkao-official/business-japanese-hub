@@ -25,6 +25,33 @@ function renderAuth(authClient: AuthClient) {
   });
 }
 
+/** Auth client whose `getSession` resolution can be deferred past auth events. */
+function createDeferredAuthClient() {
+  let resolveSession!: (user: SessionUser | null) => void;
+  const listeners: Array<(user: SessionUser | null) => void> = [];
+  const authClient: AuthClient = {
+    getSession: vi.fn(
+      () =>
+        new Promise<SessionUser | null>((resolve) => {
+          resolveSession = resolve;
+        }),
+    ),
+    signInWithPassword: vi.fn().mockResolvedValue({
+      user: { id: 'u-1', email: 'reader@example.com' },
+    }),
+    signOut: vi.fn(),
+    onAuthStateChange: vi.fn((listener) => {
+      listeners.push(listener);
+      return () => {};
+    }),
+  };
+  return {
+    authClient,
+    listeners,
+    resolveSession: (user: SessionUser | null) => resolveSession(user),
+  };
+}
+
 describe('AuthProvider', () => {
   it('restores the persisted session on mount', async () => {
     const { authClient } = createMockAuthClient({ id: 'u-1', email: 'reader@example.com' });
@@ -87,6 +114,66 @@ describe('AuthProvider', () => {
     });
 
     expect(result.current.user).toEqual({ id: 'u-2', email: 'other@example.com' });
+  });
+
+  it('does not let a delayed session restore overwrite a newer sign-in event', async () => {
+    // Regression: an auth-state event that fires before the async getSession
+    // resolves must win over the (stale) restored session.
+    const { authClient, listeners, resolveSession } = createDeferredAuthClient();
+    const { result } = renderAuth(authClient);
+
+    // A newer sign-in arrives while session restore is still in flight.
+    act(() => {
+      listeners[0]?.({ id: 'u-2', email: 'other@example.com' });
+    });
+    expect(result.current.user).toEqual({ id: 'u-2', email: 'other@example.com' });
+
+    // The stale, delayed restore then resolves with no session.
+    await act(async () => {
+      resolveSession(null);
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.user).toEqual({ id: 'u-2', email: 'other@example.com' });
+  });
+
+  it('does not let a delayed session restore resurrect a signed-out user', async () => {
+    // Regression: a sign-out event that fires before getSession resolves must
+    // not be clobbered by the stale persisted session.
+    const { authClient, listeners, resolveSession } = createDeferredAuthClient();
+    const { result } = renderAuth(authClient);
+
+    act(() => {
+      listeners[0]?.(null);
+    });
+    expect(result.current.user).toBeNull();
+
+    await act(async () => {
+      resolveSession({ id: 'u-1', email: 'reader@example.com' });
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.user).toBeNull();
+  });
+
+  it('does not let a delayed session restore clobber a sign-in that raced it', async () => {
+    // Regression: a user-initiated sign-in (even without an onAuthStateChange
+    // emission from the adapter) must not be overwritten by the stale restore.
+    const { authClient, resolveSession } = createDeferredAuthClient();
+    const { result } = renderAuth(authClient);
+
+    await act(async () => {
+      await result.current.signIn('reader@example.com', 'secret');
+    });
+    expect(result.current.user).toEqual({ id: 'u-1', email: 'reader@example.com' });
+
+    // The delayed restore then resolves with no session.
+    await act(async () => {
+      resolveSession(null);
+    });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.user).toEqual({ id: 'u-1', email: 'reader@example.com' });
   });
 
   it('does not crash when session restore fails; degrades to signed-out', async () => {

@@ -280,13 +280,15 @@ WCAG 2.2 AA 的 pointer target minimum 是 24×24 CSS px；44×44 是 WCAG enhan
 
 spacing 與 paragraph controls 先在 architecture 上可承受，不必把設定頁做成 typographer console。
 
-**不建議顯示固定「Page 41 / 137」。** 使用者改 font size、measure、device width 後，reflowed Web Reader 的 page identity 沒有穩定意義；Apple Books 本身允許廣泛改變 typography 與 layout，也顯示 reader layout 本質上可變。**resume state 以 stable `Chapter.id` + block id 為 key**，再搭配 offset 語意（「章節 id + 章內 block 位置，可選 block 內字元／段落 offset」），百分比從中推導。**內容 reflow 或 block 被編輯／移除時**，resume 應 fallback 到「該 block 之前最近的 stable block 或 chapter 起點」，不得因 anchor 消失就丟失閱讀狀態。user bookmarks（選用）採相同 anchor 語意，但不必納入 V1 的 persistence 需求。
+**不建議顯示固定「Page 41 / 137」。** 使用者改 font size、measure、device width 後，reflowed Web Reader 的 page identity 沒有穩定意義；Apple Books 本身允許廣泛改變 typography 與 layout，也顯示 reader layout 本質上可變。
+
+**Persisted reading identity 是 book-scoped 的 composite identity `(bookId, chapterId, blockId, offset?)`：** `bookId` 作為 storage 的 namespace key（`load(bookId)` / `save(bookId, anchor)`），anchor 值本身只攜帶 `(chapterId, blockId, offset?)`。如此不同書之間的同名 chapter／block id 不會互相衝突，也不需要 chapter／block id 全產品全域唯一。percent 進度與 Library「続きを読む」都由這份 identity 推導。**內容 reflow 或 block 被編輯／移除時**，resume 應 fallback 到「該 block 之前最近的 stable block 或 chapter 起點」，不得因 anchor 消失就丟失閱讀狀態。user bookmarks（選用）採相同 anchor 語意，但不必納入 V1 的 persistence 需求。
 
 ---
 
 ## 5. Content Blocks 的 Rendering Grammar
 
-`#3` 已定義第一批 universal content vocabulary（`paragraph`、`heading`、`image`、`quote`、`callout`、`table`、`vocabulary`、`dialogue`、`example`、`comparison`、`caseStudy`、`doDont`、`exercise`、`authorNote`）；其中 exercise 的 **answer** 是 block 內 property（inline reveal），作者／專家註記對應 **`authorNote`**，不是獨立 block type。**關鍵不是為每個 type 發明一張漂亮 card，而是建立少量共用 editorial grammars。**
+`#3` 已定義第一批 universal content vocabulary（`paragraph`、`heading`、`image`、`quote`、`callout`、`table`、`vocabulary`、`dialogue`、`example`、`comparison`、`caseStudy`、`doDont`、`exercise`、`authorNote`）；其中 exercise 的 **answer** 是 block 內 property（inline reveal），作者／專家註記對應 **`authorNote`**，不是獨立 block type。**`image` content block 的 V1 呈現 grammar 就是 Figure**：單一 `<figure>` 元素內放圖片，且**每個 figure 至多一個 `<figcaption>`**（caption 與 credit／source 合併在同一個 figcaption；兩者皆無時整個 figcaption 省略）。**不新增 `figure` block type** — vocabulary 維持 `image`，rendering grammar 維持 Figure。**關鍵不是為每個 type 發明一張漂亮 card，而是建立少量共用 editorial grammars。**
 
 | Block | 建議呈現 | Mobile behavior |
 | --- | --- | --- |

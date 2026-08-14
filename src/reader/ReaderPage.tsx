@@ -4,11 +4,11 @@ import { getBookBySlug } from './catalog'
 import { useStrings } from '../i18n/strings'
 import { ReaderShell } from './ReaderShell'
 
-function ReaderNotFound() {
+function ReaderNotFound({ message }: { message: string }) {
   const strings = useStrings()
   return (
     <section className="reader-notfound">
-      <h1 className="reader-notfound__title">{strings.reader.bookNotFound}</h1>
+      <h1 className="reader-notfound__title">{message}</h1>
       <Link className="reader-notfound__link" to="/library">
         {strings.reader.backToLibrary}
       </Link>
@@ -20,27 +20,42 @@ function ReaderNotFound() {
  * Reader route resolver: `/books/:slug/read` (redirects to the first chapter)
  * and `/books/:slug/read/:chapterSlug`. Reads the book through the catalog seam
  * so the reader itself never touches content specifics.
+ *
+ * The three states are distinguished for both the document title and the body:
+ * missing book, valid book with an unknown chapter, and the redirect path
+ * (valid book, no chapter slug) which must not flash a not-found title.
  */
 export function ReaderPage() {
   const strings = useStrings()
   const { slug, chapterSlug } = useParams<{ slug: string; chapterSlug?: string }>()
   const book = slug ? getBookBySlug(slug) : undefined
 
-  const title = book?.title ?? ''
+  // Resolve the chapter once; the render paths below reuse it instead of
+  // re-running the lookup.
   const chapter = book && chapterSlug ? book.chapters.find((c) => c.slug === chapterSlug) : undefined
-  useDocumentTitle(chapter ? `${chapter.title} — ${title}` : strings.reader.bookNotFound)
+
+  let title = strings.reader.bookNotFound
+  if (book && chapterSlug && !chapter) {
+    title = strings.reader.chapterNotFound
+  } else if (book && chapter) {
+    title = `${chapter.title} — ${book.title}`
+  } else if (book) {
+    // Redirect path (or a book with no chapters): title the destination.
+    const first = book.chapters[0]
+    title = first ? `${first.title} — ${book.title}` : strings.reader.bookNotFound
+  }
+  useDocumentTitle(title)
 
   if (!book) {
-    return <ReaderNotFound />
+    return <ReaderNotFound message={strings.reader.bookNotFound} />
   }
 
   if (chapterSlug) {
-    const resolved = book.chapters.find((c) => c.slug === chapterSlug)
-    if (!resolved) return <ReaderNotFound />
-    return <ReaderShell key={book.id} book={book} chapter={resolved} />
+    if (!chapter) return <ReaderNotFound message={strings.reader.chapterNotFound} />
+    return <ReaderShell key={book.id} book={book} chapter={chapter} />
   }
 
   const first = book.chapters[0]
-  if (!first) return <ReaderNotFound />
+  if (!first) return <ReaderNotFound message={strings.reader.bookNotFound} />
   return <Navigate to={`/books/${book.slug}/read/${first.slug}`} replace />
 }

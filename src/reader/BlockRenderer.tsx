@@ -59,6 +59,10 @@ function ExerciseView({ block }: { block: ExerciseBlock }) {
   const strings = useStrings()
   const [showAnswer, setShowAnswer] = useState(false)
 
+  // An exercise with neither answer nor explanation has nothing to reveal, so
+  // the answer control is omitted entirely rather than toggling an empty region.
+  const hasAnswerContent = Boolean(block.answer || block.explanation)
+
   return (
     <div className="reader-exercise">
       <p className="reader-exercise__question">
@@ -80,29 +84,33 @@ function ExerciseView({ block }: { block: ExerciseBlock }) {
           ))}
         </ul>
       )}
-      <button
-        type="button"
-        className="reader-exercise__toggle"
-        aria-expanded={showAnswer}
-        onClick={() => setShowAnswer((current) => !current)}
-      >
-        {showAnswer ? strings.reader.hideAnswer : strings.reader.showAnswer}
-      </button>
-      {showAnswer && (
-        <div className="reader-exercise__answer">
-          {block.answer && (
-            <p className="reader-exercise__answer-line">
-              <strong>{strings.reader.answer}: </strong>
-              {block.answer}
-            </p>
+      {hasAnswerContent && (
+        <>
+          <button
+            type="button"
+            className="reader-exercise__toggle"
+            aria-expanded={showAnswer}
+            onClick={() => setShowAnswer((current) => !current)}
+          >
+            {showAnswer ? strings.reader.hideAnswer : strings.reader.showAnswer}
+          </button>
+          {showAnswer && (
+            <div className="reader-exercise__answer">
+              {block.answer && (
+                <p className="reader-exercise__answer-line">
+                  <strong>{strings.reader.answer}: </strong>
+                  {block.answer}
+                </p>
+              )}
+              {block.explanation && (
+                <p className="reader-exercise__explanation">
+                  <strong>{strings.reader.explanation}: </strong>
+                  {block.explanation}
+                </p>
+              )}
+            </div>
           )}
-          {block.explanation && (
-            <p className="reader-exercise__explanation">
-              <strong>{strings.reader.explanation}: </strong>
-              {block.explanation}
-            </p>
-          )}
-        </div>
+        </>
       )}
     </div>
   )
@@ -144,8 +152,17 @@ export function BlockRenderer({
               width={block.width}
               height={block.height}
             />
-            {block.caption && <figcaption className="reader-figure__caption">{block.caption}</figcaption>}
-            {block.credit && <figcaption className="reader-figure__credit">{block.credit}</figcaption>}
+            {/* One <figcaption> per figure: caption + credit are combined, and
+                the element is omitted when neither is present. */}
+            {(block.caption || block.credit) && (
+              <figcaption className="reader-figure__caption">
+                {block.caption && <span>{block.caption}</span>}
+                {block.caption && block.credit && (
+                  <span aria-hidden="true"> — </span>
+                )}
+                {block.credit && <span className="reader-figure__credit">{block.credit}</span>}
+              </figcaption>
+            )}
           </figure>
         </BlockShell>
       )

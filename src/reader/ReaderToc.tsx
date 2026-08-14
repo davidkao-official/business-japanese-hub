@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import type { Book, Chapter } from '../content/types'
+import type { Book, Chapter, HeadingBlock } from '../content/types'
 import { useStrings } from '../i18n/strings'
 
 export interface ReaderTocProps {
@@ -15,7 +15,10 @@ export interface ReaderTocProps {
  */
 export function ReaderToc({ book, current, onNavigate }: ReaderTocProps) {
   const strings = useStrings()
-  const sections = current.blocks.filter((block) => block.type === 'heading')
+  // Section TOC lists only effective level-2 headings (level omitted → 2).
+  const sections = current.blocks.filter(
+    (block): block is HeadingBlock => block.type === 'heading' && (block.level ?? 2) === 2,
+  )
 
   return (
     <div className="reader-toc">

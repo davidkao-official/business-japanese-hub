@@ -41,6 +41,10 @@ describe('reader design contract', () => {
   })
 
   it('applies no global letter-spacing (only deliberate `normal` cancellations)', () => {
-    expect(readerCss).not.toMatch(/letter-spacing:\s+(?!normal)[^;]+;/)
+    // `\s*` (not `\s+`) so `letter-spacing:0;` — without whitespace after the
+    // colon — is also rejected. The lookahead absorbs optional whitespace on
+    // both sides of `normal` so a deliberate `normal` cancellation is allowed
+    // even though the outer `\s*` can also match zero-width.
+    expect(readerCss).not.toMatch(/letter-spacing:\s*(?!\s*normal\s*;)[^;]+;/)
   })
 })

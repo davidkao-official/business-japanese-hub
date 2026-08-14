@@ -16,8 +16,10 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { sampleBook } from '../content/fixtures/sample-book'
 import type { Chapter } from '../content/types'
 import { BookPage } from '../app/BookPage'
+import { BlockRenderer } from './BlockRenderer'
 import { ReaderPage } from './ReaderPage'
 import { ReaderShell } from './ReaderShell'
+import { ReaderToc } from './ReaderToc'
 
 function renderChapter(chapter: Chapter) {
   return render(
@@ -102,6 +104,82 @@ describe('exercise', () => {
     expect(exercise.querySelector('[role="progressbar"]')).toBeNull()
     expect(exercise.textContent ?? '').not.toMatch(/正解数|得点|score|100点/i)
   })
+
+  it('hides the answer toggle when the exercise has no answer content', () => {
+    // Regression: an exercise with neither answer nor explanation must not
+    // render an empty "解答を見る" control.
+    const { queryByRole } = render(
+      <BlockRenderer
+        block={{ id: 'ex-no-content', type: 'exercise', question: '答えはありません。' }}
+        onOpenVocab={() => {}}
+      />,
+    )
+    expect(queryByRole('button', { name: '解答を見る' })).not.toBeInTheDocument()
+    expect(queryByRole('button', { name: '解答を隠す' })).not.toBeInTheDocument()
+  })
+
+  it('renders the answer toggle when the exercise carries an answer or explanation', () => {
+    const withAnswer = render(
+      <BlockRenderer
+        block={{ id: 'ex-answer', type: 'exercise', question: 'q', answer: 'a' }}
+        onOpenVocab={() => {}}
+      />,
+    )
+    expect(withAnswer.getByRole('button', { name: '解答を見る' })).toBeInTheDocument()
+    withAnswer.unmount()
+
+    const withExplanation = render(
+      <BlockRenderer
+        block={{ id: 'ex-explanation', type: 'exercise', question: 'q', explanation: 'e' }}
+        onOpenVocab={() => {}}
+      />,
+    )
+    expect(withExplanation.getByRole('button', { name: '解答を見る' })).toBeInTheDocument()
+  })
+})
+
+describe('image figure', () => {
+  it('renders exactly one figcaption combining caption and credit', () => {
+    const { container } = render(
+      <BlockRenderer
+        block={{
+          id: 'img-caption-credit',
+          type: 'image',
+          src: '/x.png',
+          alt: 'diagram',
+          caption: '図の説明',
+          credit: 'sample-fixture',
+        }}
+        onOpenVocab={() => {}}
+      />,
+    )
+    const figure = container.querySelector('.reader-figure')
+    expect(figure).not.toBeNull()
+    const captions = figure?.querySelectorAll('figcaption') ?? []
+    expect(captions).toHaveLength(1)
+    expect(figure?.textContent).toContain('図の説明')
+    expect(figure?.textContent).toContain('sample-fixture')
+  })
+
+  it('renders exactly one figcaption when only the caption is present', () => {
+    const { container } = render(
+      <BlockRenderer
+        block={{ id: 'img-caption-only', type: 'image', src: '/x.png', alt: 'diagram', caption: '図の説明' }}
+        onOpenVocab={() => {}}
+      />,
+    )
+    expect(container.querySelectorAll('.reader-figure figcaption')).toHaveLength(1)
+  })
+
+  it('omits the figcaption entirely when neither caption nor credit exists', () => {
+    const { container } = render(
+      <BlockRenderer
+        block={{ id: 'img-neither', type: 'image', src: '/x.png', alt: 'decorative' }}
+        onOpenVocab={() => {}}
+      />,
+    )
+    expect(container.querySelectorAll('.reader-figure figcaption')).toHaveLength(0)
+  })
 })
 
 describe('dialogue', () => {
@@ -151,6 +229,30 @@ describe('table of contents', () => {
     expect(current).toHaveAttribute('aria-current', 'location')
     expect(panel.getByRole('link', { name: /敬語の基本/ })).not.toHaveAttribute('aria-current')
   })
+
+  it('lists only effective level-2 headings as section anchors', () => {
+    const chapter: Chapter = {
+      id: 'custom-ch',
+      slug: 'custom',
+      order: 1,
+      title: 'Custom',
+      blocks: [
+        { id: 'h2-a', type: 'heading', text: 'Section A', level: 2 },
+        { id: 'h3-b', type: 'heading', text: 'Subsection B', level: 3 },
+        { id: 'h2-c', type: 'heading', text: 'Section C' }, // level omitted → 2
+        { id: 'h1-d', type: 'heading', text: 'Chapter Title', level: 1 },
+      ],
+    }
+    const { container } = render(
+      <MemoryRouter>
+        <ReaderToc book={sampleBook} current={chapter} onNavigate={() => {}} />
+      </MemoryRouter>,
+    )
+    const sectionLinks = Array.from(
+      container.querySelectorAll('.reader-toc__section-link'),
+    ).map((el) => el.textContent)
+    expect(sectionLinks).toEqual(['Section A', 'Section C'])
+  })
 })
 
 describe('vocabulary sheet', () => {
@@ -197,6 +299,41 @@ describe('reading progress', () => {
     const now = Number(bar.getAttribute('aria-valuenow'))
     expect(now).toBeGreaterThanOrEqual(0)
     expect(now).toBeLessThanOrEqual(100)
+  })
+
+  it('reports whole-book 100% only at the bottom of the final chapter', async () => {
+    // Control the document height so the scroll-position "reached the end"
+    // branch in useReadingPosition can be exercised deterministically.
+    Object.defineProperty(document.documentElement, 'scrollHeight', {
+      configurable: true,
+      get: () => 5000,
+    })
+    setScrollY(4300) // scrolled to the bottom
+    try {
+      // Non-final chapter at the bottom must NOT report whole-book 100%.
+      const early = renderChapter(sampleBook.chapters[0])
+      fireEvent.scroll(window)
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+      })
+      expect(Number(early.getByRole('progressbar', { name: '読書の進捗' }).getAttribute('aria-valuenow'))).toBeLessThan(100)
+      early.unmount()
+
+      // Final chapter at the bottom DOES report whole-book 100%.
+      const last = renderChapter(sampleBook.chapters[sampleBook.chapters.length - 1])
+      fireEvent.scroll(window)
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(resolve))
+      })
+      expect(last.getByRole('progressbar', { name: '読書の進捗' })).toHaveAttribute(
+        'aria-valuenow',
+        '100',
+      )
+      last.unmount()
+    } finally {
+      setScrollY(0)
+      delete (document.documentElement as unknown as Record<string, unknown>).scrollHeight
+    }
   })
 })
 
@@ -271,5 +408,24 @@ describe('navigation', () => {
   it('renders a not-found state for an unknown book', () => {
     renderReaderRoutes('/books/nope/read')
     expect(screen.getByText('この書籍は見つかりませんでした。')).toBeInTheDocument()
+  })
+
+  it('sets the book-not-found document title for a missing book', () => {
+    renderReaderRoutes('/books/nope/read')
+    expect(document.title).toBe('この書籍は見つかりませんでした。')
+  })
+
+  it('shows a distinct chapter-not-found state for an unknown chapter', () => {
+    renderReaderRoutes('/books/keigo-essentials/read/does-not-exist')
+    expect(document.title).toBe('この章は見つかりませんでした。')
+    expect(screen.getByText('この章は見つかりませんでした。')).toBeInTheDocument()
+    expect(screen.queryByText('この書籍は見つかりませんでした。')).not.toBeInTheDocument()
+  })
+
+  it('titles the /read redirect with the first chapter, not book-not-found', async () => {
+    renderReaderRoutes('/books/keigo-essentials/read')
+    await screen.findByRole('heading', { level: 1, name: '敬語の基本' })
+    expect(document.title).toBe('敬語の基本 — ビジネス日本語：敬語の基礎')
+    expect(document.title).not.toBe('この書籍は見つかりませんでした。')
   })
 })

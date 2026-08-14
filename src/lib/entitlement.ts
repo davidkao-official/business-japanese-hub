@@ -70,10 +70,12 @@ export interface CanReadInput {
 /**
  * Index of a block within a chapter's ordered block list.
  * `-1` represents "before the first block" (chapter start).
- * Returns `null` when the id is unknown (malformed reference).
+ * Returns `null` when the id is unknown or malformed (deny-by-default).
+ * Only `undefined` is treated as "chapter start"; any other supplied value
+ * (including `''` or `null`) must resolve to a real block or be denied.
  */
-function blockIndex(chapter: ChapterOrderRef, blockId?: string): number | null {
-  if (blockId === undefined || blockId === null) return -1;
+function blockIndex(chapter: ChapterOrderRef, blockId: string | undefined): number | null {
+  if (blockId === undefined) return -1;
   const index = chapter.blocks.findIndex((block) => block.id === blockId);
   return index === -1 ? null : index;
 }
@@ -103,7 +105,10 @@ export function canRead(input: CanReadInput): boolean {
 
   // Same chapter as the boundary: the preview is a block prefix.
   const boundaryChapter = chapters[boundaryChapterIndex];
-  if (!previewBoundary.blockId) return true; // whole boundary chapter is previewable
+  // Only `undefined` means "no block prefix → whole boundary chapter is
+  // previewable". A supplied but malformed id (`''`, `null`, unknown) falls
+  // through to `blockIndex`, which denies by default.
+  if (previewBoundary.blockId === undefined) return true;
 
   const boundaryIndex = blockIndex(boundaryChapter, previewBoundary.blockId);
   if (boundaryIndex === null) return false; // malformed boundary block → deny
