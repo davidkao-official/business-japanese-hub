@@ -33,6 +33,7 @@ export interface AppStrings {
   home: {
     title: string
     lead: string
+    sampleBooks: string
   }
   library: {
     title: string
@@ -42,6 +43,58 @@ export interface AppStrings {
     title: string
     lead: string
     notFound: string
+  }
+  reader: {
+    backToBook: string
+    backToLibrary: string
+    bookNotFound: string
+    tableOfContents: string
+    settings: string
+    revealChrome: string
+    close: string
+    skipToChapterBody: string
+    chapterNav: string
+    previousChapter: string
+    nextChapter: string
+    readFromStart: string
+    continueReading: string
+    progressLabel: string
+    chapterLabel: (order: number) => string
+    fontSize: string
+    theme: string
+    font: string
+    fontSerif: string
+    fontSans: string
+    themeLight: string
+    themeSepia: string
+    themeDark: string
+    fontSizeSmall: string
+    fontSizeStandard: string
+    fontSizeLarge: string
+    fontSizeXLarge: string
+    vocab: string
+    meaning: string
+    reading: string
+    partOfSpeech: string
+    example: string
+    expressionExample: string
+    dialogue: string
+    calloutNote: string
+    calloutTip: string
+    calloutWarning: string
+    calloutInfo: string
+    caseStudy: string
+    doLabel: string
+    dontLabel: string
+    exercise: string
+    hint: string
+    showAnswer: string
+    hideAnswer: string
+    answer: string
+    explanation: string
+    authorNote: string
+    outcome: string
+    question: string
   }
   notFound: {
     title: string
@@ -67,6 +120,7 @@ const ja: AppStrings = {
   home: {
     title: 'ビジネス日本語ハブ',
     lead: 'ビジネスシーンで役立つ日本語表現を、実践的な書籍を通して学べるプラットフォームです。',
+    sampleBooks: 'サンプル書籍',
   },
   library: {
     title: 'マイライブラリ',
@@ -76,6 +130,58 @@ const ja: AppStrings = {
     title: '書籍詳細',
     lead: 'この書籍の詳細情報は準備中です。',
     notFound: 'この書籍は見つかりませんでした。',
+  },
+  reader: {
+    backToBook: '書籍へ戻る',
+    backToLibrary: 'ライブラリへ戻る',
+    bookNotFound: 'この書籍は見つかりませんでした。',
+    tableOfContents: '目次',
+    settings: '表示設定',
+    revealChrome: '目次と設定を表示',
+    close: '閉じる',
+    skipToChapterBody: '章の本文へスキップ',
+    chapterNav: '章のナビゲーション',
+    previousChapter: '前の章',
+    nextChapter: '次の章',
+    readFromStart: '読み始める',
+    continueReading: '続きを読む',
+    progressLabel: '読書の進捗',
+    chapterLabel: (order: number) => `第 ${order} 章`,
+    fontSize: '文字サイズ',
+    theme: '表示テーマ',
+    font: '書体',
+    fontSerif: '明朝',
+    fontSans: 'ゴシック',
+    themeLight: 'ライト',
+    themeSepia: 'セピア',
+    themeDark: 'ダーク',
+    fontSizeSmall: '小',
+    fontSizeStandard: '標準',
+    fontSizeLarge: '大',
+    fontSizeXLarge: '特大',
+    vocab: '語彙',
+    meaning: '意味',
+    reading: '読み',
+    partOfSpeech: '品詞',
+    example: '例',
+    expressionExample: '表現例',
+    dialogue: '会話',
+    calloutNote: 'ポイント',
+    calloutTip: 'ヒント',
+    calloutWarning: '注意',
+    calloutInfo: '情報',
+    caseStudy: 'ケーススタディ',
+    doLabel: 'やるべきこと',
+    dontLabel: 'やめるべきこと',
+    exercise: '練習問題',
+    hint: 'ヒントを見る',
+    showAnswer: '解答を見る',
+    hideAnswer: '解答を隠す',
+    answer: '解答',
+    explanation: '解説',
+    authorNote: '著者から',
+    outcome: '結果',
+    question: '問い',
   },
   notFound: {
     title: 'ページが見つかりません',
@@ -101,6 +207,7 @@ const en: AppStrings = {
   home: {
     title: 'Business Japanese Hub',
     lead: 'A platform for learning practical business Japanese through real-world reading materials.',
+    sampleBooks: 'Sample books',
   },
   library: {
     title: 'My Library',
@@ -110,6 +217,58 @@ const en: AppStrings = {
     title: 'Book Details',
     lead: 'Details for this book are coming soon.',
     notFound: 'This book could not be found.',
+  },
+  reader: {
+    backToBook: 'Back to book',
+    backToLibrary: 'Back to Library',
+    bookNotFound: 'This book could not be found.',
+    tableOfContents: 'Table of contents',
+    settings: 'Display settings',
+    revealChrome: 'Show contents and settings',
+    close: 'Close',
+    skipToChapterBody: 'Skip to chapter body',
+    chapterNav: 'Chapter navigation',
+    previousChapter: 'Previous chapter',
+    nextChapter: 'Next chapter',
+    readFromStart: 'Start reading',
+    continueReading: 'Continue reading',
+    progressLabel: 'Reading progress',
+    chapterLabel: (order: number) => `Chapter ${order}`,
+    fontSize: 'Text size',
+    theme: 'Theme',
+    font: 'Typeface',
+    fontSerif: 'Serif',
+    fontSans: 'Gothic',
+    themeLight: 'Light',
+    themeSepia: 'Sepia',
+    themeDark: 'Dark',
+    fontSizeSmall: 'Small',
+    fontSizeStandard: 'Standard',
+    fontSizeLarge: 'Large',
+    fontSizeXLarge: 'Extra large',
+    vocab: 'Vocabulary',
+    meaning: 'Meaning',
+    reading: 'Reading',
+    partOfSpeech: 'Part of speech',
+    example: 'Example',
+    expressionExample: 'Expression',
+    dialogue: 'Dialogue',
+    calloutNote: 'Note',
+    calloutTip: 'Tip',
+    calloutWarning: 'Warning',
+    calloutInfo: 'Info',
+    caseStudy: 'Case study',
+    doLabel: 'Do',
+    dontLabel: 'Don’t',
+    exercise: 'Exercise',
+    hint: 'Show hint',
+    showAnswer: 'Show answer',
+    hideAnswer: 'Hide answer',
+    answer: 'Answer',
+    explanation: 'Explanation',
+    authorNote: 'From the author',
+    outcome: 'Outcome',
+    question: 'Question',
   },
   notFound: {
     title: 'Page not found',

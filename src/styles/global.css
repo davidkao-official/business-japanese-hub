@@ -284,3 +284,77 @@ ol {
   background: var(--color-accent-hover);
   text-decoration: none;
 }
+
+/* ---------------------------------------------------------------
+ * Book detail primitives (book-agnostic; data comes from the catalog)
+ * --------------------------------------------------------------- */
+.page__subtitle {
+  font-size: var(--text-lg);
+  margin-block: var(--space-5) var(--space-3);
+}
+
+.book-cover {
+  max-width: 20rem;
+}
+
+.book-cover img {
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+}
+
+.book-cover__caption {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  margin-top: var(--space-2);
+}
+
+.book-toc {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.book-toc a {
+  display: inline-block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+}
+
+.book-toc a:hover {
+  background: var(--color-surface-muted);
+}
+
+/* ---------------------------------------------------------------
+ * Book list (home) — generic cards; data comes from the catalog
+ * --------------------------------------------------------------- */
+.book-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.book-list__card {
+  display: block;
+  padding: var(--space-4);
+  border: var(--stroke-thin) solid var(--color-border);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.book-list__card:hover {
+  border-color: var(--color-border-strong);
+  text-decoration: none;
+}
+
+.book-list__title {
+  display: block;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.book-list__subtitle {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
