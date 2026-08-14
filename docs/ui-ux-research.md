@@ -1,8 +1,8 @@
 # UI/UX 設計方向研究 — Business Japanese Hub
 
-> **狀態：** durable（長期有效）的 UI/UX 設計方向研究。是設計層面的 canonical source of truth，也是 `docs/product-contract.md` §8（UI / Reader quality 是 P0）的具體化。
+> **狀態：** durable（長期有效）的 UI/UX 設計方向研究。是**設計層面的 canonical implementation contract（UI/UX 決策的單一 authority）**，也是 `docs/product-contract.md` §8（UI / Reader quality 是 P0）的具體化。
 >
-> **來源：** 本文件是《Business Japanese Hub UI_UX 深度研究與實作設計簡報》（18 頁 PDF，2026-08，以下簡稱「研究簡報」）在 repository 內的 durable 落地形式。研究簡報本身為 canonical research artifact；本文件忠實記錄其結論與實作決策，**不另起一輪 competitive research，也不改寫其 design direction**。若本文件與研究簡報不一致，以研究簡報為準並修正本文件。
+> **來源與版本：** 本文件是《Business Japanese Hub UI_UX 深度研究與實作設計簡報》（18 頁 PDF，2026-08，以下簡稱「研究簡報」）在 repository 內的 durable 落地形式。研究簡報是**有版本的 research provenance（2026-08 版）**，僅供追溯研究脈絡；**本文件才是 repository 內 UI/UX 實作決策的 canonical authority**。本文件忠實記錄研究結論與實作決策，**不另起一輪 competitive research，也不改寫其 design direction**。同步規則：當研究簡報後續版本與本文件不一致時，應更新本文件以反映新的研究結論，而不是以 PDF 覆寫 repository 內的實作 contract。
 >
 > **上位契約：** `docs/product-contract.md`（§5 平台 abstraction、§6 book-agnostic、§8 UI/Reader P0、§9 web-first）。
 > **相關實作：** `docs/content-model.md`（#3 content model）、`src/styles/tokens.css`（design tokens）、`src/reader/`（#5 Universal Reader）。
@@ -100,7 +100,7 @@
 | Paragraph spacing | 0.75–1em | 0.75–1em | Reader default |
 | Font weight | 400 / 500 / 700 | 400 / 500 / 700 | 正文不要 300 |
 
-17–18px 與約 1.8 line-height 不是從某個規格直接抄值，而是本案的設計起點：W3C 的可讀性與 text-spacing requirements 要求內容在使用者把 line-height 覆寫到至少 1.5 倍、paragraph spacing 拉大時仍不能遺失資訊；WCAG 的更高階 visual presentation 指引也把 **CJK 40 glyphs** 視為 line-width 上限。因此 1.8 對密集漢字、括號、ruby、英數混排是比較安全且具有 premium 編輯感的 default。
+17–18px 與約 1.8 line-height 不是從某個規格直接抄值，而是本案的設計起點：WCAG 2.2 **Success Criterion 1.4.12（Text Spacing，Level AA）** 要求內容在使用者把 line-height 覆寫到至少 1.5 倍、paragraph spacing／letter spacing 拉大時仍不能遺失內容或功能；WCAG 2.2 **Success Criterion 1.4.8（Visual Presentation，Level AAA）** 的增強型 presentation 指引則把 **CJK 40 glyphs** 視為 line-width 上限。CJK 40 glyph 屬 **AAA 呈現建議，不是 AA conformance 要求**；1.8 對密集漢字、括號、ruby、英數混排是比較安全且具有 premium 編輯感的 default。
 
 ### 3.2 段落規則
 
@@ -116,8 +116,8 @@ V1 建議 **「不首行縮排 + 0.75–1em paragraph gap」**。這不是要否
 
 ### 3.5 換行策略（Japanese-aware）
 
-- document / chapter 正確標示 `ja` 語言語意。
-- Japanese body 使用 standards-aware `normal`/`strict` line breaking。
+- **`lang` 所有權：** reading surface 的根元素／內容容器以**正在閱讀的 Book 的 `language`（BCP-47）**設定 `lang`；非閱讀 surface（storefront、library 等 platform shell）維持根元素 `lang="ja"` 的平台 default。混合語言內容（例如例句 translation、拉丁詞彙）用 **nested `lang` override** 標示，不要依賴全域 root 語言涵蓋。
+- Japanese body 使用 standards-aware `normal`/`strict` line breaking；**browser QA 必須同時測 `line-break: normal` 與 `line-break: strict`** 兩種結果。
 - **禁止以 `break-all` 當萬用解法。**
 - URL、超長 identifier 才使用 emergency wrapping。
 - headings 可以用作者指定 break opportunity 或 phrase-aware enhancement，**不能手工塞 `<br>` 綁死 viewport**。
@@ -142,6 +142,8 @@ V1 建議 **「不首行縮排 + 0.75–1em paragraph gap」**。這不是要否
 ### 3.8 Ruby 克制
 
 JLREQ 把 ruby 當正式的日本文組版功能，但本產品是從 N1 往 professional competence，**不是初級日語教材**。因此**只 render 作者明確標記的 ruby**。不能把常用漢字全面附假名；否則 native Japanese reader 一眼就會把產品分類成「外国人向け教材」。
+
+**V1 資料表示：** 目前 content model 沒有 inline ruby 的資料表示（`vocabulary.reading` 是單字讀音，不是 inline ruby）。在 content model 補上 ruby 表示法（bounded follow-up，依 `docs/content-model.md` §6）之前，V1 **不宣稱支援 ruby rendering**，也不把 ruby 放入視覺回歸 fixtures 的必要清單。
 
 ---
 
@@ -177,10 +179,10 @@ Cover | Title / Subtitle → Author → one-paragraph proposition → Price → 
 **已購買狀態：**
 
 ```text
-Cover | Title / Subtitle → 取得済み → 続きを読む
+Cover | Title / Subtitle → 取得済み → 読み始める / 続きを読む
 ```
 
-已購買狀態下，「続きを読む」應**取代 purchase 成為 primary action**；不要留下綠色「已購買」badge 再讓使用者自己找 reader。
+已購買狀態下，primary action 應**取代 purchase**，且依閱讀狀態分流（與 §8.3 的 state matrix 一致）：**已擁有但未開始閱讀 → 「読み始める」；已有閱讀進度 → 「続きを読む」**。不要留下綠色「已購買」badge 再讓使用者自己找 reader。
 
 **下方依序：** この本について → 想定読者 / 前提 → 目次 → Preview excerpt → Author → Publication details。
 
@@ -199,6 +201,8 @@ Cover | Title / Subtitle → 取得済み → 続きを読む
 前者是出版社資訊；後者是語言教材。
 
 **Preview 必須使用同一個 Universal Reader renderer 與同一套 content blocks，只是有 entitlement boundary。** 不要另做一個「preview page design」。這樣使用者在購買前看到的 dialogue、callout、comparison、typography，就是買下後得到的品質。Kobo 把 preview 放在 purchase decision 的主要位置，本質上也是降低購買不確定性。
+
+**Preview-boundary contract（設計層）：** preview 是書的**有序章節前綴**（可細到 chapter 內的有序 block 前綴），以 **book-level 的 generic metadata** 表達（例如「preview 到第 N 章」或「preview 到某個 block id」的 boundary 欄位），**不得以 `if bookId === firstBook` 或另一套 renderer 表達**。platform 在**單一 Universal Reader 的 entitlement gate** 檢查 boundary 並隱藏其後的內容；確切的 metadata field 名稱與資料形狀由 `docs/content-model.md`（#3 content-model follow-up）定稿。
 
 ### 4.3 My Library
 
@@ -221,13 +225,13 @@ Library **不是 Storefront 的另一個 filter**。BOOK☆WALKER 的成熟「�
 
 ### 4.4 Universal Reader
 
-#5 已正確定義 Reader 為核心 product surface、mobile minimal chrome、desktop strong navigation but controlled line length，而且 UI 應退到內容後面。這份研究把這些原則具體化：
+`#5` 已正確定義 Reader 為核心 product surface、mobile minimal chrome、desktop strong navigation but controlled line length，而且 UI 應退到內容後面。這份研究把這些原則具體化：
 
 **手機 Reader**
 
 - 正常 scroll 時只有正文。頂部可保留極細 overall progress indicator，但 navigation bar 應在**向上 scroll、tap 或明確 interaction** 時才出現。
 - 顯示時只需要：`← 書籍 | chapter title | TOC | Aa`。
-- bookmark 如果 #5 只是 anchor-ready，可以保留結構，但不必 V1 強迫實作 persistence。
+- **resume state 是必須（required）**：`Chapter.id` + block identity + 閱讀位置必須 **persistence**，Library「続きを読む」與百分比 progress 都依賴它（見 §4.4 與 §8.3）。**user bookmarks 是選用（optional）**：V1 只要 anchor-ready、可以保留結構，不強迫實作 persistence。
 - **TOC 使用 bottom sheet / full-screen sheet，不要 280px permanent sidebar。** Footnote / vocabulary annotation 也使用 bottom sheet 或 anchored popover；任何 interaction 都必須可以關閉並回到原本 reading focus。
 - Apple Books 在 iPhone 也是先閱讀、需要時點頁面喚出 menu，再進 Themes & Settings；BOOK☆WALKER browser viewer 也採畫面中央 tap 顯示上下 menu。這正是適合通勤閱讀的 interaction model：**content first, tools on intent**。
 
@@ -276,17 +280,17 @@ WCAG 2.2 AA 的 pointer target minimum 是 24×24 CSS px；44×44 是 WCAG enhan
 
 spacing 與 paragraph controls 先在 architecture 上可承受，不必把設定頁做成 typographer console。
 
-**不建議顯示固定「Page 41 / 137」。** 使用者改 font size、measure、device width 後，reflowed Web Reader 的 page identity 沒有穩定意義；Apple Books 本身允許廣泛改變 typography 與 layout，也顯示 reader layout 本質上可變。本案應把 **resume/bookmark 建立在 semantic chapter/block anchor + reading position 上，再推導百分比**。
+**不建議顯示固定「Page 41 / 137」。** 使用者改 font size、measure、device width 後，reflowed Web Reader 的 page identity 沒有穩定意義；Apple Books 本身允許廣泛改變 typography 與 layout，也顯示 reader layout 本質上可變。**resume state 以 stable `Chapter.id` + block id 為 key**，再搭配 offset 語意（「章節 id + 章內 block 位置，可選 block 內字元／段落 offset」），百分比從中推導。**內容 reflow 或 block 被編輯／移除時**，resume 應 fallback 到「該 block 之前最近的 stable block 或 chapter 起點」，不得因 anchor 消失就丟失閱讀狀態。user bookmarks（選用）採相同 anchor 語意，但不必納入 V1 的 persistence 需求。
 
 ---
 
 ## 5. Content Blocks 的 Rendering Grammar
 
-#3 已定義第一批 universal content vocabulary：prose、heading、figure、quote、dialogue、example、comparison、callout、table、vocabulary、case study、do/don't、exercise、answer、expert note 等。**關鍵不是為每個 type 發明一張漂亮 card，而是建立少量共用 editorial grammars。**
+`#3` 已定義第一批 universal content vocabulary（`paragraph`、`heading`、`image`、`quote`、`callout`、`table`、`vocabulary`、`dialogue`、`example`、`comparison`、`caseStudy`、`doDont`、`exercise`、`authorNote`）；其中 exercise 的 **answer** 是 block 內 property（inline reveal），作者／專家註記對應 **`authorNote`**，不是獨立 block type。**關鍵不是為每個 type 發明一張漂亮 card，而是建立少量共用 editorial grammars。**
 
 | Block | 建議呈現 | Mobile behavior |
 | --- | --- | --- |
-| Book Cover | 保持原始 portrait ratio；不可為了統一卡片而 crop；最多輕 border / shadow 等比例縮放，contain 邏輯。 | — |
+| Book Cover | 保持 `cover.width / cover.height` 的原始比例；不可為了統一卡片而 crop；最多輕 border / shadow 等比例縮放，contain 邏輯。 | — |
 | TOC | Chapter number + title + optional section；Reader 標 current chapter。 | sheet 中單欄；不需要每列 lock icon |
 | Prose | 純正文，沒有 card surface。 | 17px / 1.82 |
 | Callout / Note | 一條 side rule + 小 label + 正文；最多 3 個 semantic variants。 | full width inset，仍跟正文 rhythm |
@@ -295,10 +299,10 @@ spacing 與 paragraph controls 先在 architecture 上可承受，不必把設�
 | Comparison | 成對 row；desktop 2 columns。 | stacked pair，不要橫向縮成小字 |
 | Do / Don't | semantic label/icon + sentence。 | 不得只靠紅／綠辨識 |
 | Exercise | prompt → interaction → 解答を見る。 | inline、單欄、觸控友善 |
-| Answer | 預設 collapsed，使用者要求後 inline reveal。 | reveal 後 focus 清楚，不做跳頁 |
+| Answer（exercise 內） | 預設 collapsed，使用者要求後 inline reveal。 | reveal 後 focus 清楚，不做跳頁 |
 | Vocabulary | term + concise definition；desktop 可 margin。 | tap 打開 sheet / popover |
 | Quote | typography / rule 建立層級。 | 不用巨型 decorative quotation mark |
-| Expert Note | author/expert attribution + note。 | author identity 清楚，但不要 testimonial card |
+| Author Note（`authorNote`） | author/expert attribution + note。 | author identity 清楚，但不要 testimonial card |
 | Case Study | 像章節中的 mini-section，有 kicker/title。 | 正常 document flow |
 | Figure | image + caption + source。 | 高資訊圖才提供 zoom |
 | Table | semantic table、足夠字級。 | 真正需要時 horizontal scroll；不可縮成 11px |
@@ -323,7 +327,7 @@ Question 4 of 10 → Score 80 → Correct! 🎉 → +10 XP
 
 ## 6. 第一版 Design Tokens
 
-#4 本來就要求 centralized typography、spacing、color、surface、focus、motion tokens，且明確說 skeleton 不應先硬鎖 generic SaaS styling。**第一版就用 semantic tokens，不要把 component 寫死成 gray-700, blue-600。**
+`#4` 本來就要求 centralized typography、spacing、color、surface、focus、motion tokens，且明確說 skeleton 不應先硬鎖 generic SaaS styling。**第一版就用 semantic tokens，不要把 component 寫死成 gray-700, blue-600。**
 
 以下數值可以直接成為 design implementation 的 starting baseline，但 accent 最後仍可在 visual prototype 後微調。
 
@@ -431,7 +435,7 @@ WCAG 2.2 同時要求使用者覆寫較大的 line height、paragraph spacing、
 1. **token 命名全部 semantic**：使用 `text.primary` / `surface.paper` / `reader.measure` / `focus` 這類角色，不把視覺綁死在 gray-900 / blue-500。
 2. **Layout primitives 至少把三種 measure 分開**：`EditorialContainer`、`Commerce/BookDetailContainer`、`ReaderMeasure`。絕對不要讓所有頁面都落到同一個 `max-width: 1200px` container。
 3. **第一輪就建立 `font.ui`、`font.readerSerif`、`font.readerSans`**。日文必須是 first-class default，不是 i18n 完成之後才測。
-4. **建立 Japanese visual regression fixtures**，內容至少包括：長日文書名、全角標點、括號、英數混排、N1/API/2026/30%、ruby、長英文單字、URL、dialogue、comparison、table、長 TOC。
+4. **建立 Japanese visual regression fixtures**，內容至少包括：長日文書名、全角標點、括號、英數混排、N1/API/2026/30%、長英文單字、URL、dialogue、comparison、table、長 TOC。ruby 待 content model 提供 inline ruby 表示後再加入（見 §3.8）。
 5. **accessibility baseline 對齊 WCAG 2.2 AA**；touch controls 的 internal design target 用 44×44px，而不是只做到 AA 24px minimum。同時測 text resizing / spacing override、keyboard focus、reduced motion。
 6. **不先建立 Dashboard、SidebarNav、StatCard、CourseCard 等 generic SaaS components**。#4 應該為「出版平台」搭骨架，而不是先搭 administration template。
 7. **#4 的 Definition of Done 應額外加入**：在 360、390、768、1024、1440px widths 下，一段真實日本長文不需要 component-specific hack 就能遵守 design tokens。
@@ -448,7 +452,7 @@ WCAG 2.2 同時要求使用者覆寫較大的 line height、paragraph spacing、
 - 在 **desktop ≥ 約 1024px** 時才出現 collapsible TOC rail；更寬 viewport 才開 right marginalia slot。這個 slot **要「有 annotation 才存在」**，不能只是裝飾。
 - **Mobile reader chrome 預設 hidden**；使用者有 navigation intent 時出現。這與 Apple Books 和 BOOK☆WALKER 已成熟使用的閱讀模式一致。
 - **Progress 應綁 chapter/block anchors 與 semantic reading position**，而不是固定 page number。
-- **Fixture book 必須真的覆蓋 #3 所有初始 block**，而不是只放兩段 lorem ipsum。尤其優先驗證：`dialogue → example → comparison → vocabulary → callout → exercise → answer → table → expert note`。因為真正會讓 Reader 崩掉的不是普通 paragraph，而是這些 blocks 串在同一章時的 **vertical rhythm**。
+- **Fixture book 必須真的覆蓋 `#3` 所有初始 block**，而不是只放兩段 lorem ipsum。尤其優先驗證：`dialogue → example → comparison → vocabulary → callout → exercise（含 inline answer reveal）→ authorNote → table`。因為真正會讓 Reader 崩掉的不是普通 paragraph，而是這些 blocks 串在同一章時的 **vertical rhythm**。
 - **Exercise 採 inline reveal，不做 scoring system；dialogue 採 transcript，不做 message bubbles；comparison 在手機 stack，不把兩欄縮小；footnote interaction 完成後必須把 keyboard focus 還給原本 anchor。**
 - **Reader settings V1 實作：** `文字サイズ / テーマ / 書体`。Apple Books 提供更完整的字體、spacing、background、justification 等設定，可作為未來 evolution benchmark，但本案第一版不需要一次複製。
 - **#5 的 visual regression matrix 至少為：** 360 × mobile、390 × mobile、768 × tablet、1024 × compact desktop、1440 × wide desktop；並額外測 **200% text zoom / enlarged text-spacing、keyboard-only、dark theme、very long Japanese heading**。WCAG 要求 user text-spacing overrides 不造成內容或功能遺失。
@@ -456,7 +460,7 @@ WCAG 2.2 同時要求使用者覆寫較大的 line height、paragraph spacing、
 ### 8.3 GitHub #6 — Storefront / Book Detail / Preview / Library
 
 - Storefront 第一版**不要實作 faceted search/filter architecture**。以 editorial feature + compact catalog 為主。一本書即使只有三本 inventory，也應像三本真的出版品，不應像三門線上課程。
-- **BookCard 的封面比例必須由 book metadata 尊重原圖；不要固定 crop 成相同 thumbnail ratio。** BNN 這類出版社 detail page本身把 cover visuals 與完整 publication metadata 當作書的 identity。
+- **BookCard 的封面比例必須由 book metadata 尊重原圖（`cover.width / cover.height`）；不要固定 crop 成相同 thumbnail ratio。** portrait 與非 portrait 封面都要測。BNN 這類出版社 detail page本身把 cover visuals 與完整 publication metadata 當作書的 identity。
 - **Book Detail 明確定義四種 CTA state：**
 
   | Entitlement | Primary | Secondary |
@@ -467,7 +471,7 @@ WCAG 2.2 同時要求使用者覆寫較大的 line height、paragraph spacing、
   | Owned + progress | 続きを読む | 目次を見る |
 
   未來 ECPay 應只替換 purchase action backend，不應要求重新設計 BookDetail interaction model。
-- **Preview 必須直接進 Universal Reader，並使用同一個 block rendering system。** Content contract 應有可表達 preview boundary 的 generic metadata，而不是 `if bookId === firstBook`。
+- **Preview 必須直接進 Universal Reader，並使用同一個 block rendering system。** Content contract 應有可表達 preview boundary 的 generic metadata（contract 定義見 §4.2），而不是 `if bookId === firstBook`。
 - **Library 只顯示 owned books**；第一個 section 是 続きを読む。Progress 使用 subtle line / text；沒有 completion donut。初期只需要「最近読んだ順」，甚至不需要 filter。只採用 ownership、reading state 與 resume 這三個核心概念。
 
 ---
