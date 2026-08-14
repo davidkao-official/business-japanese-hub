@@ -30,6 +30,13 @@ export interface AppStrings {
     library: string
     skipToContent: string
   }
+  storefront: {
+    catalog: string
+    viewDetails: string
+    featured: string
+    free: string
+    owned: string
+  }
   home: {
     title: string
     lead: string
@@ -37,12 +44,34 @@ export interface AppStrings {
   }
   library: {
     title: string
-    lead: string
+    signedOut: string
+    empty: string
+    browseBooks: string
+    continueReading: string
+    allOwned: string
+    lastRead: string
+    loading: string
+    loadFailed: string
+    retry: string
   }
   book: {
     title: string
     lead: string
     notFound: string
+    about: string
+    audience: string
+    prerequisite: string
+    authors: string
+    publicationDetails: string
+    editionLabel: string
+    released: string
+    language: string
+    purchase: string
+    preview: string
+    seeContents: string
+    pending: string
+    purchaseUnavailable: string
+    ownedLabel: string
   }
   reader: {
     backToBook: string
@@ -60,6 +89,7 @@ export interface AppStrings {
     readFromStart: string
     continueReading: string
     progressLabel: string
+    paidBoundary: string
     chapterLabel: (order: number) => string
     fontSize: string
     theme: string
@@ -97,6 +127,13 @@ export interface AppStrings {
     outcome: string
     question: string
   }
+  readerGate: {
+    beyondPreview: string
+    locked: string
+    message: string
+    previewNote: string
+    backToBook: string
+  }
   notFound: {
     title: string
     message: string
@@ -118,6 +155,13 @@ const ja: AppStrings = {
     library: 'マイライブラリ',
     skipToContent: '本文へスキップ',
   },
+  storefront: {
+    catalog: 'すべての書籍',
+    viewDetails: '詳細を見る',
+    featured: '注目の一冊',
+    free: '無料',
+    owned: '取得済み',
+  },
   home: {
     title: 'ビジネス日本語ハブ',
     lead: 'ビジネスシーンで役立つ日本語表現を、実践的な書籍を通して学べるプラットフォームです。',
@@ -125,12 +169,34 @@ const ja: AppStrings = {
   },
   library: {
     title: 'マイライブラリ',
-    lead: 'あなたの読書リストがここに表示されます。',
+    signedOut: 'ログインすると、購入した書籍と読書の進捗がここに表示されます。',
+    empty: 'まだ書籍を購入していません。',
+    browseBooks: '書籍を探す',
+    continueReading: '続きを読む',
+    allOwned: '所有している本',
+    lastRead: '最後に読んだ位置',
+    loading: '読み込み中…',
+    loadFailed: 'ライブラリの読み込み中にエラーが発生しました。',
+    retry: '再試行',
   },
   book: {
     title: '書籍詳細',
     lead: 'この書籍の詳細情報は準備中です。',
     notFound: 'この書籍は見つかりませんでした。',
+    about: 'この本について',
+    audience: '想定読者',
+    prerequisite: '前提となる日本語力',
+    authors: '著者',
+    publicationDetails: '書籍情報',
+    editionLabel: '版',
+    released: '発行',
+    language: '言語',
+    purchase: '購入する',
+    preview: '試し読み',
+    seeContents: '目次を見る',
+    pending: '確認中…',
+    purchaseUnavailable: '決済は準備中です。',
+    ownedLabel: '取得済み',
   },
   reader: {
     backToBook: '書籍へ戻る',
@@ -148,6 +214,7 @@ const ja: AppStrings = {
     readFromStart: '読み始める',
     continueReading: '続きを読む',
     progressLabel: '読書の進捗',
+    paidBoundary: 'ここから先は購入後にお読みいただけます。',
     chapterLabel: (order: number) => `第 ${order} 章`,
     fontSize: '文字サイズ',
     theme: '表示テーマ',
@@ -185,6 +252,13 @@ const ja: AppStrings = {
     outcome: '結果',
     question: '問い',
   },
+  readerGate: {
+    beyondPreview: 'この先はプレビューの範囲外です。',
+    locked: 'この書籍は購入後に読むことができます。',
+    message: '購入すると、続きをお読みいただけます。',
+    previewNote: '購入の前に、無料プレビューをお試しください。',
+    backToBook: '書籍に戻る',
+  },
   notFound: {
     title: 'ページが見つかりません',
     message: 'お探しのページは存在しないか、移動した可能性があります。',
@@ -206,6 +280,13 @@ const en: AppStrings = {
     library: 'My Library',
     skipToContent: 'Skip to content',
   },
+  storefront: {
+    catalog: 'All books',
+    viewDetails: 'View details',
+    featured: 'Featured',
+    free: 'Free',
+    owned: 'Owned',
+  },
   home: {
     title: 'Business Japanese Hub',
     lead: 'A platform for learning practical business Japanese through real-world reading materials.',
@@ -213,12 +294,34 @@ const en: AppStrings = {
   },
   library: {
     title: 'My Library',
-    lead: 'Your reading list will appear here.',
+    signedOut: 'Sign in to see the books you own and your reading progress here.',
+    empty: 'You don’t own any books yet.',
+    browseBooks: 'Browse books',
+    continueReading: 'Continue reading',
+    allOwned: 'Books you own',
+    lastRead: 'Last read',
+    loading: 'Loading…',
+    loadFailed: 'Something went wrong while loading your library.',
+    retry: 'Retry',
   },
   book: {
     title: 'Book Details',
     lead: 'Details for this book are coming soon.',
     notFound: 'This book could not be found.',
+    about: 'About this book',
+    audience: 'Audience',
+    prerequisite: 'Prerequisite Japanese level',
+    authors: 'Author',
+    publicationDetails: 'Book details',
+    editionLabel: 'Edition',
+    released: 'Released',
+    language: 'Language',
+    purchase: 'Buy',
+    preview: 'Try a sample',
+    seeContents: 'View contents',
+    pending: 'Checking…',
+    purchaseUnavailable: 'Payment is not available yet.',
+    ownedLabel: 'Owned',
   },
   reader: {
     backToBook: 'Back to book',
@@ -236,6 +339,7 @@ const en: AppStrings = {
     readFromStart: 'Start reading',
     continueReading: 'Continue reading',
     progressLabel: 'Reading progress',
+    paidBoundary: 'The rest of this book is available after purchase.',
     chapterLabel: (order: number) => `Chapter ${order}`,
     fontSize: 'Text size',
     theme: 'Theme',
@@ -272,6 +376,13 @@ const en: AppStrings = {
     authorNote: 'From the author',
     outcome: 'Outcome',
     question: 'Question',
+  },
+  readerGate: {
+    beyondPreview: 'You’ve reached the end of the preview.',
+    locked: 'This book is available after purchase.',
+    message: 'Purchase the book to keep reading.',
+    previewNote: 'Try the free preview before you buy.',
+    backToBook: 'Back to the book',
   },
   notFound: {
     title: 'Page not found',

@@ -32,7 +32,7 @@ export const sampleBook: Book = {
     },
   ],
   cover: {
-    src: '/images/sample-keigo-cover.png',
+    src: '/images/keigo-cover.svg',
     alt: '「敬語の基礎」の表紙イメージ',
     caption: 'サンプル表紙',
     credit: 'sample-fixture',
@@ -41,7 +41,10 @@ export const sampleBook: Book = {
   },
   edition: { number: 1, label: '第1版', year: 2026 },
   publication: { status: 'draft' },
-  price: { tier: 'free', amount: 0, currency: 'JPY' },
+  // Paid with a chapter-1 preview boundary, matching the authoring manifest
+  // (books/keigo-essentials/manifest.json): chapter 1 is the free preview and
+  // the rest is paid content.
+  price: { tier: 'paid', amount: 880, currency: 'JPY' },
   audience: {
     levels: ['beginner', 'intermediate'],
     languages: ['zh-TW', 'en'],
@@ -208,7 +211,7 @@ export const sampleBook: Book = {
         {
           id: 'ch3-blk-05',
           type: 'image',
-          src: '/images/keigo-pyramid.png',
+          src: '/images/keigo-pyramid.svg',
           alt: '敬語の三分類を示すピラミッド図',
           caption: '敬語のピラミッド：丁寧語を土台に、尊敬語・謙譲語を組み合わせます。',
           credit: 'sample-fixture',

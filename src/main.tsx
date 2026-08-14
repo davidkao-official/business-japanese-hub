@@ -4,6 +4,7 @@ import App from './App'
 import './styles/tokens.css'
 import './styles/global.css'
 import './styles/reader.css'
+import './styles/shop.css'
 
 const root = document.getElementById('root')
 

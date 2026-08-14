@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
+import { Route, Routes, useNavigate } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { BookPage } from './app/BookPage'
@@ -7,6 +7,7 @@ import { HomePage } from './app/HomePage'
 import { LibraryPage } from './app/LibraryPage'
 import { NotFoundPage } from './app/NotFoundPage'
 import { Layout } from './components/Layout'
+import { renderWithAppProviders } from './test/appProviders'
 
 /** Test-only page exposing raw router actions so tests can drive push / POP. */
 function RouterProbePage() {
@@ -21,6 +22,20 @@ function RouterProbePage() {
         go back
       </button>
     </div>
+  )
+}
+
+/** Renders the platform chrome (Layout) with the home + library routes. */
+function renderShellRoutes(initialEntries: string[]) {
+  return renderWithAppProviders(
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<HomePage />} />
+        <Route path="library" element={<LibraryPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Route>
+    </Routes>,
+    { initialEntries },
   )
 }
 
@@ -56,43 +71,33 @@ describe('application shell', () => {
     expect(heading).toHaveTextContent('ビジネス日本語ハブ')
   })
 
-  it('renders the library route as a placeholder page', () => {
-    render(
-      <MemoryRouter initialEntries={['/library']}>
-        <Routes>
-          <Route path="/library" element={<LibraryPage />} />
-        </Routes>
-      </MemoryRouter>,
+  it('renders the library route with the signed-out state', async () => {
+    renderWithAppProviders(
+      <Routes>
+        <Route path="/library" element={<LibraryPage />} />
+      </Routes>,
+      { initialEntries: ['/library'] },
     )
 
+    expect(screen.getByRole('heading', { name: 'マイライブラリ' })).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: 'マイライブラリ' }),
+      await screen.findByText('ログインすると、購入した書籍と読書の進捗がここに表示されます。'),
     ).toBeInTheDocument()
   })
 
   it('surfaces the slug param on the book route', () => {
-    render(
-      <MemoryRouter initialEntries={['/books/nihongo-notebook']}>
-        <Routes>
-          <Route path="/books/:slug" element={<BookPage />} />
-        </Routes>
-      </MemoryRouter>,
+    renderWithAppProviders(
+      <Routes>
+        <Route path="/books/:slug" element={<BookPage />} />
+      </Routes>,
+      { initialEntries: ['/books/nihongo-notebook'] },
     )
 
     expect(screen.getByTestId('book-slug')).toHaveTextContent('nihongo-notebook')
   })
 
   it('moves focus to the main landmark after client-side navigation', async () => {
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="library" element={<LibraryPage />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    )
+    renderShellRoutes(['/'])
 
     const main = screen.getByRole('main')
     // A fresh page load must not steal focus.
@@ -107,17 +112,7 @@ describe('application shell', () => {
   })
 
   it('marks the Library link as current on its exact route', () => {
-    render(
-      <MemoryRouter initialEntries={['/library']}>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="library" element={<LibraryPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    )
+    renderShellRoutes(['/library'])
 
     expect(screen.getByRole('link', { name: 'マイライブラリ' })).toHaveAttribute(
       'aria-current',
@@ -126,17 +121,7 @@ describe('application shell', () => {
   })
 
   it('does not mark the Library link as current on an unmatched descendant route', () => {
-    render(
-      <MemoryRouter initialEntries={['/library/missing']}>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="library" element={<LibraryPage />} />
-            <Route path="*" element={<NotFoundPage />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    )
+    renderShellRoutes(['/library/missing'])
 
     expect(screen.getByRole('link', { name: 'マイライブラリ' })).not.toHaveAttribute(
       'aria-current',
@@ -147,16 +132,7 @@ describe('application shell', () => {
 
   it('resets scroll to the top on a forward (push) navigation', async () => {
     const scrollToSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="library" element={<LibraryPage />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
-    )
+    renderShellRoutes(['/'])
 
     fireEvent.click(screen.getByRole('link', { name: 'マイライブラリ' }))
     await waitFor(() => expect(scrollToSpy).toHaveBeenCalledWith(0, 0))
@@ -164,16 +140,15 @@ describe('application shell', () => {
 
   it('does not force a scroll reset on a POP (back) navigation', async () => {
     const scrollToSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
-    render(
-      <MemoryRouter initialEntries={['/', '/probe']} initialIndex={1}>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="probe" element={<RouterProbePage />} />
-            <Route path="library" element={<LibraryPage />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>,
+    renderWithAppProviders(
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<HomePage />} />
+          <Route path="probe" element={<RouterProbePage />} />
+          <Route path="library" element={<LibraryPage />} />
+        </Route>
+      </Routes>,
+      { initialEntries: ['/', '/probe'], initialIndex: 1 },
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'go back' }))

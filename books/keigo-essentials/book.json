@@ -32,8 +32,8 @@
     "status": "draft"
   },
   "price": {
-    "tier": "free",
-    "amount": 0,
+    "tier": "paid",
+    "amount": 880,
     "currency": "JPY"
   },
   "audience": {

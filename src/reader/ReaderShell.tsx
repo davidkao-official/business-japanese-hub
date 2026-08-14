@@ -13,6 +13,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { Book, Chapter, VocabularyBlock } from '../content/types'
 import { useStrings } from '../i18n/strings'
+import { canRead, type PreviewBoundary } from '../lib/entitlement'
+import { tierOf, toChapterOrderRefs } from '../lib/bookAccess'
 import {
   noopReadingPositionStore,
   type ReadingAnchor,
@@ -27,6 +29,7 @@ import { ReaderChapterHeader } from './ReaderChapterHeader'
 import { ReaderChapterNav } from './ReaderChapterNav'
 import { ReaderDialog } from './ReaderDialog'
 import { ReaderMarginalia } from './ReaderMarginalia'
+import { ReaderPaidBoundary } from './ReaderPaidBoundary'
 import { ReaderProgress } from './ReaderProgress'
 import { ReaderSettingsPanel } from './ReaderSettingsPanel'
 import { ReaderToc } from './ReaderToc'
@@ -37,6 +40,13 @@ export interface ReaderShellProps {
   chapter: Chapter
   /** Reading-position persistence seam (#7 swaps the no-op store). */
   store?: ReadingPositionStore
+  /**
+   * Server-authoritative ownership (the entitlement gate input). Only blocks
+   * inside the preview boundary are rendered when unowned.
+   */
+  owned?: boolean
+  /** Gate-shaped preview boundary (registry metadata; see src/reader/catalog.ts). */
+  previewBoundary?: PreviewBoundary
 }
 
 function VocabularyDetail({ block }: { block: VocabularyBlock }) {
@@ -66,7 +76,13 @@ function VocabularyDetail({ block }: { block: VocabularyBlock }) {
   )
 }
 
-export function ReaderShell({ book, chapter, store = noopReadingPositionStore }: ReaderShellProps) {
+export function ReaderShell({
+  book,
+  chapter,
+  store = noopReadingPositionStore,
+  owned = false,
+  previewBoundary,
+}: ReaderShellProps) {
   const strings = useStrings()
   const contentRef = useRef<HTMLElement>(null)
   const isDesktop = useMediaQuery('(min-width: 64rem)')
@@ -77,6 +93,22 @@ export function ReaderShell({ book, chapter, store = noopReadingPositionStore }:
   const [vocabBlock, setVocabBlock] = useState<VocabularyBlock | null>(null)
 
   const chrome = useChromeVisibility(isDesktop)
+
+  // Entitlement gate: the chapter's ordered blocks are filtered to the readable
+  // prefix (deny-by-default via `canRead`); a single boundary marker is rendered
+  // where the preview ends, and blocks beyond it are never mounted.
+  const tier = tierOf(book)
+  const chapterRefs = useMemo(() => toChapterOrderRefs(book), [book])
+  const firstGatedIndex = chapter.blocks.findIndex((block) => {
+    return !canRead({
+      tier,
+      owned,
+      position: { chapterId: chapter.id, blockId: block.id },
+      chapters: chapterRefs,
+      previewBoundary,
+    })
+  })
+  const visibleBlocks = firstGatedIndex === -1 ? chapter.blocks : chapter.blocks.slice(0, firstGatedIndex)
 
   const onAnchorChange = useCallback(
     (anchor: ReadingAnchor) => {
@@ -108,9 +140,11 @@ export function ReaderShell({ book, chapter, store = noopReadingPositionStore }:
       ? book.chapters[chapterIndex + 1]
       : undefined
 
+  // Only vocabulary that is actually readable feeds the marginalia rail: a
+  // block beyond the preview boundary must not leak paid content sideways.
   const vocabBlocks = useMemo(
-    () => chapter.blocks.filter((block): block is VocabularyBlock => block.type === 'vocabulary'),
-    [chapter],
+    () => visibleBlocks.filter((block): block is VocabularyBlock => block.type === 'vocabulary'),
+    [visibleBlocks],
   )
 
   const toggleToc = useCallback(() => setTocOpen((current) => !current), [])
@@ -156,7 +190,7 @@ export function ReaderShell({ book, chapter, store = noopReadingPositionStore }:
           <div id="chapter-body" tabIndex={-1} className="reader-chapter-body">
             <ReaderChapterHeader chapter={chapter} />
             <div className="reader-blocks">
-              {chapter.blocks.map((block) => (
+              {visibleBlocks.map((block) => (
                 <BlockRenderer
                   key={block.id}
                   block={block}
@@ -164,6 +198,7 @@ export function ReaderShell({ book, chapter, store = noopReadingPositionStore }:
                   openVocabBlockId={vocabBlock?.id}
                 />
               ))}
+              {firstGatedIndex !== -1 && <ReaderPaidBoundary book={book} />}
             </div>
             <ReaderChapterNav book={book} prev={prevChapter} next={nextChapter} />
           </div>
