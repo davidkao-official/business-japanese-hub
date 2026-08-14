@@ -48,6 +48,7 @@ export interface AppStrings {
     backToBook: string
     backToLibrary: string
     bookNotFound: string
+    chapterNotFound: string
     tableOfContents: string
     settings: string
     revealChrome: string
@@ -135,6 +136,7 @@ const ja: AppStrings = {
     backToBook: '書籍へ戻る',
     backToLibrary: 'ライブラリへ戻る',
     bookNotFound: 'この書籍は見つかりませんでした。',
+    chapterNotFound: 'この章は見つかりませんでした。',
     tableOfContents: '目次',
     settings: '表示設定',
     revealChrome: '目次と設定を表示',
@@ -222,6 +224,7 @@ const en: AppStrings = {
     backToBook: 'Back to book',
     backToLibrary: 'Back to Library',
     bookNotFound: 'This book could not be found.',
+    chapterNotFound: 'This chapter could not be found.',
     tableOfContents: 'Table of contents',
     settings: 'Display settings',
     revealChrome: 'Show contents and settings',

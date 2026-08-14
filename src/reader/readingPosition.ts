@@ -119,9 +119,13 @@ export function computePercent(
 ): number {
   if (reachedEnd) return 1
   const total = bookCharacterCount(book)
+  // Reject negative AND out-of-bounds indices before any array dereference:
+  // a malformed position must degrade to "no progress", never crash.
   if (total <= 0 || chapterIndex < 0 || blockIndex < 0) return 0
-  const offset = bookCharacterOffset(book, chapterIndex, blockIndex)
+  if (chapterIndex >= book.chapters.length) return 0
   const chapter = book.chapters[chapterIndex]
+  if (blockIndex >= chapter.blocks.length) return 0
+  const offset = bookCharacterOffset(book, chapterIndex, blockIndex)
   const blockChars = chapter.blocks[blockIndex] ? blockText(chapter.blocks[blockIndex]).length : 0
   return Math.min(1, (offset + blockChars / 2) / total)
 }

@@ -77,7 +77,10 @@ export function useReadingPosition(
       }
       const ended =
         window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2
-      setAtEnd(ended)
+      // Whole-book 100% is meaningful only at the bottom of the FINAL chapter;
+      // scrolling to the bottom of an earlier chapter must not report 100%.
+      const isFinalChapter = chapter.id === book.chapters[book.chapters.length - 1]?.id
+      setAtEnd(ended && isFinalChapter)
       const blockId = current?.dataset.blockId
       if (blockId) {
         setAnchor({ chapterId: chapter.id, blockId })
@@ -102,7 +105,7 @@ export function useReadingPosition(
       window.removeEventListener('resize', schedule)
       if (raf) cancelAnimationFrame(raf)
     }
-  }, [book.id, chapter.id, contentRef])
+  }, [book.id, book.chapters, chapter.id, contentRef])
 
   const chapterIndex = resolveChapterIndex(book, chapter.id)
   const blockIndex = resolveBlockIndex(chapter, effectiveAnchor.blockId)

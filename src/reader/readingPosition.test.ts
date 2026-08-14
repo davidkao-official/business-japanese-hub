@@ -125,4 +125,20 @@ describe('computePercent', () => {
     expect(last).toBeGreaterThan(0.9)
     expect(last).toBeLessThanOrEqual(1)
   })
+
+  it('returns 0 for a chapter index beyond the last chapter', () => {
+    // Regression: upper-bound indices must be rejected before any array
+    // dereference, not dereference an undefined chapter and crash.
+    expect(computePercent(sampleBook, sampleBook.chapters.length, 0)).toBe(0)
+    expect(computePercent(sampleBook, 99, 0)).toBe(0)
+  })
+
+  it('returns 0 for a block index beyond the last block of the chapter', () => {
+    expect(computePercent(sampleBook, 0, ch1.blocks.length)).toBe(0)
+    expect(computePercent(sampleBook, 2, 99)).toBe(0)
+  })
+
+  it('keeps reachedEnd behavior even when the indices are out of bounds', () => {
+    expect(computePercent(sampleBook, 99, 99, true)).toBe(1)
+  })
 })
