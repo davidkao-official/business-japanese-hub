@@ -119,10 +119,19 @@ export function computePercent(
 ): number {
   if (reachedEnd) return 1
   const total = bookCharacterCount(book)
-  // Reject negative AND out-of-bounds indices before any array dereference:
-  // a malformed position must degrade to "no progress", never crash.
-  if (total <= 0 || chapterIndex < 0 || blockIndex < 0) return 0
-  if (chapterIndex >= book.chapters.length) return 0
+  // Reject negative, NaN, fractional, and out-of-bounds indices before any
+  // array dereference: a malformed position must degrade to "no progress",
+  // never crash (array[NaN]/array[1.5] yield undefined and would throw).
+  if (
+    total <= 0 ||
+    !Number.isInteger(chapterIndex) ||
+    chapterIndex < 0 ||
+    chapterIndex >= book.chapters.length ||
+    !Number.isInteger(blockIndex) ||
+    blockIndex < 0
+  ) {
+    return 0
+  }
   const chapter = book.chapters[chapterIndex]
   if (blockIndex >= chapter.blocks.length) return 0
   const offset = bookCharacterOffset(book, chapterIndex, blockIndex)

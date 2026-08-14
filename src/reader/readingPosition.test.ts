@@ -141,4 +141,13 @@ describe('computePercent', () => {
   it('keeps reachedEnd behavior even when the indices are out of bounds', () => {
     expect(computePercent(sampleBook, 99, 99, true)).toBe(1)
   })
+
+  it('returns 0 for NaN or fractional indices instead of dereferencing', () => {
+    // Regression: NaN/fractional chapter or block indices must degrade to "no
+    // progress" (0), never index into the arrays with an invalid key and crash.
+    expect(computePercent(sampleBook, Number.NaN, 0)).toBe(0)
+    expect(computePercent(sampleBook, 0, Number.NaN)).toBe(0)
+    expect(computePercent(sampleBook, 1.5, 0)).toBe(0)
+    expect(computePercent(sampleBook, 0, 1.5)).toBe(0)
+  })
 })
