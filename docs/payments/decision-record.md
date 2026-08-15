@@ -116,6 +116,18 @@ GET /api/orders/<id>/status   →   server DB state only
 - ~~「以 ECPay 回調 (OrderResultURL) 為最終依據」~~ — 錯。authoritative 是 `ReturnURL`。
 - ~~「ECPay 向商家系統 POST 訂單結果，或瀏覽器重定向到 OrderResultURL，皆可觸發 Succeeded」~~ — 錯。只有 verified `ReturnURL`（含 QueryTradeInfo 確認）可以觸發 `Succeeded`。
 
+### 3.4 Required endpoints（#9 實作必須）
+
+```text
+POST /api/checkout/books/:bookId        authenticated；忽略所有 client price / provider-success state；回傳 signed ECPay checkout instruction
+POST /api/payments/ecpay/callback       public server callback；CheckMac required；durable + idempotent；authoritative payment processing；成功 ACK 精確為 `1|OK`
+POST /api/payments/ecpay/browser-return browser navigation only；NEVER grants payment/entitlement；303 → frontend result page
+GET  /api/orders/:orderId/status        authenticated owner/admin；只回傳 local authoritative state
+GET  /api/admin/finance/*               finance role only
+```
+
+**Authorization 規則：opaque identifier 不是 authorization check。** `GET /api/orders/:orderId/status` 需要 authenticated session 並驗證 `order.user_id === auth.uid()` 後才回傳 order state；`/api/admin/finance/*` 需要 server-enforced `finance_viewer` / `finance_admin` role。若未來支援 guest checkout，改用 signed、scoped、one-time result token，而不是以訂單編號當授權。
+
 ---
 
 ## 4. ECPay All-In-One callback contract（必補 blocker B2）
@@ -233,6 +245,20 @@ Valid callback
 
 反過來，如果 DB transaction 本身失敗，**不要先回 `1|OK`**。讓 ECPay 重送比承認一個沒有 durable ingest 的 callback 安全得多。
 
+### 4.6 Required ECPay checkout rules（#9 實作必須）
+
+```text
+ChoosePayment       = Credit
+PaymentType         = aio
+EncryptType         = 1
+NeedExtraPaidInfo   = N
+MerchantTradeNo     = server-generated；<= 20 字元、alphanumeric；unique per Payment attempt；never reused
+TotalAmount         = server-generated；integer TWD；Payment 建立後 immutable
+ReturnURL           != OrderResultURL
+```
+
+`MerchantTradeNo` 產生器必須是 **server-side 產生**：定義生成規則、validation（長度 ≤ 20、alphanumeric 字元集）與 **collision retry**（若產生到已使用／保留的號碼則重新產生）；不得以 client 提供值或可預測順序直接當作 provider reference。每個 Payment attempt 用新的 `MerchantTradeNo`，永不重複使用舊號碼。
+
 ---
 
 ## 5. CheckMacValue canonicalization
@@ -273,6 +299,8 @@ ecpayCheckMac(params, hashKey, hashIV): string
 
 - **Query API**：STAGE `https://payment-stage.ecpay.com.tw/Cashier/QueryTradeInfo/V5`；PRODUCTION `https://payment.ecpay.com.tw/Cashier/QueryTradeInfo/V5`。
 - Query 的 `TimeStamp` 官方限制在約三分鐘有效；若 callback 沒有收到，信用卡/TWQR 官方建議付款後約十分鐘查一次，若仍為 `TradeStatus=0` 可再等十分鐘，或約四十分鐘後查詢，避免過度呼叫。呼叫太快可能收到 HTTP 403，官方要求降低頻率並等待。
+- **Query HTTP 需要 finite deadlines**：定義 connect / read timeout（例如 connect ≤ 10s、read ≤ 15s）；retry 採 bounded backoff（配合官方 10/40 分鐘指引），不要無限重試。
+- **`TradeStatus=0` 不是 terminal failure**：代表「訂單已建立但尚未付款」（銀行可能尚未回傳結果）。Query 回 `TradeStatus=0` → persist `verification_pending` + schedule retry；`failed` 保留給 terminal provider failure（例如 issuer refusal、額度不足、交易限制）。
 
 MVP 三層 reconciliation：
 
@@ -297,10 +325,14 @@ MVP 三層 reconciliation：
 1. **MVP 只支援 full refund。** 一個 Book entitlement 是 binary ownership；「退 30% 但書還能不能看」只會額外創造沒有產品需求的 domain ambiguity。**MVP 不定義 `PartiallyRefunded` 行為。**
 2. **`refunds` 表是退款事實來源（source of truth）。** provider-confirmed refund 的事實落在 `refunds.status = succeeded`。
 3. **provider-confirmed refund 後，由 orchestration 以明確 state transition 更新 derived state：**
-   - 同一 transaction 內：`refunds.status = succeeded`
-   - `payments.status = refunded`（MVP 全額退款唯一路徑）
-   - `orders.status = refunded`
-   - `entitlements.status = revoked`，`revoked_reason = 'refund'`，保留 audit row（不刪除 row，未來重新購買可再 activate）
+   - 同一 transaction 內：`refunds.status = succeeded`（事實來源）
+   - **若被退款的 payment 是該 Order 的 entitlement-bearing（primary）payment：**
+     - `payments.status = refunded`
+     - `orders.status = refunded`
+     - `entitlements.status = revoked`，`revoked_reason = 'refund'`，保留 audit row（不刪除 row，未來重新購買可再 activate）
+   - **若被退款的 payment 是 `duplicate_success` 重複付款（不是 entitlement-bearing）：**
+     - 該筆 `payments.status = refunded`；`orders` 保持 `paid`；`entitlement` 保持 `active`
+   - 以 primary / entitlement-bearing payment marker（或 `source_order_id` 關聯）區分兩者，避免把 duplicate charge 退款誤轉成 `orders.status = refunded` + `entitlement revoked`。
 
 ### 7.2 Refund 契約（ECPay 面向）
 
@@ -340,14 +372,14 @@ ECPay 全方位金流的信用卡退款不是單一「refund」動作。官方�
 
 ```ts
 interface Money {
-  /** Integer canonical amount in the currency's minor unit. 不可是小數。 */
-  amount: number; // or BigInt where supported
+  /** Integer canonical amount in the currency's minor unit（JS safe integer，非負）。 */
+  amount: number;
   /** Uppercase ISO 4217 code (registry-validated, see src/content/iso4217.ts). */
   currency: string;
 }
 ```
 
-1. **integer canonical representation**：payment domain 的 `Money.amount` 一律是該 currency minor unit 的整數。
+1. **integer canonical representation**：payment domain 的 `Money.amount` 一律是該 currency minor unit 的整數。單一 runtime representation 為 JS `number`（必須通過 `Number.isSafeInteger(amount) && amount >= 0`）；DB 序列化為 Postgres `bigint`，JSON 序列化為 number。**不使用 `BigInt` 作為 canonical 表示**（避免序列化／DB binding 分歧）。
 2. **currency 明確**：`Money.currency` 是 registry-validated ISO 4217 code。
 3. **minor-unit semantics**：
    - TWD / USD：minor unit = 分（1/100）→ 例如 `TWD 790` 是 `{ amount: 79000, currency: 'TWD' }`。
@@ -385,7 +417,7 @@ entitlements（target shape，provider-neutral）
   book_id
   source_order_id        # payment-provider neutral source order reference
   provider               # 'manual' | 'ecpay' | ...（新 provider 加值即擴充，無 CHECK 硬編碼單一 provider）
-  provider_ref
+  provider_ref           # opaque generic grant provenance（例如 manual 授予的 operator 註記；不是 provider 交易參考）
   status                 # active / revoked
   granted_at
   revoked_at nullable
@@ -393,20 +425,18 @@ entitlements（target shape，provider-neutral）
   unique (user_id, book_id)
 ```
 
-**不得有 `ecpay_trade_no` 欄位**。`#7` 已明確要求 ownership interface 不綁 ECPay；provider reference 只存在 `payments.provider_*`。
+**不得有 `ecpay_trade_no` 等 provider-specific 欄位。** `provider_ref` 保留為 generic grant provenance（例如 `manual` 授予的 operator 註記）；provider 交易參考（`MerchantTradeNo` / `TradeNo`）只存在 `payments.provider_*`。`#7` 已明確要求 ownership interface 不綁 ECPay。
 
 ### 9.3 Bounded migration plan
 
-1. **Provider-neutral source/provider representation**：放寬 `book_entitlement.provider` CHECK 與 `EntitlementProvider` union，改為 provider-neutral（可列舉新 provider，或改為通用字串＋domain 校驗）。
+1. **Provider-neutral source/provider representation**：放寬 `book_entitlement.provider` CHECK 與 `EntitlementProvider` union，改為 provider-neutral（可列舉新 provider，或改為通用字串＋domain 校驗）。此步不涉及 FK。
 2. **Existing data compatibility**：既有 `('manual','ecpay')` 資料可無損遷移；`manual` / `ecpay` 保留為合法值。
-3. **Entitlement active/revoked semantics**：新增 `status`（`active` / `revoked`）；既有 grant 全部視為 `active`。
-4. **Source order/payment reference**：新增 `source_order_id`（及所需 FK），讓 entitlement 對回 Order/Payment，provider-neutral。
-5. **Refund → revoke transition**：新增 `revoked_at`、`revocation_reason`；revoke 由 orchestration 在 provider-confirmed refund 後觸發（見 §7）。
-6. **Migration ordering**（給 #9 的 bounded follow-up）：
-   - 先 migration entitlement schema（放寬 CHECK、加 `status` / `source_order_id` / `revoked_at` / `revocation_reason`），同時更新 `grant_entitlement` 函式簽章與 `EntitlementProvider` / `Entitlement` type。
-   - 再建立 `orders` / `payments` / `refunds` / `payment_events` 表（§12）與 finance read model（§14）。
-   - 既有資料只需 backfill：`status='active'`、`source_order_id=null`（歷史 manual grants 無對應 order）。
-   - 不做 destructive migration；不 drop 既有欄位。
+3. **Commerce tables 先建立**：建立 `orders` / `payments` / `refunds` / `payment_events`（§12）與 finance read model（§14）——`entitlements.source_order_id` 的 FK 才能存在。
+4. **Entitlement active/revoked semantics**：新增 `status`（`active` / `revoked`）；既有 grant 全部視為 `active`。
+5. **Source order/payment reference**：在 `orders` 表存在後，新增 `source_order_id`（nullable first）＋ FK constraint，讓 entitlement 對回 Order/Payment，provider-neutral。
+6. **Refund → revoke transition**：新增 `revoked_at`、`revocation_reason`；revoke 由 orchestration 在 provider-confirmed refund 後觸發（見 §7）。
+7. **Backfill**：既有資料 `status='active'`、`source_order_id=null`（歷史 manual grants 無對應 order）。
+8. **Migration ordering 總則**：先建立被 reference 的 commerce tables，再加 FK；`source_order_id` 先 nullable 再補 constraint；同步更新 `grant_entitlement` 函式簽章與 `EntitlementProvider` / `Entitlement` type。不做 destructive migration；不 drop 既有欄位。
 
 本輪只定義 contract / follow-up scope。實際 migration 是 #9（或 #9 內 bounded migration）的實作範圍。
 
@@ -485,7 +515,7 @@ NewebPay implementation 可以把同一 boundary 映射到其最新官方幕前�
 ```text
 Order O1: book-abc, TWD 790
  ├─ Payment P1 / ECPay BJH...001 -> failed
- ├─ Payment P2 / ECPay BJH...002 -> abandoned
+ ├─ Payment P2 / ECPay BJH...002 -> pending（abandoned checkout；由 repair loop 解析）
  └─ Payment P3 / ECPay BJH...003 -> succeeded
                                     ↓
                              Entitlement active
@@ -508,11 +538,14 @@ Order.status:      pending → paid → refunded
                    pending → cancelled
                    （paid 不再回到 failed；晚到的 failed callback 不得將 succeeded 降回 failed）
 
-PaymentAttempt.status:
+PaymentAttempt.status（單一 persisted vocabulary）:
+  created / pending / verification_pending / succeeded / failed / duplicate_success / refunded
   created → pending → verification_pending → succeeded
-                ↘ failed / cancelled（可建立新 attempt 重試）
-  succeeded → refunded（orchestration 於 provider-confirmed refund 後更新）
-  succeeded（第二筆真的刷卡成功）→ duplicate_success（finance anomaly queue，不建立第二 entitlement）
+                 ↘ failed（terminal；可建立新 attempt 重試）
+  succeeded → refunded（orchestration 於 provider-confirmed refund 後更新，見 §7）
+  succeeded（第二筆真的刷卡成功）→ duplicate_success（finance review queue，不建立第二 entitlement）
+  abandoned checkout 不新增 status：attempt 留在 pending，由 repair loop（§6 Layer B）以 QueryTradeInfo 解析為 succeeded / failed
+  `review_required` 不是 payment status——它是 finance anomaly/review queue 的 metadata，與 `duplicate_success` 分開模型
 
 Entitlement.status: active → revoked（refund / manual revoke，保留 audit row）
 ```
@@ -589,14 +622,14 @@ ECPay 官方要求保留 `TradeNo` 與 `MerchantTradeNo` 的關聯，這正好�
 | `book_id` | |
 | `source_order_id` | payment-provider neutral |
 | `provider` | 'manual' / 'ecpay' / ... |
-| `provider_ref` | opaque |
+| `provider_ref` | opaque generic grant provenance（operator 註記）；不是 provider 交易參考 |
 | `status` | active / revoked |
 | `granted_at` | |
 | `revoked_at` | nullable |
 | `revocation_reason` | nullable |
 | unique `(user_id, book_id)` | |
 
-**不得有 `ecpay_trade_no`。** `#7` 已明確要求 ownership interface 不綁 ECPay。
+**不得有 `ecpay_trade_no` 等 provider-specific 欄位。** provider 交易參考（`MerchantTradeNo` / `TradeNo`）只存在 `payments.provider_*`；`#7` 已明確要求 ownership interface 不綁 ECPay。
 
 ### payment_events（reliability，MVP 必須）
 
@@ -639,7 +672,7 @@ ECPay 官方要求 duplicate callback 要安全處理；Business Japanese Hub �
 - ECPay 沒有像某些 webhook provider 一樣提供獨立 event ID，因此 `event_fingerprint` 可由已驗證 callback canonical payload 做 SHA-256；**但不能只靠 fingerprint 防止 double fulfillment**。真正 entitlement guarantee 必須靠 state transition + unique entitlement constraint。
 - 交易更新採 conditional state transition + `ON CONFLICT`（見 §6/§7 的 transaction 模式）。
 - 已 `succeeded` 的 Payment 收到相同 callback 就 no-op；不可因晚到的 failed callback 將 `succeeded` 降回 `failed`。
-- **double charge**（兩個 payment attempts 都真的刷卡成功）不是 duplicate webhook：第二筆 Payment 照實記成 `succeeded`，但 Order 已由第一筆完成；不得建立第二份 entitlement，而是標成 `duplicate_success` / `review_required`，進 finance anomaly queue，進行退款。這是 multi-attempt payment model 才能正確表達的情況。
+- **double charge**（兩個 payment attempts 都真的刷卡成功）不是 duplicate webhook：第二筆 Payment 照實記成 `succeeded`，但 Order 已由第一筆完成；不得建立第二份 entitlement，而是標成 `duplicate_success`（進 finance anomaly/review queue），進行退款。**只有第一筆 qualifying successful payment 會呼叫 `grant_entitlement`；`duplicate_success` 處理不得再次呼叫 grant upsert，也不得覆寫既有 entitlement 的 `provider_ref` / `granted_at` provenance。** 這是 multi-attempt payment model 才能正確表達的情況。
 
 ---
 
@@ -763,7 +796,7 @@ Operational logs 只能含：local order id、local payment id、provider、`Mer
 
 `#9` 只包含：
 
-- **provider-neutral payment core**：create Order、create/persist PaymentAttempt、route through adapter、persist provider-neutral order/payment/refund state、idempotent verified event processing、grant entitlement exactly once、pending/success/failed/canceled/refunded states 反映到 storefront/book detail/library。
+- **provider-neutral payment core**：create Order、create/persist PaymentAttempt、route through adapter、persist provider-neutral order/payment/refund state、idempotent verified event processing、grant entitlement exactly once、pending/success/failed/cancelled/refunded states 反映到 storefront/book detail/library。
 - **ECPay first TWD adapter**：AioCheckOut V5 + CheckMacValue + ReturnURL callback verification + QueryTradeInfo confirmation + duplicate/replay-safe handling + sandbox/production credentials separation + MVP refund/revocation policy。
 - **sandbox / test integration**：stage card purchase path、test matrix（§19）。
 - **operator read model**：orders / payments / refunds / entitlements / reconciliation（§14）。
