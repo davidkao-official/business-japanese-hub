@@ -41,7 +41,7 @@ export function useBookState(bookId: string): BookState {
   const { user, authLoading, repository } = useUserState();
   const [fetched, setFetched] = useState<FetchedBookState | null>(null);
 
-  const active = Boolean(user && repository);
+  const active = Boolean(user && repository && bookId !== '');
 
   useEffect(() => {
     if (!active) return;
@@ -110,7 +110,7 @@ export function useBookOwned(bookId: string): { owned: boolean; loading: boolean
   const { user, authLoading, repository } = useUserState();
   const [fetched, setFetched] = useState<FetchedBookState | null>(null);
 
-  const active = Boolean(user && repository);
+  const active = Boolean(user && repository && bookId !== '');
 
   useEffect(() => {
     if (!active) return;

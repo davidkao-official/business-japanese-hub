@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { useStrings } from '../i18n/strings'
@@ -5,6 +6,19 @@ import { useUserState } from '../lib/persistence/UserStateContext'
 import { useLibraryData } from './useLibraryData'
 import { ContinueReading } from '../components/ContinueReading'
 import { LibraryBookTile } from '../components/LibraryBookTile'
+
+/** Shared page shell: the library landmark + heading stay identical across states. */
+function LibraryShell({ children }: { children?: ReactNode }) {
+  const strings = useStrings()
+  return (
+    <section className="page" aria-labelledby="library-title">
+      <h1 className="page__title" id="library-title">
+        {strings.library.title}
+      </h1>
+      {children}
+    </section>
+  )
+}
 
 /**
  * Personal library — the owned-book shelf (docs/ui-ux-research.md §4.3).
@@ -22,83 +36,64 @@ export function LibraryPage() {
   // the signed-out state.
   if (authLoading && !user) {
     return (
-      <section className="page" aria-labelledby="library-title">
-        <h1 className="page__title" id="library-title">
-          {strings.library.title}
-        </h1>
+      <LibraryShell>
         <p className="library-state" aria-live="polite">
           {strings.library.loading}
         </p>
-      </section>
+      </LibraryShell>
     )
   }
 
   if (!user) {
     return (
-      <section className="page" aria-labelledby="library-title">
-        <h1 className="page__title" id="library-title">
-          {strings.library.title}
-        </h1>
+      <LibraryShell>
         <p className="library-state">{strings.library.signedOut}</p>
-      </section>
+      </LibraryShell>
     )
   }
 
   if (error) {
     return (
-      <section className="page" aria-labelledby="library-title">
-        <h1 className="page__title" id="library-title">
-          {strings.library.title}
-        </h1>
+      <LibraryShell>
         <div className="library-state" role="alert">
           <p>{strings.library.loadFailed}</p>
           <button type="button" className="btn btn--ghost" onClick={reload}>
             {strings.library.retry}
           </button>
         </div>
-      </section>
+      </LibraryShell>
     )
   }
 
   if (loading && !data) {
     return (
-      <section className="page" aria-labelledby="library-title">
-        <h1 className="page__title" id="library-title">
-          {strings.library.title}
-        </h1>
+      <LibraryShell>
         <p className="library-state" aria-live="polite">
           {strings.library.loading}
         </p>
-      </section>
+      </LibraryShell>
     )
   }
 
   if (data && data.books.length === 0) {
     return (
-      <section className="page" aria-labelledby="library-title">
-        <h1 className="page__title" id="library-title">
-          {strings.library.title}
-        </h1>
+      <LibraryShell>
         <div className="library-state">
           <p>{strings.library.empty}</p>
           <Link className="btn btn--primary" to="/">
             {strings.library.browseBooks}
           </Link>
         </div>
-      </section>
+      </LibraryShell>
     )
   }
 
   if (!data) {
-    return null
+    return <LibraryShell />
   }
 
   return (
-    <section className="page" aria-labelledby="library-title">
-      <h1 className="page__title" id="library-title">
-        {strings.library.title}
-      </h1>
-
+    <LibraryShell>
       {data.continueReading.length > 0 && (
         <section aria-labelledby="library-continue-title">
           <h2 className="section-title" id="library-continue-title">
@@ -132,6 +127,6 @@ export function LibraryPage() {
           ))}
         </ul>
       </section>
-    </section>
+    </LibraryShell>
   )
 }

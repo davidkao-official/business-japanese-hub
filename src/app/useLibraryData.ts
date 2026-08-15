@@ -44,10 +44,13 @@ interface FetchedLibraryData {
   error: Error | null
 }
 
+/** A library book whose reading state resolved (used by the sort below). */
+type ReadLibraryBook = LibraryBook & { readingState: ReadingState }
+
 /** Sort newest first by the server-authoritative `updatedAt` (ISO-8601). */
-function byUpdatedAtDesc(a: LibraryBook, b: LibraryBook): number {
-  const at = a.readingState!.updatedAt
-  const bt = b.readingState!.updatedAt
+function byUpdatedAtDesc(a: ReadLibraryBook, b: ReadLibraryBook): number {
+  const at = a.readingState.updatedAt
+  const bt = b.readingState.updatedAt
   if (at === bt) return 0
   return at < bt ? 1 : -1
 }
@@ -82,21 +85,30 @@ export function useLibraryData(): LibraryDataState {
           return
         }
 
-        return Promise.all(owned.map((book) => repo.getReadingState(book.id))).then((states) => {
-          if (cancelled) return
-          const books: LibraryBook[] = owned.map((book, index) => {
-            const readingState = states[index]
-            return {
-              book,
-              readingState,
-              progress: readingState ? progressFromReadingState(book, readingState) : 0,
-            }
-          })
-          const continueReading = books
-            .filter((b): b is LibraryBook & { readingState: ReadingState } => b.readingState !== null)
-            .sort(byUpdatedAtDesc)
-          setFetched({ user: currentUser, data: { books, continueReading }, error: null })
-        })
+        // allSettled: one failed reading-state read must not blank the whole
+        // shelf — the affected book simply degrades to zero progress.
+        return Promise.allSettled(owned.map((book) => repo.getReadingState(book.id))).then(
+          (results) => {
+            if (cancelled) return
+            const states = results.map((result) =>
+              result.status === 'fulfilled' ? result.value : null,
+            )
+            const books: LibraryBook[] = owned.map((book, index) => {
+              const readingState = states[index]
+              return {
+                book,
+                readingState,
+                progress: readingState ? progressFromReadingState(book, readingState) : 0,
+              }
+            })
+            const continueReading = books
+              .filter(
+                (b): b is LibraryBook & { readingState: ReadingState } => b.readingState !== null,
+              )
+              .sort(byUpdatedAtDesc)
+            setFetched({ user: currentUser, data: { books, continueReading }, error: null })
+          },
+        )
       })
       .catch((reason: unknown) => {
         if (cancelled) return

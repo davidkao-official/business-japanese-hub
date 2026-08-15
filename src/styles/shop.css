@@ -442,18 +442,11 @@
   line-height: var(--leading-tight);
 }
 
-.continue-reading__chapter {
-  display: block;
-  margin-top: var(--space-1);
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
 .continue-reading__position {
   display: block;
   margin-top: var(--space-1);
   color: var(--color-text-muted);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
 }
 
 .continue-reading__cta {

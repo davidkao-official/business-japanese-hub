@@ -44,7 +44,7 @@ export function BookActions({
     switch (cta.primary) {
       case 'purchase':
         return loading ? (
-          <span key="primary" className="btn btn--pending" aria-hidden="true">
+          <span key="primary" className="btn btn--pending" role="status">
             {strings.book.pending}
           </span>
         ) : (

@@ -30,12 +30,10 @@ export function ContinueReading({ book, readingState, progress }: ContinueReadin
         <BookCover book={book} className="continue-reading__cover" />
         <span className="continue-reading__body">
           <span className="continue-reading__title">{book.title}</span>
-          {chapter && (
-            <span className="continue-reading__chapter">
-              {strings.reader.chapterLabel(chapter.order)} · {chapter.title}
-            </span>
-          )}
-          <span className="continue-reading__position">{strings.library.lastRead}</span>
+          <span className="continue-reading__position">
+            {strings.library.lastRead}
+            {chapter && `：${strings.reader.chapterLabel(chapter.order)} ${chapter.title}`}
+          </span>
           <ReadingProgress percent={progress} label={strings.reader.progressLabel} />
         </span>
         <span className="continue-reading__cta">{strings.library.continueReading}</span>
