@@ -47,3 +47,4 @@
 - `docs/content-model.md` — 內容資料模型（`Book → Chapter → Content Blocks` 的具體定義）。
 - `docs/payments/decision-record.md` — canonical payment decision record（provider-neutral payment architecture 的唯一規範來源；6 頁初版研究已 SUPERSEDED，見 `docs/payments/research-v1-superseded.md`）。
 - `docs/accounts-and-entitlement.md` — accounts / ownership / reading-state persistence 契約。
+- `docs/legal-tax-launch-brief.md` — legal / tax / entity structure launch brief（#11 研究成果；MVP 結構建議、A–G 比較、金流、launch compliance checklist、對 #9/#20/#21 的影響）。
