@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
 import { renderWithAppProviders, createMockRepository } from '../test/appProviders'
+import type { PurchaseExecutor } from '../lib/purchase/types'
 import { BookPage } from './BookPage'
 import { sampleBook } from '../content/fixtures/sample-book'
 
@@ -14,6 +15,7 @@ function granted(bookId: string) {
 interface RenderBookOptions {
   session?: typeof user | null
   repository?: ReturnType<typeof createMockRepository>
+  purchaseExecutor?: PurchaseExecutor
 }
 
 function renderBook(slug: string, options: RenderBookOptions = {}) {
@@ -21,7 +23,12 @@ function renderBook(slug: string, options: RenderBookOptions = {}) {
     <Routes>
       <Route path="/books/:slug" element={<BookPage />} />
     </Routes>,
-    { initialEntries: [`/books/${slug}`], session: options.session ?? null, repository: options.repository ?? null },
+    {
+      initialEntries: [`/books/${slug}`],
+      session: options.session ?? null,
+      repository: options.repository ?? null,
+      purchaseExecutor: options.purchaseExecutor,
+    },
   )
 }
 
@@ -81,6 +88,17 @@ describe('book detail — CTA state matrix', () => {
     expect(screen.getByRole('heading', { name: 'この書籍は見つかりませんでした。' })).toBeInTheDocument()
     expect(screen.getByTestId('book-slug')).toHaveTextContent('not-a-book')
   })
+
+  it('does not issue user-state requests for an unknown book', async () => {
+    // Regression (CodeRabbit): an unknown slug must not trigger entitlement /
+    // reading-state fetches against the backend.
+    const repository = createMockRepository()
+    renderBook('not-a-book', { session: user, repository })
+
+    await screen.findByRole('heading', { name: 'この書籍は見つかりませんでした。' })
+    expect(repository.getEntitlement).not.toHaveBeenCalled()
+    expect(repository.getReadingState).not.toHaveBeenCalled()
+  })
 })
 
 describe('purchase seam on the detail page', () => {
@@ -91,5 +109,20 @@ describe('purchase seam on the detail page', () => {
     fireEvent.click(buy)
 
     expect(await screen.findByText('決済は準備中です。')).toBeInTheDocument()
+  })
+
+  it('degrades to the unavailable note when the purchase executor rejects (never stuck pending)', async () => {
+    renderBook(sampleBook.slug, {
+      purchaseExecutor: async () => {
+        throw new Error('checkout offline')
+      },
+    })
+
+    const buy = await screen.findByRole('button', { name: /購入する/ })
+    fireEvent.click(buy)
+
+    expect(await screen.findByText('決済は準備中です。')).toBeInTheDocument()
+    // The CTA must not stay disabled/pending after a rejection.
+    expect(screen.getByRole('button', { name: /購入する/ })).not.toBeDisabled()
   })
 })

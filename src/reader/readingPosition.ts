@@ -159,10 +159,11 @@ export const noopReadingPositionStore: ReadingPositionStore = {
 /**
  * Whole-book progress (0..1) derived from a persisted reading state.
  *
- * A missing block id means "chapter start" (the chapter-opening offset); an
- * unknown chapter or a malformed block id degrades to 0 (deny-by-default)
- * rather than crashing — a stale anchor never loses the user's place, it just
- * reads as no progress.
+ * A missing or EMPTY block id means "chapter start" (the chapter-opening
+ * offset) — reading-progress semantics: an anchor that never reached a block
+ * still reports the chapter's position, never a whole-book 0%. An unknown
+ * chapter or a genuinely malformed block id degrades to 0 (deny-by-default)
+ * rather than crashing — a stale anchor never loses the user's place.
  */
 export function progressFromReadingState(book: Book, state: ReadingState): number {
   const chapterIndex = resolveChapterIndex(book, state.chapterId);
@@ -171,7 +172,7 @@ export function progressFromReadingState(book: Book, state: ReadingState): numbe
   const total = bookCharacterCount(book);
   if (total <= 0) return 0;
 
-  const blockId = state.blockId ?? undefined;
+  const blockId = state.blockId || undefined;
   if (blockId === undefined) {
     // Chapter start: offset of the chapter's first block / whole book.
     return Math.min(1, bookCharacterOffset(book, chapterIndex, 0) / total);

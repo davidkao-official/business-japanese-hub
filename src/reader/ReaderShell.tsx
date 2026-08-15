@@ -99,16 +99,21 @@ export function ReaderShell({
   // where the preview ends, and blocks beyond it are never mounted.
   const tier = tierOf(book)
   const chapterRefs = useMemo(() => toChapterOrderRefs(book), [book])
-  const firstGatedIndex = chapter.blocks.findIndex((block) => {
-    return !canRead({
-      tier,
-      owned,
-      position: { chapterId: chapter.id, blockId: block.id },
-      chapters: chapterRefs,
-      previewBoundary,
+  const firstGatedIndex = useMemo(() => {
+    return chapter.blocks.findIndex((block) => {
+      return !canRead({
+        tier,
+        owned,
+        position: { chapterId: chapter.id, blockId: block.id },
+        chapters: chapterRefs,
+        previewBoundary,
+      })
     })
-  })
-  const visibleBlocks = firstGatedIndex === -1 ? chapter.blocks : chapter.blocks.slice(0, firstGatedIndex)
+  }, [chapter, owned, previewBoundary, chapterRefs, tier])
+  const visibleBlocks = useMemo(
+    () => (firstGatedIndex === -1 ? chapter.blocks : chapter.blocks.slice(0, firstGatedIndex)),
+    [chapter, firstGatedIndex],
+  )
 
   const onAnchorChange = useCallback(
     (anchor: ReadingAnchor) => {

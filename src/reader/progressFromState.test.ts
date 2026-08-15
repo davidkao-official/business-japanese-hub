@@ -26,6 +26,15 @@ describe('progressFromReadingState', () => {
     expect(chapterStart).toBeLessThan(firstBlock)
   })
 
+  it('treats an empty blockId as the chapter start, not a malformed reference', () => {
+    // Regression (CodeRabbit): an empty block id represents "chapter start";
+    // a later chapter's start must not read as whole-book 0% progress.
+    const viaEmpty = progressFromReadingState(sampleBook, state('ch-2', ''))
+    const viaMissing = progressFromReadingState(sampleBook, state('ch-2'))
+    expect(viaEmpty).toBe(viaMissing)
+    expect(viaEmpty).toBeGreaterThan(0)
+  })
+
   it('is monotonic across the book', () => {
     const p1 = progressFromReadingState(sampleBook, state('ch-1', 'ch1-blk-02'))
     const p2 = progressFromReadingState(sampleBook, state('ch-2', 'ch2-blk-02'))

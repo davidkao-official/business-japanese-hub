@@ -24,12 +24,18 @@ export function PurchaseCTA({ book, className = '' }: PurchaseCTAProps) {
   const onClick = async () => {
     if (state === 'pending') return
     setState('pending')
-    const result = await execute({
-      bookId: book.id,
-      amount: book.price?.amount,
-      currency: book.price?.currency,
-    })
-    setState(result.ok ? 'idle' : 'unavailable')
+    try {
+      const result = await execute({
+        bookId: book.id,
+        amount: book.price?.amount,
+        currency: book.price?.currency,
+      })
+      setState(result.ok ? 'idle' : 'unavailable')
+    } catch {
+      // A future executor is allowed to reject; it must degrade to
+      // "unavailable" and never leave the CTA stuck in pending.
+      setState('unavailable')
+    }
   }
 
   const priceLabel = book.price ? formatPrice(book.price) : null
