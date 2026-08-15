@@ -20,24 +20,44 @@ import { BlockRenderer } from './BlockRenderer'
 import { ReaderPage } from './ReaderPage'
 import { ReaderShell } from './ReaderShell'
 import { ReaderToc } from './ReaderToc'
+import { createMockRepository, renderWithAppProviders } from '../test/appProviders'
 
 function renderChapter(chapter: Chapter) {
+  // Block-rendering tests read the book as an owner so every block renders;
+  // access control is covered separately by the reader-access tests.
   return render(
     <MemoryRouter>
-      <ReaderShell book={sampleBook} chapter={chapter} />
+      <ReaderShell book={sampleBook} chapter={chapter} owned />
     </MemoryRouter>,
   )
 }
 
-function renderReaderRoutes(initialEntry: string) {
-  return render(
-    <MemoryRouter initialEntries={[initialEntry]}>
-      <Routes>
-        <Route path="/books/:slug" element={<BookPage />} />
-        <Route path="/books/:slug/read" element={<ReaderPage />} />
-        <Route path="/books/:slug/read/:chapterSlug" element={<ReaderPage />} />
-      </Routes>
-    </MemoryRouter>,
+function renderReaderRoutes(initialEntry: string, options: { owned?: boolean } = {}) {
+  // `keigo-essentials` is a paid book with a chapter-1 preview, so most route
+  // tests run signed-out (preview readable). `owned: true` grants the sample
+  // book so paid chapters render.
+  const repository = options.owned
+    ? createMockRepository({
+        entitlements: {
+          [sampleBook.id]: {
+            bookId: sampleBook.id,
+            provider: 'manual',
+            grantedAt: '2026-08-01T00:00:00.000Z',
+          },
+        },
+      })
+    : null
+  return renderWithAppProviders(
+    <Routes>
+      <Route path="/books/:slug" element={<BookPage />} />
+      <Route path="/books/:slug/read" element={<ReaderPage />} />
+      <Route path="/books/:slug/read/:chapterSlug" element={<ReaderPage />} />
+    </Routes>,
+    {
+      initialEntries: [initialEntry],
+      repository,
+      session: options.owned ? { id: 'u-1', email: 'reader@example.com' } : null,
+    },
   )
 }
 
@@ -372,16 +392,16 @@ describe('navigation', () => {
     ).toBeInTheDocument()
   })
 
-  it('opens the reader from the book page via 読み始める', async () => {
+  it('opens the reader from the book page via 試し読み (preview entry)', async () => {
     renderReaderRoutes('/books/keigo-essentials')
-    fireEvent.click(screen.getByRole('link', { name: '読み始める' }))
+    fireEvent.click(screen.getByRole('link', { name: '試し読み' }))
     expect(
       await screen.findByRole('heading', { level: 1, name: '敬語の基本' }),
     ).toBeInTheDocument()
   })
 
-  it('links prev/next chapters and navigates between them', async () => {
-    renderReaderRoutes('/books/keigo-essentials/read/keigo-in-meetings')
+  it('links prev/next chapters and navigates between them (owned)', async () => {
+    renderReaderRoutes('/books/keigo-essentials/read/keigo-in-meetings', { owned: true })
     expect(
       await screen.findByRole('heading', { level: 1, name: '会議での敬語' }),
     ).toBeInTheDocument()

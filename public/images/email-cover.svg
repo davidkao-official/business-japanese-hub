@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200" role="img" aria-label="ビジネスメールの作法の表紙">
+  <rect width="900" height="1200" fill="#F7F5F1"/>
+  <rect x="70" y="70" width="760" height="1060" fill="none" stroke="#C8C2B3" stroke-width="2"/>
+  <rect x="78" y="78" width="744" height="1044" fill="none" stroke="#DFDACD" stroke-width="1"/>
+  <text x="110" y="290" font-family="'Noto Serif JP','Hiragino Mincho ProN','Yu Mincho',serif" font-size="58" fill="#21241F">ビジネスメール</text>
+  <text x="110" y="360" font-family="'Noto Serif JP','Hiragino Mincho ProN','Yu Mincho',serif" font-size="58" fill="#21241F">の作法</text>
+  <line x1="110" y1="420" x2="520" y2="420" stroke="#C8C2B3" stroke-width="1"/>
+  <text x="110" y="470" font-family="'Noto Sans JP','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif" font-size="26" fill="#5F655D">取引先との信頼を築く文面づくり</text>
+  <text x="110" y="1050" font-family="'Noto Sans JP',sans-serif" font-size="22" fill="#5F655D">サンプルフィクスチャ</text>
+</svg>

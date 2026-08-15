@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="敬語の三分類を示すピラミッド図">
+  <rect width="800" height="600" fill="#F7F5F1"/>
+  <polygon points="400,70 620,470 180,470" fill="#EFECE6" stroke="#C8C2B3" stroke-width="2"/>
+  <line x1="400" y1="70" x2="400" y2="470" stroke="#C8C2B3" stroke-width="2"/>
+  <line x1="260" y1="270" x2="540" y2="270" stroke="#C8C2B3" stroke-width="2"/>
+  <text x="400" y="150" text-anchor="middle" font-family="'Noto Sans JP','Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif" font-size="26" fill="#21241F">尊敬語</text>
+  <text x="400" y="360" text-anchor="middle" font-family="'Noto Sans JP',sans-serif" font-size="26" fill="#21241F">謙譲語</text>
+  <text x="400" y="500" text-anchor="middle" font-family="'Noto Sans JP',sans-serif" font-size="26" fill="#21241F">丁寧語</text>
+</svg>

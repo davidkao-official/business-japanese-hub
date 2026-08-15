@@ -16,6 +16,7 @@
  */
 
 import type { Book, Chapter, ContentBlock } from '../content/types'
+import type { ReadingState } from '../lib/persistence/types'
 
 /** A stable reading anchor: the chapter + the block currently at the reading line. */
 export interface ReadingAnchor {
@@ -153,4 +154,33 @@ export interface ReadingPositionStore {
 export const noopReadingPositionStore: ReadingPositionStore = {
   load: () => null,
   save: () => {},
+}
+
+/**
+ * Whole-book progress (0..1) derived from a persisted reading state.
+ *
+ * A missing or EMPTY block id means "chapter start" (the chapter-opening
+ * offset) — reading-progress semantics: an anchor that never reached a block
+ * still reports the chapter's position, never a whole-book 0%. An unknown
+ * chapter or a genuinely malformed block id degrades to 0 (deny-by-default)
+ * rather than crashing — a stale anchor never loses the user's place.
+ */
+export function progressFromReadingState(book: Book, state: ReadingState): number {
+  const chapterIndex = resolveChapterIndex(book, state.chapterId);
+  if (chapterIndex === -1) return 0;
+
+  const total = bookCharacterCount(book);
+  if (total <= 0) return 0;
+
+  const blockId = state.blockId || undefined;
+  if (blockId === undefined) {
+    // Chapter start: offset of the chapter's first block / whole book.
+    return Math.min(1, bookCharacterOffset(book, chapterIndex, 0) / total);
+  }
+
+  const chapter = book.chapters[chapterIndex];
+  const blockIndex = resolveBlockIndex(chapter, blockId);
+  if (blockIndex === -1) return 0;
+
+  return computePercent(book, chapterIndex, blockIndex, false);
 }

@@ -133,6 +133,8 @@
   --radius-md: 0.625rem;
   --radius-lg: 1rem;
   --radius-pill: 999px;
+  /* Book covers sit near 0–2px (docs/ui-ux-research.md §6.2); never crop them. */
+  --radius-cover: 0.125rem;
 
   /* Stroke widths */
   --stroke-thin: 1px;
