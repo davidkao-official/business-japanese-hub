@@ -1,7 +1,7 @@
 # Accounts, Ownership, and Reading-State Persistence
 
 > 對應實作：`supabase/migrations/0001_accounts.sql`、`src/lib/persistence/**`、`src/lib/auth/**`、`src/lib/entitlement.ts`。
-> 上位契約：`docs/product-contract.md`（§7 平台責任分界、§10 ECPay）、`docs/content-model.md`（id namespace）、`docs/ui-ux-research.md`（§4.2 Preview-boundary contract、§4.4 resume-state schema、§8.3 Entitlement CTA state）。
+> 上位契約：`docs/product-contract.md`（§7 平台責任分界、§10 payment architecture）、`docs/payments/decision-record.md`（provider-neutral payment contract；ECPay 是第一支 TWD adapter）、`docs/content-model.md`（id namespace）、`docs/ui-ux-research.md`（§4.2 Preview-boundary contract、§4.4 resume-state schema、§8.3 Entitlement CTA state）。
 
 ## 1. 目標與範圍
 
@@ -22,7 +22,7 @@
 | `user_id` | `uuid` FK `auth.users` | 擁有者；`on delete cascade`。 |
 | `book_id` | `text` | 穩定的 content-model `Book.id`。非 DB FK（書 metadata 在靜態 bundle，不在 DB）。 |
 | `provider` | `text` | `check (provider in ('manual','ecpay'))`。`manual` = operator/service-role；`ecpay` = 未來購買 callback。 |
-| `provider_ref` | `text` | 選用；不透明 provider reference（operator 註記／ECPay transaction id）。 |
+| `provider_ref` | `text` | 選用；opaque generic grant provenance（operator 註記）。**不是 provider 交易參考**——provider 交易參考（ECPay `MerchantTradeNo` / `TradeNo`）只存在 payment domain（見 `docs/payments/decision-record.md` §9.2）。 |
 | `granted_at` | `timestamptz default now()` | 授予時間（server-authoritative）。 |
 
 PK `(user_id, book_id)`。
@@ -79,7 +79,8 @@ grant_entitlement(user_id uuid, book_id text, provider text, provider_ref text d
 - 實作於 migration 的 `security definer` SQL function；`on conflict (user_id, book_id) do update`（冪等）。
 - EXECUTE 從 `public` 與 `authenticated` **revoke**，僅 `service_role` 可執行 → 瀏覽器 anon-key client 永遠無法呼叫。
 - 型別化 helper：`src/lib/persistence/grant.ts` 的 `grantEntitlement(client, input)`。**必須只以 service-role client 執行，絕不可 bundle 於瀏覽器。**
-- **#7 不實作付款、不耦合 ECPay**：MVP 授予為 `manual`（operator 以 service-role 執行）；ECPay 日後由 server callback verification 呼叫同一寫入點（`provider: 'ecpay'`）。
+- **#7 不實作付款、不耦合 ECPay**：MVP 授予為 `manual`（operator 以 service-role 執行）；ECPay（第一支 TWD adapter）日後由 server callback verification 呼叫同一寫入點（`provider: 'ecpay'`），contract 見 `docs/payments/decision-record.md`。
+- **只有第一筆 qualifying successful payment 呼叫 `grant_entitlement`**。`duplicate_success`（第二筆重複成功付款）不得再次呼叫 grant upsert，避免覆寫既有 entitlement 的 `provider_ref` / `granted_at` provenance；其處理路徑是 finance anomaly/review queue + refund（見 `docs/payments/decision-record.md` §7／§13）。
 
 ## 5. Provider-agnostic entitlement boundary
 

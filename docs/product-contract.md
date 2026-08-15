@@ -90,10 +90,14 @@ Business Japanese Hub 是一個 **premium、web-first 的數位出版與學習�
 - **桌面**必須支援專注閱讀與查閱（focused reading & reference）。
 - 響應式設計是平台責任（見第 7 節）。
 
-## 10. 付款：ECPay
+## 10. 付款：provider-neutral architecture
 
-- 目前 payment provider 決策為 **ECPay（綠界）**，既有卡機設定可用。
-- **本輪（MVP 建置初期）不實作付款。** 此決策僅記錄 payment-provider 方向，不表示本輪需要付款功能。
+- **Payment architecture 是 provider-neutral**；ECPay（綠界）是第一支 TWD adapter，不是平台架構。
+- JPY / USD 的 launch providers 依 `docs/payments/decision-record.md`（§17／§22）決定。
+- Provider-specific mechanics 不得污染 Book / Reader / Library / Entitlement architecture。
+- **Paid ownership 只能由 verified authoritative server event 驅動**；browser 結果永遠不能 mint entitlement。
+- **本輪（MVP 建置初期）不實作付款。** 此決策僅記錄 payment 方向，不表示本輪需要付款功能。
+- Canonical payment contract 見 `docs/payments/decision-record.md`。
 
 ## 11. AI 的角色
 
@@ -127,11 +131,11 @@ Business Japanese Hub 是一個 **premium、web-first 的數位出版與學習�
 3. 平台是 **book-agnostic**：不得有 first-book 特有的 schema / component / route。
 4. **UI / Reader quality 是 P0**，不是後期 polish。
 5. **Web-first**：行動支援通勤閱讀，桌面支援專注閱讀與查閱；不做原生 app。
-6. Payment provider 決策為 **ECPay（綠界）**；本輪不實作付款。
+6. Payment architecture 是 **provider-neutral**；ECPay（綠界）是第一支 TWD adapter；本輪不實作付款（見 `docs/payments/decision-record.md`）。
 7. **AI 不是 MVP 必要項**，不得成為主要產品 abstraction。
 8. 平台與 Book 的責任分界依第 7 節：平台負責 rendering / navigation / access / purchase state / library / reading state / search / responsive / accessibility；書負責其 metadata 與內容。
 9. MVP non-goals 依第 13 節，不得為了它們投入 MVP 實作資源。
 
 ---
 
-*相關文件：`README.md`（專案入口）、`docs/content-model.md`（內容資料模型）、`docs/ui-ux-research.md`（UI/UX 設計方向，§8 的具體化）。*
+*相關文件：`README.md`（專案入口）、`docs/content-model.md`（內容資料模型）、`docs/ui-ux-research.md`（UI/UX 設計方向，§8 的具體化）、`docs/payments/decision-record.md`（canonical payment decision record）。*
