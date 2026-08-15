@@ -34,11 +34,13 @@ Book / Order / Payment / Refund / Entitlement
                   ▼
           PaymentProviderAdapter
                   │
-       ┌──────────┼──────────┐
-       ▼          ▼          ▼
-     ECPay     NewebPay    Stripe*
-                         （* 待 merchant-country eligibility 確認）
+      ┌──────┬─────┼─────┬──────┐
+      ▼      ▼     ▼     ▼      ▼
+    ECPay NewebPay Stripe* PayPal*
+              （Stripe*：待 merchant-country eligibility 確認；PayPal：USD primary per #21，見 §17.2／§22）
 ```
+
+上圖示意 adapter boundary；provider 清單隨 approved adapter 擴充，不是封閉列舉。
 
 ECPay 只提供 **payment evidence**；Payment domain 把經過驗證的付款事實轉成 `Order = paid`，然後 application/domain service 才建立 `Entitlement`。這正符合 #7 已建立的 provider-agnostic ownership boundary。
 
@@ -480,7 +482,8 @@ export interface PaymentProviderAdapter {
 Normalized types：
 
 ```ts
-type PaymentProvider = 'ecpay' | 'newebpay' | 'stripe';
+// Provider registry：隨 approved adapter 擴充（已定案：ecpay = first TWD adapter；paypal = USD primary per #21；newebpay / stripe = conditional future）。
+type PaymentProvider = 'ecpay' | 'newebpay' | 'stripe' | 'paypal';
 type PaymentStatus =
   | 'created' | 'pending' | 'verification_pending'
   | 'succeeded' | 'failed' | 'duplicate_success' | 'refunded';
