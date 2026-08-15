@@ -129,7 +129,7 @@ Preview boundary 依 `docs/ui-ux-research.md` §4.2：有序章節前綴（可�
 
 ## 7. Non-goals 與已接受限制
 
-- **不實作 ECPay / payment**（#8 阻塞）：只定義 `grant_entitlement` 寫入點與 `provider: 'ecpay'` 接縫。
+- **#7 範圍不實作 ECPay / payment**：只定義 `grant_entitlement` 寫入點與 `provider: 'ecpay'` 接縫。Payment 實作屬 #9，contract 見 `docs/payments/decision-record.md`。
 - **不做 bookmark UI、不做 profiles/dashboard UI**。
 - **不做內容加密**：web 靜態 bundle 的 DRM 是接受限制（non-goal）。書內容在 client bundle 可被檢視；RLS 保護的是「已登入使用者的擁有權／狀態」，不是內容本身。若未來需要內容保護，需在 Delivery 層另做（bounded follow-up）。
 

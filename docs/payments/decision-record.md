@@ -130,6 +130,37 @@ GET  /api/admin/finance/*               finance role only
 
 **Authorization 規則：opaque identifier 不是 authorization check。** `GET /api/orders/:orderId/status` 需要 authenticated session 並驗證 `order.user_id === auth.uid()` 後才回傳 order state；`/api/admin/finance/*` 需要 server-enforced `finance_viewer` / `finance_admin` role。若未來支援 guest checkout，改用 signed、scoped、one-time result token，而不是以訂單編號當授權。
 
+### 3.5 Server execution boundary（#9 必補 blocker B2）
+
+**決策：** §3.4 的全部 `/api/*` endpoints 以 **Supabase Edge Functions**（Deno / TypeScript）作為唯一的 server-only execution boundary 實作。
+
+理由與一致性：
+
+- 既有 server-authoritative 層已是 Supabase（managed Postgres + auth + RLS + security-definer SQL functions，見 `docs/accounts-and-entitlement.md` §1／§3）；Edge Functions 是 Supabase 原生 HTTP runtime，與 DB 同一專案，可正式部署（`supabase functions deploy`），本機以 `supabase start` + `supabase functions serve` 開發。
+- 不為 #9 引入大型新 backend framework（無 Express / Fastify / Hono server、無獨立 hosting）。
+- Payment domain 的純 TS 程式碼（`Money`、`PaymentProviderAdapter`、`ecpayCheckMac` helper，見 §5／§8／§10）不依賴 Vite / React，可直接被 Edge Function import，不重寫 domain 邏輯。
+
+部署形狀（function 命名與 route 對映由 #9 定稿；此處只鎖定 boundary 與職責）：
+
+```text
+supabase/functions/
+  checkout/            -> POST /api/checkout/books/:bookId
+  ecpay-callback/      -> POST /api/payments/ecpay/callback
+  ecpay-browser-return -> POST /api/payments/ecpay/browser-return
+  orders-status/       -> GET  /api/orders/:orderId/status
+  finance/             -> GET  /api/admin/finance/*
+```
+
+**Secrets（provider secrets server-only）：** 以 `supabase secrets set ECPAY_MERCHANT_ID=... ECPAY_HASH_KEY=... ECPAY_HASH_IV=... ECPAY_ENV=...` 設定在專案層級，Edge Function 以 `Deno.env` 讀取；永不進入 repository / client bundle / build artifact（§15）。stage 與 production 使用**不同 Supabase 專案**，憑證不可混用（§16）。
+
+**Service-role persistence：** Edge Function 內以 runtime 提供的 `SUPABASE_SERVICE_ROLE_KEY` 建立 service-role client（絕不使用 anon key）；所有 `orders` / `payments` / `refunds` / `payment_events` 寫入與 `grant_entitlement` 寫入點（沿用 `src/lib/persistence/grant.ts` pattern）都只透過此 client；service-role secret 永不進入瀏覽器。
+
+**Authenticated order-status / finance access：** `checkout`、`orders-status` 先以 `Authorization: Bearer <JWT>` 在 Edge Function 內 server-side 驗證 Supabase session，再檢查 ownership（`order.user_id === auth.uid()`）；`finance` 額外要求 server-enforced `finance_viewer` / `finance_admin` role（§14）。Role 來源為 DB role-grant 表，由 Edge Function 查證；絕不信任 client 自稱的 role。
+
+**Durable retry / reconciliation：** `verification_pending` 先 durable 寫入 DB 後才對 ECPay 回 `1|OK`（§4.5）。Layer B repair loop 與 Layer C daily reconciliation（§6）以 **Supabase scheduled jobs（pg_cron）** 觸發對應 Edge Function 的 secret-authenticated 內部呼叫，不依賴 RAM / background promise。Idempotency 依 DB constraints（§13），不依賴 runtime retry 語意。
+
+**非 payment runtime：** `scripts/*.ts`（authoring / publishing workflow，`pnpm workflow:*`）是 operator/author 工具，不是 payment runtime，也不得持有 provider secrets。
+
 ---
 
 ## 4. ECPay All-In-One callback contract（必補 blocker B2）
@@ -397,6 +428,26 @@ interface Money {
 - 建立 Order 時，server 從 Book/Product record 讀 authoritative server-side price，換算成 canonical `Money`（integer minor units）後鎖定快照。
 - Client 只能送 `bookId`，不能送可信的 `price`。任何 client 提供的 amount 都必須被忽略／拒絕。
 - 以 `price.test.ts` / adapter unit test 鎖死單位換算，避免把 `790` 誤送成 `790` 分或反過來。
+
+### 8.3 Authoritative server-side price source（catalog / price seam）
+
+**不變量：** client 提供的 `amount` / `currency` 永遠不是付款真相。Checkout 輸入至少為 `bookId`（§3.4），任何 client 提供的 price / amount 一律忽略／拒絕。Server 必須從 **server-side authoritative price source** 取價，不得從 SPA bundle、也不得從 client request 取價。
+
+**Seam 決策：** 建立最小 **`catalog`** 表作為 server-side authoritative price seam。現有 static content（`books/` → `content-dist/`）是 authoring / display 來源，其 `Price.amount` 是 major-unit display value（`src/content/types.ts`；§8.2），不能直接被 server 當 canonical payment amount；且 SPA bundle 是 public artifact，不適合作為 server 取價來源。因此價格由 **publish workflow（`scripts/publish.ts`）以 service-role 寫入 `catalog`**，checkout Edge Function 以 service-role 讀取。（此 `catalog` 是 DB server-side price catalog，與 client-side `src/reader/catalog.ts` book registry 不同層。）
+
+`catalog` 表 contract（migration 屬 #9 bounded migration，本節只鎖 contract）：
+
+| Field | Contract |
+| --- | --- |
+| `book_id` | content-model `Book.id`，PK（text，不設 FK——書 metadata 在 static bundle） |
+| `slug` | 書的 slug |
+| `currency` | 大寫 ISO 4217 code（§8.1 registry-validated） |
+| `amount_minor` | canonical `Money.amount`（integer minor units，Postgres `bigint`；§8.1） |
+| `published_revision` / `released_at` | 對應 immutable published snapshot（`content-dist/books/<slug>/snapshots/<id>.json`） |
+
+- **寫入：** 僅 `service_role`（publish workflow 或 operator）。Display `Price.amount`（major unit）依該 currency 的 minor-unit semantics（§8.1）換算成 `amount_minor`（TWD 790 → 79000、JPY 880 → 880），換算以 unit test 鎖死（沿用 `price.test.ts` 的 pattern）。
+- **讀取：** checkout Edge Function 以 service-role client 依 `book_id` 讀 `catalog`；無該 book（未 publish／無價）→ refuse checkout。建立 `Order` 時 snapshot immutable `Money`（amount + currency）與 book reference（`book_id` / `item_name_snapshot`）進 `orders`（§12），建立後不可變更（§8.1.5）。
+- **RLS：** `catalog` 不需對 client 開 SELECT（client 顯示用 static bundle 的 `Price`）；價格真相只在 server 側。
 
 ---
 
@@ -818,7 +869,7 @@ Operational logs 只能含：local order id、local payment id、provider、`Mer
 
 ---
 
-## 23. Three-level readiness（final #8 verdict）
+## 23. Readiness（final #8 verdict）
 
 分開判定，不用模糊的 `READY FOR #9`：
 
@@ -826,6 +877,8 @@ Operational logs 只能含：local order id、local payment id、provider、`Mer
   Order / PaymentAttempt / Refund / Entitlement、四層 idempotency、adapter contract、sequence、三層 reconciliation 皆已定義且可實作；補上 §7（refund source of truth）、§8（Money）、§9（migration）後即可無歧義執行。
 - **`ECPAY SANDBOX IMPLEMENTATION: READY`（一個已知限制）**
   Stage endpoint、測試卡、`SimulatePaid`、QueryTradeInfo stage 都已驗證存在；**但 ECPay refund API 測試環境無法做真實授權（官方明示），refund 自動化無法在 sandbox 驗證**——MVP 已正確預設「operator portal 手動退款 + 對帳確認」，需寫進 #9 測試矩陣與 operator 文件。
+- **`SERVER EXECUTION BOUNDARY: READY`（#9 unblocker）**
+  Server-only boundary 定案為 Supabase Edge Functions（§3.5）；secrets 管理、service-role persistence、authenticated finance access、pg_cron durable retry/reconciliation 均已定義；authoritative price seam（`catalog`）已鎖定（§8.3）。
 - **`PRODUCTION PAID LAUNCH: NOT READY`**
   既有 ECPay 帳戶的 AioCheckOut 信用卡資格、海外卡是否開通（特約賣家）、正式憑證、子帳號/2FA、e-invoice/稅務與 entity 結構（#11）都未定。這些不阻塞 core architecture implementation（§21），但必須在 production checkout 開啟前全部解掉。
 

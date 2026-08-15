@@ -17,7 +17,7 @@
 3. **Book-agnostic platform**：平台不得依賴任何一本書的主題；不得有 first-book 特有的 schema / component / route。
 4. **UI / Reader quality 是 P0**：核心產品需求，不是 post-MVP polish。
 5. **Web-first**：行動網頁支援通勤閱讀，桌面支援專注閱讀與查閱；不做原生 app。
-6. **Payment architecture 是 provider-neutral**；ECPay（綠界）是第一支 TWD adapter；本輪不實作付款（見 `docs/payments/decision-record.md`）。
+6. **Payment architecture 是 provider-neutral**；ECPay（綠界）是第一支 TWD adapter；paid ownership 只能由 verified authoritative server event 驅動（見 `docs/payments/decision-record.md`）。
 7. **AI 不是 MVP 必要項**，不得成為主要產品 abstraction。
 8. MVP non-goals：原生 app、subscription-first、AI chat/agent 為主體驗、完整 LMS（證書 / cohorts / live classes / 社群）、book-specific hard-coded reader components。
 
@@ -37,7 +37,7 @@
 - 平台與書的責任分界：platform 負責 rendering、navigation、access、purchase state、library、reading state、search、responsive、accessibility；書負責其 metadata（title / cover / author / chapters / content / examples-exercises / audience / difficulty / price）。平台不得 embed 書的內容細節。
 - 保持 web-first：不以原生 app 或 mobile-first-only 為主，兼顧行動通勤閱讀與桌面專注閱讀。
 - 不要引入 subscription-first 商業模式，不要以 AI 作為主要產品 abstraction，不為 MVP non-goals（見 product contract §13）投入實作。
-- 付款本輪不實作；payment architecture 為 provider-neutral，ECPay（綠界）只是第一支 TWD adapter（見 `docs/payments/decision-record.md`）。Provider-specific mechanics 不得污染 Book / Reader / Library / Entitlement architecture；paid ownership 只能由 verified authoritative server event 驅動。本輪不需要為任何 provider 建立付款 code path。
+- Payment implementation（#9）以 `docs/payments/decision-record.md` 為唯一 contract；payment architecture 為 provider-neutral，ECPay（綠界）只是第一支 TWD adapter。Provider-specific mechanics 不得污染 Book / Reader / Library / Entitlement architecture；paid ownership 只能由 verified authoritative server event 驅動。所有 payment `/api/*` endpoints 都必須在 server-only execution boundary 執行（Supabase Edge Functions，見 decision-record §3.5）；client 永不可提供可信 amount/currency，server 以 authoritative catalog price seam 取價（見 §8.3）。
 - 與 `docs/product-contract.md` 衝突的實作方向應被視為錯誤，先釐清再動手。
 
 ## 文件地圖
