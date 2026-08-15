@@ -130,6 +130,8 @@ GET  /api/admin/finance/*               finance role only
 
 **Authorization 規則：opaque identifier 不是 authorization check。** `GET /api/orders/:orderId/status` 需要 authenticated session 並驗證 `order.user_id === auth.uid()` 後才回傳 order state；`/api/admin/finance/*` 需要 server-enforced `finance_viewer` / `finance_admin` role。若未來支援 guest checkout，改用 signed、scoped、one-time result token，而不是以訂單編號當授權。
 
+> 本節 `/api/*` 是 **logical route name**；實際 deployed URL 為 `/functions/v1/<function-name>`，`verify_jwt` 設定見 §3.5 ingress contract。
+
 ### 3.5 Server execution boundary（#9 必補 blocker B2）
 
 **決策：** §3.4 的全部 `/api/*` endpoints 以 **Supabase Edge Functions**（Deno / TypeScript）作為唯一的 server-only execution boundary 實作。
@@ -140,16 +142,32 @@ GET  /api/admin/finance/*               finance role only
 - 不為 #9 引入大型新 backend framework（無 Express / Fastify / Hono server、無獨立 hosting）。
 - Payment domain 的純 TS 程式碼（`Money`、`PaymentProviderAdapter`、`ecpayCheckMac` helper，見 §5／§8／§10）不依賴 Vite / React，可直接被 Edge Function import，不重寫 domain 邏輯。
 
-部署形狀（function 命名與 route 對映由 #9 定稿；此處只鎖定 boundary 與職責）：
+部署形狀（function 名稱與 deployed URL 的對應由下方 **Ingress contract** 定稿；#9 依此實作，不再延後）：
 
 ```text
 supabase/functions/
-  checkout/            -> POST /api/checkout/books/:bookId
-  ecpay-callback/      -> POST /api/payments/ecpay/callback
-  ecpay-browser-return -> POST /api/payments/ecpay/browser-return
-  orders-status/       -> GET  /api/orders/:orderId/status
-  finance/             -> GET  /api/admin/finance/*
+  checkout/            -> POST /functions/v1/checkout/books/:bookId
+  ecpay-callback/      -> POST /functions/v1/ecpay-callback
+  ecpay-browser-return -> POST /functions/v1/ecpay-browser-return
+  orders-status/       -> GET  /functions/v1/orders-status/:orderId/status
+  finance/             -> GET  /functions/v1/finance
 ```
+
+**Ingress contract（#9 implementation-ready）：**
+
+Supabase 把每個 Edge Function 部署成獨立 endpoint `https://<project-ref>.supabase.co/functions/v1/<function-name>`，**不存在內建的 `/api/*` 路由**。本文檔其他章節使用的 `/api/*` 是 **logical route name**；實際 deployed URL 為：
+
+| Logical route | Deployed Edge Function URL |
+| --- | --- |
+| `POST /api/checkout/books/:bookId` | `POST /functions/v1/checkout/books/:bookId` |
+| `POST /api/payments/ecpay/callback` | `POST /functions/v1/ecpay-callback` |
+| `POST /api/payments/ecpay/browser-return` | `POST /functions/v1/ecpay-browser-return` |
+| `GET /api/orders/:orderId/status` | `GET /functions/v1/orders-status/:orderId/status` |
+| `GET /api/admin/finance/*` | `GET /functions/v1/finance`（finance sub-route 在 function 內解析） |
+
+- **決策：** SPA 與內部 callers 直接呼叫 deployed `/functions/v1/<function-name>` URL（Supabase platform gateway），**不依賴額外的 `/api/*` reverse-proxy rewrite**。每個 function 以 `/functions/v1/<function-name>` 為 base，路徑參數接在其後（如 `/functions/v1/checkout/books/<bookId>`），function 內以 URL Pattern 解析 request pathname。本機開發以 `supabase start` + `supabase functions serve` 提供 `/functions/v1/*`；Vite dev server 以 proxy 對應轉送。
+- **Platform-level JWT 驗證（`verify_jwt`）：** `supabase/config.toml` 必須設定 `verify_jwt = false` **只** 對 `ecpay-callback` 與 `ecpay-browser-return`（兩者的 request 都不攜帶 Supabase user JWT：ECPay server POST 與 browser navigation 均無）。`checkout`、`orders-status`、`finance` 維持 `verify_jwt = true`（platform 在 function 執行前驗證 `Authorization` header，missing / invalid → 401），function 內再以 server-side JWT / session 驗證 ownership 與 role（見下方「Authenticated order-status / finance access」）。
+- **public handler 仍必須自我驗證：** 即使 `ecpay-callback` / `ecpay-browser-return` 關閉 platform JWT check，handler 內仍必須驗證 ECPay `CheckMacValue`、local invariants（§4.4）與 browser-input，不可因關閉 `verify_jwt` 而省略。
 
 **Secrets（provider secrets server-only）：** 以 `supabase secrets set ECPAY_MERCHANT_ID=... ECPAY_HASH_KEY=... ECPAY_HASH_IV=... ECPAY_ENV=...` 設定在專案層級，Edge Function 以 `Deno.env` 讀取；永不進入 repository / client bundle / build artifact（§15）。stage 與 production 使用**不同 Supabase 專案**，憑證不可混用（§16）。
 
@@ -435,19 +453,21 @@ interface Money {
 
 **Seam 決策：** 建立最小 **`catalog`** 表作為 server-side authoritative price seam。現有 static content（`books/` → `content-dist/`）是 authoring / display 來源，其 `Price.amount` 是 major-unit display value（`src/content/types.ts`；§8.2），不能直接被 server 當 canonical payment amount；且 SPA bundle 是 public artifact，不適合作為 server 取價來源。因此價格由 **publish workflow（`scripts/publish.ts`）以 service-role 寫入 `catalog`**，checkout Edge Function 以 service-role 讀取。（此 `catalog` 是 DB server-side price catalog，與 client-side `src/reader/catalog.ts` book registry 不同層。）
 
-`catalog` 表 contract（migration 屬 #9 bounded migration，本節只鎖 contract）：
+`catalog` 表 contract（migration 屬 #9 bounded migration，本節鎖 contract 與 DB constraints）：
 
 | Field | Contract |
 | --- | --- |
-| `book_id` | content-model `Book.id`，PK（text，不設 FK——書 metadata 在 static bundle） |
-| `slug` | 書的 slug |
-| `currency` | 大寫 ISO 4217 code（§8.1 registry-validated） |
-| `amount_minor` | canonical `Money.amount`（integer minor units，Postgres `bigint`；§8.1） |
-| `published_revision` / `released_at` | 對應 immutable published snapshot（`content-dist/books/<slug>/snapshots/<id>.json`） |
+| `book_id` | content-model `Book.id`，PK（text，不設 FK——書 metadata 在 static bundle），NOT NULL |
+| `slug` | 書的 slug，NOT NULL |
+| `currency` | 大寫 ISO 4217 code（§8.1 registry-validated），NOT NULL |
+| `amount_minor` | canonical `Money.amount`（integer minor units，Postgres `bigint`；§8.1），NOT NULL，`CHECK (amount_minor >= 0 AND amount_minor <= 9007199254740991)`（= `Number.MAX_SAFE_INTEGER`） |
+| `published_revision` | immutable published snapshot id（`content-dist/books/<slug>/snapshots/<id>.json`），NOT NULL |
+| `released_at` | 該 published snapshot 正式 release 時間，NOT NULL `timestamptz` |
 
 - **寫入：** 僅 `service_role`（publish workflow 或 operator）。Display `Price.amount`（major unit）依該 currency 的 minor-unit semantics（§8.1）換算成 `amount_minor`（TWD 790 → 79000、JPY 880 → 880），換算以 unit test 鎖死（沿用 `price.test.ts` 的 pattern）。
-- **讀取：** checkout Edge Function 以 service-role client 依 `book_id` 讀 `catalog`；無該 book（未 publish／無價）→ refuse checkout。建立 `Order` 時 snapshot immutable `Money`（amount + currency）與 book reference（`book_id` / `item_name_snapshot`）進 `orders`（§12），建立後不可變更（§8.1.5）。
-- **RLS：** `catalog` 不需對 client 開 SELECT（client 顯示用 static bundle 的 `Price`）；價格真相只在 server 側。
+- **讀取（released-only）：** checkout Edge Function 以 service-role client 依 `book_id` **只讀 explicitly released 的 row**：`WHERE book_id = $1 AND released_at IS NOT NULL AND released_at <= now()`。無該 book（未 publish／未 release／無價）→ refuse checkout。
+- **Order snapshot 含 published revision：** 建立 `Order` 時，snapshot 除了 immutable `Money`（amount + currency）與 book reference（`book_id` / `item_name_snapshot`）之外，**必須一併持久化 `published_revision`**（或等價的 immutable catalog snapshot identifier）進 `orders`（§12），建立後不可變更（§8.1.5）；據此精確辨識實際售出的 published revision。
+- **Access（no-read boundary）：** `catalog` 是 server-only authoritative price source；browser / anon / authenticated 一律不可讀寫。`catalog` 建在 `public` schema：`enable row level security`；**不建立任何 client SELECT policy**；`REVOKE ALL ON catalog FROM anon, authenticated`；僅 `GRANT SELECT ON catalog TO service_role`（service_role 以 RLS bypass 讀取，僅 checkout Edge Function 的 service-role client 使用）。`catalog` 不得被加入 Supabase Data API 的 exposed schemas（若放置於非 `public` schema 亦同）。Client 顯示價格仍用 static bundle 的 `Price`（§8.2），價格真相只在 server 側。
 
 ---
 
@@ -618,6 +638,7 @@ Entitlement.status: active → revoked（refund / manual revoke，保留 audit r
 | `user_id` | purchaser |
 | `book_id` | purchased Book |
 | `item_name_snapshot` | 購買當時書名 |
+| `published_revision` | 購買當下 catalog 的 immutable published snapshot id（§8.3；辨識實際售出的出版版本） |
 | `amount` | immutable domain amount（canonical `Money`，§8） |
 | `currency` | ISO-like code，MVP=TWD |
 | `status` | pending / paid / refunded / cancelled |
@@ -878,7 +899,7 @@ Operational logs 只能含：local order id、local payment id、provider、`Mer
 - **`ECPAY SANDBOX IMPLEMENTATION: READY`（一個已知限制）**
   Stage endpoint、測試卡、`SimulatePaid`、QueryTradeInfo stage 都已驗證存在；**但 ECPay refund API 測試環境無法做真實授權（官方明示），refund 自動化無法在 sandbox 驗證**——MVP 已正確預設「operator portal 手動退款 + 對帳確認」，需寫進 #9 測試矩陣與 operator 文件。
 - **`SERVER EXECUTION BOUNDARY: READY`（#9 unblocker）**
-  Server-only boundary 定案為 Supabase Edge Functions（§3.5）；secrets 管理、service-role persistence、authenticated finance access、pg_cron durable retry/reconciliation 均已定義；authoritative price seam（`catalog`）已鎖定（§8.3）。
+  Server-only boundary 定案為 Supabase Edge Functions（§3.5）；**ingress contract 已定稿**（deployed `/functions/v1/<function-name>` mapping、`verify_jwt` 僅對 public handler 關閉）；secrets 管理、service-role persistence、authenticated finance access、pg_cron durable retry/reconciliation 均已定義；authoritative price seam（`catalog`）已鎖定（§8.3，含 released-only read、`published_revision` snapshot、no-read boundary）。
 - **`PRODUCTION PAID LAUNCH: NOT READY`**
   既有 ECPay 帳戶的 AioCheckOut 信用卡資格、海外卡是否開通（特約賣家）、正式憑證、子帳號/2FA、e-invoice/稅務與 entity 結構（#11）都未定。這些不阻塞 core architecture implementation（§21），但必須在 production checkout 開啟前全部解掉。
 
