@@ -3,7 +3,7 @@
 --
 -- Contract: docs/accounts-and-entitlement.md
 -- Product contract: docs/product-contract.md (§7 platform responsibility: access,
--- purchase state, library, reading state; §10 ECPay, no payment this round).
+-- purchase state, library, reading state; §10 provider-neutral payment, ECPay first TWD adapter).
 --
 -- Design intent
 -- -------------

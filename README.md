@@ -22,7 +22,7 @@ Business Japanese Hub 是 premium、web-first 的數位出版與學習平台，�
 
 - UI / Reader quality 是 **P0**（核心產品需求，不是 post-MVP polish）。
 - 抽象為 `Book → Chapter → Content Blocks`，不是 LMS 的 `Course → Module → Lesson`。
-- Payment provider 決策為 **ECPay（綠界）**；本輪不實作付款。
+- Payment architecture 為 **provider-neutral**；**ECPay（綠界）是第一支 TWD adapter**（見 [payment decision record](docs/payments/decision-record.md)）。
 - AI 不是 MVP 必要項，不得成為主要產品 abstraction。
 - MVP non-goals：原生 app、subscription-first、AI chat/agent 為主體驗、完整 LMS、book-specific hard-coded components。
 
