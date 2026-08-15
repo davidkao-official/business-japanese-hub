@@ -100,7 +100,7 @@ STATUS:    READY_FOR_REVIEW（docs-only research artifact，未包含任何 feat
 
 | 結構 | ECPay（TWD） | PayPal | Stripe JP | PayPay |
 | --- | --- | --- | --- | --- |
-| 台灣個人（無登記） | ✅ 身分證驗證；一般會員僅台灣卡、額度受限；海外卡需特約賣家 | ✅ TW 個人可收銷售款，建議商業帳戶（不需登記） | ❌ 台灣不在 Stripe 全球清單 | ❌ 日本限定 |
+| 台灣個人（無登記） | ✅ 身分證驗證；一般會員僅台灣卡、額度受限；海外卡需特約賣家 | ✅ TW 個人帳戶可收銷售款（已確認）；**商業帳戶註冊要求與 production 提領資格需向 PayPal 確認** | ❌ 台灣不在 Stripe 全球清單 | ❌ 日本限定 |
 | 台灣行號/公司 | ✅ 統編驗證（限台灣註冊）；特約賣家可議海外卡/費率/額度 | ✅ 商業帳戶 | ❌ | ❌ |
 | 日本個人/個人事業主 | ❌ 需中華民國身分證/台灣登記 | ✅ JP ビジネス帳戶（個人事業主可，需日本居住者或日本設立營運） | ✅ 個人事業主可（無需開業屆）；需日本銀行帳戶 | ✅ 個人事業主可申辦（審查制） |
 | 日本 GK/KK | ❌ 非台灣註冊公司 | ✅ JP 法人 | ✅ 法人（法人番號 13 碼）＋日本銀行帳戶 | ✅ 法人 |
@@ -109,7 +109,7 @@ STATUS:    READY_FOR_REVIEW（docs-only research artifact，未包含任何 feat
 
 - **台灣結構**：可用 ECPay（僅 TWD）＋ PayPal（多幣別，提領 TWD）；**無法使用 Stripe JP / PayPay**。
 - **日本結構**：可用 PayPal JP、Stripe JP、PayPay（皆 JPY）；**無法使用 ECPay**。
-- **PayPal JP 個人帳戶明文禁止商用收款且餘額無法提領**；台灣個人帳戶可收銷售款但主要銷售建議商業帳戶（不需公司登記）。
+- **PayPal JP 個人帳戶明文禁止商用收款且餘額無法提領**；台灣個人帳戶可收銷售款（**已確認**）；**PayPal TW 商業帳戶之註冊要求（統一編號等）與 selected legal seller 之 production 銷售資格／提領能力需於上線前向 PayPal 確認——不得宣稱未登記個人可使用 PayPal TW 商業帳戶**。主要銷售建議商業帳戶（若資格允許）。
 - Stripe JP：個人事業主可不申請開業屆即登記、以個人名義開設、可用在留カード/マイナンバーカード，需日本銀行帳戶與（法人時）13 碼法人番號。
 - PayPay 加盟店：法人/個人事業主/個人皆可申辦，審查制；賣上金撥款對象推論為日本口座（規約未明寫，**需向 PayPay 確認**）。
 
@@ -173,11 +173,11 @@ David 對價 → 內容授權（按**權利金**分類；符合居住者／受�
 ```text
 日本消費者
     ▼
-日本實體（GK）＝日本市場 seller（特定商取引法表示、消費稅 10% 內含）
+日本實體（GK）＝日本市場 seller（特定商取引法表示；**消費稅：先依 pre-sale tax-status gate 判定課稅狀態，確認為課稅事業者後價格才內含 10%**）
     ├─ JPY：Stripe JP（+ PayPay）→ 日本銀行帳戶（JPY）
     └─ JPY 替代：PayPal JP
     ▼
-日本 GK 帳簿 → 法人稅（15% 特例）→ 役員報酬給 David（源泉徵收）＋住民稅
+日本 GK 帳簿 → 法人稅（**中小法人特例：年所得 800 萬円以下部分 15%；超過部分／不符合資格依本則法人稅率；地方法人稅另計**）→ 役員報酬給 David（源泉徵收）＋住民稅
     ▼
 台灣消費者/其他海外
     ▼
@@ -366,11 +366,11 @@ IP/服務流：創作側（例：David 或日本實體）→ 販售側（台灣/
 - **Production gating 為真**：Stripe JP 需要日本 merchant/entity（日本個人事業主或法人＋日本銀行帳戶）；台灣實體不在 Stripe 全球清單。PayPay 亦需日本商家。
 - **決策時點**：日本實體（個人事業主 → GK）是否在 JPY adapter 上線前成立。**若維持台灣 seller（台灣 merchant 身分）：JPY 替代路徑使用符合台灣 merchant 身分的 PayPal TW 多幣別帳戶（以 JPY 計價、結算 TWD）；PayPal JP 需日本居住者／日本設立營運之業務帳戶，僅屬符合日本帳戶資格之 Japan-side merchant 路徑，不列為台灣 seller 維持時的一般替代。**
 - 建議：#20 的 sandbox 實作需先有 JP-capable merchant 帳戶與測試憑證；正式排程取決於日本實體決策（§0.3 trigger）。此為**bounded 決策點**，非 adapter 工程問題。
-- 日本實體販售給日本消費者時，消費稅 10% 內含於價格（電子書非輕減稅率）；販售給海外為不課稅。
+- 日本實體販售給日本消費者時，**先依 pre-sale tax-status gate 判定課稅狀態**（基準期間／特定期間、資本、適格請求書登錄）；確認為課稅事業者後，價格內含消費稅 10%（電子書非輕減稅率）；若為免稅狀態則不含。販售給海外為不課稅。
 
 ### #21（USD adapter：PayPal primary）
 
-- **不阻塞於 entity 形成**：PayPal TW 商業帳戶不需公司登記（個人亦可開，官方明文；個人主要銷售建議商業帳戶）；#21 可於 sandbox 進行。
+- **不阻塞於 entity 形成**：台灣個人 PayPal 帳戶可收銷售款（**已確認**），#21 的 sandbox 驗證不阻塞於公司登記；**PayPal TW 商業帳戶之註冊要求（統一編號等）與 selected legal seller 之 production 銷售／提領資格需於上線前向 PayPal 確認——不得宣稱未登記個人可使用 PayPal TW 商業帳戶**。個人主要銷售建議商業帳戶（若資格允許）。#21 可於 sandbox 進行。
 - **Production gating**：確認 PayPal 帳戶類型（商業帳戶建議）與帳戶登記名＝legal seller 登記名；台灣商業帳戶提領 TWD（多幣別換匯）。
 - 若未來改以日本實體收 USD：PayPal JP 亦可（提領 JPY/USD 至日本/美國銀行），但以台灣 seller 為 MVP 則用 PayPal TW。
 
