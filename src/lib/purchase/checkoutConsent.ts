@@ -138,6 +138,8 @@ export function twConsentInfo(): TwConsentInfo {
 export interface JpConsentInfo {
   noticeVersion: string;
   consentVersion: string;
+  noticeHeading: string;
+  consentHeading: string;
   noticeText: string;
   consentText: string;
 }
@@ -146,6 +148,8 @@ export function jpConsentInfo(): JpConsentInfo {
   return {
     noticeVersion: JP_NOTICE_VERSION_ID,
     consentVersion: JP_CONSENT_VERSION_ID,
+    noticeHeading: JP_NOTICE_SECTION.heading,
+    consentHeading: JP_CONSENT_SECTION.heading,
     noticeText: JP_NOTICE_SECTION.paragraphs.join('\n'),
     consentText: JP_CONSENT_SECTION.paragraphs.join('\n'),
   };
