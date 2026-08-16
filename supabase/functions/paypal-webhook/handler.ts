@@ -14,7 +14,6 @@
  *    provider idempotency key.
  */
 import type {
-  Money,
   PaymentProviderAdapter,
   ProviderPaymentSnapshot,
   VerifiedProviderEvent,
@@ -116,9 +115,10 @@ export async function handlePaypalWebhook(
 
   // A verified terminal failure can never grant entitlement.
   if (event.status === 'failed') {
-    const result = await persistPaymentEvent(
+    return persistPaymentEvent(
       deps,
       payment,
+      event,
       {
         type: 'payment_failed',
         merchantReference: event.providerMerchantRef,
@@ -127,7 +127,6 @@ export async function handlePaypalWebhook(
       now,
       'paypal_failed',
     );
-    return result;
   }
 
   let snapshot: ProviderPaymentSnapshot;
@@ -153,10 +152,27 @@ export async function handlePaypalWebhook(
     return jsonResult(500, { error: 'provider confirmation failed' });
   }
 
+  // An authoritative provider query/capture can itself report a terminal failure.
+  if (snapshot.status === 'failed') {
+    return persistPaymentEvent(
+      deps,
+      payment,
+      event,
+      {
+        type: 'payment_failed',
+        merchantReference: event.providerMerchantRef,
+        rawStatusCode: snapshot.rawStatusCode ?? event.rawStatusCode,
+      },
+      now,
+      'paypal_failed',
+    );
+  }
+
   if (snapshot.status !== 'succeeded') {
     return persistPaymentEvent(
       deps,
       payment,
+      event,
       { type: 'verification_pending', merchantReference: event.providerMerchantRef },
       now,
       `paypal_${snapshot.status}`,
@@ -177,6 +193,7 @@ export async function handlePaypalWebhook(
     return persistPaymentEvent(
       deps,
       payment,
+      event,
       { type: 'verification_pending', merchantReference: event.providerMerchantRef },
       now,
       'paypal_success_invariant_mismatch',
@@ -263,24 +280,14 @@ function sanitizedPaypalEvent(event: VerifiedProviderEvent): Record<string, unkn
 async function persistPaymentEvent(
   deps: PaypalWebhookHandlerDeps,
   payment: PaymentRow,
+  verifiedEvent: VerifiedProviderEvent,
   domainEvent: PaymentDomainEvent,
   now: () => Date,
   processingResult: string,
 ): Promise<HandlerResult> {
   try {
     await applyPaymentEvent({ db: deps.db, log: deps.log, now }, payment, domainEvent);
-    await markEventProcessed(
-      deps.db,
-      {
-        provider: 'paypal',
-        providerMerchantRef: payment.provider_merchant_ref,
-        eventFingerprint: '',
-        status: 'unknown',
-      },
-      now,
-      processingResult,
-      false,
-    );
+    await markEventProcessed(deps.db, verifiedEvent, now, processingResult);
     return textResult(200, 'OK');
   } catch (err) {
     return persistenceFailure(deps, err);
@@ -292,9 +299,7 @@ async function markEventProcessed(
   event: Pick<VerifiedProviderEvent, 'eventFingerprint' | 'provider'>,
   now: () => Date,
   processingResult: string,
-  requireFingerprint = true,
 ): Promise<void> {
-  if (!requireFingerprint || !event.eventFingerprint) return;
   const { error } = await db
     .from('payment_events')
     .update({ processed_at: now().toISOString(), processing_result: processingResult })
