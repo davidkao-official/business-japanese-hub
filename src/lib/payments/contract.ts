@@ -266,11 +266,26 @@ export class UnsupportedCurrencyForProvider extends Error {
  * as Order creation, BEFORE redirecting to the payment provider.
  * ------------------------------------------------------------------------- */
 
-export type Jurisdiction = 'TW' | 'JP';
+/**
+ * Consumer-jurisdiction resolution state. `unresolved` is the fail-closed
+ * default: jurisdiction is NEVER inferred from the UI locale or the payment
+ * currency/provider — it is an explicit consumer self-declaration made at
+ * checkout. An unresolved jurisdiction blocks checkout before any payment
+ * handoff (reviewer finding: locale-derived jurisdiction is unreachable).
+ */
+export type Jurisdiction = 'TW' | 'JP' | 'unresolved';
+
+/** A resolved jurisdiction a consumer may declare and an Order may persist. */
+export type ResolvedJurisdiction = 'TW' | 'JP';
+
+/** True only for an explicitly declared TW/JP jurisdiction (unresolved fails closed). */
+export function isResolvedJurisdiction(jurisdiction: Jurisdiction): jurisdiction is ResolvedJurisdiction {
+  return jurisdiction === 'TW' || jurisdiction === 'JP';
+}
 
 export interface ComplianceEvidence {
   orderId: string;
-  jurisdiction: Jurisdiction;
+  jurisdiction: ResolvedJurisdiction;
   /** BCP-47 locale, e.g. "zh-TW" | "ja". */
   locale: string;
   /** Version id of the notice text shown, e.g. "tw-7day-removal-notice-v1". */
@@ -344,7 +359,8 @@ export type PurchaseExecutor = (intent: PurchaseIntent) => Promise<PurchaseResul
 
 /** Consent submitted by the client at checkout (persisted as order_compliance). */
 export interface ConsentSubmission {
-  jurisdiction: Jurisdiction;
+  /** The declared consumer jurisdiction — always resolved; `unresolved` is the ABSENCE of a submission. */
+  jurisdiction: ResolvedJurisdiction;
   locale: string;
   noticeVersion: string;
   consentVersion: string;
@@ -366,6 +382,23 @@ export interface CheckoutResponse {
   instruction: CheckoutInstruction;
 }
 
+/**
+ * Immutable order-linked compliance snapshot, persisted with the Order at
+ * creation and exposed by the orders-status contract for the receipt.
+ *
+ * Server-authoritative by design: `jurisdiction` is the consumer declaration
+ * frozen at purchase; `japanConsumptionTaxStatus` is the `platform_tax_config`
+ * value AT PURCHASE — it is never re-derived from the live config or the client,
+ * so a later operator change to the platform tax config cannot rewrite a
+ * historical receipt, and currency/provider never determine tax treatment.
+ */
+export interface OrderComplianceSnapshot {
+  /** Consumer jurisdiction frozen at purchase (TW/JP; 'unresolved' only as a defensive backfill). */
+  jurisdiction: Jurisdiction;
+  /** Japan consumption-tax status frozen at purchase (unresolved ⇒ no JP tax treatment). */
+  japanConsumptionTaxStatus: JapanConsumptionTaxStatus;
+}
+
 /** Order-status payload from `GET /functions/v1/orders-status/:orderId/status`. */
 export interface OrderStatusResponse {
   orderId: string;
@@ -373,4 +406,6 @@ export interface OrderStatusResponse {
   paymentStatus: PaymentStatus | null;
   bookId: string;
   amount: Money;
+  /** Immutable server snapshot required by the receipt (jurisdiction + tax treatment). */
+  compliance: OrderComplianceSnapshot;
 }

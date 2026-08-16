@@ -7,7 +7,7 @@
  * authorization. The JWT is verified server-side via `auth.getUser`; the
  * platform `verify_jwt` gate is defense in depth, not the only check.
  */
-import type { OrderStatusResponse } from '../../../src/lib/payments/contract.ts';
+import type { JapanConsumptionTaxStatus, Jurisdiction, OrderStatusResponse } from '../../../src/lib/payments/contract.ts';
 import type { DbClient } from '../_shared/db.ts';
 import type { Logger } from '../_shared/log.ts';
 import {
@@ -63,12 +63,19 @@ export async function handleOrderStatus(
     return jsonResult(502, { error: 'payment lookup failed' });
   }
 
+  // The receipt's tax/jurisdiction display comes ONLY from this immutable
+  // order snapshot (never the live platform_tax_config / client / currency).
+  // Missing/unknown columns fail closed to 'unresolved'.
+  const jurisdiction = (order.jurisdiction ?? 'unresolved') as Jurisdiction;
+  const japanConsumptionTaxStatus = (order.japan_tax_status_snapshot ?? 'unresolved') as JapanConsumptionTaxStatus;
+
   const response: OrderStatusResponse = {
     orderId: order.id,
     status: order.status,
     paymentStatus: payment?.status ?? null,
     bookId: order.book_id,
     amount: { amount: Number(order.amount_minor), currency: order.currency },
+    compliance: { jurisdiction, japanConsumptionTaxStatus },
   };
   return jsonResult(200, response);
 }

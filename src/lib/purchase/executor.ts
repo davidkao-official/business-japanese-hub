@@ -32,12 +32,11 @@ import type {
   CheckoutResponse,
   CheckoutRequest,
   ConsentSubmission,
-  Jurisdiction,
   OrderStatusResponse,
   PurchaseIntent,
   PurchaseResult,
 } from '../payments/contract';
-import { consentRequiredFor } from './checkoutConsent';
+import { isResolvedJurisdiction } from '../payments/contract';
 
 /* ------------------------------------------------------------------------- *
  * Injectable seams (tests mock these; production uses the DOM/global defaults)
@@ -136,8 +135,6 @@ async function resolveAuthToken(explicit?: AuthTokenSource): Promise<string | nu
 export interface CheckoutExecutorDeps {
   /** Edge Functions base URL; defaults to `resolveFunctionsBaseUrl()`. */
   functionsBaseUrl?: string | null;
-  /** Default jurisdiction when a call carries no consent (fail-closed gate). */
-  jurisdiction?: Jurisdiction;
   /** Injectable HTTP client; defaults to a `globalThis.fetch` wrapper. */
   fetchClient?: FetchClient;
   /** Injectable full-page form submitter; defaults to the hidden-form POST. */
@@ -175,18 +172,23 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
       return { ok: false, reason: 'unavailable', message: 'checkout edge function is not configured' };
     }
 
-    // Fail-closed consent gate: a TW submission must carry an EXPLICIT granted
-    // consent; anything less (missing or unchecked) refuses checkout. An
-    // unknown jurisdiction defaults to TW (require consent — conservative).
-    const jurisdiction = consent?.jurisdiction ?? deps.jurisdiction ?? 'TW';
-    if (consentRequiredFor(jurisdiction)) {
-      if (!consent || consent.consentGranted !== true) {
-        return {
-          ok: false,
-          reason: 'consent_required',
-          message: 'explicit prior consent to immediate digital delivery is required',
-        };
-      }
+    // Fail-closed jurisdiction gate (presentation-only locale): jurisdiction is
+    // an explicit consumer self-declaration carried by the consent. No consent
+    // (or a non-TW/JP declaration) means `unresolved` → block before any request.
+    // TW additionally requires an explicitly granted prior consent.
+    if (!consent || !isResolvedJurisdiction(consent.jurisdiction)) {
+      return {
+        ok: false,
+        reason: 'consent_required',
+        message: 'consumer jurisdiction is required before checkout',
+      };
+    }
+    if (consent.jurisdiction === 'TW' && consent.consentGranted !== true) {
+      return {
+        ok: false,
+        reason: 'consent_required',
+        message: 'explicit prior consent to immediate digital delivery is required',
+      };
     }
 
     const body = buildCheckoutRequest(intent, consent);

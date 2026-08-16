@@ -51,7 +51,6 @@ describe('checkout executor (#9)', () => {
     const submitForm = vi.fn()
     const executor = createCheckoutPurchaseExecutor({
       functionsBaseUrl: BASE,
-      jurisdiction: 'TW',
       fetchClient,
       submitForm,
     })
@@ -73,7 +72,6 @@ describe('checkout executor (#9)', () => {
     const submitForm = vi.fn()
     const executor = createCheckoutPurchaseExecutor({
       functionsBaseUrl: BASE,
-      jurisdiction: 'TW',
       fetchClient,
       submitForm,
     })
@@ -84,13 +82,9 @@ describe('checkout executor (#9)', () => {
     expect(submitForm).toHaveBeenCalledWith(response.instruction.action, response.instruction.fields)
   })
 
-  it('refuses a TW checkout without explicit consent (fail closed, never calls checkout)', async () => {
+  it('refuses checkout without an explicit consent (unresolved jurisdiction fails closed)', async () => {
     const fetchClient = vi.fn()
-    const executor = createCheckoutPurchaseExecutor({
-      functionsBaseUrl: BASE,
-      jurisdiction: 'TW',
-      fetchClient,
-    })
+    const executor = createCheckoutPurchaseExecutor({ functionsBaseUrl: BASE, fetchClient })
 
     const result = await executor({ bookId: 'book-1' })
 
@@ -100,11 +94,7 @@ describe('checkout executor (#9)', () => {
 
   it('refuses when the consent is present but not granted', async () => {
     const fetchClient = vi.fn()
-    const executor = createCheckoutPurchaseExecutor({
-      functionsBaseUrl: BASE,
-      jurisdiction: 'TW',
-      fetchClient,
-    })
+    const executor = createCheckoutPurchaseExecutor({ functionsBaseUrl: BASE, fetchClient })
 
     const result = await executor({ bookId: 'book-1' }, consent({ consentGranted: false }))
 
@@ -113,21 +103,21 @@ describe('checkout executor (#9)', () => {
     expect(fetchClient).not.toHaveBeenCalled()
   })
 
-  it('sends only bookId (no consent) for a non-TW jurisdiction', async () => {
+  it('POSTs a JP proceeded-after-disclosure consent for a JP declaration', async () => {
     const fetchClient = vi.fn().mockResolvedValue(jsonResponse(checkoutResponse()))
     const submitForm = vi.fn()
     const executor = createCheckoutPurchaseExecutor({
       functionsBaseUrl: BASE,
-      jurisdiction: 'JP',
       fetchClient,
       submitForm,
     })
 
-    const result = await executor({ bookId: 'book-1' })
+    const jpConsent = consent({ jurisdiction: 'JP', locale: 'ja' })
+    const result = await executor({ bookId: 'book-1' }, jpConsent)
 
     expect(fetchClient).toHaveBeenCalledTimes(1)
     const [, init] = fetchClient.mock.calls[0] as [string, { body: string }]
-    expect(JSON.parse(init.body)).toEqual({ bookId: 'book-1' })
+    expect(JSON.parse(init.body)).toEqual({ bookId: 'book-1', consent: jpConsent })
     expect(result).toEqual({ ok: true, orderId: 'order-1', status: 'pending' })
   })
 
@@ -136,7 +126,6 @@ describe('checkout executor (#9)', () => {
     const submitForm = vi.fn()
     const executor = createCheckoutPurchaseExecutor({
       functionsBaseUrl: BASE,
-      jurisdiction: 'TW',
       fetchClient,
       submitForm,
     })
@@ -153,7 +142,6 @@ describe('checkout executor (#9)', () => {
   it('degrades to unavailable when the edge function base URL is not configured', async () => {
     const executor = createCheckoutPurchaseExecutor({
       functionsBaseUrl: null,
-      jurisdiction: 'JP',
       fetchClient: vi.fn(),
     })
     const result = await executor({ bookId: 'book-1' })
@@ -165,10 +153,9 @@ describe('checkout executor (#9)', () => {
     const fetchClient = vi.fn().mockResolvedValue(jsonResponse({}, false, 500))
     const executor = createCheckoutPurchaseExecutor({
       functionsBaseUrl: BASE,
-      jurisdiction: 'JP',
       fetchClient,
     })
-    const result = await executor({ bookId: 'book-1' })
+    const result = await executor({ bookId: 'book-1' }, consent({ jurisdiction: 'JP', locale: 'ja' }))
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('failed')
   })
@@ -177,10 +164,9 @@ describe('checkout executor (#9)', () => {
     const fetchClient = vi.fn().mockResolvedValue(jsonResponse({ orderId: 123 }))
     const executor = createCheckoutPurchaseExecutor({
       functionsBaseUrl: BASE,
-      jurisdiction: 'JP',
       fetchClient,
     })
-    const result = await executor({ bookId: 'book-1' })
+    const result = await executor({ bookId: 'book-1' }, consent({ jurisdiction: 'JP', locale: 'ja' }))
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('failed')
   })
@@ -190,13 +176,12 @@ describe('checkout executor (#9)', () => {
     const submitForm = vi.fn()
     const executor = createCheckoutPurchaseExecutor({
       functionsBaseUrl: BASE,
-      jurisdiction: 'JP',
       fetchClient,
       submitForm,
       authToken: 'tok-123',
     })
 
-    await executor({ bookId: 'book-1' })
+    await executor({ bookId: 'book-1' }, consent({ jurisdiction: 'JP', locale: 'ja' }))
 
     const [, init] = fetchClient.mock.calls[0] as [string, { headers: Record<string, string> }]
     expect(init.headers.Authorization).toBe('Bearer tok-123')
@@ -210,6 +195,7 @@ function order(overrides: Partial<OrderStatusResponse> = {}): OrderStatusRespons
     paymentStatus: null,
     bookId: 'book-1',
     amount: { amount: 880, currency: 'JPY' },
+    compliance: { jurisdiction: 'JP', japanConsumptionTaxStatus: 'unresolved' },
     ...overrides,
   }
 }

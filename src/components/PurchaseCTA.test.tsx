@@ -4,14 +4,44 @@ import { renderWithAppProviders } from '../test/appProviders'
 import { PurchaseCTA } from './PurchaseCTA'
 import { sampleBook } from '../content/fixtures/sample-book'
 
-describe('PurchaseCTA — TW pre-delivery consent flow (#25)', () => {
-  it('blocks submission until the consent checkbox is checked (fail closed)', async () => {
+describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)', () => {
+  it('asks for a consumer-jurisdiction declaration before checkout (unresolved fails closed)', async () => {
     const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
-    renderWithAppProviders(<PurchaseCTA book={sampleBook} jurisdiction="TW" />, {
+    renderWithAppProviders(<PurchaseCTA book={sampleBook} />, {
       purchaseExecutor: executor,
     })
 
     fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
+
+    // The declaration step appears; no executor call yet.
+    expect(screen.getByText('お住まいの国・地域を選択してください')).toBeInTheDocument()
+    expect(executor).not.toHaveBeenCalled()
+  })
+
+  it('declared JP proceeds with the JP proceeded-after-disclosure consent (no TW checkbox)', async () => {
+    const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
+    renderWithAppProviders(<PurchaseCTA book={sampleBook} />, {
+      purchaseExecutor: executor,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
+    fireEvent.click(screen.getByRole('button', { name: '日本の消費者' }))
+
+    expect(executor).toHaveBeenCalledTimes(1)
+    expect(executor).toHaveBeenCalledWith(
+      { bookId: sampleBook.id },
+      expect.objectContaining({ jurisdiction: 'JP', consentGranted: true }),
+    )
+  })
+
+  it('declared TW still requires the TW pre-delivery consent checkbox (fail closed)', async () => {
+    const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
+    renderWithAppProviders(<PurchaseCTA book={sampleBook} />, {
+      purchaseExecutor: executor,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
+    fireEvent.click(screen.getByRole('button', { name: '台湾の消費者' }))
 
     // The TW pre-delivery notice (from legal content) is shown.
     expect(screen.getByText(/クーリング・オフ/)).toBeInTheDocument()
@@ -36,16 +66,34 @@ describe('PurchaseCTA — TW pre-delivery consent flow (#25)', () => {
     )
   })
 
-  it('submits the JP proceeded-after-disclosure consent for a non-TW jurisdiction', async () => {
+  it('an explicit TW jurisdiction prop skips the declaration step and shows consent', async () => {
     const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
-    renderWithAppProviders(<PurchaseCTA book={sampleBook} />, {
+    renderWithAppProviders(<PurchaseCTA book={sampleBook} jurisdiction="TW" />, {
       purchaseExecutor: executor,
     })
 
     fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
 
-    // No TW checkbox is shown for JP; the executor still receives a JP
-    // ConsentSubmission so the server can persist order_compliance evidence.
+    // No declaration step; the TW consent step is shown directly.
+    expect(screen.queryByText('お住まいの国・地域を選択してください')).not.toBeInTheDocument()
+    expect(screen.getByRole('checkbox')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: '同意して購入する' }))
+    expect(executor).toHaveBeenCalledWith(
+      { bookId: sampleBook.id },
+      expect.objectContaining({ jurisdiction: 'TW', consentGranted: true }),
+    )
+  })
+
+  it('an explicit JP jurisdiction prop skips declaration and submits the JP consent directly', async () => {
+    const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
+    renderWithAppProviders(<PurchaseCTA book={sampleBook} jurisdiction="JP" />, {
+      purchaseExecutor: executor,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
+
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(executor).toHaveBeenCalledWith(
       { bookId: sampleBook.id },

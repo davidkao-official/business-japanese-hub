@@ -4,16 +4,18 @@
  * drives the UI; browser-return query params are never payment evidence).
  *
  * The amount shown is the SERVER-authoritative `OrderStatusResponse.amount`
- * (canonical Money) — never a client-supplied price. For JPY, the Japan
- * tax-status display rule (legal-tax-launch-brief §5) is applied via the
- * tax-config helpers: an unresolved/exempt status shows the base amount with no
- * tax claim; an explicitly resolved taxable status labels the total 税込 (the
- * server amount already reflects the authoritative total).
+ * (canonical Money) — never a client-supplied price. The Japan tax-status
+ * display (legal-tax-launch-brief §5) comes ONLY from the immutable
+ * `OrderStatusResponse.compliance` snapshot frozen at purchase — never from the
+ * client `DEFAULT_TAX_CONFIG` and never inferred from the currency/provider:
+ * a JP consumer paying TWD still gets JP tax treatment; a TW consumer never
+ * does. An unresolved/exempt snapshot shows the base amount with no tax claim;
+ * a resolved `taxable` snapshot labels the total 税込 (the server amount already
+ * reflects the authoritative total).
  */
 import { useStrings } from '../i18n/strings';
 import { listBooks } from '../reader/catalog';
-import type { OrderStatusResponse, TaxConfig } from '../lib/payments/contract';
-import { DEFAULT_TAX_CONFIG } from '../lib/payments/contract';
+import type { OrderStatusResponse } from '../lib/payments/contract';
 import { isJapanTaxResolved, japanTaxRateFor } from '../lib/payments/tax-config';
 
 /** Canonical Money → localized display (JPY is zero-decimal; others minor/100). */
@@ -29,18 +31,17 @@ export function formatOrderAmount(money: OrderStatusResponse['amount']): string 
 }
 
 /**
- * True only when the order is JPY and the tax status is explicitly resolved
- * `taxable` — the only case where we may label the total as tax-inclusive.
- * Unresolved/exempt never claims tax (fail-closed).
+ * True only when the ORDER's immutable snapshot is a JP consumer whose Japan
+ * tax status was explicitly resolved to `taxable` at purchase — the only case
+ * where the total may be labeled tax-inclusive. Unresolved/exempt never claims
+ * tax (fail-closed), and a TW consumer never receives JP tax treatment —
+ * regardless of the currency (a JP consumer paying TWD still gets JP treatment).
  */
-export function isJapanTaxInclusive(
-  order: OrderStatusResponse,
-  taxConfig: TaxConfig,
-): boolean {
+export function isJapanTaxInclusive(order: OrderStatusResponse): boolean {
   return (
-    order.amount.currency === 'JPY' &&
-    isJapanTaxResolved(taxConfig.japanConsumptionTaxStatus) &&
-    japanTaxRateFor(taxConfig.japanConsumptionTaxStatus) > 0
+    order.compliance.jurisdiction === 'JP' &&
+    isJapanTaxResolved(order.compliance.japanConsumptionTaxStatus) &&
+    japanTaxRateFor(order.compliance.japanConsumptionTaxStatus) > 0
   );
 }
 
@@ -70,7 +71,7 @@ export function OrderReceipt({ order }: { order: OrderStatusResponse }) {
           <dt>{strings.purchaseResult.amountLabel}</dt>
           <dd data-testid="receipt-amount">
             {formatOrderAmount(order.amount)}
-            {isJapanTaxInclusive(order, DEFAULT_TAX_CONFIG) && (
+            {isJapanTaxInclusive(order) && (
               <span className="receipt__tax">{strings.purchaseResult.taxInclusive}</span>
             )}
           </dd>

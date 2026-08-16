@@ -1,15 +1,18 @@
 /**
  * Checkout compliance consent (#25 consent flow, B2).
  *
- * Pure helpers for the TW pre-delivery consent step: jurisdiction mapping from
- * the UI locale, the fail-closed consent-required gate, and building the
- * `ConsentSubmission` that the checkout Edge Function persists server-side as
- * `order_compliance` evidence.
+ * Pure helpers for the consumer-jurisdiction declaration + consent step:
+ * jurisdiction is an EXPLICIT consumer self-declaration (TW / JP), never derived
+ * from the UI locale — locale is presentation-only. The fail-closed gates are
+ * the TW pre-delivery consent requirement, and building the `ConsentSubmission`
+ * that the checkout Edge Function persists server-side as `order_compliance`
+ * evidence.
  *
  * Fail-closed by design (docs/legal-tax-launch-brief.md §4.1/§5): TW consumers
  * must give explicit prior consent to the immediate provision/download of
  * digital content, or the statutory 7-day right of withdrawal is NOT excluded.
- * The executor refuses checkout (`consent_required`) unless a granted consent
+ * An unresolved jurisdiction (no declaration) fails closed before any payment
+ * handoff. The executor refuses checkout unless an explicit granted consent
  * accompanies a TW submission — the CTA checkbox is the UX gate, this gate is
  * the defense-in-depth guarantee.
  *
@@ -20,7 +23,8 @@
 import type { Locale } from '../../i18n/strings';
 import { getStrings } from '../../i18n/strings';
 import { getLegalDocumentBySlug } from '../../legal-content';
-import type { ConsentSubmission, Jurisdiction } from '../payments/contract';
+import type { ConsentSubmission, Jurisdiction, ResolvedJurisdiction } from '../payments/contract';
+import { isResolvedJurisdiction } from '../payments/contract';
 
 /** The UI locale a TW buyer sees — the consent texts are fixed to zh-TW. */
 const TW_LOCALE: Locale = 'zh-TW';
@@ -37,15 +41,13 @@ export const JP_NOTICE_VERSION_ID = `jp-tokushoho-disclosure-${JP_NOTICE_DOCUMEN
 export const JP_CONSENT_VERSION_ID = `jp-refunds-consent-${JP_CONSENT_DOCUMENT?.version ?? 'v1'}`;
 
 /**
- * Default jurisdiction for a UI locale. Explicitly: zh-TW → TW, everything else
- * → JP (the store's home market / DEFAULT_LOCALE). `en` is treated as JP —
- * this is an assumption; see report.
+ * Jurisdiction is NEVER derived from the UI locale (presentation-only) — it is
+ * an explicit consumer self-declaration. `isResolvedJurisdiction` distinguishes
+ * a declared TW/JP jurisdiction from `unresolved` (fail closed).
  */
-export function jurisdictionForLocale(locale: Locale): Jurisdiction {
-  return locale === 'zh-TW' ? 'TW' : 'JP';
-}
+export { isResolvedJurisdiction };
 
-/** TW requires explicit prior consent; JP does not (MVP). Fail-closed: unknown → require. */
+/** TW requires explicit prior consent; JP proceeds after disclosure. */
 export function consentRequiredFor(jurisdiction: Jurisdiction): boolean {
   return jurisdiction === 'TW';
 }
@@ -107,21 +109,22 @@ export function jpConsentInfo(): JpConsentInfo {
 export interface BuildConsentSubmissionInput {
   /** True only when the user explicitly checked the prior-consent box. */
   consentGranted: boolean;
-  /** The UI locale; default jurisdiction is derived from it unless overridden. */
+  /** The UI locale; presentation-only, never the jurisdiction source. */
   locale: Locale;
-  /** Explicit jurisdiction override (the CTA uses its effective jurisdiction). */
-  jurisdiction?: Jurisdiction;
+  /** The declared consumer jurisdiction — REQUIRED (never derived from locale). */
+  jurisdiction: ResolvedJurisdiction;
 }
 
 /**
- * Build the `ConsentSubmission` the executor submits to checkout. The
- * notice/consent text snapshots and version ids come from legal-content so the
- * persisted evidence matches what was shown. `consentGranted` is carried
+ * Build the `ConsentSubmission` the executor submits to checkout. The declared
+ * jurisdiction is the only jurisdiction source (locale is presentation-only).
+ * The notice/consent text snapshots and version ids come from legal-content so
+ * the persisted evidence matches what was shown. `consentGranted` is carried
  * verbatim — the executor refuses when it is false (fail closed). JP uses the
  * JP disclosure set (consentGranted true = proceeded after viewing).
  */
 export function buildConsentSubmission(input: BuildConsentSubmissionInput): ConsentSubmission {
-  const jurisdiction = input.jurisdiction ?? jurisdictionForLocale(input.locale);
+  const { jurisdiction } = input;
   // A TW submission always corresponds to the zh-TW interface text.
   const submissionLocale: Locale = jurisdiction === 'TW' ? TW_LOCALE : input.locale;
   const info = jurisdiction === 'TW' ? twConsentInfo() : jpConsentInfo();

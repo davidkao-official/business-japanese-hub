@@ -2,6 +2,12 @@
  * Checkout handler tests (decision-record §3.4/§4.6/§8.3/§25).
  *
  * Injected fake Env / DbClient / ECPay adapter — no network, no DB, no Deno.
+ *
+ * #25 remediation coverage: jurisdiction is an explicit consumer declaration
+ * (never locale-derived) that fails closed when unresolved; TW requires granted
+ * prior consent; JP reads the server-authoritative platform_tax_config and
+ * blocks paid checkout when unresolved; the client can never override tax
+ * status; the immutable jurisdiction + tax snapshot is persisted on the Order.
  */
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -12,6 +18,7 @@ import {
   handlerRequest,
   bearerHeaders,
   PAYMENT_ROW,
+  type MockRoute,
 } from '../_shared/testing.ts';
 import { handleCheckout } from './handler.ts';
 import type { ConsentSubmission } from '../../../src/lib/payments/contract.ts';
@@ -26,6 +33,12 @@ const TW_CONSENT: ConsentSubmission = {
   consentTextSnapshot: 'consent text',
 };
 
+const JP_CONSENT: ConsentSubmission = {
+  ...TW_CONSENT,
+  jurisdiction: 'JP',
+  locale: 'ja',
+};
+
 const CATALOG_TWD = {
   book_id: 'book-a',
   slug: 'keigo-essentials',
@@ -37,13 +50,20 @@ const CATALOG_TWD = {
 
 const CHECKOUT_URL = 'https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5';
 
-function setup(initial: Record<string, unknown> = {}) {
+/** Server-authoritative Japan tax status (default resolved so JP tests proceed). */
+function jpTax(value: string): { platform_tax_config: MockRoute } {
+  return { platform_tax_config: { data: { id: 1, key: 'japan_consumption_tax_status', value } } };
+}
+
+function setup(initial: Record<string, unknown> = {}, routes: Record<string, MockRoute> = {}) {
   const mock = createMockDb({
     'auth:getUser': { data: { id: 'user-1' } },
     catalog: { data: CATALOG_TWD },
     orders: { data: { id: 'ord-1' } },
     order_compliance: { data: null },
     payments: { data: PAYMENT_ROW },
+    ...jpTax('taxable'),
+    ...routes,
   });
   const adapter = createFakeAdapter();
   adapter.createCheckout.mockResolvedValue({
@@ -68,7 +88,40 @@ function setup(initial: Record<string, unknown> = {}) {
   };
 }
 
-describe('checkout handler', () => {
+describe('checkout handler — jurisdiction + consent + tax gates (#25 remediation)', () => {
+  it('no consent → refused as unresolved jurisdiction (fail closed, before any insert)', async () => {
+    const { mock, deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a' }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'jurisdiction_required' });
+    expect(mock.callsFor('orders', 'insert').length).toBe(0);
+    expect(mock.callsFor('payments', 'insert').length).toBe(0);
+  });
+
+  it('malformed consent (unknown jurisdiction) → refused as unresolved', async () => {
+    const { mock, deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: { ...TW_CONSENT, jurisdiction: 'XX' } }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'jurisdiction_required' });
+    expect(mock.callsFor('orders', 'insert').length).toBe(0);
+  });
+
   it('TW with granted consent → order + order_compliance + payment created, instruction returned', async () => {
     const { mock, adapter, deps } = setup();
     const result = await handleCheckout(
@@ -94,6 +147,8 @@ describe('checkout handler', () => {
       amount_minor: 79000,
       currency: 'TWD',
       status: 'pending',
+      jurisdiction: 'TW',
+      japan_tax_status_snapshot: 'unresolved',
     });
     expect(mock.callsFor('order_compliance', 'insert').length).toBe(1);
     const complianceInsert = mock.callsFor('order_compliance', 'insert')[0];
@@ -123,8 +178,26 @@ describe('checkout handler', () => {
     expect(paymentUpdate.args[0]).toMatchObject({ status: 'pending' });
   });
 
+  it('ja UI locale + TW declaration is still TW (locale never determines jurisdiction)', async () => {
+    const { mock, deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: { ...TW_CONSENT, locale: 'ja' } }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    const orderInsert = mock.callsFor('orders', 'insert')[0];
+    expect(orderInsert.args[0]).toMatchObject({ jurisdiction: 'TW' });
+    const complianceInsert = mock.callsFor('order_compliance', 'insert')[0];
+    expect(complianceInsert.args[0]).toMatchObject({ jurisdiction: 'TW', locale: 'ja' });
+  });
+
   it('TW without consent → refused (fail closed)', async () => {
-    const { deps } = setup();
+    const { mock, deps } = setup();
     const result = await handleCheckout(
       handlerRequest(
         'POST',
@@ -135,11 +208,12 @@ describe('checkout handler', () => {
       deps,
     );
     expect(result.status).toBe(422);
-    expect(JSON.parse(result.body)).toMatchObject({ reason: 'consent_required' });
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'jurisdiction_required' });
+    expect(mock.callsFor('orders', 'insert').length).toBe(0);
   });
 
   it('TW with denied consent → refused', async () => {
-    const { deps } = setup();
+    const { mock, deps } = setup();
     const result = await handleCheckout(
       handlerRequest(
         'POST',
@@ -150,6 +224,104 @@ describe('checkout handler', () => {
       deps,
     );
     expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'consent_required' });
+    expect(mock.callsFor('orders', 'insert').length).toBe(0);
+  });
+
+  it('JP + unresolved platform tax status → paid checkout blocked (no order/payment)', async () => {
+    const { mock, deps } = setup({}, jpTax('unresolved'));
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: JP_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'tax_status_unresolved' });
+    expect(mock.callsFor('orders', 'insert').length).toBe(0);
+    expect(mock.callsFor('payments', 'insert').length).toBe(0);
+    expect(mock.callsFor('order_compliance', 'insert').length).toBe(0);
+  });
+
+  it('JP + taxable → proceeds and persists the authoritative tax snapshot (TWD currency)', async () => {
+    const { mock, deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: JP_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    const orderInsert = mock.callsFor('orders', 'insert')[0];
+    expect(orderInsert.args[0]).toMatchObject({
+      jurisdiction: 'JP',
+      japan_tax_status_snapshot: 'taxable',
+      currency: 'TWD',
+    });
+    const complianceInsert = mock.callsFor('order_compliance', 'insert')[0];
+    expect(complianceInsert.args[0]).toMatchObject({ jurisdiction: 'JP', consent_granted: true });
+  });
+
+  it('JP + exempt → proceeds and persists the exempt snapshot', async () => {
+    const { mock, deps } = setup({}, jpTax('exempt'));
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: JP_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    const orderInsert = mock.callsFor('orders', 'insert')[0];
+    expect(orderInsert.args[0]).toMatchObject({ jurisdiction: 'JP', japan_tax_status_snapshot: 'exempt' });
+  });
+
+  it('client cannot override the tax status (server reads platform_tax_config only)', async () => {
+    // Config is unresolved; even an injected taxable field in the body is ignored.
+    const { mock, deps } = setup({}, jpTax('unresolved'));
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({
+          bookId: 'book-a',
+          consent: JP_CONSENT,
+          japanConsumptionTaxStatus: 'taxable',
+        }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'tax_status_unresolved' });
+    expect(mock.callsFor('orders', 'insert').length).toBe(0);
+
+    // Config is exempt; an injected taxable field cannot change the snapshot.
+    const exemptSetup = setup({}, jpTax('exempt'));
+    const exemptResult = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({
+          bookId: 'book-a',
+          consent: JP_CONSENT,
+          japanConsumptionTaxStatus: 'taxable',
+        }),
+        bearerHeaders('jwt-1'),
+      ),
+      exemptSetup.deps,
+    );
+    expect(exemptResult.status).toBe(200);
+    const orderInsert = exemptSetup.mock.callsFor('orders', 'insert')[0];
+    expect(orderInsert.args[0]).toMatchObject({ japan_tax_status_snapshot: 'exempt' });
   });
 
   it('ignores client-supplied price tampering (amount/currency come from catalog only)', async () => {
@@ -252,6 +424,7 @@ describe('checkout handler', () => {
       orders: { data: { id: 'ord-1' } },
       order_compliance: { data: null },
       payments: { data: PAYMENT_ROW },
+      ...jpTax('taxable'),
     });
     const result = await handleCheckout(
       handlerRequest(
@@ -259,7 +432,7 @@ describe('checkout handler', () => {
         'https://test.supabase.co/functions/v1/checkout/books/book-a',
         JSON.stringify({
           bookId: 'book-a',
-          consent: { ...TW_CONSENT, jurisdiction: 'JP', locale: 'ja' },
+          consent: { ...JP_CONSENT, jurisdiction: 'JP', locale: 'ja' },
         }),
         bearerHeaders('jwt-1'),
       ),

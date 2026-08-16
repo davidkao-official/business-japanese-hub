@@ -215,6 +215,8 @@ export const ORDER_ROW = {
   amount_minor: 79000,
   currency: 'TWD',
   status: 'pending',
+  jurisdiction: 'TW',
+  japan_tax_status_snapshot: 'unresolved',
   created_at: '2026-08-16T08:00:00Z',
   paid_at: null,
   refunded_at: null,

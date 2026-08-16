@@ -17,9 +17,7 @@ import { UserStateProvider } from './lib/persistence/UserStateContext'
 import { PurchaseProvider } from './lib/purchase/PurchaseContext'
 import { createCheckoutPurchaseExecutor } from './lib/purchase/executor'
 import { configureEdgeFunctionsAuth } from './lib/purchase/executor'
-import { jurisdictionForLocale } from './lib/purchase/checkoutConsent'
 import { createSupabaseClientFromEnv } from './lib/supabase'
-import { useLocale } from './i18n/strings'
 import type { AuthClient } from './lib/auth/types'
 import type { UserStateRepository } from './lib/persistence/repository'
 
@@ -61,14 +59,12 @@ function createAppServices(): {
  */
 export default function App() {
   const services = useMemo(() => createAppServices(), [])
-  const locale = useLocale()
   // The real #9 checkout executor, wired behind the provider-neutral purchase
-  // seam. Without a configured Edge Functions base URL it degrades to
-  // `unavailable`, so the app still renders as before (#6 behavior).
-  const purchaseExecutor = useMemo(
-    () => createCheckoutPurchaseExecutor({ jurisdiction: jurisdictionForLocale(locale) }),
-    [locale],
-  )
+  // seam. Jurisdiction is an explicit consumer self-declaration (never locale-
+  // derived); the executor's fail-closed gate requires it. Without a configured
+  // Edge Functions base URL it degrades to `unavailable`, so the app still
+  // renders as before (#6 behavior).
+  const purchaseExecutor = useMemo(() => createCheckoutPurchaseExecutor(), [])
 
   return (
     <AuthProvider authClient={services.authClient}>

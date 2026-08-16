@@ -166,6 +166,10 @@ export interface AppStrings {
     consentRequiredHint: string
     confirmPurchase: string
     cancel: string
+    jurisdictionTitle: string
+    jurisdictionNote: string
+    jurisdictionTW: string
+    jurisdictionJP: string
   }
   purchaseResult: {
     title: string
@@ -337,6 +341,11 @@ const ja: AppStrings = {
     consentRequiredHint: '購入を続けるには上記に同意する必要があります。',
     confirmPurchase: '同意して購入する',
     cancel: '戻る',
+    jurisdictionTitle: 'お住まいの国・地域を選択してください',
+    jurisdictionNote:
+      '購入に適用される消費税の取扱いと法定表示は、表示言語ではなくお客様の消費者所在地に基づいて決まります。',
+    jurisdictionTW: '台湾の消費者',
+    jurisdictionJP: '日本の消費者',
   },
   purchaseResult: {
     title: '購入結果',
@@ -509,6 +518,11 @@ const en: AppStrings = {
     consentRequiredHint: 'You must agree to the above to continue.',
     confirmPurchase: 'Agree and pay',
     cancel: 'Back',
+    jurisdictionTitle: 'Select your consumer location',
+    jurisdictionNote:
+      'The tax treatment and legal disclosures applied to your purchase are based on your consumer location, not the display language.',
+    jurisdictionTW: 'Taiwan consumer',
+    jurisdictionJP: 'Japan consumer',
   },
   purchaseResult: {
     title: 'Purchase Result',
@@ -681,6 +695,10 @@ const zhTW: AppStrings = {
     consentRequiredHint: '您必須勾選同意後才能繼續購買。',
     confirmPurchase: '同意並付款',
     cancel: '返回',
+    jurisdictionTitle: '請選擇您的消費者所在地',
+    jurisdictionNote: '您的購買所適用的稅務處理與法定告知，依消費者所在地決定，而非顯示語言。',
+    jurisdictionTW: '台灣消費者',
+    jurisdictionJP: '日本消費者',
   },
   purchaseResult: {
     title: '購買結果',

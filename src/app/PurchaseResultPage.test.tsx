@@ -23,6 +23,7 @@ function order(overrides: Partial<OrderStatusResponse> = {}): OrderStatusRespons
     paymentStatus: null,
     bookId: 'book-sample-bj-keigo',
     amount: { amount: 880, currency: 'JPY' },
+    compliance: { jurisdiction: 'JP', japanConsumptionTaxStatus: 'unresolved' },
     ...overrides,
   }
 }

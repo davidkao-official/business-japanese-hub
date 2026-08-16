@@ -4,29 +4,27 @@ import {
   TW_NOTICE_VERSION_ID,
   buildConsentSubmission,
   consentRequiredFor,
-  jurisdictionForLocale,
+  isResolvedJurisdiction,
   twConsentInfo,
 } from './checkoutConsent'
 import { getStrings } from '../../i18n/strings'
 
-describe('checkoutConsent — jurisdiction mapping', () => {
-  it('maps zh-TW → TW and every other locale → JP', () => {
-    expect(jurisdictionForLocale('zh-TW')).toBe('TW')
-    expect(jurisdictionForLocale('ja')).toBe('JP')
-    expect(jurisdictionForLocale('en')).toBe('JP')
+describe('checkoutConsent — jurisdiction is an explicit declaration, never locale-derived', () => {
+  it('treats TW/JP as resolved and anything else as unresolved (fail closed)', () => {
+    expect(isResolvedJurisdiction('TW')).toBe(true)
+    expect(isResolvedJurisdiction('JP')).toBe(true)
+    expect(isResolvedJurisdiction('unresolved')).toBe(false)
   })
-})
 
-describe('checkoutConsent — consent-required gate', () => {
   it('requires explicit consent for TW, not for JP', () => {
     expect(consentRequiredFor('TW')).toBe(true)
     expect(consentRequiredFor('JP')).toBe(false)
   })
 })
 
-describe('checkoutConsent — ConsentSubmission building', () => {
+describe('checkoutConsent — ConsentSubmission building (explicit jurisdiction)', () => {
   it('builds a TW submission with legal-content-derived versions + text snapshots', () => {
-    const submission = buildConsentSubmission({ consentGranted: true, locale: 'zh-TW' })
+    const submission = buildConsentSubmission({ consentGranted: true, locale: 'zh-TW', jurisdiction: 'TW' })
     expect(submission.jurisdiction).toBe('TW')
     expect(submission.locale).toBe('zh-TW')
     expect(submission.consentGranted).toBe(true)
@@ -39,19 +37,24 @@ describe('checkoutConsent — ConsentSubmission building', () => {
   })
 
   it('carries consentGranted=false verbatim (the executor gates on it)', () => {
-    const submission = buildConsentSubmission({ consentGranted: false, locale: 'zh-TW' })
+    const submission = buildConsentSubmission({ consentGranted: false, locale: 'zh-TW', jurisdiction: 'TW' })
     expect(submission.consentGranted).toBe(false)
   })
 
-  it('honors an explicit jurisdiction override and pins the zh-TW text for TW', () => {
-    const submission = buildConsentSubmission({
-      consentGranted: true,
-      locale: 'ja',
-      jurisdiction: 'TW',
-    })
+  it('ja locale + TW declaration is still TW (locale never determines jurisdiction)', () => {
+    const submission = buildConsentSubmission({ consentGranted: true, locale: 'ja', jurisdiction: 'TW' })
     expect(submission.jurisdiction).toBe('TW')
+    // The TW evidence text is pinned to zh-TW regardless of the UI locale.
     expect(submission.locale).toBe('zh-TW')
     expect(submission.consentTextSnapshot).toBe(getStrings('zh-TW').checkout.consentLabel)
+  })
+
+  it('zh-TW locale + JP declaration stays JP (does not become TW)', () => {
+    const submission = buildConsentSubmission({ consentGranted: true, locale: 'zh-TW', jurisdiction: 'JP' })
+    expect(submission.jurisdiction).toBe('JP')
+    // A JP declaration never pins TW text — even from a zh-TW UI.
+    expect(submission.locale).toBe('zh-TW')
+    expect(submission.consentTextSnapshot).not.toBe(getStrings('zh-TW').checkout.consentLabel)
   })
 
   it('derives the notice/consent text from the versioned legal content', () => {

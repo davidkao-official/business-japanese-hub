@@ -1,24 +1,32 @@
 /**
  * PurchaseCTA — the 購入する button, isolated behind the provider-neutral
  * purchase seam (src/lib/purchase). #9 wires the real checkout executor; this
- * component adds the TW pre-delivery consent step (#25, legal-tax-launch-brief
- * §4.1/§5): for a TW jurisdiction the buyer sees the 7-day right-of-withdrawal
- * exclusion notice and must explicitly check the prior-consent box before the
- * executor is called — unchecked submission is blocked (fail closed; the
- * executor's `consent_required` gate is the defense-in-depth guarantee).
+ * component owns the consumer-jurisdiction declaration + consent steps (#25,
+ * legal-tax-launch-brief §4.1/§5).
+ *
+ * Jurisdiction is an EXPLICIT consumer self-declaration (TW / JP) — it is NEVER
+ * derived from the UI locale (presentation-only). The first click asks the buyer
+ * to declare their consumer location; until a declaration is made the
+ * jurisdiction is `unresolved` and checkout is blocked (fail closed). After
+ * declaration:
+ *   - TW → the 7-day right-of-withdrawal exclusion notice + a mandatory prior
+ *     consent checkbox before the executor is called — unchecked submission is
+ *     blocked (the executor's `consent_required` gate is defense in depth);
+ *   - JP → proceeds after viewing the JP disclosures (the executor receives a
+ *     JP proceeded-after-disclosure ConsentSubmission so the server persists
+ *     order_compliance evidence). The server additionally applies the
+ *     authoritative Japan tax-status gate.
  */
-
 import { useState } from 'react'
 import type { Book } from '../content/types'
 import { useLocale, useStrings } from '../i18n/strings'
 import { formatPrice } from '../lib/price'
 import { usePurchase } from '../lib/purchase/PurchaseContext'
-import type { ConsentSubmission, Jurisdiction } from '../lib/payments/contract'
+import type { ConsentSubmission, ResolvedJurisdiction } from '../lib/payments/contract'
 import {
   buildConsentSubmission,
   buildJpConsentSubmission,
   consentRequiredFor,
-  jurisdictionForLocale,
   twConsentInfo,
 } from '../lib/purchase/checkoutConsent'
 import type { CheckoutExecutor } from '../lib/purchase/executor'
@@ -26,11 +34,15 @@ import type { CheckoutExecutor } from '../lib/purchase/executor'
 export interface PurchaseCTAProps {
   book: Book
   className?: string
-  /** Effective jurisdiction; defaults to `jurisdictionForLocale(useLocale())`. */
-  jurisdiction?: Jurisdiction
+  /**
+   * Declared consumer jurisdiction; when provided, the declaration step is
+   * skipped (tests / callers that already resolved jurisdiction). Never derived
+   * from locale.
+   */
+  jurisdiction?: ResolvedJurisdiction
 }
 
-type Phase = 'idle' | 'consent' | 'pending' | 'unavailable'
+type Phase = 'idle' | 'jurisdiction' | 'consent' | 'pending' | 'unavailable'
 
 export function PurchaseCTA({
   book,
@@ -40,7 +52,8 @@ export function PurchaseCTA({
   const strings = useStrings()
   const locale = useLocale()
   const { execute } = usePurchase()
-  const jurisdiction = jurisdictionProp ?? jurisdictionForLocale(locale)
+  const [declared, setDeclared] = useState<ResolvedJurisdiction | 'unresolved'>('unresolved')
+  const jurisdiction = jurisdictionProp ?? declared
   const consentRequired = consentRequiredFor(jurisdiction)
   const consentInfo = consentRequired ? twConsentInfo() : null
 
@@ -67,7 +80,13 @@ export function PurchaseCTA({
   }
 
   const onPrimaryClick = () => {
-    if (consentRequired) {
+    // Fail closed: until the buyer declares TW or JP, jurisdiction is
+    // `unresolved` and checkout is blocked (no payment handoff).
+    if (jurisdiction === 'unresolved') {
+      setPhase('jurisdiction')
+      return
+    }
+    if (consentRequiredFor(jurisdiction)) {
       setAttempted(false)
       setPhase('consent')
       return
@@ -77,12 +96,30 @@ export function PurchaseCTA({
     void beginPurchase(buildJpConsentSubmission(locale))
   }
 
+  const onDeclare = (declaredJurisdiction: ResolvedJurisdiction) => {
+    setDeclared(declaredJurisdiction)
+    if (declaredJurisdiction === 'TW') {
+      setAttempted(false)
+      setPhase('consent')
+      return
+    }
+    // JP proceeds after disclosure (server enforces the authoritative tax gate).
+    void beginPurchase(buildJpConsentSubmission(locale))
+  }
+
+  const onCancelJurisdiction = () => {
+    setPhase('idle')
+  }
+
   const onConfirm = () => {
     // Fail closed: submission is blocked until the checkbox is explicitly checked.
     if (!consentChecked) {
       setAttempted(true)
       return
     }
+    // The consent step only renders for a TW declaration; narrow the union so
+    // the evidence is always built for the declared TW jurisdiction.
+    if (jurisdiction !== 'TW') return
     setAttempted(false)
     const consent = buildConsentSubmission({ consentGranted: true, locale, jurisdiction })
     void beginPurchase(consent)
@@ -99,6 +136,27 @@ export function PurchaseCTA({
 
   return (
     <span className={`purchase-cta${className ? ` ${className}` : ''}`}>
+      {phase === 'jurisdiction' && (
+        <span
+          className="purchase-cta__jurisdiction"
+          role="region"
+          aria-label={strings.checkout.jurisdictionTitle}
+        >
+          <strong>{strings.checkout.jurisdictionTitle}</strong>
+          <span className="purchase-cta__notice-text">{strings.checkout.jurisdictionNote}</span>
+          <span className="purchase-cta__actions">
+            <button type="button" className="btn" onClick={() => onDeclare('TW')}>
+              {strings.checkout.jurisdictionTW}
+            </button>
+            <button type="button" className="btn" onClick={() => onDeclare('JP')}>
+              {strings.checkout.jurisdictionJP}
+            </button>
+            <button type="button" className="btn btn--ghost" onClick={onCancelJurisdiction}>
+              {strings.checkout.cancel}
+            </button>
+          </span>
+        </span>
+      )}
       {phase === 'consent' && consentInfo ? (
         <span
           className="purchase-cta__consent"
@@ -132,14 +190,16 @@ export function PurchaseCTA({
           </span>
         </span>
       ) : (
-        <button
-          type="button"
-          className="btn btn--primary"
-          onClick={onPrimaryClick}
-          disabled={phase === 'pending'}
-        >
-          {phase === 'pending' ? strings.book.pending : label}
-        </button>
+        phase !== 'jurisdiction' && (
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={onPrimaryClick}
+            disabled={phase === 'pending'}
+          >
+            {phase === 'pending' ? strings.book.pending : label}
+          </button>
+        )
       )}
       {phase === 'unavailable' && (
         <span className="purchase-cta__note" role="status">
