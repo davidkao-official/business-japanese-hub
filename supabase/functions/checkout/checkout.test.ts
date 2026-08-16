@@ -258,6 +258,12 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       deps,
     );
     expect(result.status).toBe(200);
+    // Pin the server-authoritative lookup key (the tax gate reads
+    // platform_tax_config.japan_consumption_tax_status, never the client).
+    expect(mock.callsFor('platform_tax_config', 'eq')[0].args).toEqual([
+      'key',
+      'japan_consumption_tax_status',
+    ]);
     const orderInsert = mock.callsFor('orders', 'insert')[0];
     expect(orderInsert.args[0]).toMatchObject({
       jurisdiction: 'JP',
