@@ -40,7 +40,6 @@ export interface AppStrings {
   home: {
     title: string
     lead: string
-    sampleBooks: string
   }
   library: {
     title: string
@@ -72,6 +71,7 @@ export interface AppStrings {
     pending: string
     purchaseUnavailable: string
     ownedLabel: string
+    freeReadingNote: string
   }
   reader: {
     backToBook: string
@@ -215,7 +215,6 @@ const ja: AppStrings = {
   home: {
     title: 'ビジネス日本語ハブ',
     lead: 'ビジネスシーンで役立つ日本語表現を、実践的な書籍を通して学べるプラットフォームです。',
-    sampleBooks: 'サンプル書籍',
   },
   library: {
     title: 'マイライブラリ',
@@ -247,6 +246,7 @@ const ja: AppStrings = {
     pending: '確認中…',
     purchaseUnavailable: '決済は準備中です。',
     ownedLabel: '取得済み',
+    freeReadingNote: 'この本は全章を無料でお読みいただけます。',
   },
   reader: {
     backToBook: '書籍へ戻る',
@@ -392,7 +392,6 @@ const en: AppStrings = {
   home: {
     title: 'Business Japanese Hub',
     lead: 'A platform for learning practical business Japanese through real-world reading materials.',
-    sampleBooks: 'Sample books',
   },
   library: {
     title: 'My Library',
@@ -424,6 +423,7 @@ const en: AppStrings = {
     pending: 'Checking…',
     purchaseUnavailable: 'Payment is not available yet.',
     ownedLabel: 'Owned',
+    freeReadingNote: 'Every chapter of this book is free to read.',
   },
   reader: {
     backToBook: 'Back to book',
@@ -569,7 +569,6 @@ const zhTW: AppStrings = {
   home: {
     title: '商務日語中心',
     lead: '透過實際的商務日語讀物，學習職場實用日語的平台。',
-    sampleBooks: '範例書籍',
   },
   library: {
     title: '我的書庫',
@@ -601,6 +600,7 @@ const zhTW: AppStrings = {
     pending: '確認中…',
     purchaseUnavailable: '付款功能準備中。',
     ownedLabel: '已擁有',
+    freeReadingNote: '本書所有章節均可免費閱讀。',
   },
   reader: {
     backToBook: '返回書籍',

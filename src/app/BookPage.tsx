@@ -145,9 +145,11 @@ export function BookPage() {
                 )
               })}
             </ol>
-            {hasPreview && (
+            {tier === 'free' || tier === 'preview' ? (
+              <p className="book-section__note">{strings.book.freeReadingNote}</p>
+            ) : hasPreview ? (
               <p className="book-section__note">{strings.readerGate.previewNote}</p>
-            )}
+            ) : null}
           </section>
         )}
 
