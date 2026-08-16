@@ -11,7 +11,7 @@
  * ever consume strings through `useStrings` / `getStrings`.
  */
 
-import { useMemo } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 
 export const SUPPORTED_LOCALES = ['ja', 'en', 'zh-TW'] as const
 
@@ -729,27 +729,116 @@ const stringsByLocale: Record<Locale, AppStrings> = {
   'zh-TW': zhTW,
 }
 
+export const LOCALE_STORAGE_KEY = 'business-japanese-hub.locale'
+const LOCALE_CHANGE_EVENT = 'business-japanese-hub:locale-change'
+
+function isLocale(value: string | null): value is Locale {
+  return value !== null && (SUPPORTED_LOCALES as readonly string[]).includes(value)
+}
+
+/** Map a browser language tag to a supported presentation locale. */
+export function localeFromLanguageTag(language: string | null | undefined): Locale | null {
+  if (!language) return null
+  const normalized = language.trim().replaceAll('_', '-').toLowerCase()
+  if (!normalized) return null
+
+  if (
+    normalized === 'zh-tw' ||
+    normalized === 'zh-hk' ||
+    normalized === 'zh-mo' ||
+    normalized.startsWith('zh-hant')
+  ) {
+    return 'zh-TW'
+  }
+  if (normalized === 'ja' || normalized.startsWith('ja-')) return 'ja'
+  if (normalized === 'en' || normalized.startsWith('en-')) return 'en'
+  return null
+}
+
+function readPersistedLocale(): Locale | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const value = window.localStorage.getItem(LOCALE_STORAGE_KEY)
+    return isLocale(value) ? value : null
+  } catch {
+    return null
+  }
+}
+
+function readBrowserLocale(): Locale {
+  if (typeof navigator === 'undefined') return DEFAULT_LOCALE
+  const candidates = [
+    ...(Array.isArray(navigator.languages) ? navigator.languages : []),
+    navigator.language,
+  ]
+  for (const candidate of candidates) {
+    const locale = localeFromLanguageTag(candidate)
+    if (locale) return locale
+  }
+  return DEFAULT_LOCALE
+}
+
+/**
+ * Runtime presentation locale. Persisted user preference wins over browser
+ * language. This value is presentation-only and must never be used to infer
+ * consumer jurisdiction, tax treatment, payment provider, or entitlement.
+ */
+export function getActiveLocale(): Locale {
+  return readPersistedLocale() ?? readBrowserLocale()
+}
+
+/**
+ * Persist or clear a presentation-locale override. Consumers using `useLocale`
+ * / `useStrings` update in the same tab; the native `storage` event covers
+ * cross-tab changes.
+ */
+export function setLocalePreference(locale: Locale | null): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (locale === null) {
+      window.localStorage.removeItem(LOCALE_STORAGE_KEY)
+    } else {
+      window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
+    }
+  } catch {
+    // Storage can be unavailable (privacy mode / restricted contexts). The
+    // presentation fallback remains the browser locale; never fail the app.
+  }
+  window.dispatchEvent(new Event(LOCALE_CHANGE_EVENT))
+}
+
+function subscribeLocale(onStoreChange: () => void): () => void {
+  if (typeof window === 'undefined') return () => {}
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === LOCALE_STORAGE_KEY || event.key === null) onStoreChange()
+  }
+  window.addEventListener('storage', onStorage)
+  window.addEventListener('languagechange', onStoreChange)
+  window.addEventListener(LOCALE_CHANGE_EVENT, onStoreChange)
+  return () => {
+    window.removeEventListener('storage', onStorage)
+    window.removeEventListener('languagechange', onStoreChange)
+    window.removeEventListener(LOCALE_CHANGE_EVENT, onStoreChange)
+  }
+}
+
 /** Synchronous lookup — safe anywhere, but prefers `useStrings` in components. */
 export function getStrings(locale: Locale = DEFAULT_LOCALE): AppStrings {
   return stringsByLocale[locale] ?? stringsByLocale[DEFAULT_LOCALE]
 }
 
-/**
- * Reactive lookup for components. Currently stateless; the signature is the
- * seam where a locale provider / context could be introduced later without
- * touching call sites.
- */
-export function useStrings(locale: Locale = DEFAULT_LOCALE): AppStrings {
-  return useMemo(() => getStrings(locale), [locale])
+/** Active presentation locale for React components. */
+export function useLocale(): Locale {
+  return useSyncExternalStore(subscribeLocale, getActiveLocale, () => DEFAULT_LOCALE)
 }
 
 /**
- * The active locale for components. Currently stateless (always the default);
- * this is the seam where a locale provider / context could be introduced later
- * without touching call sites. Consumers that need the locale to pick a
- * localized value (e.g. legal document titles) use this instead of assuming a
- * hard-coded locale.
+ * Reactive component lookup. Without an explicit locale, strings follow the
+ * active runtime presentation locale. Passing a locale remains available for
+ * deliberately pinned content such as jurisdiction-specific evidence copy.
  */
-export function useLocale(): Locale {
-  return DEFAULT_LOCALE
+export function useStrings(locale?: Locale): AppStrings {
+  const activeLocale = useLocale()
+  const resolvedLocale = locale ?? activeLocale
+  return useMemo(() => getStrings(resolvedLocale), [resolvedLocale])
 }
