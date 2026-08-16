@@ -3,6 +3,7 @@ import { fireEvent, screen } from '@testing-library/react'
 import { renderWithAppProviders } from '../test/appProviders'
 import { PurchaseCTA } from './PurchaseCTA'
 import { paidKeigoBook } from '../content/fixtures/paid-test-books'
+import { jpConsentInfo, twConsentInfo } from '../lib/purchase/checkoutConsent'
 
 describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)', () => {
   it('asks for a consumer-jurisdiction declaration before checkout (unresolved fails closed)', async () => {
@@ -18,8 +19,9 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     expect(executor).not.toHaveBeenCalled()
   })
 
-  it('declared JP proceeds with the JP proceeded-after-disclosure consent (no TW checkbox)', async () => {
+  it('declared JP displays the exact versioned disclosures before payment handoff', async () => {
     const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
+    const evidence = jpConsentInfo()
     renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} />, {
       purchaseExecutor: executor,
     })
@@ -27,15 +29,31 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
     fireEvent.click(screen.getByRole('button', { name: '日本の消費者' }))
 
+    // Selecting JP must not hand off to payment before the evidence is visible.
+    expect(executor).not.toHaveBeenCalled()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.getByText(evidence.noticeHeading)).toBeInTheDocument()
+    expect(screen.getByText(evidence.noticeText)).toBeInTheDocument()
+    expect(screen.getByText(evidence.consentHeading)).toBeInTheDocument()
+    expect(screen.getByText(evidence.consentText)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '同意して購入する' }))
+
     expect(executor).toHaveBeenCalledTimes(1)
     expect(executor).toHaveBeenCalledWith(
       { bookId: paidKeigoBook.id },
-      expect.objectContaining({ jurisdiction: 'JP', consentGranted: true }),
+      expect.objectContaining({
+        jurisdiction: 'JP',
+        consentGranted: true,
+        noticeTextSnapshot: evidence.noticeText,
+        consentTextSnapshot: evidence.consentText,
+      }),
     )
   })
 
   it('declared TW still requires the TW pre-delivery consent checkbox (fail closed)', async () => {
     const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
+    const evidence = twConsentInfo()
     renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} />, {
       purchaseExecutor: executor,
     })
@@ -43,9 +61,9 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
     fireEvent.click(screen.getByRole('button', { name: '台湾の消費者' }))
 
-    // The TW pre-delivery notice (from legal content) is shown.
-    expect(screen.getByText(/クーリング・オフ/)).toBeInTheDocument()
-    expect(screen.getByText(/若已於購買前取得/)).toBeInTheDocument()
+    // The TW pre-delivery notice + consent statement are the versioned evidence shown.
+    expect(screen.getByText(evidence.noticeText)).toBeInTheDocument()
+    expect(screen.getByText(evidence.consentText)).toBeInTheDocument()
 
     const confirm = screen.getByRole('button', { name: '同意して購入する' })
 
@@ -62,7 +80,12 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     expect(executor).toHaveBeenCalledTimes(1)
     expect(executor).toHaveBeenCalledWith(
       { bookId: paidKeigoBook.id },
-      expect.objectContaining({ jurisdiction: 'TW', consentGranted: true }),
+      expect.objectContaining({
+        jurisdiction: 'TW',
+        consentGranted: true,
+        noticeTextSnapshot: evidence.noticeText,
+        consentTextSnapshot: evidence.consentText,
+      }),
     )
   })
 
@@ -86,15 +109,22 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     )
   })
 
-  it('an explicit JP jurisdiction prop skips declaration and submits the JP consent directly', async () => {
+  it('an explicit JP jurisdiction prop skips declaration but still shows disclosures first', async () => {
     const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
+    const evidence = jpConsentInfo()
     renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} jurisdiction="JP" />, {
       purchaseExecutor: executor,
     })
 
     fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
 
+    expect(screen.queryByText('お住まいの国・地域を選択してください')).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(screen.getByText(evidence.noticeText)).toBeInTheDocument()
+    expect(screen.getByText(evidence.consentText)).toBeInTheDocument()
+    expect(executor).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '同意して購入する' }))
     expect(executor).toHaveBeenCalledWith(
       { bookId: paidKeigoBook.id },
       expect.objectContaining({ jurisdiction: 'JP', consentGranted: true }),
