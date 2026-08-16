@@ -196,7 +196,7 @@ function eventStatus(eventType: string): VerifiedProviderEvent['status'] {
   }
 }
 
-function providerRefFromWebhook(eventType: string, resource: JsonObject): string | undefined {
+function providerRefFromWebhook(_eventType: string, resource: JsonObject): string | undefined {
   const id = asString(resource.id);
   if (!id) return undefined;
   return id;
@@ -426,7 +426,6 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
           'Content-Type': 'application/json',
           'PayPal-Request-Id': `refund-${input.paymentId}`,
         },
-        // Empty JSON requests a full refund. Partial refunds are deliberately out of scope.
         body: '{}',
       },
     );
