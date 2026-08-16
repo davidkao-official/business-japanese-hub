@@ -1,21 +1,43 @@
 /**
- * Reader access-control tests (issue #6): the entitlement gate meets the
+ * Reader access-control tests (issue #6 / #31): the entitlement gate meets the
  * Universal Reader. Verifies paid-boundary denial, public preview without
  * sign-in, owned access, block-prefix boundaries, malformed-boundary denial,
- * and resume routing.
+ * resume routing, and free-tier public reading.
+ *
+ * The platform catalog only registers free Prototype books (src/reader/catalog.ts),
+ * so the paid-tier paths are exercised by mocking the catalog module to resolve
+ * the paid synthetic fixture (`paidKeigoBook`) — keeping test-only paid data out
+ * of the production catalog while preserving the paid entitlement regression.
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { createMockRepository, renderWithAppProviders } from '../test/appProviders'
-import { sampleBook } from '../content/fixtures/sample-book'
+import { paidKeigoBook } from '../content/fixtures/paid-test-books'
 import { ReaderGate } from './ReaderGate'
 import { ReaderPage } from './ReaderPage'
 import { ReaderShell } from './ReaderShell'
 
+vi.mock('./catalog', async () => {
+  const { paidKeigoBook: paid } = await import('../content/fixtures/paid-test-books')
+  const { secondBook: freeEmail } = await import('../content/fixtures/second-book')
+  return {
+    getBookBySlug: (slug: string) => {
+      if (slug === paid.slug) return paid
+      if (slug === freeEmail.slug) return freeEmail
+      return undefined
+    },
+    getCatalogEntry: (slug: string) => {
+      if (slug === paid.slug) return { book: paid, previewBoundary: { chapterId: 'ch-1' } }
+      if (slug === freeEmail.slug) return { book: freeEmail }
+      return undefined
+    },
+  }
+})
+
 const user = { id: 'u-1', email: 'reader@example.com' }
-const keigoId = sampleBook.id
+const paidKeigoId = paidKeigoBook.id
 
 function granted(bookId: string) {
   return { bookId, provider: 'manual' as const, grantedAt: '2026-08-01T00:00:00.000Z' }
@@ -59,12 +81,23 @@ describe('reader entitlement gate', () => {
   })
 
   it('renders a paid chapter once the book is owned', async () => {
-    const repository = createMockRepository({ entitlements: { [keigoId]: granted(keigoId) } })
+    const repository = createMockRepository({ entitlements: { [paidKeigoId]: granted(paidKeigoId) } })
     renderReaderRoute('/books/keigo-essentials/read/keigo-in-meetings', { session: user, repository })
 
     expect(
       await screen.findByRole('heading', { level: 1, name: '会議での敬語' }),
     ).toBeInTheDocument()
+  })
+
+  it('renders every free Prototype chapter anonymously (tier: free, no gate)', async () => {
+    // The free Prototype book has no preview boundary: chapter 3 (beyond where
+    // a paid boundary would cut) must render without sign-in or ownership.
+    renderReaderRoute('/books/email-manners/read/requests-and-closings')
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: '依頼と締めの表現' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('この先はプレビューの範囲外です。')).not.toBeInTheDocument()
   })
 })
 
@@ -73,8 +106,8 @@ describe('block-level preview boundary', () => {
     const { container } = render(
       <MemoryRouter>
         <ReaderShell
-          book={sampleBook}
-          chapter={sampleBook.chapters[0]}
+          book={paidKeigoBook}
+          chapter={paidKeigoBook.chapters[0]}
           previewBoundary={{ chapterId: 'ch-1', blockId: 'ch1-blk-03' }}
         />
       </MemoryRouter>,
@@ -95,8 +128,8 @@ describe('block-level preview boundary', () => {
     render(
       <MemoryRouter>
         <ReaderShell
-          book={sampleBook}
-          chapter={sampleBook.chapters[0]}
+          book={paidKeigoBook}
+          chapter={paidKeigoBook.chapters[0]}
           previewBoundary={{ chapterId: 'ch-1', blockId: 'does-not-exist' }}
         />
       </MemoryRouter>,
@@ -112,7 +145,7 @@ describe('reader gate surface', () => {
   it('shows the locked message when a paid book offers no preview', () => {
     render(
       <MemoryRouter>
-        <ReaderGate book={sampleBook} hasPreview={false} />
+        <ReaderGate book={paidKeigoBook} hasPreview={false} />
       </MemoryRouter>,
     )
 
@@ -124,9 +157,9 @@ describe('reader gate surface', () => {
 describe('resume routing', () => {
   it('routes /read into the persisted reading-state chapter', async () => {
     const repository = createMockRepository({
-      entitlements: { [keigoId]: granted(keigoId) },
+      entitlements: { [paidKeigoId]: granted(paidKeigoId) },
       readingStates: {
-        [keigoId]: { bookId: keigoId, chapterId: 'ch-2', updatedAt: '2026-08-01T00:00:00.000Z' },
+        [paidKeigoId]: { bookId: paidKeigoId, chapterId: 'ch-2', updatedAt: '2026-08-01T00:00:00.000Z' },
       },
     })
     renderReaderRoute('/books/keigo-essentials/read', { session: user, repository })
@@ -141,13 +174,21 @@ describe('resume routing', () => {
     // must not route past the boundary.
     const repository = createMockRepository({
       readingStates: {
-        [keigoId]: { bookId: keigoId, chapterId: 'ch-2', updatedAt: '2026-08-01T00:00:00.000Z' },
+        [paidKeigoId]: { bookId: paidKeigoId, chapterId: 'ch-2', updatedAt: '2026-08-01T00:00:00.000Z' },
       },
     })
     renderReaderRoute('/books/keigo-essentials/read', { session: user, repository })
 
     expect(
       await screen.findByRole('heading', { level: 1, name: '敬語の基本' }),
+    ).toBeInTheDocument()
+  })
+
+  it('resumes a free Prototype book without sign-in', async () => {
+    renderReaderRoute('/books/email-manners/read')
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'メールの基本構成' }),
     ).toBeInTheDocument()
   })
 })

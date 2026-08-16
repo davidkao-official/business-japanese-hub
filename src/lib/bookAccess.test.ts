@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { bookCtaState, offersPreview, resumeHref, tierOf } from './bookAccess'
-import { sampleBook } from '../content/fixtures/sample-book'
+import { paidKeigoBook } from '../content/fixtures/paid-test-books'
 import type { ReadingState } from './persistence/types'
 
-const paid = sampleBook
+const paid = paidKeigoBook
 const boundary = { chapterId: 'ch-1' }
 
 describe('tierOf', () => {

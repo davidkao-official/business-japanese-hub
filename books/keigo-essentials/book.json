@@ -5,21 +5,17 @@
   "title": "ビジネス日本語：敬語の基礎",
   "subtitle": "職場で使える尊敬語・謙譲語・丁寧語",
   "language": "ja",
-  "description": "この書籍は content model の動作確認用サンプルフィクスチャです。実際の商品書籍ではなく、敬語というテーマを使って全ブロック種別を網羅しています。",
+  "description": "敬語は、ビジネス会話の「空気」を決める最重要スキルです。尊敬語・謙譲語・丁寧語の三分類を、会議・依頼・電話といった実務の場面に沿って整理し、そのまま使える表現を会話例と練習問題で身につけます。",
   "authors": [
     {
-      "id": "author-sample",
-      "name": "サンプル 太郎",
-      "role": "author",
-      "bio": "サンプル用の架空の著者です。",
-      "website": "https://example.com/authors/sample-taro"
+      "id": "bjh-editorial",
+      "name": "Business Japanese Hub 編集部",
+      "role": "editorial"
     }
   ],
   "cover": {
     "src": "/assets/books/keigo-essentials/cover.png",
     "alt": "「敬語の基礎」の表紙イメージ",
-    "caption": "サンプル表紙",
-    "credit": "sample-fixture",
     "width": 1200,
     "height": 800
   },
@@ -29,12 +25,11 @@
     "year": 2026
   },
   "publication": {
-    "status": "draft"
+    "status": "published",
+    "releasedAt": "2026-08-01"
   },
   "price": {
-    "tier": "paid",
-    "amount": 880,
-    "currency": "JPY"
+    "tier": "free"
   },
   "audience": {
     "levels": [
@@ -42,10 +37,11 @@
       "intermediate"
     ],
     "languages": [
+      "ja",
       "zh-TW",
       "en"
     ],
-    "description": "日本語を学ぶビジネスパーソンを想定したサンプルです。"
+    "description": "日本語を学ぶビジネスパーソンに向けた無料公開のプロトタイプ版です。"
   },
   "difficulty": {
     "level": 2,
@@ -71,7 +67,7 @@
   "tags": [
     "keigo",
     "business-japanese",
-    "sample-fixture"
+    "prototype"
   ],
   "chapters": [
     {
@@ -143,14 +139,13 @@
         {
           "id": "ch1-blk-06",
           "type": "quote",
-          "text": "言葉は心の届け物。敬語はその包装紙である。",
-          "attribution": "サンプル書籍の例文"
+          "text": "敬語は、うまく使えば相手との距離を縮め、使い誤れば離してしまう。"
         },
         {
           "id": "ch1-blk-07",
           "type": "authorNote",
-          "author": "サンプル 太郎",
-          "title": "著者から",
+          "author": "Business Japanese Hub 編集部",
+          "title": "編集部から",
           "text": "最初は難しく感じますが、三分類を頭に入れるだけで見通しが大きく変わります。"
         }
       ]
@@ -302,7 +297,6 @@
           "src": "/assets/books/keigo-essentials/keigo-pyramid.png",
           "alt": "敬語の三分類を示すピラミッド図",
           "caption": "敬語のピラミッド：丁寧語を土台に、尊敬語・謙譲語を組み合わせます。",
-          "credit": "sample-fixture",
           "width": 800,
           "height": 600
         }

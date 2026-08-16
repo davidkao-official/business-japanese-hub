@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { sampleBook } from '../content/fixtures/sample-book';
+import { paidKeigoBook } from '../content/fixtures/paid-test-books';
 import {
   nextRevision,
   parseSnapshotId,
@@ -82,11 +83,12 @@ describe('snapshotDescriptorFor', () => {
 
 describe('withPublishedState', () => {
   it('returns a new book whose publication state is published, without mutating the input', () => {
-    expect(sampleBook.publication?.status).toBe('draft');
-    const published = withPublishedState(sampleBook, '2026-08-14');
+    // The paid fixture is a draft book, so the before/after state is observable.
+    expect(paidKeigoBook.publication?.status).toBe('draft');
+    const published = withPublishedState(paidKeigoBook, '2026-08-14');
     expect(published.publication).toEqual({ status: 'published', releasedAt: '2026-08-14' });
-    expect(sampleBook.publication?.status).toBe('draft');
-    expect(published.slug).toBe(sampleBook.slug);
-    expect(published.chapters).toBe(sampleBook.chapters);
+    expect(paidKeigoBook.publication?.status).toBe('draft');
+    expect(published.slug).toBe(paidKeigoBook.slug);
+    expect(published.chapters).toBe(paidKeigoBook.chapters);
   });
 });
