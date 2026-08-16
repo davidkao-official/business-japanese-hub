@@ -15,12 +15,18 @@ import {
 } from './adapter';
 import { ecpayCheckMac, sha256Hex } from './checkmac';
 import { ECPAY_URLS } from './urls';
-import { UnsupportedCurrencyForProvider, type CreateCheckoutInput, type VerifiedProviderEvent } from '../contract';
+import { UnsupportedCurrencyForProvider, type CheckoutInstruction, type CreateCheckoutInput, type VerifiedProviderEvent } from '../contract';
 
 /** Test-only ECPay stage credentials (decision-record §16). */
 const HASH_KEY = '5294y06JbISpM5x9';
 const HASH_IV = 'v77hoKGq4kWxNNIS';
 const MERCHANT_ID = '2000132';
+
+/** Narrow a checkout instruction to the ECPay form-post variant. */
+function asForm(instruction: CheckoutInstruction): Extract<CheckoutInstruction, { kind: 'form-post' }> {
+  expect(instruction.kind).toBe('form-post');
+  return instruction as Extract<CheckoutInstruction, { kind: 'form-post' }>;
+}
 
 function makeAdapter(overrides?: Partial<EcpayAdapterConfig>): EcpayPaymentProviderAdapter {
   return new EcpayPaymentProviderAdapter({
@@ -111,7 +117,7 @@ async function queryResponseBody(fields: Record<string, string>): Promise<string
 describe('EcpayPaymentProviderAdapter.createCheckout', () => {
   it('builds the §4.2 AioCheckOut form with a valid CheckMacValue and integer TWD TotalAmount', async () => {
     const adapter = makeAdapter();
-    const instruction = await adapter.createCheckout(makeCheckoutInput());
+    const instruction = asForm(await adapter.createCheckout(makeCheckoutInput()));
 
     expect(instruction.action).toBe(ECPAY_URLS.stage.checkout);
     expect(instruction.provider).toBe('ecpay');
@@ -139,7 +145,7 @@ describe('EcpayPaymentProviderAdapter.createCheckout', () => {
 
   it('uses the production AioCheckOut URL when env=prod', async () => {
     const adapter = makeAdapter({ env: 'prod' });
-    const instruction = await adapter.createCheckout(makeCheckoutInput());
+    const instruction = asForm(await adapter.createCheckout(makeCheckoutInput()));
     expect(instruction.action).toBe(ECPAY_URLS.prod.checkout);
   });
 
@@ -223,7 +229,7 @@ describe('EcpayPaymentProviderAdapter.verifyCallback', () => {
   it('rejects a request for a different provider', async () => {
     const adapter = makeAdapter();
     const form = await signedForm(BASE_CALLBACK);
-    await expect(adapter.verifyCallback({ form, provider: 'paypal' })).rejects.toThrow(
+    await expect(adapter.verifyCallback({ body: JSON.stringify(form), headers: {}, provider: 'paypal' })).rejects.toThrow(
       /cannot verify provider 'paypal'/,
     );
   });

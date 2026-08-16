@@ -40,7 +40,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     deps: {
       env: testEnv(),
       db: mock.db,
-      adapter,
+      adapters: { ecpay: adapter, paypal: createFakeAdapter('paypal') },
       log: fakeLogger(),
       now: () => new Date('2026-08-16T12:00:00Z'),
     },

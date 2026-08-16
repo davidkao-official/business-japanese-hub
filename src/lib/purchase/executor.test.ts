@@ -28,6 +28,7 @@ function checkoutResponse(orderId = 'order-1'): CheckoutResponse {
     orderId,
     paymentId: 'payment-1',
     instruction: {
+      kind: 'form-post',
       action: 'https://provider.example/pay',
       fields: {
         MerchantID: 'm',
@@ -39,6 +40,14 @@ function checkoutResponse(orderId = 'order-1'): CheckoutResponse {
       merchantReference: 'BJH001',
     },
   }
+}
+
+/** Narrow a checkout response instruction to the form-post variant. */
+function formInstruction(response: CheckoutResponse): Extract<CheckoutResponse['instruction'], { kind: 'form-post' }> {
+  if (response.instruction.kind !== 'form-post') {
+    throw new Error('expected form-post instruction in test fixture')
+  }
+  return response.instruction
 }
 
 function jsonResponse(payload: unknown, ok = true, status = 200) {
@@ -79,7 +88,7 @@ describe('checkout executor (#9)', () => {
     await executor({ bookId: 'book-1' }, consent())
 
     expect(submitForm).toHaveBeenCalledTimes(1)
-    expect(submitForm).toHaveBeenCalledWith(response.instruction.action, response.instruction.fields)
+    expect(submitForm).toHaveBeenCalledWith(formInstruction(response).action, formInstruction(response).fields)
   })
 
   it('refuses checkout without an explicit consent (unresolved jurisdiction fails closed)', async () => {
@@ -182,6 +191,34 @@ describe('checkout executor (#9)', () => {
     const result = await executor({ bookId: 'book-1' }, consent({ jurisdiction: 'JP', locale: 'ja' }))
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('failed')
+  })
+
+  it('navigates to the approval URL for a redirect instruction (PayPal)', async () => {
+    const fetchClient = vi.fn().mockResolvedValue(
+      jsonResponse({
+        orderId: 'order-1',
+        paymentId: 'payment-1',
+        instruction: {
+          kind: 'redirect',
+          url: 'https://www.sandbox.paypal.com/checkoutnow?token=ORDER-1',
+          provider: 'paypal',
+          merchantReference: 'BJH001',
+          providerPaymentReference: 'ORDER-1',
+        },
+      }),
+    )
+    const navigate = vi.fn()
+    const executor = createCheckoutPurchaseExecutor({
+      functionsBaseUrl: BASE,
+      fetchClient,
+      navigate,
+    })
+
+    const result = await executor({ bookId: 'book-1' }, consent())
+
+    expect(navigate).toHaveBeenCalledTimes(1)
+    expect(navigate).toHaveBeenCalledWith('https://www.sandbox.paypal.com/checkoutnow?token=ORDER-1')
+    expect(result).toEqual({ ok: true, orderId: 'order-1', status: 'pending' })
   })
 
   it('attaches the Bearer token when an auth token source is provided', async () => {

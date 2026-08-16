@@ -4,6 +4,8 @@
 #   - checkout / orders-status / finance  → platform JWT gate ON
 #   - ecpay-callback / ecpay-browser-return → platform JWT gate OFF (ECPay server
 #     POST / browser navigation carry no user JWT; the handlers self-verify)
+#   - paypal-webhook / paypal-browser-return → platform JWT gate OFF (PayPal
+#     server POST / browser navigation carry no user JWT; the handlers self-verify)
 #   - repair-reconcile → gate OFF; the ONLY authorization is the shared
 #     scheduled-job secret header checked inside the handler (internal pg_cron
 #     callers carry that secret, not a user JWT — see 0004_scheduled_jobs.sql).
@@ -40,4 +42,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.ecpay-browser-return]
+verify_jwt = false
+
+[functions.paypal-webhook]
+verify_jwt = false
+
+[functions.paypal-browser-return]
 verify_jwt = false

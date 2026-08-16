@@ -1,20 +1,21 @@
 /**
- * ECPay ReturnURL callback handler — `POST /functions/v1/ecpay-callback`
- * (verify_jwt=false; the handler self-verifies CheckMacValue + local invariants,
- * decision-record §3.5/§4.3/§4.4/§4.5).
+ * PayPal webhook handler — `POST /functions/v1/paypal-webhook`
+ * (verify_jwt=false; the handler self-verifies the transmission signature via
+ * the official verify-webhook-signature API, decision-record §21 / §3.5).
  *
- * Authoritative payment processing. Body is `application/x-www-form-urlencoded`
- * (NEVER JSON). Flow per §4.5:
+ * Authoritative payment processing for PayPal USD. Body is JSON (NEVER
+ * form-encoded). Flow per §21 (mirrors §4.5):
  *
- *   verify callback → durable `payment_events` receipt (UNIQUE(provider,
- *   event_fingerprint); replay → idempotent `1|OK`) → payment lookup by
- *   MerchantTradeNo → QueryTradeInfo confirmation → `ecpayPaymentVerified`
- *   success predicate → on verified: payment succeeded + order paid + entitlement
- *   granted exactly once, then `1|OK`.
+ *   verify webhook signature → durable `payment_events` receipt
+ *   (UNIQUE(provider, event_fingerprint); replay → idempotent 200) → payment
+ *   lookup by custom_id (provider_merchant_ref) → confirm via the authoritative
+ *   order state (server capture when APPROVED) → success predicate (amount /
+ *   currency match) → on verified: payment succeeded + order paid + entitlement
+ *   granted exactly once → 200.
  *
- * ACK semantics: `1|OK` is sent only AFTER durable persistence. A DB failure is
- * NOT acknowledged (ECPay retries). Provider timeout / ambiguity persists
- * `verification_pending` DURABLY first, then `1|OK`. A succeeded payment is never
+ * ACK semantics: a 2xx is returned only AFTER durable persistence; a DB failure
+ * is NOT acknowledged (PayPal retries up to 25×/3 days). A forged / unverified
+ * webhook is rejected with 4xx and never grants. A succeeded payment is never
  * downgraded (state.ts).
  */
 import type {
@@ -23,7 +24,8 @@ import type {
   ProviderPaymentSnapshot,
   VerifiedProviderEvent,
 } from '../../../src/lib/payments/contract.ts';
-import { ecpayPaymentVerified, parseFormUrlEncoded } from '../../../src/lib/payments/ecpay/adapter.ts';
+import { isVerifiedSuccessSnapshot } from '../../../src/lib/payments/domain.ts';
+import { sanitizePaypalEvent } from '../../../src/lib/payments/paypal/adapter.ts';
 import type { PaymentDomainEvent } from '../../../src/lib/payments/state.ts';
 import { IllegalStateTransitionError } from '../../../src/lib/payments/state.ts';
 import type { Env } from '../_shared/env.ts';
@@ -38,7 +40,7 @@ import {
   type HandlerRequest,
   type HandlerResult,
 } from '../_shared/http.ts';
-import { buildPaymentEventRow, sanitizedCallbackPayload } from '../_shared/events.ts';
+import { buildPaymentEventRow } from '../_shared/events.ts';
 import {
   applyPaymentEvent,
   applyVerifiedSuccess,
@@ -47,7 +49,7 @@ import {
   type PaymentRow,
 } from '../_shared/flow.ts';
 
-export interface EcpayCallbackHandlerDeps {
+export interface PaypalWebhookHandlerDeps {
   env: Env;
   db: DbClient;
   adapter: PaymentProviderAdapter;
@@ -55,40 +57,50 @@ export interface EcpayCallbackHandlerDeps {
   now?: () => Date;
 }
 
-export async function handleEcpayCallback(
+export async function handlePaypalWebhook(
   req: HandlerRequest,
-  deps: EcpayCallbackHandlerDeps,
+  deps: PaypalWebhookHandlerDeps,
 ): Promise<HandlerResult> {
   if (req.method !== 'POST') return methodNotAllowed('POST');
-  const form = parseFormUrlEncoded(req.bodyText);
   const now = deps.now ?? (() => new Date());
 
-  // 1. Signature + merchant verification (throws on invalid → 4xx, no ack).
+  // 1. Signature + payload verification (throws on invalid → 4xx, no ack). The
+  // adapter keeps the exact raw body for signature verification (§21).
   let event: VerifiedProviderEvent;
   try {
-    event = await deps.adapter.verifyCallback({ form, provider: 'ecpay' });
+    event = await deps.adapter.verifyCallback({
+      provider: 'paypal',
+      body: req.bodyText,
+      headers: req.headers,
+    });
   } catch (err) {
     deps.log.warn(
-      { provider: 'ecpay', error: err instanceof Error ? err.message : String(err) },
-      'callback rejected: invalid signature or merchant',
+      { provider: 'paypal', error: err instanceof Error ? err.message : String(err) },
+      'webhook rejected: invalid signature or payload',
     );
-    return badRequest('invalid callback signature or merchant');
+    return badRequest('invalid webhook signature or payload');
   }
   deps.log.info(
     {
-      provider: 'ecpay',
+      provider: 'paypal',
       merchantReference: event.providerMerchantRef,
       eventFingerprint: event.eventFingerprint,
       status: event.status,
-      rtnCode: event.rawStatusCode,
+      eventType: event.rawStatusCode,
     },
-    'verified ecpay callback',
+    'verified paypal webhook',
   );
 
   // 2. Durable receipt. UNIQUE(provider, event_fingerprint); replay → no-op.
+  let sanitized: Record<string, unknown>;
+  try {
+    sanitized = sanitizePaypalEvent(JSON.parse(req.bodyText));
+  } catch {
+    sanitized = { id: event.eventFingerprint };
+  }
   const eventInsert = await deps.db
     .from('payment_events')
-    .insert(buildPaymentEventRow(event, sanitizedCallbackPayload(form)), {
+    .insert(buildPaymentEventRow(event, sanitized), {
       onConflict: 'provider,event_fingerprint',
       ignoreDuplicates: true,
     })
@@ -98,21 +110,29 @@ export async function handleEcpayCallback(
     deps.log.error({ error: eventInsert.error.message }, 'payment_events insert failed; NOT acknowledging');
     return jsonResult(500, { error: 'event persist failed' });
   }
-  if (!eventInsert.data) {
-    deps.log.info({ eventFingerprint: event.eventFingerprint }, 'duplicate callback (replay) — idempotent 1|OK');
-    return textResult(200, '1|OK');
+  const isReplay = !eventInsert.data;
+  if (isReplay) {
+    deps.log.info(
+      { eventFingerprint: event.eventFingerprint },
+      'duplicate webhook (replay) — re-applying idempotently',
+    );
   }
+  // Continue processing below REGARDLESS of fresh/replay: the verified-success
+  // path is idempotent (state.ts + grant upsert), so a replay after a
+  // partially-failed first delivery self-heals (grant-first ordering in
+  // applyVerifiedSuccess keeps the order pending until the grant lands) instead
+  // of being silently acked without ever granting (reviewer finding, #21).
 
-  // 3. Local payment lookup by MerchantTradeNo (unknown ref → no entitlement).
+  // 3. Local payment lookup by custom_id (unknown ref → no entitlement).
   let payment: PaymentRow;
   try {
-    const found = await loadPaymentByMerchantRef(deps.db, 'ecpay', event.providerMerchantRef);
+    const found = await loadPaymentByMerchantRef(deps.db, 'paypal', event.providerMerchantRef);
     if (!found) {
       deps.log.warn(
         { merchantReference: event.providerMerchantRef },
-        'callback for unknown MerchantTradeNo; no entitlement, not acknowledged as processed',
+        'webhook for unknown custom_id; no entitlement, not acknowledged as processed',
       );
-      return notFound('unknown merchant trade no');
+      return notFound('unknown custom id');
     }
     payment = found;
   } catch (err) {
@@ -125,29 +145,21 @@ export async function handleEcpayCallback(
 
   const localAmount: Money = { amount: Number(payment.amount_minor), currency: payment.currency };
 
-  // 4. Dispatch on the normalized callback status.
+  // 4. Dispatch on the normalized event status.
   if (event.status === 'failed') {
-    // Terminal provider failure (RtnCode != 1) → persist failed → stop ECPay retry.
+    // Terminal provider failure (PAYMENT.CAPTURE.DENIED/DECLINED) → failed.
     return persistAndAck(
       deps,
       payment,
       { type: 'payment_failed', merchantReference: event.providerMerchantRef, rawStatusCode: event.rawStatusCode },
       now,
-      'payment failed per callback',
-    );
-  }
-  if (event.status === 'unknown') {
-    // SimulatePaid=1 (RtnCode=1) → NOT a real payment → durable non-granting state.
-    return persistAndAck(
-      deps,
-      payment,
-      { type: 'verification_pending', merchantReference: event.providerMerchantRef },
-      now,
-      'simulated payment (SimulatePaid=1); not a real charge',
+      'payment failed per webhook',
     );
   }
 
-  // event.status === 'succeeded' → QueryTradeInfo confirmation (§4.4/§6).
+  // 5. succeeded (CAPTURE.COMPLETED) or unknown (APPROVED / PENDING / REFUNDED) →
+  // confirm against the authoritative order state; confirmPayment issues the
+  // server capture when the order is APPROVED (§21).
   let snapshot: ProviderPaymentSnapshot;
   try {
     snapshot = await deps.adapter.confirmPayment(event);
@@ -158,8 +170,10 @@ export async function handleEcpayCallback(
     );
     return jsonResult(500, { error: 'provider confirmation failed' });
   }
+
   if (snapshot.status !== 'succeeded') {
-    // Timeout / ambiguous / not-yet-paid → durable verification_pending → 1|OK.
+    // Timeout / not-yet-captured / refunded / ambiguous → durable
+    // verification_pending → 200 (repair loop resolves; never grants).
     return persistAndAck(
       deps,
       payment,
@@ -169,35 +183,12 @@ export async function handleEcpayCallback(
     );
   }
 
-  // 5. Final success predicate (§4.4) — all eleven conditions must hold. The
-  // query side uses the QUERY RESPONSE's own fields (merchantTradeNo / tradeNo /
-  // tradeAmt / tradeStatus from QueryTradeInfo), never callback-derived values.
-  const verified = ecpayPaymentVerified({
-    callbackCheckMacValid: true,
-    queryCheckMacValid: true,
-    configuredMerchantId: deps.env.ecpayMerchantId,
-    merchantTradeNoExistsLocally: true,
-    localAmount,
-    callback: {
-      merchantId: form.MerchantID ?? '',
-      merchantTradeNo: form.MerchantTradeNo ?? '',
-      tradeNo: form.TradeNo ?? '',
-      tradeAmt: form.TradeAmt ?? '',
-      rtnCode: form.RtnCode ?? '',
-      simulatePaid: form.SimulatePaid ?? '',
-    },
-    query: {
-      merchantTradeNo: snapshot.queryResponse?.merchantTradeNo ?? '',
-      tradeNo: snapshot.queryResponse?.tradeNo ?? '',
-      tradeAmt: snapshot.queryResponse?.tradeAmt ?? '',
-      tradeStatus: snapshot.queryResponse?.tradeStatus ?? '',
-    },
-  });
-  if (!verified) {
-    // Anomaly (amount/ref mismatch etc.) — do NOT grant, do NOT mark failed.
+  // 6. Success predicate: the provider-confirmed amount/currency must equal the
+  // immutable local payment amount (amount/currency mismatch → no entitlement).
+  if (!isVerifiedSuccessSnapshot(snapshot, localAmount.amount, localAmount.currency)) {
     deps.log.warn(
       { paymentId: payment.id, merchantReference: event.providerMerchantRef },
-      'ECPayPaymentVerified predicate failed; no entitlement; durable verification_pending',
+      'PayPal success predicate failed (amount/currency mismatch); no entitlement; verification_pending',
     );
     return persistAndAck(
       deps,
@@ -208,7 +199,7 @@ export async function handleEcpayCallback(
     );
   }
 
-  // 6. Verified success → payment succeeded + order paid + grant exactly once.
+  // 7. Verified success → payment succeeded + order paid + grant exactly once.
   try {
     const orderRow = await loadOrder(deps.db, payment.order_id);
     if (!orderRow) throw new Error(`order ${payment.order_id} not found for payment ${payment.id}`);
@@ -233,15 +224,15 @@ export async function handleEcpayCallback(
       },
       'verified payment success',
     );
-    return textResult(200, '1|OK');
+    return textResult(200, 'OK');
   } catch (err) {
     return persistenceFailure(deps, err);
   }
 }
 
-/** Persist a normalized state transition, then ack `1|OK` (or 5xx on failure). */
+/** Persist a normalized state transition, then ack 200 (or 5xx on failure). */
 async function persistAndAck(
-  deps: EcpayCallbackHandlerDeps,
+  deps: PaypalWebhookHandlerDeps,
   payment: PaymentRow,
   event: PaymentDomainEvent,
   now: () => Date,
@@ -251,15 +242,15 @@ async function persistAndAck(
     const status = await applyPaymentEvent({ db: deps.db, log: deps.log, now }, payment, event);
     deps.log.info(
       { paymentId: payment.id, merchantReference: event.merchantReference, status, note },
-      'callback normalized state persisted',
+      'webhook normalized state persisted',
     );
-    return textResult(200, '1|OK');
+    return textResult(200, 'OK');
   } catch (err) {
     return persistenceFailure(deps, err);
   }
 }
 
-function persistenceFailure(deps: EcpayCallbackHandlerDeps, err: unknown): HandlerResult {
+function persistenceFailure(deps: PaypalWebhookHandlerDeps, err: unknown): HandlerResult {
   if (err instanceof IllegalStateTransitionError) {
     deps.log.error(
       { domain: err.domain, current: err.current, eventType: err.eventType },
@@ -269,7 +260,7 @@ function persistenceFailure(deps: EcpayCallbackHandlerDeps, err: unknown): Handl
   }
   deps.log.error(
     { error: err instanceof Error ? err.message : String(err) },
-    'callback persistence failed; NOT acknowledging',
+    'webhook persistence failed; NOT acknowledging',
   );
   return jsonResult(500, { error: 'persistence failed' });
 }

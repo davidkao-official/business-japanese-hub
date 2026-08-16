@@ -26,7 +26,8 @@ import type {
 
 interface EntitlementRow {
   book_id: string;
-  provider: 'manual' | 'ecpay';
+  /** Provider-neutral; widened per approved adapter (manual/ecpay/newebpay/stripe/paypal, §9.2). */
+  provider: string;
   provider_ref: string | null;
   granted_at: string;
 }
@@ -55,7 +56,7 @@ interface BookmarkRow {
 function mapEntitlementRow(row: EntitlementRow): Entitlement {
   return {
     bookId: row.book_id,
-    provider: row.provider,
+    provider: row.provider as Entitlement['provider'],
     providerRef: row.provider_ref,
     grantedAt: row.granted_at,
   };

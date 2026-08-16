@@ -409,6 +409,10 @@ export class EcpayPaymentProviderAdapter implements PaymentProviderAdapter {
     if (!isSafeMoney(input.amount)) {
       throw new Error(`ECPay requires a safe non-negative TWD amount, got ${JSON.stringify(input.amount)}`);
     }
+    const returnUrl = input.returnUrl;
+    if (!returnUrl) {
+      throw new Error('ECPay requires an authoritative ReturnURL (server callback)');
+    }
     const params: EcpayCheckoutParams = {
       MerchantID: this.merchantId,
       MerchantTradeNo: input.merchantReference,
@@ -417,16 +421,17 @@ export class EcpayPaymentProviderAdapter implements PaymentProviderAdapter {
       TotalAmount: twdIntegerFromCanonical(input.amount),
       TradeDesc: TRADE_DESC,
       ItemName: input.itemNameSnapshot,
-      ReturnURL: input.returnUrl,
+      ReturnURL: returnUrl,
       ChoosePayment: CHOOSE_PAYMENT,
       EncryptType: ENCRYPT_TYPE,
       OrderResultURL: input.orderResultUrl,
       NeedExtraPaidInfo: NEED_EXTRA_PAID_INFO,
-      Language: toEcpayLanguage(input.locale),
+      Language: toEcpayLanguage(input.locale ?? 'CHT'),
     };
     const formFields = toFormFields(params);
     const checkMacValue = await ecpayCheckMac(formFields, this.hashKey, this.hashIV);
     return {
+      kind: 'form-post',
       action: this.urls.checkout,
       fields: { ...formFields, CheckMacValue: checkMacValue },
       provider: 'ecpay',

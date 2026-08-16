@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
+  createFakeAdapter,
   createMockDb,
   fakeLogger,
   handlerRequest,
@@ -38,7 +39,15 @@ function setup(overrides: Record<string, unknown> = {}) {
     book_entitlement: { data: [] },
     ...overrides,
   });
-  return { mock, deps: { db: mock.db, log: fakeLogger(), now: () => new Date('2026-08-16T12:00:00Z') } };
+  return {
+    mock,
+    deps: {
+      db: mock.db,
+      log: fakeLogger(),
+      adapters: { ecpay: createFakeAdapter(), paypal: createFakeAdapter('paypal') },
+      now: () => new Date('2026-08-16T12:00:00Z'),
+    },
+  };
 }
 
 describe('finance handler', () => {
@@ -136,6 +145,74 @@ describe('finance handler', () => {
       entity_type: 'refund',
       entity_id: 'pay-1',
     });
+  });
+
+  it('finance_admin request_refund on a PayPal payment → executes the provider refund and confirms it (entitlement revoked)', async () => {
+    const paypalPayment = {
+      id: 'pay-1',
+      order_id: 'ord-1',
+      provider: 'paypal',
+      provider_merchant_ref: 'BJH202608160001',
+      provider_payment_ref: 'CAPTURE-1',
+      amount_minor: 1999,
+      currency: 'USD',
+      method: 'credit',
+      status: 'succeeded',
+      provider_status_code: null,
+      provider_status_message: null,
+      created_at: '2026-08-16T08:00:00Z',
+      paid_at: '2026-08-16T11:00:00Z',
+      last_verified_at: null,
+      provider_fee_amount_minor: null,
+      reconciliation_status: null,
+    };
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'user-1' } },
+      finance_roles: { data: [{ role: 'finance_admin' }] },
+      payments: { data: paypalPayment },
+      orders: { data: { ...ORDER_ROW, status: 'paid', currency: 'USD', amount_minor: 1999 } },
+      refunds: { data: { id: 'ref-1' } },
+      book_entitlement: { data: null },
+      admin_audit_log: { data: null },
+    });
+    const paypalAdapter = createFakeAdapter('paypal');
+    paypalAdapter.refund.mockResolvedValue({
+      ok: true,
+      status: 'succeeded',
+      providerRefundRef: 'REFUND-1',
+      rawStatusCode: 'COMPLETED',
+    });
+    const deps = {
+      db: mock.db,
+      log: fakeLogger(),
+      adapters: { ecpay: createFakeAdapter(), paypal: paypalAdapter },
+      now: () => new Date('2026-08-16T12:00:00Z'),
+    };
+    const result = await handleFinance(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/finance',
+        JSON.stringify({ action: 'request_refund', paymentId: 'pay-1' }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    const body = JSON.parse(result.body);
+    expect(body).toMatchObject({ status: 'succeeded', payment_status: 'refunded' });
+
+    // The provider refund was executed with the capture id (full refund).
+    expect(paypalAdapter.refund).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentId: 'pay-1',
+        providerPaymentRef: 'CAPTURE-1',
+        amount: { amount: 1999, currency: 'USD' },
+      }),
+    );
+    // Provider-confirmed refund → refunds succeeded (fact source) + entitlement revoked.
+    expect(mock.callsFor('refunds', 'update')[0].args[0]).toMatchObject({ status: 'succeeded' });
+    const revokeUpdate = mock.callsFor('book_entitlement', 'update')[0];
+    expect(revokeUpdate.args[0]).toMatchObject({ status: 'revoked', revocation_reason: 'refund' });
   });
 
   it('finance_admin confirm_refund (primary payment) → refund succeeded + payment/order refunded + entitlement revoked', async () => {

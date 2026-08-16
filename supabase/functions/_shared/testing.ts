@@ -157,16 +157,16 @@ export function createMockDb(initial?: Record<string, MockRoute>): MockDb {
 }
 
 export interface FakeAdapter {
-  provider: 'ecpay';
+  provider: string;
   createCheckout: ReturnType<typeof vi.fn>;
   verifyCallback: ReturnType<typeof vi.fn>;
   confirmPayment: ReturnType<typeof vi.fn>;
   refund: ReturnType<typeof vi.fn>;
 }
 
-export function createFakeAdapter(): FakeAdapter & PaymentProviderAdapter {
+export function createFakeAdapter(provider = 'ecpay'): FakeAdapter & PaymentProviderAdapter {
   const adapter: FakeAdapter = {
-    provider: 'ecpay',
+    provider,
     createCheckout: vi.fn(),
     verifyCallback: vi.fn(),
     confirmPayment: vi.fn(),
@@ -183,6 +183,10 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
     ecpayHashKey: 'test-hash-key',
     ecpayHashIV: 'test-hash-iv',
     ecpayEnv: 'stage',
+    paypalClientId: 'test-paypal-client-id',
+    paypalClientSecret: 'test-paypal-client-secret',
+    paypalEnv: 'sandbox',
+    paypalWebhookId: 'test-webhook-id',
     scheduledJobSecret: 'test-scheduled-secret',
     fundingReconCsv: undefined,
     ...overrides,

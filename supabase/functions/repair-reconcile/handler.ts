@@ -14,7 +14,6 @@
  * source is configured, it logs and skips.
  */
 import type {
-  PaymentProviderAdapter,
   ProviderPaymentSnapshot,
   VerifiedProviderEvent,
 } from '../../../src/lib/payments/contract.ts';
@@ -31,6 +30,7 @@ import {
   type HandlerRequest,
   type HandlerResult,
 } from '../_shared/http.ts';
+import type { ProviderAdapters } from '../_shared/provider.ts';
 import {
   applyVerifiedSuccess,
   confirmRefund,
@@ -43,7 +43,8 @@ import {
 export interface RepairReconcileHandlerDeps {
   env: Env;
   db: DbClient;
-  adapter: PaymentProviderAdapter;
+  /** One adapter per routed provider (ecpay / paypal, §21); the repair loop routes per payment. */
+  adapters: ProviderAdapters;
   log: Logger;
   now?: () => Date;
 }
@@ -121,7 +122,7 @@ async function runLayerB(
   const { data, error } = await deps.db
     .from('payments')
     .select('*')
-    .eq('provider', 'ecpay')
+    .in('provider', ['ecpay', 'paypal'])
     .in('status', ['verification_pending', 'pending'])
     .lte('created_at', staleBefore)
     .limit(REPAIR_SCAN_LIMIT);
@@ -135,8 +136,9 @@ async function runLayerB(
   let granted = 0;
   let stillUnknown = 0;
   for (const paymentRow of candidates) {
+    const provider = paymentRow.provider as 'ecpay' | 'paypal';
     const event: VerifiedProviderEvent = {
-      provider: 'ecpay',
+      provider,
       providerMerchantRef: paymentRow.provider_merchant_ref,
       providerPaymentRef: paymentRow.provider_payment_ref ?? undefined,
       eventFingerprint: 'repair',
@@ -145,13 +147,13 @@ async function runLayerB(
     };
     let snapshot: ProviderPaymentSnapshot;
     try {
-      snapshot = await deps.adapter.confirmPayment(event);
+      snapshot = await deps.adapters[provider].confirmPayment(event);
     } catch {
       stillUnknown += 1;
       continue;
     }
     if (snapshot.status !== 'succeeded') {
-      stillUnknown += 1; // TradeStatus=0 is not terminal (§6) — leave for the next run
+      stillUnknown += 1; // TradeStatus=0 / not-yet-approved is not terminal (§6) — leave for the next run
       continue;
     }
 
@@ -170,6 +172,7 @@ async function runLayerB(
         merchantReference: paymentRow.provider_merchant_ref,
         providerPaymentReference: snapshot.providerPaymentReference,
         paidAt: snapshot.paidAt,
+        rawStatusCode: snapshot.rawStatusCode,
       });
       repaired += 1;
       if (result.granted) granted += 1;

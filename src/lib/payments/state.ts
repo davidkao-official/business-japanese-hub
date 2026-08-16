@@ -31,7 +31,14 @@ import type { OrderStatus, PaymentStatus } from './contract';
  */
 export type PaymentDomainEvent =
   | { type: 'payment_initiated'; merchantReference: string }
-  | { type: 'payment_verified'; merchantReference: string; providerPaymentReference?: string; paidAt?: string }
+  | {
+      type: 'payment_verified';
+      merchantReference: string;
+      providerPaymentReference?: string;
+      paidAt?: string;
+      /** Provider status code from the confirmed snapshot (e.g. ECPay '1', PayPal 'COMPLETED'). */
+      rawStatusCode?: string;
+    }
   | { type: 'payment_failed'; merchantReference: string; rawStatusCode?: string }
   | { type: 'payment_cancelled'; merchantReference: string }
   | { type: 'verification_pending'; merchantReference: string }

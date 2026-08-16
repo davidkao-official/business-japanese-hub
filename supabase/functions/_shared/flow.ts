@@ -25,6 +25,7 @@ import type {
 import { nextOrderStatus, nextPaymentStatus, type PaymentDomainEvent } from '../../../src/lib/payments/state.ts';
 import { applyConfirmedRefund, shouldGrantEntitlement } from '../../../src/lib/payments/domain.ts';
 import { grantEntitlement } from '../../../src/lib/persistence/grant.ts';
+import type { EntitlementProvider } from '../../../src/lib/persistence/types.ts';
 import type { DbClient } from './db.ts';
 import type { Logger } from './log.ts';
 
@@ -143,6 +144,21 @@ export async function loadPaymentById(db: DbClient, id: string): Promise<Payment
   return (data as unknown as PaymentRow | null) ?? null;
 }
 
+export async function loadPaymentByProviderPaymentRef(
+  db: DbClient,
+  provider: string,
+  ref: string,
+): Promise<PaymentRow | null> {
+  const { data, error } = await db
+    .from('payments')
+    .select('*')
+    .eq('provider', provider)
+    .eq('provider_payment_ref', ref)
+    .maybeSingle();
+  if (error) throw new Error(`payment lookup failed: ${error.message}`);
+  return (data as unknown as PaymentRow | null) ?? null;
+}
+
 export async function loadLatestPaymentForOrder(db: DbClient, orderId: string): Promise<PaymentRow | null> {
   const { data, error } = await db
     .from('payments')
@@ -179,14 +195,16 @@ export async function applyPaymentEvent(
     case 'payment_verified':
       patch.provider_payment_ref = event.providerPaymentReference ?? paymentRow.provider_payment_ref;
       patch.last_verified_at = nowIso;
-      patch.provider_status_code = '1';
-      patch.provider_status_message = 'payment confirmed via QueryTradeInfo';
+      // Provider-neutral: the confirmed status code comes from the snapshot
+      // (ECPay '1', PayPal 'COMPLETED'); the message never names a provider.
+      patch.provider_status_code = event.rawStatusCode ?? paymentRow.provider_status_code ?? '1';
+      patch.provider_status_message = 'payment confirmed';
       if (next === 'succeeded') patch.paid_at = event.paidAt ?? nowIso;
       break;
     case 'payment_failed':
       patch.last_verified_at = nowIso;
       patch.provider_status_code = event.rawStatusCode ?? paymentRow.provider_status_code;
-      patch.provider_status_message = 'payment failed per ECPay callback';
+      patch.provider_status_message = 'payment failed';
       break;
     case 'verification_pending':
       patch.last_verified_at = nowIso;
@@ -238,6 +256,8 @@ export interface ApplyVerifiedSuccessInput {
   merchantReference: string;
   providerPaymentReference?: string;
   paidAt?: string;
+  /** Provider status code from the confirmed snapshot (ECPay '1', PayPal 'COMPLETED'). */
+  rawStatusCode?: string;
 }
 
 export interface ApplyVerifiedSuccessResult {
@@ -261,6 +281,7 @@ export async function applyVerifiedSuccess(
     merchantReference: input.merchantReference,
     providerPaymentReference: input.providerPaymentReference,
     paidAt: input.paidAt,
+    rawStatusCode: input.rawStatusCode,
   };
 
   const order = orderFromRow(input.orderRow);
@@ -281,24 +302,32 @@ export async function applyVerifiedSuccess(
   let granted = false;
 
   if (isFirstQualifying) {
-    // First qualifying success: order pending → paid, grant exactly once (§13).
-    orderStatus = await applyOrderEvent(
-      { db: input.db, log: input.log, now: input.now },
-      input.orderRow,
-      event,
-    );
+    // First qualifying success: grant exactly once BEFORE marking the order paid
+    // (§13). Grant-first ordering keeps the sequence idempotent under a provider
+    // replay: if this delivery fails after the payment update but before the
+    // grant, the order is still `pending`, so a re-delivered event re-runs
+    // `shouldGrantEntitlement` → grant (upsert) → order paid — self-healing.
+    // Granting after order→paid would strand a paid order with no entitlement
+    // and no retry path (reviewer finding, issue #21).
     if (shouldGrantEntitlement(order, { ...payment, status: finalPaymentStatus })) {
       type GrantClient = Parameters<typeof grantEntitlement>[0];
+      // Entitlement provenance is the payment's ACTUAL provider (never hard-coded
+      // to a single adapter) — decision-record §21 / §9.2.
       await grantEntitlement(input.db as unknown as GrantClient, {
         userId: order.userId,
         bookId: order.bookId,
-        provider: 'ecpay',
+        provider: input.paymentRow.provider as EntitlementProvider,
         providerRef: input.providerPaymentReference ?? null,
         sourceOrderId: order.id,
       });
       granted = true;
       input.log.info({ orderId: order.id, bookId: order.bookId, paymentId: input.paymentRow.id }, 'entitlement granted');
     }
+    orderStatus = await applyOrderEvent(
+      { db: input.db, log: input.log, now: input.now },
+      input.orderRow,
+      event,
+    );
   } else if (!alreadySucceeded) {
     // The order was already paid/refunded/cancelled by an EARLIER successful
     // payment — this is a genuine second charge (double charge), not a replay of
