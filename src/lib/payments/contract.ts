@@ -202,13 +202,13 @@ export interface CheckoutInstruction {
 }
 
 /**
- * Raw provider callback transport. ECPay consumes `form`; JSON webhook providers
- * consume the original `bodyText` plus normalized headers. An adapter must fail
- * closed when its required transport shape is absent.
+ * Raw provider callback transport. ECPay always consumes the required `form`
+ * map. JSON webhook providers receive an empty form plus the original body and
+ * normalized headers. Adapters must fail closed when their transport is absent.
  */
 export interface ProviderCallbackRequest {
   provider: PaymentProvider;
-  form?: Record<string, string>;
+  form: Record<string, string>;
   bodyText?: string;
   headers?: Record<string, string>;
 }
