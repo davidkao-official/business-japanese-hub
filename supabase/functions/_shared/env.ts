@@ -1,19 +1,20 @@
 /**
  * Edge Function environment contract (decision-record §15 / §16 / §3.5).
  *
- * All provider secrets (`ECPAY_HASH_KEY` / `ECPAY_HASH_IV`) and the service-role
- * key exist ONLY server-side. `Env` is the injectable, pure shape every handler
- * receives; `readEnvFrom` is the Deno boundary implementation that reads
- * `Deno.env` (injected so tests never touch process/Deno globals). Secrets are
- * never logged and never returned in any handler response.
+ * Provider secrets and the service-role key exist ONLY server-side. `Env` is
+ * the injectable, pure shape every handler receives; `readEnvFrom` is the Deno
+ * boundary implementation that reads `Deno.env` (injected so tests never touch
+ * process/Deno globals). Secrets are never logged and never returned.
  *
- * The ECPay callback / browser-return URLs are derived from `SUPABASE_URL`
- * (`<url>/functions/v1/<name>`) so the AioCheckOut `ReturnURL` /
- * `OrderResultURL` always point at the same project's Edge Function gateway.
+ * ECPay remains required for the existing TWD path. PayPal credentials are
+ * optional until the USD adapter is enabled; an incomplete/missing PayPal
+ * configuration simply leaves USD checkout unavailable (fail closed) without
+ * breaking TWD checkout.
  */
 import type { EcpayEnv } from '../../../src/lib/payments/ecpay/urls.ts';
+import type { PaypalEnv } from '../../../src/lib/payments/paypal/adapter.ts';
 
-export type { EcpayEnv };
+export type { EcpayEnv, PaypalEnv };
 
 /** Injectable, pure environment snapshot read at the Deno boundary. */
 export interface Env {
@@ -25,12 +26,15 @@ export interface Env {
   ecpayHashIV: string;
   /** 'stage' | 'prod'; undefined fails closed to stage (§16 — never mixed). */
   ecpayEnv: EcpayEnv | undefined;
+  /** Optional server-only PayPal REST credentials; all three are required to enable USD. */
+  paypalClientId?: string;
+  paypalClientSecret?: string;
+  paypalWebhookId?: string;
+  /** Explicit 'prod' enables live PayPal; anything else is sandbox. */
+  paypalEnv?: PaypalEnv;
   /** Secret shared with the pg_cron / pg_net scheduled-job callers. */
   scheduledJobSecret: string | undefined;
-  /**
-   * Optional production FundingReconDetail CSV source for Layer C reconciliation
-   * (decision-record §6). Not configured → Layer C logs and skips.
-   */
+  /** Optional production FundingReconDetail CSV source for Layer C reconciliation. */
   fundingReconCsv: string | undefined;
 }
 
@@ -47,10 +51,22 @@ function required(reader: EnvReader, key: string): string {
   return value;
 }
 
+function optional(reader: EnvReader, key: string): string | undefined {
+  const value = reader.get(key);
+  return value && value.length > 0 ? value : undefined;
+}
+
 /** Parse `ECPAY_ENV`; anything other than 'prod' fails closed to stage. */
 function parseEcpayEnv(value: string | undefined): EcpayEnv | undefined {
   if (value === 'prod') return 'prod';
   if (value === 'stage') return 'stage';
+  return undefined;
+}
+
+/** Parse `PAYPAL_ENV`; anything other than explicit prod is sandbox. */
+function parsePaypalEnv(value: string | undefined): PaypalEnv | undefined {
+  if (value === 'prod') return 'prod';
+  if (value === 'sandbox') return 'sandbox';
   return undefined;
 }
 
@@ -63,6 +79,10 @@ export function readEnvFrom(reader: EnvReader): Env {
     ecpayHashKey: required(reader, 'ECPAY_HASH_KEY'),
     ecpayHashIV: required(reader, 'ECPAY_HASH_IV'),
     ecpayEnv: parseEcpayEnv(reader.get('ECPAY_ENV')),
+    paypalClientId: optional(reader, 'PAYPAL_CLIENT_ID'),
+    paypalClientSecret: optional(reader, 'PAYPAL_CLIENT_SECRET'),
+    paypalWebhookId: optional(reader, 'PAYPAL_WEBHOOK_ID'),
+    paypalEnv: parsePaypalEnv(reader.get('PAYPAL_ENV')),
     scheduledJobSecret: reader.get('SCHEDULED_JOB_SECRET'),
     fundingReconCsv: reader.get('FUNDING_RECON_CSV'),
   };
