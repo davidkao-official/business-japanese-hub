@@ -26,3 +26,16 @@ export function listLegalDocuments(): LegalDocument[] {
 export function getLegalDocumentBySlug(slug: string): LegalDocument | undefined {
   return LEGAL_DOCUMENTS.find((doc) => doc.slug === slug)
 }
+
+/**
+ * Look up a legal document that is REQUIRED for a compliance/evidence path.
+ * Missing legal content must fail closed rather than fabricating a version or
+ * falling back to unrelated copy.
+ */
+export function requireLegalDocumentBySlug(slug: string): LegalDocument {
+  const document = getLegalDocumentBySlug(slug)
+  if (!document) {
+    throw new Error(`Required legal document is unavailable: ${slug}`)
+  }
+  return document
+}
