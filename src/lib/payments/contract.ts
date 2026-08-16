@@ -1,15 +1,15 @@
 /**
- * Shared payment / compliance contracts — architecture lock for #9 / #25.
+ * Shared payment / compliance contracts — architecture lock for #9 / #21 / #25.
  *
  * Single source of truth for the provider-neutral payment domain contracts
  * defined by `docs/payments/decision-record.md` (canonical) and this repo's
  * reconciled architecture. Pure TS, zero runtime dependencies; imported by the
- * DB layer (A1), the pure domain (A2), the ECPay adapter (A3), the Supabase
+ * DB layer (A1), the pure domain (A2), payment-provider adapters (A3), Supabase
  * Edge Functions (A4), and the checkout / compliance UI (B2).
  *
- * DO NOT modify any contract here without updating this header and
- * coordinating across every consumer — sub-agents must not invent or change
- * these shared contracts on their own.
+ * DO NOT modify any contract here without coordinating across every consumer.
+ * Provider-specific transports may extend only the adapter request/instruction
+ * seam; Order / Payment / Refund / Entitlement semantics stay provider-neutral.
  */
 
 /* ------------------------------------------------------------------------- *
@@ -74,9 +74,9 @@ export interface PaymentAttempt {
   id: string;
   orderId: string;
   provider: PaymentProvider;
-  /** Provider merchant reference (ECPay MerchantTradeNo); unique per attempt, never reused. */
+  /** Server-generated provider correlation reference; unique per attempt, never reused. */
   providerMerchantRef: string;
-  /** Provider payment reference (ECPay TradeNo); null until known. */
+  /** Provider transaction/capture reference; null until authoritatively known. */
   providerPaymentRef: string | null;
   /** Immutable amount. */
   amount: Money;
@@ -122,7 +122,7 @@ export interface PaymentEvent {
   provider: PaymentProvider;
   paymentId: string | null;
   providerMerchantRef: string;
-  /** SHA-256 hex of the canonical verified payload. */
+  /** Provider-stable verified event fingerprint. */
   eventFingerprint: string;
   eventType: string;
   signatureValid: boolean;
@@ -139,7 +139,7 @@ export interface PaymentEvent {
 
 export type ProviderSnapshotStatus = 'pending' | 'succeeded' | 'failed' | 'refunded' | 'unknown';
 
-/** A callback whose CheckMacValue (+ local invariants) passed; provider-normalized. */
+/** A provider callback/webhook whose authenticity has been verified and normalized. */
 export interface VerifiedProviderEvent {
   provider: PaymentProvider;
   providerMerchantRef: string;
@@ -160,10 +160,8 @@ export interface ProviderPaymentSnapshot {
   paidAt?: string;
   rawStatusCode?: string;
   /**
-   * The raw QueryTradeInfo response fields parsed by `confirmPayment`, so the
-   * success predicate can genuinely cross-check the QUERY response (its own
-   * MerchantTradeNo / TradeNo / TradeAmt / TradeStatus) rather than re-checking
-   * callback-derived values (§4.4).
+   * ECPay QueryTradeInfo evidence. Optional and intentionally ignored by other
+   * adapters; provider-specific fields never enter Order / Entitlement.
    */
   queryResponse?: {
     merchantTradeNo?: string;
@@ -180,29 +178,39 @@ export interface ProviderPaymentSnapshot {
 export interface CreateCheckoutInput {
   orderId: string;
   paymentId: string;
-  /** Server-generated merchant reference (ECPay MerchantTradeNo); never client-supplied. */
+  /** Server-generated provider correlation reference; never client-supplied. */
   merchantReference: string;
   amount: Money;
   itemNameSnapshot: string;
-  /** ECPay Language value (CHT / JPN / ENG). */
+  /** Provider-facing locale hint. Adapters map or ignore it as appropriate. */
   locale: string;
+  /** Browser/provider return target controlled by the server. */
   returnUrl: string;
+  /** Secondary browser result/cancel target controlled by the server. */
   orderResultUrl: string;
 }
 
 export interface CheckoutInstruction {
-  /** URL the browser must full-page POST to (never iframe / modal). */
+  /** Provider approval/checkout URL for a full-page navigation. */
   action: string;
-  /** Form fields (form-urlencoded), including provider signature. */
+  /** POST fields when required by the provider; empty for redirect-only providers. */
   fields: Record<string, string>;
+  /** ECPay uses POST; PayPal approval uses GET. Defaults to POST for compatibility. */
+  method?: 'GET' | 'POST';
   provider: PaymentProvider;
   merchantReference: string;
 }
 
-/** Raw form-urlencoded callback body parsed as key/value pairs (never JSON). */
+/**
+ * Raw provider callback transport. ECPay consumes `form`; JSON webhook providers
+ * consume the original `bodyText` plus normalized headers. An adapter must fail
+ * closed when its required transport shape is absent.
+ */
 export interface ProviderCallbackRequest {
-  form: Record<string, string>;
   provider: PaymentProvider;
+  form?: Record<string, string>;
+  bodyText?: string;
+  headers?: Record<string, string>;
 }
 
 export interface RefundInput {
@@ -251,7 +259,7 @@ export interface PaymentProviderAdapter {
  * Errors
  * ------------------------------------------------------------------------- */
 
-/** ECPay only accepts integer TWD; a non-TWD amount is a hard refusal. */
+/** A provider received a canonical currency it does not support in this adapter. */
 export class UnsupportedCurrencyForProvider extends Error {
   constructor(provider: PaymentProvider) {
     super(`Unsupported currency for provider ${provider}`);
@@ -354,7 +362,7 @@ export type PurchaseExecutor = (intent: PurchaseIntent) => Promise<PurchaseResul
  * The browser sends ONLY `bookId` + the collected compliance consent (never a
  * price/amount). The checkout Edge Function reads the authoritative `catalog`,
  * creates the Order + `order_compliance` evidence in ONE transaction BEFORE
- * any provider redirect, then returns a signed provider checkout instruction.
+ * any provider redirect, then returns a provider checkout instruction.
  * ------------------------------------------------------------------------- */
 
 /** Consent submitted by the client at checkout (persisted as order_compliance). */
@@ -375,7 +383,7 @@ export interface CheckoutRequest {
   consent?: ConsentSubmission;
 }
 
-/** Checkout response: the created order + the signed provider instruction. */
+/** Checkout response: the created order + the provider instruction. */
 export interface CheckoutResponse {
   orderId: string;
   paymentId: string;
