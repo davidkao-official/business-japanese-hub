@@ -45,7 +45,7 @@ function jsonResponse(payload: unknown, ok = true, status = 200) {
   return { ok, status, json: vi.fn().mockResolvedValue(payload) }
 }
 
-describe('checkout executor (#9)', () => {
+describe('checkout executor (#9 / #21)', () => {
   it('POSTs {bookId, consent} to the checkout edge function and returns pending', async () => {
     const fetchClient = vi.fn().mockResolvedValue(jsonResponse(checkoutResponse()))
     const submitForm = vi.fn()
@@ -66,7 +66,7 @@ describe('checkout executor (#9)', () => {
     expect(result).toEqual({ ok: true, orderId: 'order-1', status: 'pending' })
   })
 
-  it('performs a FULL-PAGE form POST with the provider action + fields (never iframe)', async () => {
+  it('keeps the existing ECPay instruction as a full-page POST by default', async () => {
     const response = checkoutResponse()
     const fetchClient = vi.fn().mockResolvedValue(jsonResponse(response))
     const submitForm = vi.fn()
@@ -79,7 +79,40 @@ describe('checkout executor (#9)', () => {
     await executor({ bookId: 'book-1' }, consent())
 
     expect(submitForm).toHaveBeenCalledTimes(1)
-    expect(submitForm).toHaveBeenCalledWith(response.instruction.action, response.instruction.fields)
+    expect(submitForm).toHaveBeenCalledWith(
+      response.instruction.action,
+      response.instruction.fields,
+      'POST',
+    )
+  })
+
+  it('honors a redirect-style PayPal GET checkout instruction', async () => {
+    const response: CheckoutResponse = {
+      orderId: 'order-usd-1',
+      paymentId: 'payment-usd-1',
+      instruction: {
+        action: 'https://www.sandbox.paypal.com/checkoutnow?token=P1',
+        fields: {},
+        method: 'GET',
+        provider: 'paypal',
+        merchantReference: 'PAYPAL-REF-1',
+      },
+    }
+    const fetchClient = vi.fn().mockResolvedValue(jsonResponse(response))
+    const submitForm = vi.fn()
+    const executor = createCheckoutPurchaseExecutor({
+      functionsBaseUrl: BASE,
+      fetchClient,
+      submitForm,
+    })
+
+    const result = await executor(
+      { bookId: 'book-usd-1' },
+      consent({ jurisdiction: 'JP', locale: 'en' }),
+    )
+
+    expect(submitForm).toHaveBeenCalledWith(response.instruction.action, {}, 'GET')
+    expect(result).toEqual({ ok: true, orderId: 'order-usd-1', status: 'pending' })
   })
 
   it('refuses checkout without an explicit consent (unresolved jurisdiction fails closed)', async () => {
@@ -92,7 +125,7 @@ describe('checkout executor (#9)', () => {
     expect(fetchClient).not.toHaveBeenCalled()
   })
 
-  it('refuses when the consent is present but not granted', async () => {
+  it('refuses when the TW consent is present but not granted', async () => {
     const fetchClient = vi.fn()
     const executor = createCheckoutPurchaseExecutor({ functionsBaseUrl: BASE, fetchClient })
 
@@ -121,7 +154,7 @@ describe('checkout executor (#9)', () => {
     expect(result).toEqual({ ok: true, orderId: 'order-1', status: 'pending' })
   })
 
-  it('never sends a client-supplied amount/currency (bookId only, even on a paid book)', async () => {
+  it('never sends a client-supplied amount/currency', async () => {
     const fetchClient = vi.fn().mockResolvedValue(jsonResponse(checkoutResponse()))
     const submitForm = vi.fn()
     const executor = createCheckoutPurchaseExecutor({
@@ -130,7 +163,7 @@ describe('checkout executor (#9)', () => {
       submitForm,
     })
 
-    await executor({ bookId: 'book-1' }, consent())
+    await executor({ bookId: 'book-1', amount: 999999, currency: 'USD' }, consent())
 
     const [, init] = fetchClient.mock.calls[0] as [string, { body: string }]
     const body = JSON.parse(init.body)
@@ -151,10 +184,7 @@ describe('checkout executor (#9)', () => {
 
   it('returns failed on a non-ok checkout response', async () => {
     const fetchClient = vi.fn().mockResolvedValue(jsonResponse({}, false, 500))
-    const executor = createCheckoutPurchaseExecutor({
-      functionsBaseUrl: BASE,
-      fetchClient,
-    })
+    const executor = createCheckoutPurchaseExecutor({ functionsBaseUrl: BASE, fetchClient })
     const result = await executor({ bookId: 'book-1' }, consent({ jurisdiction: 'JP', locale: 'ja' }))
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('failed')
@@ -162,26 +192,35 @@ describe('checkout executor (#9)', () => {
 
   it('returns failed on an invalid checkout response shape', async () => {
     const fetchClient = vi.fn().mockResolvedValue(jsonResponse({ orderId: 123 }))
-    const executor = createCheckoutPurchaseExecutor({
-      functionsBaseUrl: BASE,
-      fetchClient,
-    })
+    const executor = createCheckoutPurchaseExecutor({ functionsBaseUrl: BASE, fetchClient })
     const result = await executor({ bookId: 'book-1' }, consent({ jurisdiction: 'JP', locale: 'ja' }))
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('failed')
   })
 
-  it('returns failed (never throws) when the instruction omits fields', async () => {
+  it('returns failed when the instruction omits fields', async () => {
     const fetchClient = vi.fn().mockResolvedValue(
       jsonResponse({ orderId: 'order-1', paymentId: 'payment-1', instruction: { action: 'https://x/pay' } }),
     )
-    const executor = createCheckoutPurchaseExecutor({
-      functionsBaseUrl: BASE,
-      fetchClient,
-    })
+    const executor = createCheckoutPurchaseExecutor({ functionsBaseUrl: BASE, fetchClient })
     const result = await executor({ bookId: 'book-1' }, consent({ jurisdiction: 'JP', locale: 'ja' }))
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('failed')
+  })
+
+  it('returns failed for an unsupported provider navigation method', async () => {
+    const response = checkoutResponse() as CheckoutResponse & {
+      instruction: CheckoutResponse['instruction'] & { method: 'PUT' }
+    }
+    response.instruction.method = 'PUT'
+    const fetchClient = vi.fn().mockResolvedValue(jsonResponse(response))
+    const submitForm = vi.fn()
+    const executor = createCheckoutPurchaseExecutor({ functionsBaseUrl: BASE, fetchClient, submitForm })
+
+    const result = await executor({ bookId: 'book-1' }, consent())
+
+    expect(result.ok).toBe(false)
+    expect(submitForm).not.toHaveBeenCalled()
   })
 
   it('attaches the Bearer token when an auth token source is provided', async () => {
@@ -259,7 +298,7 @@ describe('orders-status polling', () => {
     expect(fetchClient).toHaveBeenCalledTimes(2)
   })
 
-  it('survives a transient fetch rejection and keeps polling (returns null on transport error)', async () => {
+  it('survives a transient fetch rejection and keeps polling', async () => {
     const fetchClient = vi
       .fn()
       .mockRejectedValueOnce(new Error('network down'))
