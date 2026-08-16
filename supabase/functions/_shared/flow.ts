@@ -5,7 +5,7 @@
  * `PaymentDomainEvent` to a payment / order via the pure state machine
  * (`src/lib/payments/state.ts`) and the verified-success path (payment
  * succeeded → order paid → grant entitlement exactly once via
- * `grantEntitlement`, decision-record §13). Imported by the ecpay-callback and
+ * `grantEntitlement`, decision-record §13). Imported by provider callback and
  * repair-reconcile handlers; the checkout handler uses `applyPaymentEvent` for
  * the `payment_initiated` transition.
  *
@@ -179,14 +179,16 @@ export async function applyPaymentEvent(
     case 'payment_verified':
       patch.provider_payment_ref = event.providerPaymentReference ?? paymentRow.provider_payment_ref;
       patch.last_verified_at = nowIso;
-      patch.provider_status_code = '1';
-      patch.provider_status_message = 'payment confirmed via QueryTradeInfo';
+      // Preserve the existing ECPay status code contract; other adapters persist
+      // their provider status at the callback boundary before this shared flow.
+      if (paymentRow.provider === 'ecpay') patch.provider_status_code = '1';
+      patch.provider_status_message = `payment confirmed by authoritative ${paymentRow.provider} verification`;
       if (next === 'succeeded') patch.paid_at = event.paidAt ?? nowIso;
       break;
     case 'payment_failed':
       patch.last_verified_at = nowIso;
       patch.provider_status_code = event.rawStatusCode ?? paymentRow.provider_status_code;
-      patch.provider_status_message = 'payment failed per ECPay callback';
+      patch.provider_status_message = `payment failed per verified ${paymentRow.provider} provider event`;
       break;
     case 'verification_pending':
       patch.last_verified_at = nowIso;
@@ -201,7 +203,13 @@ export async function applyPaymentEvent(
   const { error } = await ctx.db.from('payments').update(patch).eq('id', paymentRow.id);
   if (error) throw new Error(`payment update failed: ${error.message}`);
   ctx.log.info(
-    { paymentId: paymentRow.id, merchantReference: event.merchantReference, status: next, event: event.type },
+    {
+      paymentId: paymentRow.id,
+      provider: paymentRow.provider,
+      merchantReference: event.merchantReference,
+      status: next,
+      event: event.type,
+    },
     'payment status transition applied',
   );
   return next;
@@ -249,9 +257,10 @@ export interface ApplyVerifiedSuccessResult {
 /**
  * Apply a verified paid result: transition the payment to `succeeded`, the order
  * to `paid`, and grant entitlement exactly once for the FIRST qualifying
- * successful payment (§13). Idempotent: a repeated verified event on an already
- * succeeded payment / paid order is a no-change, and `shouldGrantEntitlement`
- * returns false once the order is no longer `pending`.
+ * successful payment (§13). Entitlement provenance comes from the verified
+ * payment row itself, never from a provider hard-code. Idempotent: a repeated
+ * verified event on an already succeeded payment / paid order is a no-change,
+ * and `shouldGrantEntitlement` returns false once the order is no longer pending.
  */
 export async function applyVerifiedSuccess(
   input: ApplyVerifiedSuccessInput,
@@ -292,12 +301,20 @@ export async function applyVerifiedSuccess(
       await grantEntitlement(input.db as unknown as GrantClient, {
         userId: order.userId,
         bookId: order.bookId,
-        provider: 'ecpay',
+        provider: payment.provider,
         providerRef: input.providerPaymentReference ?? null,
         sourceOrderId: order.id,
       });
       granted = true;
-      input.log.info({ orderId: order.id, bookId: order.bookId, paymentId: input.paymentRow.id }, 'entitlement granted');
+      input.log.info(
+        {
+          orderId: order.id,
+          bookId: order.bookId,
+          paymentId: input.paymentRow.id,
+          provider: payment.provider,
+        },
+        'entitlement granted',
+      );
     }
   } else if (!alreadySucceeded) {
     // The order was already paid/refunded/cancelled by an EARLIER successful
