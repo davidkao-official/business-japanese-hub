@@ -40,6 +40,15 @@
 - Payment implementation（#9）以 `docs/payments/decision-record.md` 為唯一 contract；payment architecture 為 provider-neutral，ECPay（綠界）只是第一支 TWD adapter。Provider-specific mechanics 不得污染 Book / Reader / Library / Entitlement architecture；paid ownership 只能由 verified authoritative server event 驅動。所有 payment `/api/*` endpoints 都必須在 server-only execution boundary 執行（Supabase Edge Functions，見 decision-record §3.5）；client 永不可提供可信 amount/currency，server 以 authoritative catalog price seam 取價（見 §8.3）。
 - 與 `docs/product-contract.md` 衝突的實作方向應被視為錯誤，先釐清再動手。
 
+## 當前階段：Prototype MVP
+
+- 立即目標是 **Prototype MVP**（見 `docs/product-contract.md` §15）：讓陌生訪客在手機與桌面直接免費閱讀 **1–2 本 free/public prototype books**，不需 login / checkout / payment。Critical path：`Storefront → Book Detail → free read → Universal Reader → chapter navigation`。
+- **Paid Launch** 工作（#20 JPY adapter、#21 USD adapter、#25 legal/compliance、#28 locale switching、#29 legal evidence）明確 **deferred**，不是 Prototype blocker。
+- **既有 payment / entitlement / legal architecture 不得刪除、繞過或弱化**；它只是不在 Prototype critical path。
+- Free/public access 必須以 generic catalog/access 語意表達（例如 `Price.tier: 'free'`），**不得 hard-code book slug**，也不得讓未來的 paid books 意外公開。
+- Prototype 不得顯示 fake checkout UI 或 disabled payment CTA；用清楚的 free-reading 語言。
+- UI / Reader quality 維持 P0，遵循 `docs/ui-ux-research.md`。
+
 ## 文件地圖
 
 - `README.md` — 專案入口。

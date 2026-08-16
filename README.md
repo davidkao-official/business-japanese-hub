@@ -20,6 +20,7 @@ Business Japanese Hub 是 premium、web-first 的數位出版與學習平台，�
 
 ## 關鍵決策摘要
 
+- 當前目標是 **Prototype MVP**：公開 **1–2 本 free/public prototype books**，陌生訪客免登入即可免費閱讀（Storefront → Book Detail → Universal Reader）。Paid Launch（payment / compliance / legal）為後續階段，非 Prototype blocker（見 [product contract §15](docs/product-contract.md#15-產品階段prototype-mvp--paid-launch)）。
 - UI / Reader quality 是 **P0**（核心產品需求，不是 post-MVP polish）。
 - 抽象為 `Book → Chapter → Content Blocks`，不是 LMS 的 `Course → Module → Lesson`。
 - Payment architecture 為 **provider-neutral**；**ECPay（綠界）是第一支 TWD adapter**（見 [payment decision record](docs/payments/decision-record.md)）。
