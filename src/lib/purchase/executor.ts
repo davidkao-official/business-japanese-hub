@@ -1,6 +1,6 @@
 /**
- * Checkout purchase executor (#9) — the real `PurchaseExecutor` backed by the
- * Supabase Edge Function boundary.
+ * Checkout purchase executor (#9 / #21) — the real `PurchaseExecutor` backed by
+ * the Supabase Edge Function boundary.
  *
  * Given a `PurchaseIntent` (bookId — the ONLY client-supplied input; amount /
  * currency are never sent) and a collected compliance `ConsentSubmission`, it:
@@ -13,12 +13,11 @@
  *      authoritative `catalog` price and persists Order + `order_compliance`
  *      in ONE transaction BEFORE any provider redirect — decision-record §3.4/
  *      §8.3).
- *   3. Performs a FULL-PAGE form POST to the returned provider
- *      `instruction.action` with `instruction.fields` — a hidden
- *      `<form method="POST" target="_self">`, never iframe/modal
- *      (decision-record §16 / §17.1 iOS in-app-browser caveat).
+ *   3. Performs a FULL-PAGE provider navigation using the returned instruction:
+ *      ECPay remains a form POST; redirect-style providers such as PayPal use a
+ *      GET form. No iframe/modal is introduced.
  *
- * HTTP + form submission live in small injectable helpers (`FetchClient`,
+ * HTTP + navigation submission live in small injectable helpers (`FetchClient`,
  * `SubmitForm`) so tests mock them and never touch the network or navigate.
  * Without a configured Edge Function base URL the executor degrades to
  * `unavailable` (mirrors `src/lib/supabase.ts`'s env contract).
@@ -59,9 +58,9 @@ export interface FetchClient {
   (url: string, init?: FetchClientInit): Promise<FetchClientResponse>;
 }
 
-/** Full-page form POST of the provider checkout instruction (never iframe). */
+/** Full-page provider form navigation (never iframe). */
 export interface SubmitForm {
-  (action: string, fields: Record<string, string>): void;
+  (action: string, fields: Record<string, string>, method?: 'GET' | 'POST'): void;
 }
 
 /** Server-authoritative auth token source (Supabase session JWT). */
@@ -72,9 +71,9 @@ export const defaultFetchClient: FetchClient = async (url, init) => {
   return { ok: res.ok, status: res.status, json: () => res.json() };
 };
 
-const defaultSubmitForm: SubmitForm = (action, fields) => {
+const defaultSubmitForm: SubmitForm = (action, fields, method = 'POST') => {
   const form = document.createElement('form');
-  form.method = 'POST';
+  form.method = method;
   form.action = action;
   form.target = '_self';
   form.style.display = 'none';
@@ -137,7 +136,7 @@ export interface CheckoutExecutorDeps {
   functionsBaseUrl?: string | null;
   /** Injectable HTTP client; defaults to a `globalThis.fetch` wrapper. */
   fetchClient?: FetchClient;
-  /** Injectable full-page form submitter; defaults to the hidden-form POST. */
+  /** Injectable full-page provider form submitter. */
   submitForm?: SubmitForm;
   /** Bearer token source for the authenticated checkout call. */
   authToken?: AuthTokenSource;
@@ -221,22 +220,23 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
       return { ok: false, reason: 'failed', message: 'invalid checkout response' };
     }
 
-    // Validate the minimum shape before trusting it.
+    // Validate the minimum shape before trusting the provider instruction.
+    const method = data?.instruction?.method ?? 'POST';
     if (
       !data ||
       typeof data.orderId !== 'string' ||
       !data.instruction ||
       typeof data.instruction.action !== 'string' ||
       typeof data.instruction.fields !== 'object' ||
-      data.instruction.fields === null
+      data.instruction.fields === null ||
+      (method !== 'GET' && method !== 'POST')
     ) {
       return { ok: false, reason: 'failed', message: 'invalid checkout response' };
     }
 
-    // Full-page form POST to the provider (never iframe/modal). This navigates
-    // the browser to the provider checkout; the page returns "pending" and the
-    // browser-return flow (PurchaseResultPage) drives the rest.
-    submitForm(data.instruction.action, data.instruction.fields);
+    // Full-page navigation to the provider. Existing ECPay responses omit
+    // `method` and therefore remain POST; PayPal explicitly returns GET.
+    submitForm(data.instruction.action, data.instruction.fields, method);
     return { ok: true, orderId: data.orderId, status: 'pending' };
   };
 }
