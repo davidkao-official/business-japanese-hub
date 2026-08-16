@@ -112,6 +112,15 @@ create trigger orders_immutable_fields_check
   for each row
   execute function public.orders_immutable_fields_check();
 
+-- SECURITY DEFINER trigger function: not an RPC endpoint, but Supabase default
+-- privileges grant EXECUTE to anon/authenticated for new functions. Close every
+-- client-reachable role; only service_role (which fires the trigger on its own
+-- DML and retains EXECUTE via the explicit grant below) may invoke it.
+revoke all on function public.orders_immutable_fields_check() from public;
+revoke all on function public.orders_immutable_fields_check() from anon;
+revoke all on function public.orders_immutable_fields_check() from authenticated;
+grant execute on function public.orders_immutable_fields_check() to service_role;
+
 -- ---------------------------------------------------------------------------
 -- 4. payments — payment attempts; provider refs live here (MerchantTradeNo/TradeNo)
 -- ---------------------------------------------------------------------------

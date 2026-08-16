@@ -99,6 +99,17 @@ begin
 end;
 $$;
 
+-- SECURITY DEFINER function that reads a Vault secret and triggers the privileged
+-- repair-reconcile endpoint: it must NEVER be callable by a client role. Revoke
+-- EXECUTE from public/anon/authenticated explicitly (Supabase default privileges
+-- would otherwise grant it). pg_cron runs the job as the postgres superuser
+-- (bypasses ACL); service_role retains EXECUTE via Supabase default privileges for
+-- any server-side use.
+revoke all on function public.scheduled_repair_call() from public;
+revoke all on function public.scheduled_repair_call() from anon;
+revoke all on function public.scheduled_repair_call() from authenticated;
+grant execute on function public.scheduled_repair_call() to service_role;
+
 -- ---------------------------------------------------------------------------
 -- 3. Idempotent scheduling (check existing jobs before scheduling)
 -- ---------------------------------------------------------------------------

@@ -93,4 +93,15 @@ describe('migration 0002_commerce — idempotency + immutability constraints', (
       /create or replace function public\.orders_immutable_fields_check\(\)[\s\S]*?security definer/,
     );
   });
+
+  it('closes EXECUTE on the SECURITY DEFINER trigger to client roles (service_role only)', () => {
+    // Supabase default privileges grant EXECUTE to anon/authenticated for new
+    // functions; each client role must be explicitly revoked. Only service_role
+    // (which fires the trigger on its own DML) keeps EXECUTE.
+    const fn = 'public.orders_immutable_fields_check()';
+    expect(sql).toContain(`revoke all on function ${fn} from public`);
+    expect(sql).toContain(`revoke all on function ${fn} from anon`);
+    expect(sql).toContain(`revoke all on function ${fn} from authenticated`);
+    expect(sql).toContain(`grant execute on function ${fn} to service_role`);
+  });
 });

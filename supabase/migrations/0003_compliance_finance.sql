@@ -89,9 +89,12 @@ $$;
 --     successful payment (duplicate_success never calls grant), so a stray duplicate can never clobber
 --     granted_at / provider_ref / source_order_id here either.
 
--- Postgres grants EXECUTE to PUBLIC by default; close every client-reachable role and keep the write
--- point reachable only by service_role (operator / future provider callback verification).
+-- Postgres grants EXECUTE to PUBLIC by default, and Supabase's default privileges additionally grant
+-- EXECUTE to anon/authenticated/service_role for new functions. Close EVERY client-reachable role
+-- (public, anon, authenticated) explicitly and keep the write point reachable only by service_role
+-- (operator / future provider callback verification). An anon-key client must never call this.
 revoke all on function public.grant_entitlement(uuid, text, text, text, uuid, text, timestamptz, text) from public;
+revoke all on function public.grant_entitlement(uuid, text, text, text, uuid, text, timestamptz, text) from anon;
 revoke all on function public.grant_entitlement(uuid, text, text, text, uuid, text, timestamptz, text) from authenticated;
 grant execute on function public.grant_entitlement(uuid, text, text, text, uuid, text, timestamptz, text) to service_role;
 

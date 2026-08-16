@@ -60,7 +60,11 @@ describe('migration 0003_compliance_finance — grant_entitlement recreation', (
   });
 
   it('keeps EXECUTE service_role-only for the new signature', () => {
+    // Supabase default privileges grant EXECUTE to anon/authenticated for new
+    // functions; each client role must be explicitly revoked, leaving only
+    // service_role executable.
     expect(sql).toContain(`revoke all on function ${NEW_SIG} from public`);
+    expect(sql).toContain(`revoke all on function ${NEW_SIG} from anon`);
     expect(sql).toContain(`revoke all on function ${NEW_SIG} from authenticated`);
     expect(sql).toContain(`grant execute on function ${NEW_SIG} to service_role`);
   });
