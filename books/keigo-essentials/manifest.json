@@ -1,7 +1,4 @@
 {
   "book": "./book.json",
-  "preview": {
-    "boundary": { "kind": "chapter", "chapterId": "ch-1" }
-  },
-  "notes": "プレビュー境界は manifest.preview.boundary で宣言する。ここでは第1章（敬語の基本）を無料プレビュー、第2章以降を有料コンテンツとして公開する。境界変更は本ファイルの編集のみで反映され、プラットフォーム側のコード変更は不要。"
+  "notes": "プロトタイプ版は tier: free（全章を無料公開）。プレビュー境界（manifest.preview.boundary）は有料書籍（tier: paid）のときだけ宣言する。境界変更は本ファイルの編集のみで反映され、プラットフォーム側のコード変更は不要。"
 }

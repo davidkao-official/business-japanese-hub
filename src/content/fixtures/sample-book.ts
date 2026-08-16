@@ -2,11 +2,13 @@ import type { Book } from '../types';
 import { SCHEMA_VERSION } from '../types';
 
 /**
- * Sample fixture book used by tests and documentation.
+ * Free public prototype book — "ビジネス日本語：敬語の基礎".
  *
- * This is deliberately a SAMPLE FIXTURE, not real product content: the topic
- * ("business Japanese": 敬語・会議) was chosen so the data reads naturally and
- * exercises every supported block type. The content model itself is
+ * This is a Prototype edition published for free public reading (no login, no
+ * purchase) so real visitors can evaluate the product experience. The content
+ * is platform-authored prototype material, not professionally reviewed product
+ * content, and it deliberately exercises every supported block type so the
+ * reader rendering grammar is demonstrated end-to-end. The content model is
  * topic-agnostic and must never depend on this file.
  *
  * This file is pure data: no React, no JSX, no product-specific code path.
@@ -20,35 +22,30 @@ export const sampleBook: Book = {
   subtitle: '職場で使える尊敬語・謙譲語・丁寧語',
   language: 'ja',
   description:
-    'この書籍は content model の動作確認用サンプルフィクスチャです。' +
-    '実際の商品書籍ではなく、敬語というテーマを使って全ブロック種別を網羅しています。',
+    '敬語は、ビジネス会話の「空気」を決める最重要スキルです。' +
+    '尊敬語・謙譲語・丁寧語の三分類を、会議・依頼・電話といった実務の場面に沿って整理し、' +
+    'そのまま使える表現を会話例と練習問題で身につけます。',
   authors: [
     {
-      id: 'author-sample',
-      name: 'サンプル 太郎',
-      role: 'author',
-      bio: 'サンプル用の架空の著者です。',
-      website: 'https://example.com/authors/sample-taro',
+      id: 'bjh-editorial',
+      name: 'Business Japanese Hub 編集部',
+      role: 'editorial',
     },
   ],
   cover: {
     src: '/images/keigo-cover.svg',
     alt: '「敬語の基礎」の表紙イメージ',
-    caption: 'サンプル表紙',
-    credit: 'sample-fixture',
     width: 1200,
     height: 800,
   },
   edition: { number: 1, label: '第1版', year: 2026 },
-  publication: { status: 'draft' },
-  // Paid with a chapter-1 preview boundary, matching the authoring manifest
-  // (books/keigo-essentials/manifest.json): chapter 1 is the free preview and
-  // the rest is paid content.
-  price: { tier: 'paid', amount: 880, currency: 'JPY' },
+  publication: { status: 'published', releasedAt: '2026-08-01' },
+  // Prototype edition: entirely free/public (docs/product-contract.md §15).
+  price: { tier: 'free' },
   audience: {
     levels: ['beginner', 'intermediate'],
-    languages: ['zh-TW', 'en'],
-    description: '日本語を学ぶビジネスパーソンを想定したサンプルです。',
+    languages: ['ja', 'zh-TW', 'en'],
+    description: '日本語を学ぶビジネスパーソンに向けた無料公開のプロトタイプ版です。',
   },
   difficulty: { level: 2, label: '初級', description: '初級後半から中級前半' },
   tableOfContents: {
@@ -58,7 +55,7 @@ export const sampleBook: Book = {
       { chapterId: 'ch-3', title: '練習問題' },
     ],
   },
-  tags: ['keigo', 'business-japanese', 'sample-fixture'],
+  tags: ['keigo', 'business-japanese', 'prototype'],
   chapters: [
     {
       id: 'ch-1',
@@ -104,14 +101,13 @@ export const sampleBook: Book = {
         {
           id: 'ch1-blk-06',
           type: 'quote',
-          text: '言葉は心の届け物。敬語はその包装紙である。',
-          attribution: 'サンプル書籍の例文',
+          text: '敬語は、うまく使えば相手との距離を縮め、使い誤れば離してしまう。',
         },
         {
           id: 'ch1-blk-07',
           type: 'authorNote',
-          author: 'サンプル 太郎',
-          title: '著者から',
+          author: 'Business Japanese Hub 編集部',
+          title: '編集部から',
           text: '最初は難しく感じますが、三分類を頭に入れるだけで見通しが大きく変わります。',
         },
       ],
@@ -214,7 +210,6 @@ export const sampleBook: Book = {
           src: '/images/keigo-pyramid.svg',
           alt: '敬語の三分類を示すピラミッド図',
           caption: '敬語のピラミッド：丁寧語を土台に、尊敬語・謙譲語を組み合わせます。',
-          credit: 'sample-fixture',
           width: 800,
           height: 600,
         },

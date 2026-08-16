@@ -2,14 +2,14 @@ import type { Book } from '../types';
 import { SCHEMA_VERSION } from '../types';
 
 /**
- * Second fixture book — the generic-content proof for issue #6.
+ * Free public prototype book — "ビジネスメールの作法".
  *
- * Like `sample-book.ts` this is deliberately a SAMPLE FIXTURE, not real
- * product content. It exists so the storefront / book detail / library can be
- * proven book-agnostic with more than one book: a different topic (business
- * email rather than keigo), a paid tier with a preview boundary (see the
- * catalog entry in src/reader/catalog.ts), and a portrait cover ratio. No
- * platform code depends on this file or its topic.
+ * This is a Prototype edition published for free public reading (no login, no
+ * purchase) so real visitors can evaluate the product experience. It covers a
+ * second topic (business email rather than keigo) with a portrait cover ratio,
+ * proving the platform is book-agnostic. The content is platform-authored
+ * prototype material, not professionally reviewed product content. The content
+ * model must never depend on this file or its topic.
  *
  * Pure data: no React, no product-specific code path. Typed `Book` so any
  * invalid field is a compile-time error.
@@ -23,30 +23,29 @@ export const secondBook: Book = {
   language: 'ja',
   description:
     '件名、冒頭、依頼、締めまで。取引先とやり取りする際に必要なビジネスメールの基本を、' +
-    '実例とともに整理したサンプルフィクスチャです。実際の商品書籍ではありません。',
+    '実例とともに整理しました。件名のつけ方から丁寧な依頼表現まで、そのまま使える文例で学べます。',
   authors: [
     {
-      id: 'author-sample-email',
-      name: 'メール 花子',
-      role: 'author',
-      bio: 'サンプル用の架空の著者です。',
-      website: 'https://example.com/authors/hanako-email',
+      id: 'bjh-editorial-email',
+      name: 'Business Japanese Hub 編集部',
+      role: 'editorial',
     },
   ],
   cover: {
     src: '/images/email-cover.svg',
     alt: '「ビジネスメールの作法」の表紙イメージ',
-    credit: 'sample-fixture',
     width: 900,
     height: 1200,
   },
   edition: { number: 1, label: '第1版', year: 2026 },
   publication: { status: 'published', releasedAt: '2026-08-01' },
-  price: { tier: 'paid', amount: 660, currency: 'JPY' },
+  // Prototype edition: entirely free/public (docs/product-contract.md §15).
+  price: { tier: 'free' },
   audience: {
     levels: ['intermediate', 'advanced'],
-    languages: ['zh-TW', 'en'],
-    description: 'ビジネスメールの書き方に自信がないビジネスパーソンを想定したサンプルです。',
+    languages: ['ja', 'zh-TW', 'en'],
+    description:
+      'ビジネスメールの書き方に自信がないビジネスパーソンに向けた無料公開のプロトタイプ版です。',
   },
   difficulty: { level: 3, label: '中級', description: '中級レベル（実務での応用を想定）' },
   tableOfContents: {
@@ -56,7 +55,7 @@ export const secondBook: Book = {
       { chapterId: 'bm-ch-3', title: '依頼と締めの表現' },
     ],
   },
-  tags: ['business-email', 'business-japanese', 'sample-fixture'],
+  tags: ['business-email', 'business-japanese', 'prototype'],
   chapters: [
     {
       id: 'bm-ch-1',

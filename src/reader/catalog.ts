@@ -37,20 +37,15 @@ export interface CatalogEntry {
 
 /**
  * Registration order is the editorial order: the first entry is featured on
- * the storefront and the rest form the compact catalog. Both fixture books
- * are paid with a chapter-1 preview, so the storefront demonstrates the
- * purchase / preview / owned flows.
+ * the storefront and the rest form the compact catalog. Both Prototype books
+ * are `tier: 'free'` — publicly readable by everyone with no login / purchase
+ * (docs/product-contract.md §15). Free books need no preview boundary; the
+ * deny-by-default entitlement gate (src/lib/entitlement.ts) still protects any
+ * future paid book regardless of this catalog.
  */
 const entries: CatalogEntry[] = [
-  {
-    book: sampleBook,
-    // books/keigo-essentials/manifest.json declares chapter 1 as the free preview.
-    previewBoundary: { chapterId: 'ch-1' },
-  },
-  {
-    book: secondBook,
-    previewBoundary: { chapterId: 'bm-ch-1' },
-  },
+  { book: sampleBook },
+  { book: secondBook },
 ]
 
 export function listCatalogEntries(): CatalogEntry[] {

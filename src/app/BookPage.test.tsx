@@ -1,12 +1,34 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
 import { renderWithAppProviders, createMockRepository } from '../test/appProviders'
 import type { PurchaseExecutor } from '../lib/purchase/types'
 import { BookPage } from './BookPage'
-import { sampleBook } from '../content/fixtures/sample-book'
+
+/**
+ * The production catalog only registers free Prototype books, so the paid
+ * §8.3 CTA-matrix tests resolve `keigo-essentials` to the paid synthetic
+ * fixture via a catalog mock; free Prototype behavior uses `email-manners`.
+ */
+vi.mock('../reader/catalog', async () => {
+  const { paidKeigoBook } = await import('../content/fixtures/paid-test-books')
+  const { secondBook } = await import('../content/fixtures/second-book')
+  return {
+    getBookBySlug: (slug: string) => {
+      if (slug === paidKeigoBook.slug) return paidKeigoBook
+      if (slug === secondBook.slug) return secondBook
+      return undefined
+    },
+    getCatalogEntry: (slug: string) => {
+      if (slug === paidKeigoBook.slug) return { book: paidKeigoBook, previewBoundary: { chapterId: 'ch-1' } }
+      if (slug === secondBook.slug) return { book: secondBook }
+      return undefined
+    },
+  }
+})
 
 const user = { id: 'u-1', email: 'reader@example.com' }
+const paidKeigoId = 'book-test-paid-keigo'
 
 function granted(bookId: string) {
   return { bookId, provider: 'manual' as const, grantedAt: '2026-08-01T00:00:00.000Z' }
@@ -32,56 +54,69 @@ function renderBook(slug: string, options: RenderBookOptions = {}) {
   )
 }
 
-describe('book detail — CTA state matrix', () => {
+describe('book detail — paid CTA state matrix (§8.3)', () => {
   it('paid + unowned + preview → 購入する / 試し読み', async () => {
-    renderBook(sampleBook.slug)
+    renderBook('keigo-essentials')
 
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /購入する/ })).toBeInTheDocument(),
     )
     expect(screen.getByRole('link', { name: '試し読み' })).toHaveAttribute(
       'href',
-      `/books/${sampleBook.slug}/read/keigo-basics`,
+      '/books/keigo-essentials/read/keigo-basics',
     )
     expect(screen.getByText('¥880')).toBeInTheDocument()
   })
 
   it('paid + owned + progress → 続きを読む to the resume chapter', async () => {
     const repository = createMockRepository({
-      entitlements: { [sampleBook.id]: granted(sampleBook.id) },
+      entitlements: { [paidKeigoId]: granted(paidKeigoId) },
       readingStates: {
-        [sampleBook.id]: {
-          bookId: sampleBook.id,
+        [paidKeigoId]: {
+          bookId: paidKeigoId,
           chapterId: 'ch-2',
           updatedAt: '2026-08-01T00:00:00.000Z',
         },
       },
     })
-    renderBook(sampleBook.slug, { session: user, repository })
+    renderBook('keigo-essentials', { session: user, repository })
 
     const resume = await screen.findByRole('link', { name: '続きを読む' })
-    expect(resume).toHaveAttribute('href', `/books/${sampleBook.slug}/read/keigo-in-meetings`)
+    expect(resume).toHaveAttribute('href', '/books/keigo-essentials/read/keigo-in-meetings')
     expect(screen.queryByRole('button', { name: /購入する/ })).not.toBeInTheDocument()
   })
 
   it('paid + owned + unread → 読み始める', async () => {
-    const repository = createMockRepository({ entitlements: { [sampleBook.id]: granted(sampleBook.id) } })
-    renderBook(sampleBook.slug, { session: user, repository })
+    const repository = createMockRepository({ entitlements: { [paidKeigoId]: granted(paidKeigoId) } })
+    renderBook('keigo-essentials', { session: user, repository })
 
     const start = await screen.findByRole('link', { name: '読み始める' })
-    expect(start).toHaveAttribute('href', `/books/${sampleBook.slug}/read/keigo-basics`)
+    expect(start).toHaveAttribute('href', '/books/keigo-essentials/read/keigo-basics')
+  })
+})
+
+describe('book detail — free Prototype', () => {
+  it('free tier shows 無料 and a free-reading CTA, never a purchase affordance', async () => {
+    renderBook('email-manners')
+
+    await waitFor(() => expect(screen.getByRole('link', { name: '読み始める' })).toBeInTheDocument())
+    expect(screen.getByText('無料')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /購入する/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '試し読み' })).not.toBeInTheDocument()
   })
 
   it('renders publisher-like sections: about, audience, toc, publication', async () => {
-    renderBook(sampleBook.slug)
+    renderBook('email-manners')
 
     expect(screen.getByRole('heading', { name: 'この本について' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '想定読者' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '目次' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '書籍情報' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /敬語の基本/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /メールの基本構成/ })).toBeInTheDocument()
   })
+})
 
+describe('book detail — not-found + purchase seam', () => {
   it('shows a quiet not-found state for an unknown book (with the slug)', async () => {
     renderBook('not-a-book')
 
@@ -99,11 +134,9 @@ describe('book detail — CTA state matrix', () => {
     expect(repository.getEntitlement).not.toHaveBeenCalled()
     expect(repository.getReadingState).not.toHaveBeenCalled()
   })
-})
 
-describe('purchase seam on the detail page', () => {
-  it('the 購入する CTA reports that payment is not available yet (#9 swaps the executor)', async () => {
-    renderBook(sampleBook.slug)
+  it('the paid 購入する CTA reports that payment is not available yet (#9 swaps the executor)', async () => {
+    renderBook('keigo-essentials')
 
     const buy = await screen.findByRole('button', { name: /購入する/ })
     fireEvent.click(buy)
@@ -114,7 +147,7 @@ describe('purchase seam on the detail page', () => {
   })
 
   it('degrades to the unavailable note when the purchase executor rejects (never stuck pending)', async () => {
-    renderBook(sampleBook.slug, {
+    renderBook('keigo-essentials', {
       purchaseExecutor: async () => {
         throw new Error('checkout offline')
       },

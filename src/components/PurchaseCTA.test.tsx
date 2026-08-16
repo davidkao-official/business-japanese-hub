@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import { renderWithAppProviders } from '../test/appProviders'
 import { PurchaseCTA } from './PurchaseCTA'
-import { sampleBook } from '../content/fixtures/sample-book'
+import { paidKeigoBook } from '../content/fixtures/paid-test-books'
 
 describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)', () => {
   it('asks for a consumer-jurisdiction declaration before checkout (unresolved fails closed)', async () => {
     const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
-    renderWithAppProviders(<PurchaseCTA book={sampleBook} />, {
+    renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} />, {
       purchaseExecutor: executor,
     })
 
@@ -20,7 +20,7 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
 
   it('declared JP proceeds with the JP proceeded-after-disclosure consent (no TW checkbox)', async () => {
     const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
-    renderWithAppProviders(<PurchaseCTA book={sampleBook} />, {
+    renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} />, {
       purchaseExecutor: executor,
     })
 
@@ -29,14 +29,14 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
 
     expect(executor).toHaveBeenCalledTimes(1)
     expect(executor).toHaveBeenCalledWith(
-      { bookId: sampleBook.id },
+      { bookId: paidKeigoBook.id },
       expect.objectContaining({ jurisdiction: 'JP', consentGranted: true }),
     )
   })
 
   it('declared TW still requires the TW pre-delivery consent checkbox (fail closed)', async () => {
     const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
-    renderWithAppProviders(<PurchaseCTA book={sampleBook} />, {
+    renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} />, {
       purchaseExecutor: executor,
     })
 
@@ -61,14 +61,14 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     fireEvent.click(confirm)
     expect(executor).toHaveBeenCalledTimes(1)
     expect(executor).toHaveBeenCalledWith(
-      { bookId: sampleBook.id },
+      { bookId: paidKeigoBook.id },
       expect.objectContaining({ jurisdiction: 'TW', consentGranted: true }),
     )
   })
 
   it('an explicit TW jurisdiction prop skips the declaration step and shows consent', async () => {
     const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
-    renderWithAppProviders(<PurchaseCTA book={sampleBook} jurisdiction="TW" />, {
+    renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} jurisdiction="TW" />, {
       purchaseExecutor: executor,
     })
 
@@ -81,14 +81,14 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     fireEvent.click(screen.getByRole('checkbox'))
     fireEvent.click(screen.getByRole('button', { name: '同意して購入する' }))
     expect(executor).toHaveBeenCalledWith(
-      { bookId: sampleBook.id },
+      { bookId: paidKeigoBook.id },
       expect.objectContaining({ jurisdiction: 'TW', consentGranted: true }),
     )
   })
 
   it('an explicit JP jurisdiction prop skips declaration and submits the JP consent directly', async () => {
     const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
-    renderWithAppProviders(<PurchaseCTA book={sampleBook} jurisdiction="JP" />, {
+    renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} jurisdiction="JP" />, {
       purchaseExecutor: executor,
     })
 
@@ -96,7 +96,7 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
 
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     expect(executor).toHaveBeenCalledWith(
-      { bookId: sampleBook.id },
+      { bookId: paidKeigoBook.id },
       expect.objectContaining({ jurisdiction: 'JP', consentGranted: true }),
     )
   })
@@ -109,7 +109,7 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
           resolveExec = res
         }),
     )
-    renderWithAppProviders(<PurchaseCTA book={sampleBook} jurisdiction="TW" />, {
+    renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} jurisdiction="TW" />, {
       purchaseExecutor: executor,
     })
 

@@ -33,9 +33,9 @@ function renderChapter(chapter: Chapter) {
 }
 
 function renderReaderRoutes(initialEntry: string, options: { owned?: boolean } = {}) {
-  // `keigo-essentials` is a paid book with a chapter-1 preview, so most route
-  // tests run signed-out (preview readable). `owned: true` grants the sample
-  // book so paid chapters render.
+  // `keigo-essentials` is a free Prototype book (fully public), so route tests
+  // run signed-out. `owned: true` still exercises the owned render path used by
+  // the reader for future paid books.
   const repository = options.owned
     ? createMockRepository({
         entitlements: {
@@ -392,9 +392,9 @@ describe('navigation', () => {
     ).toBeInTheDocument()
   })
 
-  it('opens the reader from the book page via 試し読み (preview entry)', async () => {
+  it('opens the reader from the book page via the free-reading CTA', async () => {
     renderReaderRoutes('/books/keigo-essentials')
-    fireEvent.click(screen.getByRole('link', { name: '試し読み' }))
+    fireEvent.click(screen.getByRole('link', { name: '読み始める' }))
     expect(
       await screen.findByRole('heading', { level: 1, name: '敬語の基本' }),
     ).toBeInTheDocument()

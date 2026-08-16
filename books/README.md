@@ -13,7 +13,8 @@ books/<slug>/
 
 | slug | 內容 | 備註 |
 | --- | --- | --- |
-| `keigo-essentials` | ビジネス日本語：敬語の基礎 | 與 `src/content/fixtures/sample-book.ts` 結構同步的範例書，涵蓋全部 14 種 block 型別；第 1 章為免費預覽 |
+| `keigo-essentials` | ビジネス日本語：敬語の基礎 | 與 `src/content/fixtures/sample-book.ts` 結構同步的 Prototype 版（`tier: free`、全章無料公開）、涵蓋全部 14 種 block 型別 |
+| `email-manners` | ビジネスメールの作法 | 與 `src/content/fixtures/second-book.ts` 結構同步的 Prototype 版（`tier: free`、全章無料公開） |
 
 ## 操作
 
