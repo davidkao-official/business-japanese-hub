@@ -105,6 +105,14 @@ describe('book detail — free Prototype', () => {
     expect(screen.queryByRole('link', { name: '試し読み' })).not.toBeInTheDocument()
   })
 
+  it('free books show a free-reading note, never a purchase-preview note', async () => {
+    renderBook('email-manners')
+
+    await waitFor(() => expect(screen.getByRole('link', { name: '読み始める' })).toBeInTheDocument())
+    expect(screen.getByText('この本は全章を無料でお読みいただけます。')).toBeInTheDocument()
+    expect(screen.queryByText('購入の前に、無料プレビューをお試しください。')).not.toBeInTheDocument()
+  })
+
   it('renders publisher-like sections: about, audience, toc, publication', async () => {
     renderBook('email-manners')
 
