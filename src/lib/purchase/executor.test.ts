@@ -209,11 +209,12 @@ describe('checkout executor (#9 / #21)', () => {
   })
 
   it('returns failed for an unsupported provider navigation method', async () => {
-    const response = checkoutResponse() as CheckoutResponse & {
-      instruction: CheckoutResponse['instruction'] & { method: 'PUT' }
+    const response = checkoutResponse()
+    const malformed = {
+      ...response,
+      instruction: { ...response.instruction, method: 'PUT' },
     }
-    response.instruction.method = 'PUT'
-    const fetchClient = vi.fn().mockResolvedValue(jsonResponse(response))
+    const fetchClient = vi.fn().mockResolvedValue(jsonResponse(malformed))
     const submitForm = vi.fn()
     const executor = createCheckoutPurchaseExecutor({ functionsBaseUrl: BASE, fetchClient, submitForm })
 
