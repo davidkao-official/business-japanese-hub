@@ -21,7 +21,6 @@
  * references the exact text that was displayed.
  */
 import type { Locale } from '../../i18n/strings';
-import { getStrings } from '../../i18n/strings';
 import { requireLegalDocumentBySlug } from '../../legal-content';
 import type { LegalDocument, LegalSection } from '../../legal-content';
 import type { ConsentSubmission, Jurisdiction, ResolvedJurisdiction } from '../payments/contract';
@@ -30,24 +29,19 @@ import { isResolvedJurisdiction } from '../payments/contract';
 /** The UI locale a TW buyer sees — the consent texts are fixed to zh-TW. */
 const TW_LOCALE: Locale = 'zh-TW';
 
-/**
- * Stable section positions inside the versioned documents used for checkout
- * evidence. These positions are deliberately independent of human-facing
- * headings, so a wording-only heading change cannot redirect the evidence to a
- * different paragraph. Structural changes must keep these required sections or
- * checkout fails closed at module initialization.
- */
-const TW_WITHDRAWAL_NOTICE_SECTION = 1;
-const JP_TOKUSHOHO_NOTICE_SECTION = 0;
-const JP_REFUNDS_ACK_SECTION = 0;
+/** Stable machine ids on the versioned legal sections used as checkout evidence. */
+const TW_WITHDRAWAL_NOTICE_SECTION_ID = 'tw-withdrawal-notice';
+const TW_IMMEDIATE_DELIVERY_CONSENT_SECTION_ID = 'tw-immediate-delivery-consent';
+const JP_TOKUSHOHO_NOTICE_SECTION_ID = 'jp-tokushoho-seller-disclosure';
+const JP_REFUNDS_ACK_SECTION_ID = 'jp-refunds-acknowledgement';
 
 function requireEvidenceSection(
   document: LegalDocument,
   locale: Locale,
-  sectionIndex: number,
+  sectionId: string,
   evidenceName: string,
 ): LegalSection {
-  const section = document.bodies[locale]?.[sectionIndex];
+  const section = document.bodies[locale]?.find((candidate) => candidate.id === sectionId);
   const paragraphs = section?.paragraphs;
   if (
     !section ||
@@ -68,23 +62,29 @@ const TW_NOTICE_DOCUMENT = requireLegalDocumentBySlug('refunds');
 const JP_NOTICE_DOCUMENT = requireLegalDocumentBySlug('tokushoho');
 const JP_CONSENT_DOCUMENT = requireLegalDocumentBySlug('refunds');
 
-/** Required sections are resolved once and validated. No unrelated-copy fallback exists. */
+/** Required sections are selected by stable ids and validated. No text/index fallback exists. */
 const TW_NOTICE_SECTION = requireEvidenceSection(
   TW_NOTICE_DOCUMENT,
   TW_LOCALE,
-  TW_WITHDRAWAL_NOTICE_SECTION,
+  TW_WITHDRAWAL_NOTICE_SECTION_ID,
   'tw-withdrawal-notice',
+);
+const TW_CONSENT_SECTION = requireEvidenceSection(
+  TW_NOTICE_DOCUMENT,
+  TW_LOCALE,
+  TW_IMMEDIATE_DELIVERY_CONSENT_SECTION_ID,
+  'tw-immediate-delivery-consent',
 );
 const JP_NOTICE_SECTION = requireEvidenceSection(
   JP_NOTICE_DOCUMENT,
   'ja',
-  JP_TOKUSHOHO_NOTICE_SECTION,
+  JP_TOKUSHOHO_NOTICE_SECTION_ID,
   'jp-tokushoho-notice',
 );
 const JP_CONSENT_SECTION = requireEvidenceSection(
   JP_CONSENT_DOCUMENT,
   'ja',
-  JP_REFUNDS_ACK_SECTION,
+  JP_REFUNDS_ACK_SECTION_ID,
   'jp-refunds-acknowledgement',
 );
 
@@ -115,17 +115,16 @@ export interface TwConsentInfo {
 }
 
 /**
- * The exact TW pre-delivery notice text (the 7-day right-of-withdrawal
- * exclusion) and the consent label, both derived from versioned legal content.
- * The section is selected structurally and validated above, never by a mutable
- * human-facing heading and never by a fallback paragraph.
+ * The exact TW pre-delivery notice and consent statement shown by PurchaseCTA.
+ * Both are stable-id sections of the same versioned refunds document, so the
+ * stored version ids and text snapshots have one authoritative source.
  */
 export function twConsentInfo(): TwConsentInfo {
   return {
     noticeVersion: TW_NOTICE_VERSION_ID,
     consentVersion: TW_CONSENT_VERSION_ID,
     noticeText: TW_NOTICE_SECTION.paragraphs.join('\n'),
-    consentText: getStrings(TW_LOCALE).checkout.consentLabel,
+    consentText: TW_CONSENT_SECTION.paragraphs.join('\n'),
   };
 }
 
@@ -133,8 +132,7 @@ export function twConsentInfo(): TwConsentInfo {
  * The exact JP pre-sale disclosures: the 特定商取引法 disclosure (notice) and the
  * refund/returns policy (consent acknowledgment). JP has no 7-day waiver checkbox;
  * proceeding after viewing these disclosures is the consent (consentGranted: true).
- * Both text snapshots come from required, validated versioned legal content so
- * persisted evidence cannot claim a missing document or unrelated fallback text.
+ * Both snapshots come from stable-id, validated versioned legal sections.
  */
 export interface JpConsentInfo {
   noticeVersion: string;
