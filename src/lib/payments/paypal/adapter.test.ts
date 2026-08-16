@@ -184,9 +184,10 @@ describe('PaypalPaymentProviderAdapter.verifyCallback', () => {
     await expect(
       adapter.verifyCallback({
         provider: 'paypal',
+        form: {},
         bodyText: JSON.stringify(approvedWebhook()),
         headers: {},
-      } as ProviderCallbackRequest),
+      } satisfies ProviderCallbackRequest),
     ).rejects.toThrow('missing signature headers');
   });
 
@@ -199,9 +200,10 @@ describe('PaypalPaymentProviderAdapter.verifyCallback', () => {
     await expect(
       adapter.verifyCallback({
         provider: 'paypal',
+        form: {},
         bodyText: JSON.stringify(approvedWebhook()),
         headers: signatureHeaders,
-      } as ProviderCallbackRequest),
+      } satisfies ProviderCallbackRequest),
     ).rejects.toThrow('signature verification failed');
   });
 
@@ -213,9 +215,10 @@ describe('PaypalPaymentProviderAdapter.verifyCallback', () => {
     const adapter = adapterWith(transport);
     const event = await adapter.verifyCallback({
       provider: 'paypal',
+      form: {},
       bodyText: JSON.stringify(approvedWebhook()),
       headers: signatureHeaders,
-    } as ProviderCallbackRequest);
+    } satisfies ProviderCallbackRequest);
 
     expect(event).toEqual({
       provider: 'paypal',
@@ -240,9 +243,10 @@ describe('PaypalPaymentProviderAdapter.verifyCallback', () => {
     const adapter = adapterWith(transport);
     const event = await adapter.verifyCallback({
       provider: 'paypal',
+      form: {},
       bodyText: JSON.stringify(completedWebhook()),
       headers: signatureHeaders,
-    } as ProviderCallbackRequest);
+    } satisfies ProviderCallbackRequest);
 
     expect(event).toMatchObject({
       providerMerchantRef: 'MERCHANT-REF-1',
