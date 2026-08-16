@@ -37,6 +37,67 @@ describe('orders-status handler', () => {
       paymentStatus: 'pending',
       bookId: 'book-a',
       amount: { amount: 79000, currency: 'TWD' },
+      compliance: { jurisdiction: 'TW', japanConsumptionTaxStatus: 'unresolved' },
+    });
+  });
+
+  it('exposes the immutable compliance snapshot a JP order needs for the receipt', async () => {
+    const { deps } = setup({
+      orders: {
+        data: {
+          ...ORDER_ROW,
+          jurisdiction: 'JP',
+          japan_tax_status_snapshot: 'taxable',
+        },
+      },
+    });
+    const result = await handleOrderStatus(
+      handlerRequest('GET', 'https://test.supabase.co/functions/v1/orders-status/ord-1/status', '', bearerHeaders('jwt-1')),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.body)).toMatchObject({
+      compliance: { jurisdiction: 'JP', japanConsumptionTaxStatus: 'taxable' },
+    });
+  });
+
+  it('fails closed when the order snapshot columns are missing (unresolved)', async () => {
+    const { deps } = setup({
+      orders: {
+        data: {
+          ...ORDER_ROW,
+          jurisdiction: null,
+          japan_tax_status_snapshot: null,
+        },
+      },
+    });
+    const result = await handleOrderStatus(
+      handlerRequest('GET', 'https://test.supabase.co/functions/v1/orders-status/ord-1/status', '', bearerHeaders('jwt-1')),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.body)).toMatchObject({
+      compliance: { jurisdiction: 'unresolved', japanConsumptionTaxStatus: 'unresolved' },
+    });
+  });
+
+  it('fails closed on corrupted snapshot values (never violates the contract)', async () => {
+    const { deps } = setup({
+      orders: {
+        data: {
+          ...ORDER_ROW,
+          jurisdiction: 'EU',
+          japan_tax_status_snapshot: 'taxable!',
+        },
+      },
+    });
+    const result = await handleOrderStatus(
+      handlerRequest('GET', 'https://test.supabase.co/functions/v1/orders-status/ord-1/status', '', bearerHeaders('jwt-1')),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.body)).toMatchObject({
+      compliance: { jurisdiction: 'unresolved', japanConsumptionTaxStatus: 'unresolved' },
     });
   });
 

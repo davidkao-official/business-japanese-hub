@@ -41,6 +41,10 @@ export interface OrderRow {
   amount_minor: number;
   currency: string;
   status: OrderStatus;
+  /** Immutable consumer-jurisdiction snapshot (TW/JP; 'unresolved' defensive backfill). */
+  jurisdiction: string;
+  /** Immutable Japan consumption-tax status snapshot at purchase. */
+  japan_tax_status_snapshot: string;
   created_at: string;
   paid_at: string | null;
   refunded_at: string | null;

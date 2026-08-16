@@ -5,6 +5,7 @@ import './styles/tokens.css'
 import './styles/global.css'
 import './styles/reader.css'
 import './styles/shop.css'
+import './styles/legal.css'
 
 const root = document.getElementById('root')
 

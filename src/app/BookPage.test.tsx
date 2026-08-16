@@ -107,6 +107,8 @@ describe('purchase seam on the detail page', () => {
 
     const buy = await screen.findByRole('button', { name: /購入する/ })
     fireEvent.click(buy)
+    // Declare a consumer jurisdiction to reach the executor (fail-closed gate).
+    fireEvent.click(screen.getByRole('button', { name: '日本の消費者' }))
 
     expect(await screen.findByText('決済は準備中です。')).toBeInTheDocument()
   })
@@ -120,6 +122,7 @@ describe('purchase seam on the detail page', () => {
 
     const buy = await screen.findByRole('button', { name: /購入する/ })
     fireEvent.click(buy)
+    fireEvent.click(screen.getByRole('button', { name: '日本の消費者' }))
 
     expect(await screen.findByText('決済は準備中です。')).toBeInTheDocument()
     // The CTA must not stay disabled/pending after a rejection.

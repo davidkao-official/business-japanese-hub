@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { Route, Routes, useNavigate } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -52,7 +52,9 @@ describe('application shell', () => {
     render(<App />)
 
     expect(screen.getByRole('banner')).toBeInTheDocument() // <header>
-    expect(screen.getByRole('navigation')).toBeInTheDocument() // <nav>
+    // The header holds the primary site nav; the footer also exposes a secondary
+    // legal-links nav, so scope the main-nav assertion to the banner.
+    expect(within(screen.getByRole('banner')).getByRole('navigation')).toBeInTheDocument()
     expect(screen.getByRole('main')).toBeInTheDocument() // <main>
     expect(screen.getByRole('contentinfo')).toBeInTheDocument() // <footer>
   })

@@ -16,8 +16,11 @@ import {
   UnsupportedCurrencyForProvider,
   type CheckoutResponse,
   type ConsentSubmission,
+  type JapanConsumptionTaxStatus,
   type Jurisdiction,
   type PaymentProviderAdapter,
+  type ResolvedJurisdiction,
+  isResolvedJurisdiction,
 } from '../../../src/lib/payments/contract.ts';
 import {
   badRequest,
@@ -62,7 +65,7 @@ export function parseConsent(value: unknown): ConsentSubmission | null {
   if (value === null || typeof value !== 'object') return null;
   const obj = value as Record<string, unknown>;
   if (obj.jurisdiction !== 'TW' && obj.jurisdiction !== 'JP') return null;
-  const jurisdiction = obj.jurisdiction as Jurisdiction;
+  const jurisdiction = obj.jurisdiction as ResolvedJurisdiction;
   const locale = typeof obj.locale === 'string' ? obj.locale : '';
   const noticeVersion = typeof obj.noticeVersion === 'string' ? obj.noticeVersion : '';
   const consentVersion = typeof obj.consentVersion === 'string' ? obj.consentVersion : '';
@@ -109,9 +112,19 @@ export async function handleCheckout(
   }
   const consent = parseConsent(raw.consent);
 
-  // Fail-closed consent gate (§25 / decision-record §3.4): an unknown or absent
-  // jurisdiction defaults to TW, which requires explicit granted consent.
-  const jurisdiction: Jurisdiction = consent?.jurisdiction ?? 'TW';
+  // Fail-closed jurisdiction gate (§25 remediation): jurisdiction is an explicit
+  // consumer self-declaration, NEVER derived from the UI locale or currency.
+  // An unknown/absent/malformed declaration is `unresolved` and blocks checkout
+  // BEFORE any order/payment/provider handoff.
+  const jurisdiction: Jurisdiction = consent?.jurisdiction ?? 'unresolved';
+  if (!isResolvedJurisdiction(jurisdiction)) {
+    return jsonResult(422, {
+      error: 'consumer jurisdiction is required before checkout',
+      reason: 'jurisdiction_required',
+    });
+  }
+
+  // TW requires explicit prior consent to immediate digital delivery (§4.1/§5).
   if (jurisdiction === 'TW' && (consent === null || consent.consentGranted !== true)) {
     return jsonResult(422, {
       error: 'explicit prior consent to immediate digital delivery is required',
@@ -119,11 +132,32 @@ export async function handleCheckout(
     });
   }
 
+  // JP reads the server-authoritative Japan consumption-tax status (fail closed):
+  // an unresolved status blocks paid checkout. The client can never supply or
+  // override it — the authoritative value comes from platform_tax_config here.
+  const japanTaxStatus: JapanConsumptionTaxStatus =
+    jurisdiction === 'JP' ? await readJapanTaxStatus(deps.db) : 'unresolved';
+  if (jurisdiction === 'JP' && japanTaxStatus === 'unresolved') {
+    return jsonResult(422, {
+      error: 'japan consumption-tax status is unresolved; paid checkout is blocked',
+      reason: 'tax_status_unresolved',
+    });
+  }
+
   const now = deps.now ?? (() => new Date());
   const random = deps.random ?? Math.random;
 
   try {
-    return await createCheckoutOrder({ uid, bookId: pathBookId, consent, deps, now, random });
+    return await createCheckoutOrder({
+      uid,
+      bookId: pathBookId,
+      consent,
+      jurisdiction,
+      japanTaxStatus,
+      deps,
+      now,
+      random,
+    });
   } catch (err) {
     if (err instanceof BookNotFoundError) {
       return notFound('book is not available for purchase');
@@ -146,13 +180,15 @@ interface CreateCheckoutInput {
   uid: string;
   bookId: string;
   consent: ConsentSubmission | null;
+  jurisdiction: ResolvedJurisdiction;
+  japanTaxStatus: JapanConsumptionTaxStatus;
   deps: CheckoutHandlerDeps;
   now: () => Date;
   random: () => number;
 }
 
 async function createCheckoutOrder(input: CreateCheckoutInput): Promise<HandlerResult> {
-  const { uid, bookId, consent, deps, now, random } = input;
+  const { uid, bookId, consent, jurisdiction, japanTaxStatus, deps, now, random } = input;
 
   // Authoritative server-side price seam (§8.3): released-only catalog row.
   const catalog = await readCatalog(deps.db, bookId, now);
@@ -165,7 +201,7 @@ async function createCheckoutOrder(input: CreateCheckoutInput): Promise<HandlerR
   let paymentId: string | null = null;
 
   try {
-    // Order snapshot (amount/currency/revision immutable after creation, §8.1.5).
+    // Order snapshot (amount/currency/revision/compliance immutable after creation).
     const orderInsert = await deps.db
       .from('orders')
       .insert({
@@ -175,6 +211,8 @@ async function createCheckoutOrder(input: CreateCheckoutInput): Promise<HandlerR
         published_revision: String(catalog.published_revision),
         amount_minor: amountMinor,
         currency,
+        jurisdiction,
+        japan_tax_status_snapshot: japanTaxStatus,
         status: 'pending',
       })
       .select('id')
@@ -261,6 +299,29 @@ async function readCatalog(
   if (error) throw new CatalogUnavailableError(`catalog read failed: ${error.message}`);
   if (!data) throw new BookNotFoundError();
   return data;
+}
+
+/**
+ * Read the server-authoritative Japan consumption-tax status (pre-sale gate,
+ * legal-tax-launch-brief §4.1). Fail-closed: any read failure or unknown value
+ * resolves to `unresolved`, which the handler treats as "paid checkout blocked".
+ * The client can never supply or override this value.
+ */
+export async function readJapanTaxStatus(db: DbClient): Promise<JapanConsumptionTaxStatus> {
+  try {
+    const { data, error } = await db
+      .from('platform_tax_config')
+      .select('value')
+      .eq('key', 'japan_consumption_tax_status')
+      .maybeSingle();
+    if (error || !data) return 'unresolved';
+    const value = String(data.value);
+    return value === 'taxable' || value === 'exempt' ? value : 'unresolved';
+  } catch {
+    // A rejected query (transport/abort) also fails closed — never lets the
+    // unresolved gate escape as a 5xx.
+    return 'unresolved';
+  }
 }
 
 async function insertPaymentWithCollisionRetry(

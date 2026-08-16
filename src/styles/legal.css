@@ -1,0 +1,105 @@
+/* =====================================================================
+ * Legal / compliance surfaces — legal index, versioned legal documents,
+ * footer legal links and seller disclosure (issue #25, B1).
+ * ---------------------------------------------------------------------
+ * All values come from the design tokens (tokens.css); no magic values.
+ * ===================================================================== */
+
+@import './tokens.css';
+
+/* ---------------------------------------------------------------
+ * Legal index — document list
+ * --------------------------------------------------------------- */
+.legal-index {
+  display: grid;
+  gap: var(--space-1);
+  max-width: var(--measure-reading);
+}
+
+.legal-index__link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: baseline;
+  padding-block: var(--space-2);
+  border-bottom: var(--stroke-thin) solid var(--color-border);
+  text-decoration: none;
+}
+
+.legal-index__link:hover {
+  text-decoration: underline;
+  text-decoration-thickness: var(--stroke-medium);
+}
+
+.legal-index__title {
+  font-weight: var(--font-weight-medium);
+}
+
+.legal-index__status {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* ---------------------------------------------------------------
+ * Versioned legal document page
+ * --------------------------------------------------------------- */
+.legal-doc {
+  max-width: var(--measure-reading);
+}
+
+.legal-doc__meta {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  letter-spacing: var(--tracking-wide);
+}
+
+.legal-draft-banner {
+  margin-block: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: var(--stroke-thin) solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.legal-doc__body {
+  display: grid;
+  gap: var(--space-5);
+  margin-block-start: var(--space-6);
+}
+
+.legal-doc__section {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.legal-doc__section h2 {
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+}
+
+/* ---------------------------------------------------------------
+ * Footer — legal links + seller disclosure
+ * --------------------------------------------------------------- */
+.site-footer__legal {
+  margin-block-end: var(--space-3);
+}
+
+.site-footer__legal-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.site-footer__legal-list a {
+  color: var(--color-text-muted);
+}
+
+.site-footer__seller {
+  margin-block: var(--space-2);
+}
+
+.site-footer__seller-pending {
+  color: var(--color-warning);
+}
