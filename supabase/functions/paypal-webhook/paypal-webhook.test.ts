@@ -135,6 +135,9 @@ describe('PayPal webhook orchestration (#21)', () => {
       p_source_order_id: USD_ORDER.id,
       p_book_id: USD_ORDER.book_id,
     });
+
+    const eventUpdates = mock.callsFor('payment_events', 'update');
+    expect(eventUpdates.some((call) => call.args[0]?.processing_result === 'success_granted')).toBe(true);
   });
 
   it('replayed success is idempotent when local payment/order already reflect the first success', async () => {
@@ -165,6 +168,33 @@ describe('PayPal webhook orchestration (#21)', () => {
     expect(mock.callsFor('rpc:grant_entitlement', 'rpc')).toHaveLength(0);
     const updates = mock.callsFor('payments', 'update');
     expect(updates.some((call) => call.args[0]?.status === 'verification_pending')).toBe(true);
+    const eventUpdates = mock.callsFor('payment_events', 'update');
+    expect(
+      eventUpdates.some(
+        (call) => call.args[0]?.processing_result === 'paypal_success_invariant_mismatch',
+      ),
+    ).toBe(true);
+  });
+
+  it('maps an authoritative failed capture/query to payment_failed and completes the receipt', async () => {
+    const failed = adapter({
+      snapshot: {
+        ...SNAPSHOT,
+        status: 'failed',
+        paidAt: undefined,
+        rawStatusCode: 'DECLINED',
+      },
+    });
+    const { mock, deps } = setup(failed);
+
+    const result = await handlePaypalWebhook(webhookRequest(), deps);
+
+    expect(result.status).toBe(200);
+    expect(mock.callsFor('rpc:grant_entitlement', 'rpc')).toHaveLength(0);
+    const paymentUpdates = mock.callsFor('payments', 'update');
+    expect(paymentUpdates.some((call) => call.args[0]?.status === 'failed')).toBe(true);
+    const eventUpdates = mock.callsFor('payment_events', 'update');
+    expect(eventUpdates.some((call) => call.args[0]?.processing_result === 'paypal_failed')).toBe(true);
   });
 
   it('persists verification_pending and returns 5xx on transient capture/query failure so PayPal can retry', async () => {
