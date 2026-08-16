@@ -27,4 +27,11 @@ Business Japanese Hub 是 premium、web-first 的數位出版與學習平台，�
 - AI 不是 MVP 必要項，不得成為主要產品 abstraction。
 - MVP non-goals：原生 app、subscription-first、AI chat/agent 為主體驗、完整 LMS、book-specific hard-coded components。
 
+## 部署
+
+- **Production build**：`pnpm build` → 輸出 `dist/`（`vite.config.ts` 使用絕對 base `/`）。
+- **靜態 host 要求**：`BrowserRouter` 使用 root base，host 必須把未匹配的 route 都 serve `index.html`（SPA fallback），否則 nested route（如 `/books/:slug`）直接載入或重整會 404。
+- **CI**：`.github/workflows/ci.yml` 在每次 push 到 `main` 與每個 PR 執行 typecheck / lint / test / build。目前沒有自動部署，build 產物由 host 部署。
+- **Prototype 模式**：未設定 Supabase 環境變數時，平台以 public 模式運行——兩本免費 Prototype 書可匿名完整閱讀（Storefront → Book Detail → Universal Reader）。設定 Supabase 環境後會啟用 account / persistence / purchase 功能。
+
 更多細節請見 [product contract](docs/product-contract.md)。
