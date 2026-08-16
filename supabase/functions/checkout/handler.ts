@@ -308,14 +308,20 @@ async function readCatalog(
  * The client can never supply or override this value.
  */
 export async function readJapanTaxStatus(db: DbClient): Promise<JapanConsumptionTaxStatus> {
-  const { data, error } = await db
-    .from('platform_tax_config')
-    .select('value')
-    .eq('key', 'japan_consumption_tax_status')
-    .maybeSingle();
-  if (error || !data) return 'unresolved';
-  const value = String(data.value);
-  return value === 'taxable' || value === 'exempt' ? value : 'unresolved';
+  try {
+    const { data, error } = await db
+      .from('platform_tax_config')
+      .select('value')
+      .eq('key', 'japan_consumption_tax_status')
+      .maybeSingle();
+    if (error || !data) return 'unresolved';
+    const value = String(data.value);
+    return value === 'taxable' || value === 'exempt' ? value : 'unresolved';
+  } catch {
+    // A rejected query (transport/abort) also fails closed — never lets the
+    // unresolved gate escape as a 5xx.
+    return 'unresolved';
+  }
 }
 
 async function insertPaymentWithCollisionRetry(

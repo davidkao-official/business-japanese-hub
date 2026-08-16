@@ -17,7 +17,7 @@
  *     order_compliance evidence). The server additionally applies the
  *     authoritative Japan tax-status gate.
  */
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Book } from '../content/types'
 import { useLocale, useStrings } from '../i18n/strings'
 import { formatPrice } from '../lib/price'
@@ -60,9 +60,13 @@ export function PurchaseCTA({
   const [phase, setPhase] = useState<Phase>('idle')
   const [consentChecked, setConsentChecked] = useState(false)
   const [attempted, setAttempted] = useState(false)
+  // In-flight latch: React batches state updates, so a `phase` guard can observe
+  // a stale value and double-submit a checkout (two orders for one purchase).
+  const inFlight = useRef(false)
 
   const beginPurchase = async (consent: ConsentSubmission | null) => {
-    if (phase === 'pending') return
+    if (inFlight.current) return
+    inFlight.current = true
     setPhase('pending')
     try {
       // The #9 executor accepts an optional consent as its second argument.
@@ -76,6 +80,8 @@ export function PurchaseCTA({
       // A future executor is allowed to reject; it must degrade to
       // "unavailable" and never leave the CTA stuck in pending.
       setPhase('unavailable')
+    } finally {
+      inFlight.current = false
     }
   }
 
@@ -181,6 +187,8 @@ export function PurchaseCTA({
             </span>
           )}
           <span className="purchase-cta__actions">
+            {/* The consent UI is unmounted once phase becomes pending, so the
+                in-flight ref latch is the duplicate-submit guard. */}
             <button type="button" className="btn btn--primary" onClick={onConfirm}>
               {strings.checkout.confirmPurchase}
             </button>

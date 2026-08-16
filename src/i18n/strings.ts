@@ -623,7 +623,7 @@ const zhTW: AppStrings = {
     fontSize: '文字大小',
     theme: '顯示主題',
     font: '字型',
-    fontSerif: '明朝',
+    fontSerif: '明體',
     fontSans: '黑體',
     themeLight: '亮色',
     themeSepia: '米色',

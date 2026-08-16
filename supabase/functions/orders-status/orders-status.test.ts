@@ -81,6 +81,26 @@ describe('orders-status handler', () => {
     });
   });
 
+  it('fails closed on corrupted snapshot values (never violates the contract)', async () => {
+    const { deps } = setup({
+      orders: {
+        data: {
+          ...ORDER_ROW,
+          jurisdiction: 'EU',
+          japan_tax_status_snapshot: 'taxable!',
+        },
+      },
+    });
+    const result = await handleOrderStatus(
+      handlerRequest('GET', 'https://test.supabase.co/functions/v1/orders-status/ord-1/status', '', bearerHeaders('jwt-1')),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.body)).toMatchObject({
+      compliance: { jurisdiction: 'unresolved', japanConsumptionTaxStatus: 'unresolved' },
+    });
+  });
+
   it("another user's order → 403 (ownership check, not the id)", async () => {
     const { deps } = setup({ orders: { data: { ...ORDER_ROW, user_id: 'someone-else' } } });
     const result = await handleOrderStatus(

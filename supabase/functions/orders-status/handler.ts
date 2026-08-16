@@ -65,9 +65,14 @@ export async function handleOrderStatus(
 
   // The receipt's tax/jurisdiction display comes ONLY from this immutable
   // order snapshot (never the live platform_tax_config / client / currency).
-  // Missing/unknown columns fail closed to 'unresolved'.
-  const jurisdiction = (order.jurisdiction ?? 'unresolved') as Jurisdiction;
-  const japanConsumptionTaxStatus = (order.japan_tax_status_snapshot ?? 'unresolved') as JapanConsumptionTaxStatus;
+  // Missing/unknown/corrupted values fail closed to 'unresolved' so the
+  // response never violates the OrderStatusResponse contract.
+  const jurisdiction: Jurisdiction =
+    order.jurisdiction === 'TW' || order.jurisdiction === 'JP' ? order.jurisdiction : 'unresolved';
+  const japanConsumptionTaxStatus: JapanConsumptionTaxStatus =
+    order.japan_tax_status_snapshot === 'taxable' || order.japan_tax_status_snapshot === 'exempt'
+      ? order.japan_tax_status_snapshot
+      : 'unresolved';
 
   const response: OrderStatusResponse = {
     orderId: order.id,

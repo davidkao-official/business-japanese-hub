@@ -222,7 +222,14 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
     }
 
     // Validate the minimum shape before trusting it.
-    if (!data || typeof data.orderId !== 'string' || !data.instruction || typeof data.instruction.action !== 'string') {
+    if (
+      !data ||
+      typeof data.orderId !== 'string' ||
+      !data.instruction ||
+      typeof data.instruction.action !== 'string' ||
+      typeof data.instruction.fields !== 'object' ||
+      data.instruction.fields === null
+    ) {
       return { ok: false, reason: 'failed', message: 'invalid checkout response' };
     }
 
@@ -268,9 +275,16 @@ export async function fetchOrderStatus(
   if (!baseUrl) return null;
   const client = options.fetchClient ?? defaultFetchClient;
   const token = await resolveAuthToken(options.authToken);
-  const response = await client(`${baseUrl}/orders-status/${encodeURIComponent(orderId)}/status`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
+  let response: FetchClientResponse;
+  try {
+    response = await client(`${baseUrl}/orders-status/${encodeURIComponent(orderId)}/status`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {
+    // A transient transport error must not abort the whole polling loop —
+    // return null so pollOrderStatus keeps retrying its bounded attempts.
+    return null;
+  }
   if (!response.ok) return null;
   try {
     return (await response.json()) as OrderStatusResponse;

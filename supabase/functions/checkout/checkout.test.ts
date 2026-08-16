@@ -330,6 +330,40 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     expect(orderInsert.args[0]).toMatchObject({ japan_tax_status_snapshot: 'exempt' });
   });
 
+  it('JP tax gate fails closed when the config query rejects (transport → unresolved)', async () => {
+    const { deps } = setup({}, jpTax('taxable'));
+    const base = deps.db;
+    const rejectingDb = {
+      auth: base.auth,
+      rpc: base.rpc,
+      from: (table: string) => {
+        if (table === 'platform_tax_config') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => {
+                  throw new Error('transport down');
+                },
+              }),
+            }),
+          };
+        }
+        return base.from(table);
+      },
+    } as unknown as typeof base;
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: JP_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      { ...deps, db: rejectingDb },
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'tax_status_unresolved' });
+  });
+
   it('ignores client-supplied price tampering (amount/currency come from catalog only)', async () => {
     const { mock, deps } = setup();
     const result = await handleCheckout(

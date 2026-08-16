@@ -100,4 +100,27 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
       expect.objectContaining({ jurisdiction: 'JP', consentGranted: true }),
     )
   })
+
+  it('does not double-submit a purchase (one executor call per intent)', async () => {
+    let resolveExec!: (result: { ok: true; orderId: string; status: 'pending' }) => void
+    const executor = vi.fn(
+      async () =>
+        new Promise<{ ok: true; orderId: string; status: 'pending' }>((res) => {
+          resolveExec = res
+        }),
+    )
+    renderWithAppProviders(<PurchaseCTA book={sampleBook} jurisdiction="TW" />, {
+      purchaseExecutor: executor,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
+    fireEvent.click(screen.getByRole('checkbox'))
+    const confirm = screen.getByRole('button', { name: '同意して購入する' })
+    fireEvent.click(confirm)
+    // A second click while the submission is in flight must not start a second checkout.
+    fireEvent.click(confirm)
+
+    expect(executor).toHaveBeenCalledTimes(1)
+    resolveExec({ ok: true, orderId: 'order-1', status: 'pending' })
+  })
 })

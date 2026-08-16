@@ -171,6 +171,19 @@ describe('checkout executor (#9)', () => {
     if (!result.ok) expect(result.reason).toBe('failed')
   })
 
+  it('returns failed (never throws) when the instruction omits fields', async () => {
+    const fetchClient = vi.fn().mockResolvedValue(
+      jsonResponse({ orderId: 'order-1', paymentId: 'payment-1', instruction: { action: 'https://x/pay' } }),
+    )
+    const executor = createCheckoutPurchaseExecutor({
+      functionsBaseUrl: BASE,
+      fetchClient,
+    })
+    const result = await executor({ bookId: 'book-1' }, consent({ jurisdiction: 'JP', locale: 'ja' }))
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('failed')
+  })
+
   it('attaches the Bearer token when an auth token source is provided', async () => {
     const fetchClient = vi.fn().mockResolvedValue(jsonResponse(checkoutResponse()))
     const submitForm = vi.fn()
@@ -241,6 +254,21 @@ describe('orders-status polling', () => {
       fetchClient,
       intervalMs: 1,
       maxAttempts: 10,
+    })
+    expect(status?.status).toBe('paid')
+    expect(fetchClient).toHaveBeenCalledTimes(2)
+  })
+
+  it('survives a transient fetch rejection and keeps polling (returns null on transport error)', async () => {
+    const fetchClient = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce(jsonResponse(order({ status: 'paid' })))
+    const status = await pollOrderStatus('order-1', {
+      functionsBaseUrl: BASE,
+      fetchClient,
+      intervalMs: 1,
+      maxAttempts: 2,
     })
     expect(status?.status).toBe('paid')
     expect(fetchClient).toHaveBeenCalledTimes(2)
