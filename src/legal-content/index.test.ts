@@ -41,6 +41,17 @@ describe('legal content', () => {
     }
   })
 
+  it('keeps defined legal-section ids unique within each document locale', () => {
+    for (const doc of listLegalDocuments()) {
+      for (const locale of SUPPORTED_LOCALES) {
+        const ids = doc.bodies[locale]
+          .map((section) => section.id)
+          .filter((id): id is string => id !== undefined)
+        expect(new Set(ids).size, `${doc.slug}/${locale} has duplicate section ids`).toBe(ids.length)
+      }
+    }
+  })
+
   it('is versioned and currently in draft status', () => {
     for (const doc of listLegalDocuments()) {
       expect(doc.version).toMatch(/^v\d+$/)
