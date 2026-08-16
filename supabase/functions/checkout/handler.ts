@@ -4,20 +4,21 @@
  *
  * The browser sends ONLY `bookId` + the collected compliance `ConsentSubmission`
  * (never a price/amount). The handler reads the authoritative `catalog` price
- * seam, creates Order + `order_compliance` evidence, then the Payment attempt
- * (server-generated `MerchantTradeNo` with collision retry), builds the signed
- * ECPay checkout instruction, transitions the payment to `pending`, and returns
- * `CheckoutResponse`. Any client-supplied price/status field is ignored.
+ * seam, selects the payment provider from that SERVER-side currency, creates
+ * Order + `order_compliance` evidence, then the Payment attempt (server-generated
+ * merchant reference with collision retry), builds the provider checkout
+ * instruction, transitions the payment to `pending`, and returns
+ * `CheckoutResponse`. Any client-supplied price/provider/status field is ignored.
  *
- * Pure handler: `Env` / `DbClient` / adapter / logger are injected; the Deno
+ * Pure handler: `Env` / `DbClient` / adapters / logger are injected; the Deno
  * entry (`index.ts`) wires the real implementations. No top-level `Deno.serve`.
  */
 import {
-  UnsupportedCurrencyForProvider,
   type CheckoutResponse,
   type ConsentSubmission,
   type JapanConsumptionTaxStatus,
   type Jurisdiction,
+  type PaymentProvider,
   type PaymentProviderAdapter,
   type ResolvedJurisdiction,
   isResolvedJurisdiction,
@@ -45,7 +46,10 @@ import { applyPaymentEvent, type PaymentRow } from '../_shared/flow.ts';
 export interface CheckoutHandlerDeps {
   env: Env;
   db: DbClient;
+  /** Existing TWD/ECPay adapter, kept as a compatibility fallback. */
   adapter: PaymentProviderAdapter;
+  /** Provider registry used by the second-provider path. */
+  adapters?: Partial<Record<PaymentProvider, PaymentProviderAdapter>>;
   log: Logger;
   now?: () => Date;
   random?: () => number;
@@ -57,6 +61,8 @@ export const MAX_MERCHANT_REF_RETRIES = 3;
 /** Sentinels so `handleCheckout` maps distinct failures to distinct HTTP codes. */
 class BookNotFoundError extends Error {}
 class CatalogUnavailableError extends Error {}
+class UnsupportedCheckoutCurrencyError extends Error {}
+class PaymentProviderUnavailableError extends Error {}
 
 const CHECKOUT_PATH = /\/checkout\/books\/([^/]+)$/;
 
@@ -84,6 +90,52 @@ export function parseConsent(value: unknown): ConsentSubmission | null {
     noticeTextSnapshot,
     consentTextSnapshot,
   };
+}
+
+/**
+ * Provider selection is SERVER-authoritative and based only on the immutable
+ * catalog currency snapshot. Locale/jurisdiction never choose a provider.
+ */
+export function checkoutProviderForCurrency(currency: string): PaymentProvider | null {
+  if (currency === 'TWD') return 'ecpay';
+  if (currency === 'USD') return 'paypal';
+  return null;
+}
+
+function checkoutAdapterForProvider(
+  deps: CheckoutHandlerDeps,
+  provider: PaymentProvider,
+): PaymentProviderAdapter | null {
+  const registered = deps.adapters?.[provider];
+  if (registered) return registered;
+  // Backward-compatible TWD seam: existing callers/tests inject `adapter`.
+  return provider === 'ecpay' ? deps.adapter : null;
+}
+
+function checkoutUrls(
+  env: Env,
+  provider: PaymentProvider,
+  orderId: string,
+): { returnUrl: string; orderResultUrl: string } {
+  if (provider === 'ecpay') {
+    return {
+      returnUrl: edgeFunctionUrl(env, 'ecpay-callback'),
+      orderResultUrl: edgeFunctionUrl(env, 'ecpay-browser-return'),
+    };
+  }
+  if (provider === 'paypal') {
+    const base = edgeFunctionUrl(env, 'paypal-browser-return');
+    const order = encodeURIComponent(orderId);
+    return {
+      returnUrl: `${base}?order=${order}`,
+      orderResultUrl: `${base}?order=${order}&cancel=1`,
+    };
+  }
+  throw new PaymentProviderUnavailableError(`checkout URLs are not configured for ${provider}`);
+}
+
+function providerLocale(provider: PaymentProvider, locale: string | undefined): string {
+  return provider === 'ecpay' ? mapLocaleToEcpayLanguage(locale) : (locale ?? 'en');
 }
 
 export async function handleCheckout(
@@ -114,8 +166,6 @@ export async function handleCheckout(
 
   // Fail-closed jurisdiction gate (§25 remediation): jurisdiction is an explicit
   // consumer self-declaration, NEVER derived from the UI locale or currency.
-  // An unknown/absent/malformed declaration is `unresolved` and blocks checkout
-  // BEFORE any order/payment/provider handoff.
   const jurisdiction: Jurisdiction = consent?.jurisdiction ?? 'unresolved';
   if (!isResolvedJurisdiction(jurisdiction)) {
     return jsonResult(422, {
@@ -132,9 +182,7 @@ export async function handleCheckout(
     });
   }
 
-  // JP reads the server-authoritative Japan consumption-tax status (fail closed):
-  // an unresolved status blocks paid checkout. The client can never supply or
-  // override it — the authoritative value comes from platform_tax_config here.
+  // JP reads the server-authoritative Japan consumption-tax status (fail closed).
   const japanTaxStatus: JapanConsumptionTaxStatus =
     jurisdiction === 'JP' ? await readJapanTaxStatus(deps.db) : 'unresolved';
   if (jurisdiction === 'JP' && japanTaxStatus === 'unresolved') {
@@ -165,10 +213,16 @@ export async function handleCheckout(
     if (err instanceof CatalogUnavailableError) {
       return jsonResult(502, { error: 'catalog unavailable' });
     }
-    if (err instanceof UnsupportedCurrencyForProvider) {
+    if (err instanceof UnsupportedCheckoutCurrencyError) {
       return jsonResult(422, {
-        error: 'checkout refused: provider does not support this currency',
+        error: 'checkout refused: no payment provider supports this catalog currency',
         reason: 'unsupported_currency',
+      });
+    }
+    if (err instanceof PaymentProviderUnavailableError) {
+      return jsonResult(503, {
+        error: 'checkout provider is not configured',
+        reason: 'provider_unavailable',
       });
     }
     deps.log.error({ error: err instanceof Error ? err.message : String(err) }, 'checkout failed');
@@ -194,8 +248,10 @@ async function createCheckoutOrder(input: CreateCheckoutInput): Promise<HandlerR
   const catalog = await readCatalog(deps.db, bookId, now);
   const currency = String(catalog.currency);
   const amountMinor = Number(catalog.amount_minor);
-  // ECPay only accepts integer TWD (§17.1). Refuse a non-TWD book before any insert.
-  if (currency !== 'TWD') throw new UnsupportedCurrencyForProvider('ecpay');
+  const provider = checkoutProviderForCurrency(currency);
+  if (!provider) throw new UnsupportedCheckoutCurrencyError(currency);
+  const adapter = checkoutAdapterForProvider(deps, provider);
+  if (!adapter) throw new PaymentProviderUnavailableError(provider);
 
   let orderId: string | null = null;
   let paymentId: string | null = null;
@@ -223,7 +279,7 @@ async function createCheckoutOrder(input: CreateCheckoutInput): Promise<HandlerR
     orderId = String(orderInsert.data.id);
     if (!orderId) throw new Error('order insert returned no id');
 
-    // Compliance evidence — required for TW; persisted whenever provided (§8.3/#25).
+    // Compliance evidence — persisted whenever provided (§8.3/#25).
     if (consent) {
       const complianceInsert = await deps.db.from('order_compliance').insert({
         order_id: orderId,
@@ -245,6 +301,7 @@ async function createCheckoutOrder(input: CreateCheckoutInput): Promise<HandlerR
     const paymentRow = await insertPaymentWithCollisionRetry(
       deps,
       orderId,
+      provider,
       amountMinor,
       currency,
       now,
@@ -252,18 +309,22 @@ async function createCheckoutOrder(input: CreateCheckoutInput): Promise<HandlerR
     );
     paymentId = paymentRow.id;
 
-    // Build the signed provider checkout instruction (§4.2). ReturnURL is the
-    // authoritative callback; OrderResultURL is the browser-return handler.
-    const instruction = await deps.adapter.createCheckout({
+    // Build the provider checkout instruction. The ECPay callback/browser URLs
+    // remain unchanged; PayPal receives a state-neutral browser return URL.
+    const urls = checkoutUrls(deps.env, provider, orderId);
+    const instruction = await adapter.createCheckout({
       orderId,
       paymentId,
       merchantReference: paymentRow.provider_merchant_ref,
       amount: { amount: amountMinor, currency },
       itemNameSnapshot: String(catalog.slug ?? ''),
-      locale: mapLocaleToEcpayLanguage(consent?.locale),
-      returnUrl: edgeFunctionUrl(deps.env, 'ecpay-callback'),
-      orderResultUrl: edgeFunctionUrl(deps.env, 'ecpay-browser-return'),
+      locale: providerLocale(provider, consent?.locale),
+      returnUrl: urls.returnUrl,
+      orderResultUrl: urls.orderResultUrl,
     });
+    if (instruction.provider !== provider || instruction.merchantReference !== paymentRow.provider_merchant_ref) {
+      throw new Error('provider checkout instruction does not match the local payment attempt');
+    }
 
     // created → pending (payment_initiated).
     await applyPaymentEvent(
@@ -274,7 +335,15 @@ async function createCheckoutOrder(input: CreateCheckoutInput): Promise<HandlerR
 
     const response: CheckoutResponse = { orderId, paymentId, instruction };
     deps.log.info(
-      { orderId, paymentId, bookId, merchantReference: paymentRow.provider_merchant_ref, amountMinor, currency },
+      {
+        orderId,
+        paymentId,
+        bookId,
+        provider,
+        merchantReference: paymentRow.provider_merchant_ref,
+        amountMinor,
+        currency,
+      },
       'checkout created',
     );
     return jsonResult(200, response);
@@ -305,7 +374,6 @@ async function readCatalog(
  * Read the server-authoritative Japan consumption-tax status (pre-sale gate,
  * legal-tax-launch-brief §4.1). Fail-closed: any read failure or unknown value
  * resolves to `unresolved`, which the handler treats as "paid checkout blocked".
- * The client can never supply or override this value.
  */
 export async function readJapanTaxStatus(db: DbClient): Promise<JapanConsumptionTaxStatus> {
   try {
@@ -318,8 +386,6 @@ export async function readJapanTaxStatus(db: DbClient): Promise<JapanConsumption
     const value = String(data.value);
     return value === 'taxable' || value === 'exempt' ? value : 'unresolved';
   } catch {
-    // A rejected query (transport/abort) also fails closed — never lets the
-    // unresolved gate escape as a 5xx.
     return 'unresolved';
   }
 }
@@ -327,6 +393,7 @@ export async function readJapanTaxStatus(db: DbClient): Promise<JapanConsumption
 async function insertPaymentWithCollisionRetry(
   deps: CheckoutHandlerDeps,
   orderId: string,
+  provider: PaymentProvider,
   amountMinor: number,
   currency: string,
   now: () => Date,
@@ -338,7 +405,7 @@ async function insertPaymentWithCollisionRetry(
       .from('payments')
       .insert({
         order_id: orderId,
-        provider: 'ecpay',
+        provider,
         provider_merchant_ref: merchantRef,
         amount_minor: amountMinor,
         currency,
@@ -353,7 +420,7 @@ async function insertPaymentWithCollisionRetry(
     if (error && !isMerchantRefCollision(error.message)) {
       throw new Error(`payment insert failed: ${error.message}`);
     }
-    deps.log.warn({ merchantReference: merchantRef }, 'merchant reference collision; regenerating');
+    deps.log.warn({ provider, merchantReference: merchantRef }, 'merchant reference collision; regenerating');
   }
   throw new Error('could not allocate a unique merchant reference');
 }
