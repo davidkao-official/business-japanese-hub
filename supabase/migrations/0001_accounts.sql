@@ -121,10 +121,13 @@ as $$
         granted_at   = now();
 $$;
 
--- Postgres grants EXECUTE to PUBLIC by default; close every client-reachable
--- role and keep the write point reachable only by the service_role (operator /
--- future ECPay server callback verification).
+-- Postgres grants EXECUTE to PUBLIC by default, and Supabase's default privileges
+-- additionally grant EXECUTE to anon/authenticated/service_role for new functions.
+-- Close EVERY client-reachable role (public, anon, authenticated) explicitly and
+-- keep the write point reachable only by service_role (operator / future ECPay
+-- server callback verification). An anon-key client must never call this.
 revoke all on function public.grant_entitlement(uuid, text, text, text) from public;
+revoke all on function public.grant_entitlement(uuid, text, text, text) from anon;
 revoke all on function public.grant_entitlement(uuid, text, text, text) from authenticated;
 grant execute on function public.grant_entitlement(uuid, text, text, text) to service_role;
 

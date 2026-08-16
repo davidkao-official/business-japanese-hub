@@ -54,14 +54,17 @@ describe('migration 0001_accounts — RLS policy matrix', () => {
     }
   });
 
-  it('the grant write point is not callable from the browser', () => {
-    // The function exists, but EXECUTE is revoked from anon (public) and
-    // authenticated, and is granted only to service_role (operator / ECPay
-    // server callback verification).
+  it('the grant write point is not callable from any client role', () => {
+    // The function exists, but EXECUTE is revoked from public, anon, AND
+    // authenticated (Supabase default privileges grant EXECUTE to anon/
+    // authenticated for new functions — each must be explicitly revoked), and is
+    // granted only to service_role (operator / ECPay server callback verification).
+    const fn = 'function public.grant_entitlement(uuid, text, text, text)';
     expect(sql).toContain('function public.grant_entitlement');
-    expect(sql).toContain('revoke all on function public.grant_entitlement(uuid, text, text, text) from public');
-    expect(sql).toContain('revoke all on function public.grant_entitlement(uuid, text, text, text) from authenticated');
-    expect(sql).toContain('grant execute on function public.grant_entitlement(uuid, text, text, text) to service_role');
+    expect(sql).toContain(`revoke all on ${fn} from public`);
+    expect(sql).toContain(`revoke all on ${fn} from anon`);
+    expect(sql).toContain(`revoke all on ${fn} from authenticated`);
+    expect(sql).toContain(`grant execute on ${fn} to service_role`);
   });
 
   it('keys user-state rows on stable content-model ids', () => {

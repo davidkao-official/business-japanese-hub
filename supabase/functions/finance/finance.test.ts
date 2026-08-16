@@ -1,0 +1,229 @@
+/**
+ * Finance handler tests (decision-record §14 — server-enforced role; a
+ * client-claimed role is never trusted).
+ */
+import { describe, expect, it } from 'vitest';
+import {
+  createMockDb,
+  fakeLogger,
+  handlerRequest,
+  bearerHeaders,
+  ORDER_ROW,
+  PAYMENT_ROW,
+} from '../_shared/testing.ts';
+import { handleFinance } from './handler.ts';
+
+const REFUND_ROW = {
+  id: 'ref-1',
+  payment_id: 'pay-1',
+  provider: 'ecpay',
+  provider_refund_ref: null,
+  amount_minor: 79000,
+  currency: 'TWD',
+  status: 'requested',
+  reason_code: null,
+  requested_by: 'user-1',
+  provider_status_code: null,
+  requested_at: '2026-08-16T11:00:00Z',
+  completed_at: null,
+};
+
+function setup(overrides: Record<string, unknown> = {}) {
+  const mock = createMockDb({
+    'auth:getUser': { data: { id: 'user-1' } },
+    finance_roles: { data: [{ role: 'finance_viewer' }] },
+    orders: { data: [{}] },
+    payments: { data: [] },
+    refunds: { data: [] },
+    book_entitlement: { data: [] },
+    ...overrides,
+  });
+  return { mock, deps: { db: mock.db, log: fakeLogger(), now: () => new Date('2026-08-16T12:00:00Z') } };
+}
+
+describe('finance handler', () => {
+  it('finance_viewer can read the read model', async () => {
+    const { deps } = setup({
+      orders: { data: [{ id: 'ord-1', status: 'paid', amount_minor: 79000, currency: 'TWD' }] },
+      payments: { data: [{ id: 'pay-1', status: 'succeeded', reconciliation_status: 'matched' }] },
+    });
+    const result = await handleFinance(
+      handlerRequest('GET', 'https://test.supabase.co/functions/v1/finance', '', bearerHeaders('jwt-1')),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    const body = JSON.parse(result.body);
+    expect(body.orders).toHaveLength(1);
+    expect(body.payments).toHaveLength(1);
+    expect(body.reconciliation).toMatchObject({ matched: 1, succeeded: 1 });
+    expect(typeof body.generatedAt).toBe('string');
+  });
+
+  it('non-finance user → 403', async () => {
+    const { deps } = setup({ finance_roles: { data: null } });
+    const result = await handleFinance(
+      handlerRequest('GET', 'https://test.supabase.co/functions/v1/finance', '', bearerHeaders('jwt-1')),
+      deps,
+    );
+    expect(result.status).toBe(403);
+  });
+
+  it('a client-claimed role is ignored (role comes only from finance_roles)', async () => {
+    const { mock, deps } = setup({ finance_roles: { data: null } });
+    // The request "claims" admin in the body/header; the DB has no role → 403.
+    const result = await handleFinance(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/finance',
+        JSON.stringify({ action: 'request_refund', paymentId: 'pay-1', role: 'finance_admin' }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(403);
+    // The role lookup is scoped only by the verified user id — never a client value.
+    const roleEq = mock.callsFor('finance_roles', 'eq')[0];
+    expect(roleEq).toBeDefined();
+    expect(roleEq.args).toEqual(['user_id', 'user-1']);
+    expect(mock.callsFor('refunds', 'insert').length).toBe(0);
+  });
+
+  it('finance_viewer cannot POST operational actions', async () => {
+    const { deps } = setup();
+    const result = await handleFinance(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/finance',
+        JSON.stringify({ action: 'request_refund', paymentId: 'pay-1' }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(403);
+  });
+
+  it('finance_admin request_refund → refunds row + admin_audit_log entry', async () => {
+    const { mock, deps } = setup({
+      finance_roles: { data: [{ role: 'finance_admin' }] },
+      payments: { data: PAYMENT_ROW },
+      refunds: { data: { id: 'ref-1' } },
+      admin_audit_log: { data: null },
+    });
+    const result = await handleFinance(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/finance',
+        JSON.stringify({ action: 'request_refund', paymentId: 'pay-1', reasonCode: 'duplicate_charge' }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(201);
+    const refundInsert = mock.callsFor('refunds', 'insert')[0];
+    expect(refundInsert.args[0]).toMatchObject({
+      payment_id: 'pay-1',
+      provider: 'ecpay',
+      amount_minor: 79000,
+      currency: 'TWD',
+      status: 'requested',
+      reason_code: 'duplicate_charge',
+      requested_by: 'user-1',
+    });
+    const auditInsert = mock.callsFor('admin_audit_log', 'insert')[0];
+    expect(auditInsert.args[0]).toMatchObject({
+      actor: 'user-1',
+      action: 'refund.requested',
+      entity_type: 'refund',
+      entity_id: 'pay-1',
+    });
+  });
+
+  it('finance_admin confirm_refund (primary payment) → refund succeeded + payment/order refunded + entitlement revoked', async () => {
+    const { mock, deps } = setup({
+      finance_roles: { data: [{ role: 'finance_admin' }] },
+      refunds: { data: REFUND_ROW },
+      payments: { data: { ...PAYMENT_ROW, status: 'succeeded', provider_payment_ref: 'ECPAY-TRADE-1' } },
+      orders: { data: { ...ORDER_ROW, status: 'paid' } },
+      book_entitlement: { data: null },
+      admin_audit_log: { data: null },
+    });
+    const result = await handleFinance(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/finance',
+        JSON.stringify({ action: 'confirm_refund', refundId: 'ref-1' }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    const body = JSON.parse(result.body);
+    expect(body).toMatchObject({
+      refund: { id: 'ref-1', status: 'succeeded' },
+      payment_status: 'refunded',
+      order_status: 'refunded',
+      entitlement_revoked: true,
+    });
+
+    // refunds → succeeded (fact source), payment → refunded, order → refunded.
+    expect(mock.callsFor('refunds', 'update')[0].args[0]).toMatchObject({ status: 'succeeded' });
+    const paymentUpdates = mock.callsFor('payments', 'update');
+    expect(paymentUpdates[paymentUpdates.length - 1].args[0]).toMatchObject({ status: 'refunded' });
+    const orderUpdates = mock.callsFor('orders', 'update');
+    expect(orderUpdates[orderUpdates.length - 1].args[0]).toMatchObject({ status: 'refunded' });
+
+    // Entitlement for the order's source_order_id is revoked with reason 'refund'.
+    const revokeUpdate = mock.callsFor('book_entitlement', 'update')[0];
+    expect(revokeUpdate.args[0]).toMatchObject({
+      status: 'revoked',
+      revocation_reason: 'refund',
+    });
+    const revokeEqs = mock.callsFor('book_entitlement', 'eq');
+    expect(
+      revokeEqs.some((c) => c.args[0] === 'source_order_id' && c.args[1] === 'ord-1'),
+    ).toBe(true);
+  });
+
+  it('finance_admin confirm_refund (duplicate_success payment) → payment refunded only; ownership preserved', async () => {
+    const { mock, deps } = setup({
+      finance_roles: { data: [{ role: 'finance_admin' }] },
+      refunds: { data: REFUND_ROW },
+      payments: { data: { ...PAYMENT_ROW, status: 'duplicate_success', provider_payment_ref: 'ECPAY-TRADE-2' } },
+      orders: { data: { ...ORDER_ROW, status: 'paid' } },
+      book_entitlement: { data: null },
+      admin_audit_log: { data: null },
+    });
+    const result = await handleFinance(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/finance',
+        JSON.stringify({ action: 'confirm_refund', refundId: 'ref-1' }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    const body = JSON.parse(result.body);
+    expect(body).toMatchObject({
+      refund: { id: 'ref-1', status: 'succeeded' },
+      payment_status: 'refunded',
+      order_status: 'paid',
+      entitlement_revoked: false,
+    });
+
+    // The duplicate refund refunds the payment but NEVER touches order/entitlement.
+    const paymentUpdates = mock.callsFor('payments', 'update');
+    expect(paymentUpdates[paymentUpdates.length - 1].args[0]).toMatchObject({ status: 'refunded' });
+    expect(mock.callsFor('orders', 'update').length).toBe(0);
+    expect(mock.callsFor('book_entitlement', 'update').length).toBe(0);
+  });
+
+  it('unauthenticated → 401', async () => {
+    const { deps } = setup();
+    const result = await handleFinance(
+      handlerRequest('GET', 'https://test.supabase.co/functions/v1/finance'),
+      deps,
+    );
+    expect(result.status).toBe(401);
+  });
+});

@@ -1,31 +1,17 @@
 /**
- * Provider-neutral purchase seam (GitHub issue #6).
+ * Provider-neutral purchase seam (GitHub issue #6 / #9).
  *
- * #6 deliberately does NOT implement payment. It only defines the abstraction
- * a future ECPay integration (#9) can implement: the app describes "the user
- * wants to buy this book" as an inert `PurchaseIntent`, and the executor
- * resolves it. ECPay specifics (CheckMacValue, callbacks, order persistence,
- * merchant secrets) are strictly out of scope here.
+ * The shared purchase contract is the architecture lock in
+ * `src/lib/payments/contract.ts` (§15 Purchase seam). This file re-exports it
+ * so existing consumers (`PurchaseContext`, `PurchaseCTA`) keep importing from
+ * the seam without drifting from the locked contract.
+ *
+ * The client sends only `bookId`; amount / currency are never client-supplied.
+ * #9 wires the real ECPay executor into `PurchaseProvider`.
  */
 
-/** What the user intends to buy. Grows with the payment contract (#9). */
-export interface PurchaseIntent {
-  /** Stable content-model `Book.id`. */
-  bookId: string;
-  /** Display amount in the currency's major unit (snapshot, not used for arithmetic). */
-  amount?: number;
-  /** Uppercase ISO 4217 code. */
-  currency?: string;
-}
-
-/** Outcome of attempting a purchase. */
-export type PurchaseResult =
-  | { ok: true }
-  | { ok: false; reason: 'unavailable' | 'canceled' | 'failed'; message?: string };
-
-/**
- * The single abstraction point: an async function that takes a purchase intent
- * and returns its outcome. #9 swaps this for the ECPay executor without any
- * Book Detail / Reader change.
- */
-export type PurchaseExecutor = (intent: PurchaseIntent) => Promise<PurchaseResult>;
+export type {
+  PurchaseExecutor,
+  PurchaseIntent,
+  PurchaseResult,
+} from '../payments/contract';
