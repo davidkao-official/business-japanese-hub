@@ -13,7 +13,7 @@
 
 import { useMemo } from 'react'
 
-export const SUPPORTED_LOCALES = ['ja', 'en'] as const
+export const SUPPORTED_LOCALES = ['ja', 'en', 'zh-TW'] as const
 
 export type Locale = (typeof SUPPORTED_LOCALES)[number]
 
@@ -142,6 +142,52 @@ export interface AppStrings {
   footer: {
     note: string
   }
+  legal: {
+    title: string
+    lead: string
+    documentsLabel: string
+    documentNotFound: string
+    backToIndex: string
+    draftNotice: string
+    versionLabel: string
+    statusLabel: string
+    statusDraft: string
+    statusReview: string
+    statusLive: string
+    revisedLabel: string
+    footerLabel: string
+    sellerDisclosureLabel: string
+    sellerDisclosurePending: string
+  }
+  checkout: {
+    consentTitle: string
+    waiverNoticeLabel: string
+    consentLabel: string
+    consentRequiredHint: string
+    confirmPurchase: string
+    cancel: string
+  }
+  purchaseResult: {
+    title: string
+    missingOrder: string
+    pending: string
+    stillProcessing: string
+    succeededTitle: string
+    succeededMessage: string
+    failedTitle: string
+    failedMessage: string
+    cancelledTitle: string
+    cancelledMessage: string
+    receiptLabel: string
+    orderNumber: string
+    bookTitleLabel: string
+    amountLabel: string
+    statusLabel: string
+    statusSucceeded: string
+    taxInclusive: string
+    goToLibrary: string
+    backToBook: string
+  }
 }
 
 const ja: AppStrings = {
@@ -266,6 +312,53 @@ const ja: AppStrings = {
   },
   footer: {
     note: '© ビジネス日本語ハブ',
+  },
+  legal: {
+    title: '法律情報',
+    lead: '本サイトの利用条件・プライバシー・法令に基づく表記等を掲載しています。',
+    documentsLabel: '文書一覧',
+    documentNotFound: '指定された文書は見つかりませんでした。',
+    backToIndex: '法律情報の一覧に戻る',
+    draftNotice: '本ページはドラフトです。法律専門家による審査前であり、内容は変更される可能性があります。',
+    versionLabel: '版',
+    statusLabel: 'ステータス',
+    statusDraft: 'ドラフト',
+    statusReview: 'レビュー中',
+    statusLive: '公開',
+    revisedLabel: '改訂',
+    footerLabel: '法律情報',
+    sellerDisclosureLabel: '販売者：',
+    sellerDisclosurePending: '登録名確認中',
+  },
+  checkout: {
+    consentTitle: '事前同意（デジタルコンテンツの即時提供）',
+    waiverNoticeLabel: '7日間クーリング・オフ適用除外の告知',
+    consentLabel: 'デジタルコンテンツの即時提供・ダウンロードに同意します',
+    consentRequiredHint: '購入を続けるには上記に同意する必要があります。',
+    confirmPurchase: '同意して購入する',
+    cancel: '戻る',
+  },
+  purchaseResult: {
+    title: '購入結果',
+    missingOrder: '注文番号がありません。',
+    pending: '決済確認中…',
+    stillProcessing:
+      '決済の確認がまだ完了していません。しばらくしてから再度ご確認いただくか、ライブラリで最新の状態をご確認ください。',
+    succeededTitle: '購入が完了しました',
+    succeededMessage: 'ご購入ありがとうございます。本書はライブラリに追加されました。',
+    failedTitle: '決済に失敗しました',
+    failedMessage: '決済が完了しませんでした。もう一度お試しください。',
+    cancelledTitle: '購入はキャンセルされました',
+    cancelledMessage: '注文はキャンセルされました。',
+    receiptLabel: '注文の領収書',
+    orderNumber: '注文番号',
+    bookTitleLabel: '書籍',
+    amountLabel: '金額',
+    statusLabel: 'ステータス',
+    statusSucceeded: '完了',
+    taxInclusive: '（税込）',
+    goToLibrary: 'ライブラリへ',
+    backToBook: '書籍へ戻る',
   },
 }
 
@@ -392,11 +485,230 @@ const en: AppStrings = {
   footer: {
     note: '© Business Japanese Hub',
   },
+  legal: {
+    title: 'Legal',
+    lead: 'Terms, privacy, and statutory notices for this platform.',
+    documentsLabel: 'Documents',
+    documentNotFound: 'The requested document could not be found.',
+    backToIndex: 'Back to Legal',
+    draftNotice: 'This page is a draft and has not yet been reviewed by legal counsel; content may change.',
+    versionLabel: 'Version',
+    statusLabel: 'Status',
+    statusDraft: 'Draft',
+    statusReview: 'In review',
+    statusLive: 'Live',
+    revisedLabel: 'Revised',
+    footerLabel: 'Legal information',
+    sellerDisclosureLabel: 'Seller: ',
+    sellerDisclosurePending: 'registered name pending confirmation',
+  },
+  checkout: {
+    consentTitle: 'Prior consent (immediate delivery of digital content)',
+    waiverNoticeLabel: '7-day right-of-withdrawal exclusion notice',
+    consentLabel: 'I agree to the immediate provision/download of the digital content',
+    consentRequiredHint: 'You must agree to the above to continue.',
+    confirmPurchase: 'Agree and pay',
+    cancel: 'Back',
+  },
+  purchaseResult: {
+    title: 'Purchase Result',
+    missingOrder: 'No order reference was provided.',
+    pending: 'Confirming payment…',
+    stillProcessing:
+      'We are still confirming your payment. Please check again shortly, or view the latest status in your library.',
+    succeededTitle: 'Purchase complete',
+    succeededMessage: 'Thank you for your purchase. The book has been added to your library.',
+    failedTitle: 'Payment failed',
+    failedMessage: 'Your payment could not be completed. Please try again.',
+    cancelledTitle: 'Purchase cancelled',
+    cancelledMessage: 'The order was cancelled.',
+    receiptLabel: 'Order receipt',
+    orderNumber: 'Order number',
+    bookTitleLabel: 'Book',
+    amountLabel: 'Amount',
+    statusLabel: 'Status',
+    statusSucceeded: 'Completed',
+    taxInclusive: '(tax included)',
+    goToLibrary: 'Go to Library',
+    backToBook: 'Back to book',
+  },
+}
+
+const zhTW: AppStrings = {
+  app: {
+    name: '商務日語中心',
+    tagline: '學習商務日語的平台',
+  },
+  nav: {
+    main: '主導覽',
+    home: '首頁',
+    library: '我的書庫',
+    skipToContent: '跳到主要內容',
+  },
+  storefront: {
+    catalog: '所有書籍',
+    viewDetails: '查看詳情',
+    featured: '主打書籍',
+    free: '免費',
+    owned: '已擁有',
+  },
+  home: {
+    title: '商務日語中心',
+    lead: '透過實際的商務日語讀物，學習職場實用日語的平台。',
+    sampleBooks: '範例書籍',
+  },
+  library: {
+    title: '我的書庫',
+    signedOut: '登入後，您購買的書籍與閱讀進度會顯示在這裡。',
+    empty: '您尚未購買任何書籍。',
+    browseBooks: '瀏覽書籍',
+    continueReading: '繼續閱讀',
+    allOwned: '已擁有的書籍',
+    lastRead: '上次閱讀位置',
+    loading: '載入中…',
+    loadFailed: '載入書庫時發生錯誤。',
+    retry: '重試',
+  },
+  book: {
+    title: '書籍詳情',
+    lead: '本書的詳細資訊準備中。',
+    notFound: '找不到這本書。',
+    about: '關於本書',
+    audience: '目標讀者',
+    prerequisite: '建議日語程度',
+    authors: '作者',
+    publicationDetails: '書籍資訊',
+    editionLabel: '版',
+    released: '發行',
+    language: '語言',
+    purchase: '購買',
+    preview: '試讀',
+    seeContents: '查看目錄',
+    pending: '確認中…',
+    purchaseUnavailable: '付款功能準備中。',
+    ownedLabel: '已擁有',
+  },
+  reader: {
+    backToBook: '返回書籍',
+    backToLibrary: '返回書庫',
+    bookNotFound: '找不到這本書。',
+    chapterNotFound: '找不到這個章節。',
+    tableOfContents: '目錄',
+    settings: '顯示設定',
+    revealChrome: '顯示目錄與設定',
+    close: '關閉',
+    skipToChapterBody: '跳到章節正文',
+    chapterNav: '章節導覽',
+    previousChapter: '上一章',
+    nextChapter: '下一章',
+    readFromStart: '開始閱讀',
+    continueReading: '繼續閱讀',
+    progressLabel: '閱讀進度',
+    paidBoundary: '後續內容需購買後方可閱讀。',
+    chapterLabel: (order: number) => `第 ${order} 章`,
+    fontSize: '文字大小',
+    theme: '顯示主題',
+    font: '字型',
+    fontSerif: '明朝',
+    fontSans: '黑體',
+    themeLight: '亮色',
+    themeSepia: '米色',
+    themeDark: '深色',
+    fontSizeSmall: '小',
+    fontSizeStandard: '標準',
+    fontSizeLarge: '大',
+    fontSizeXLarge: '特大',
+    vocab: '詞彙',
+    meaning: '意思',
+    reading: '讀音',
+    partOfSpeech: '詞性',
+    example: '例句',
+    expressionExample: '表達例句',
+    dialogue: '會話',
+    calloutNote: '重點',
+    calloutTip: '提示',
+    calloutWarning: '注意',
+    calloutInfo: '資訊',
+    caseStudy: '個案研究',
+    doLabel: '應該做',
+    dontLabel: '不應該做',
+    exercise: '練習題',
+    hint: '查看提示',
+    showAnswer: '顯示解答',
+    hideAnswer: '隱藏解答',
+    answer: '解答',
+    explanation: '解說',
+    authorNote: '作者的話',
+    outcome: '結果',
+    question: '問題',
+  },
+  readerGate: {
+    beyondPreview: '這裡已超出試讀範圍。',
+    locked: '本書需購買後方可閱讀。',
+    message: '購買本書後，即可繼續閱讀。',
+    previewNote: '購買前請先試讀免費預覽。',
+    backToBook: '返回書籍',
+  },
+  notFound: {
+    title: '找不到頁面',
+    message: '您要找的頁面不存在或已移動。',
+    backHome: '返回首頁',
+  },
+  footer: {
+    note: '© 商務日語中心',
+  },
+  legal: {
+    title: '法律資訊',
+    lead: '本平台的服務條款、隱私權政策及法令標示。',
+    documentsLabel: '文件一覽',
+    documentNotFound: '找不到指定的文件。',
+    backToIndex: '返回法律資訊',
+    draftNotice: '本頁內容為草稿，尚未經法律專業審閱，內容可能變更。',
+    versionLabel: '版本',
+    statusLabel: '狀態',
+    statusDraft: '草稿',
+    statusReview: '審閱中',
+    statusLive: '公開',
+    revisedLabel: '修訂',
+    footerLabel: '法律資訊',
+    sellerDisclosureLabel: '販售者：',
+    sellerDisclosurePending: '註冊名稱待確認',
+  },
+  checkout: {
+    consentTitle: '事先同意（數位內容即時提供）',
+    waiverNoticeLabel: '7 日解除權適用除外告知',
+    consentLabel: '本人同意立即提供／下載數位內容',
+    consentRequiredHint: '您必須勾選同意後才能繼續購買。',
+    confirmPurchase: '同意並付款',
+    cancel: '返回',
+  },
+  purchaseResult: {
+    title: '購買結果',
+    missingOrder: '缺少訂單編號。',
+    pending: '付款確認中…',
+    stillProcessing: '付款仍在確認中。請稍後再查看，或至書庫查看最新狀態。',
+    succeededTitle: '購買完成',
+    succeededMessage: '感謝您的購買。本書已加入您的書庫。',
+    failedTitle: '付款失敗',
+    failedMessage: '付款未能完成，請再試一次。',
+    cancelledTitle: '購買已取消',
+    cancelledMessage: '訂單已取消。',
+    receiptLabel: '訂單收據',
+    orderNumber: '訂單編號',
+    bookTitleLabel: '書籍',
+    amountLabel: '金額',
+    statusLabel: '狀態',
+    statusSucceeded: '已完成',
+    taxInclusive: '（含稅）',
+    goToLibrary: '前往書庫',
+    backToBook: '返回書籍',
+  },
 }
 
 const stringsByLocale: Record<Locale, AppStrings> = {
   ja,
   en,
+  'zh-TW': zhTW,
 }
 
 /** Synchronous lookup — safe anywhere, but prefers `useStrings` in components. */
@@ -411,4 +723,15 @@ export function getStrings(locale: Locale = DEFAULT_LOCALE): AppStrings {
  */
 export function useStrings(locale: Locale = DEFAULT_LOCALE): AppStrings {
   return useMemo(() => getStrings(locale), [locale])
+}
+
+/**
+ * The active locale for components. Currently stateless (always the default);
+ * this is the seam where a locale provider / context could be introduced later
+ * without touching call sites. Consumers that need the locale to pick a
+ * localized value (e.g. legal document titles) use this instead of assuming a
+ * hard-coded locale.
+ */
+export function useLocale(): Locale {
+  return DEFAULT_LOCALE
 }

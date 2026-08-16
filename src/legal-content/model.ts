@@ -1,0 +1,57 @@
+/**
+ * Legal-content model — typed, versioned legal documents (issue #25, B1).
+ *
+ * Every legal document carries an id, a route slug, a version id, a review
+ * status, and per-locale titles + body content. `Locale` is imported type-only
+ * from `src/i18n/strings` so the supported-locale set stays in one place.
+ *
+ * Bodies are structured as sections (heading + paragraphs) so the legal pages
+ * can render real document structure instead of a wall of text.
+ */
+
+import type { Locale } from '../i18n/strings'
+
+/** Review lifecycle: draft → review → live. All documents are pre-launch drafts today. */
+export type LegalDocumentStatus = 'draft' | 'review' | 'live'
+
+export interface LegalSection {
+  heading: string
+  paragraphs: string[]
+}
+
+export interface LegalDocument {
+  /** Stable machine id (e.g. "terms"). */
+  id: string
+  /** Route slug (e.g. "terms"); the URL is `/legal/<slug>`. */
+  slug: string
+  /** Version id, e.g. "v1". */
+  version: string
+  status: LegalDocumentStatus
+  /** ISO date this version was authored. */
+  revisedAt: string
+  /** Per-locale document titles. */
+  titles: Record<Locale, string>
+  /** Per-locale body content, structured as sections. */
+  bodies: Record<Locale, LegalSection[]>
+}
+
+export interface SellerDisclosure {
+  /** Registered merchant-of-record (legal seller) name. */
+  name: string
+  /** True while the registered name is not yet confirmed. */
+  pending: boolean
+}
+
+/**
+ * Placeholder merchant-of-record disclosure.
+ *
+ * The registered seller name is an EXTERNAL pre-sale gate (docs/legal-tax-launch-brief.md
+ * §4.1) that is not yet known, so this constant is the single swap point: set
+ * `name` to the confirmed registered name and `pending` to false before the
+ * first sale. The footer and tokushoho page reference this — no other code
+ * change is needed to swap in the real name.
+ */
+export const SELLER_DISCLOSURE: SellerDisclosure = {
+  name: 'Seller name pending confirmation',
+  pending: true,
+}
