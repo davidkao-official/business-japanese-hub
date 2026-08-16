@@ -7,8 +7,6 @@ describe('purchase seam (provider-neutral, #6 does not implement payment)', () =
   it('the inert executor reports unavailable for any intent', async () => {
     const result = await unavailablePurchaseExecutor({
       bookId: 'book-sample-bj-keigo',
-      amount: 880,
-      currency: 'JPY',
     })
     expect(result.ok).toBe(false)
     if (!result.ok) {
@@ -17,7 +15,7 @@ describe('purchase seam (provider-neutral, #6 does not implement payment)', () =
   })
 
   it('exposes the injected executor through the provider (the #9 swap point)', async () => {
-    const executor = vi.fn(async () => ({ ok: true }) as const)
+    const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
     const { result } = renderHook(() => usePurchase(), {
       wrapper: ({ children }) => (
         <PurchaseProvider executor={executor}>{children}</PurchaseProvider>

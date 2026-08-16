@@ -10,8 +10,14 @@
  * one replaceable adapter (see ./supabase.ts).
  */
 
-/** Who granted an entitlement. `manual` = operator/service-role; `ecpay` = purchase callback (future). */
-export type EntitlementProvider = 'manual' | 'ecpay';
+import type { EntitlementStatus, PaymentProvider } from '../payments/contract';
+
+/**
+ * Who granted an entitlement. `manual` = operator/service-role; payment providers
+ * follow the relaxed provider representation in
+ * supabase/migrations/0003_compliance_finance.sql (decision-record §9.3).
+ */
+export type EntitlementProvider = 'manual' | PaymentProvider;
 
 /** Server-authoritative record that a user may read a book. */
 export interface Entitlement {
@@ -22,6 +28,17 @@ export interface Entitlement {
   providerRef?: string | null;
   /** ISO-8601 timestamp of the grant (server-authoritative). */
   grantedAt: string;
+  /**
+   * 'active' | 'revoked'. The DB column is NOT NULL (default 'active'); optional
+   * here until the persistence adapter selects it — the DB is authoritative.
+   */
+  status?: EntitlementStatus;
+  /** Provider-neutral source Order id (payment grants); null for manual grants. */
+  sourceOrderId?: string | null;
+  /** ISO-8601 timestamp of revocation (e.g. refund), null while active. */
+  revokedAt?: string | null;
+  /** Normalized revocation reason, e.g. 'refund'. */
+  revocationReason?: string | null;
 }
 
 /**

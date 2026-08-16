@@ -1,0 +1,272 @@
+/**
+ * Checkout handler tests (decision-record §3.4/§4.6/§8.3/§25).
+ *
+ * Injected fake Env / DbClient / ECPay adapter — no network, no DB, no Deno.
+ */
+import { describe, expect, it, vi } from 'vitest';
+import {
+  createMockDb,
+  createFakeAdapter,
+  testEnv,
+  fakeLogger,
+  handlerRequest,
+  bearerHeaders,
+  PAYMENT_ROW,
+} from '../_shared/testing.ts';
+import { handleCheckout } from './handler.ts';
+import type { ConsentSubmission } from '../../../src/lib/payments/contract.ts';
+
+const TW_CONSENT: ConsentSubmission = {
+  jurisdiction: 'TW',
+  locale: 'zh-TW',
+  noticeVersion: 'tw-7day-removal-notice-v1',
+  consentVersion: 'tw-digital-content-consent-v1',
+  consentGranted: true,
+  noticeTextSnapshot: 'notice text',
+  consentTextSnapshot: 'consent text',
+};
+
+const CATALOG_TWD = {
+  book_id: 'book-a',
+  slug: 'keigo-essentials',
+  currency: 'TWD',
+  amount_minor: 79000,
+  published_revision: 'keigo-essentials@e1-r1',
+  released_at: '2026-01-01T00:00:00Z',
+};
+
+const CHECKOUT_URL = 'https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5';
+
+function setup(initial: Record<string, unknown> = {}) {
+  const mock = createMockDb({
+    'auth:getUser': { data: { id: 'user-1' } },
+    catalog: { data: CATALOG_TWD },
+    orders: { data: { id: 'ord-1' } },
+    order_compliance: { data: null },
+    payments: { data: PAYMENT_ROW },
+  });
+  const adapter = createFakeAdapter();
+  adapter.createCheckout.mockResolvedValue({
+    action: CHECKOUT_URL,
+    fields: { MerchantTradeNo: 'BJH123456789', CheckMacValue: 'MAC' },
+    provider: 'ecpay',
+    merchantReference: 'BJH123456789',
+  });
+  return {
+    mock,
+    adapter,
+    log: fakeLogger(),
+    deps: {
+      env: testEnv(),
+      db: mock.db,
+      adapter,
+      log: fakeLogger(),
+      now: () => new Date('2026-08-16T12:00:00Z'),
+      random: () => 0.5,
+      ...initial,
+    },
+  };
+}
+
+describe('checkout handler', () => {
+  it('TW with granted consent → order + order_compliance + payment created, instruction returned', async () => {
+    const { mock, adapter, deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
+    expect(result.status).toBe(200);
+    const body = JSON.parse(result.body) as { orderId: string; paymentId: string; instruction: { action: string } };
+    expect(body.orderId).toBe('ord-1');
+    expect(body.paymentId).toBe('pay-1');
+    expect(body.instruction.action).toBe(CHECKOUT_URL);
+
+    const orderInsert = mock.callsFor('orders', 'insert')[0];
+    expect(orderInsert.args[0]).toMatchObject({
+      user_id: 'user-1',
+      book_id: 'book-a',
+      amount_minor: 79000,
+      currency: 'TWD',
+      status: 'pending',
+    });
+    expect(mock.callsFor('order_compliance', 'insert').length).toBe(1);
+    const complianceInsert = mock.callsFor('order_compliance', 'insert')[0];
+    expect(complianceInsert.args[0]).toMatchObject({ order_id: 'ord-1', jurisdiction: 'TW', consent_granted: true });
+
+    const paymentInsert = mock.callsFor('payments', 'insert')[0];
+    expect(paymentInsert.args[0]).toMatchObject({
+      order_id: 'ord-1',
+      provider: 'ecpay',
+      amount_minor: 79000,
+      currency: 'TWD',
+      method: 'credit',
+      status: 'created',
+    });
+    expect(adapter.createCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: 'ord-1',
+        paymentId: 'pay-1',
+        amount: { amount: 79000, currency: 'TWD' },
+        locale: 'CHT',
+        returnUrl: 'https://test.supabase.co/functions/v1/ecpay-callback',
+        orderResultUrl: 'https://test.supabase.co/functions/v1/ecpay-browser-return',
+      }),
+    );
+    // created → pending transition after the provider instruction was built.
+    const paymentUpdate = mock.callsFor('payments', 'update')[0];
+    expect(paymentUpdate.args[0]).toMatchObject({ status: 'pending' });
+  });
+
+  it('TW without consent → refused (fail closed)', async () => {
+    const { deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a' }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'consent_required' });
+  });
+
+  it('TW with denied consent → refused', async () => {
+    const { deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: { ...TW_CONSENT, consentGranted: false } }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(422);
+  });
+
+  it('ignores client-supplied price tampering (amount/currency come from catalog only)', async () => {
+    const { mock, deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({
+          bookId: 'book-a',
+          consent: TW_CONSENT,
+          amount: 1,
+          currency: 'USD',
+          status: 'succeeded',
+          providerMerchantRef: 'HACKED-REF',
+        }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    const orderInsert = mock.callsFor('orders', 'insert')[0];
+    expect(orderInsert.args[0]).toMatchObject({ amount_minor: 79000, currency: 'TWD', status: 'pending' });
+    const paymentInsert = mock.callsFor('payments', 'insert')[0];
+    expect(paymentInsert.args[0]).toMatchObject({ amount_minor: 79000, currency: 'TWD' });
+    // The server-generated merchant ref must be used, never a client value.
+    expect(String(paymentInsert.args[0]).indexOf('HACKED-REF')).toBe(-1);
+  });
+
+  it('non-TWD catalog amount → UnsupportedCurrencyForProvider surfaces as refusal', async () => {
+    const { deps } = setup({});
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'user-1' } },
+      catalog: { data: { ...CATALOG_TWD, currency: 'JPY', amount_minor: 880 } },
+      orders: { data: { id: 'ord-1' } },
+      order_compliance: { data: null },
+      payments: { data: PAYMENT_ROW },
+    });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      { ...deps, db: mock.db },
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'unsupported_currency' });
+    // No order/payment rows may be created for an unpayable book.
+    expect(mock.callsFor('orders', 'insert').length).toBe(0);
+    expect(mock.callsFor('payments', 'insert').length).toBe(0);
+  });
+
+  it('unknown book (no released catalog row) → 404', async () => {
+    const { deps } = setup({});
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'user-1' } },
+      catalog: { data: null },
+    });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      { ...deps, db: mock.db },
+    );
+    expect(result.status).toBe(404);
+  });
+
+  it('unauthenticated → 401', async () => {
+    const { deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(401);
+  });
+
+  it('method not POST → 405', async () => {
+    const { deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest('GET', 'https://test.supabase.co/functions/v1/checkout/books/book-a'),
+      deps,
+    );
+    expect(result.status).toBe(405);
+  });
+
+  it('re-uses the generated adapter for a locale mapping check (ja → JPN)', async () => {
+    const { adapter, deps } = setup({});
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'user-1' } },
+      catalog: { data: CATALOG_TWD },
+      orders: { data: { id: 'ord-1' } },
+      order_compliance: { data: null },
+      payments: { data: PAYMENT_ROW },
+    });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({
+          bookId: 'book-a',
+          consent: { ...TW_CONSENT, jurisdiction: 'JP', locale: 'ja' },
+        }),
+        bearerHeaders('jwt-1'),
+      ),
+      { ...deps, db: mock.db },
+    );
+    expect(result.status).toBe(200);
+    expect(adapter.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ locale: 'JPN' }));
+    expect(vi.isMockFunction(adapter.createCheckout)).toBe(true);
+  });
+});
