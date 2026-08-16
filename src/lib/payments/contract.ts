@@ -313,6 +313,14 @@ export const DEFAULT_TAX_CONFIG: TaxConfig = {
 
 export interface PurchaseIntent {
   bookId: string;
+  /**
+   * Display-only metadata. NEVER sent to the server and NEVER used for
+   * arithmetic (§8.3): the checkout executor sends only `bookId` (+ consent)
+   * and the server prices from the authoritative `catalog`. Kept optional for
+   * backward compatibility with display surfaces that still carry the label.
+   */
+  amount?: number;
+  currency?: string;
 }
 
 export type PurchaseResult =
