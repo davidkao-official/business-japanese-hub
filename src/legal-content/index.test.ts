@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { SUPPORTED_LOCALES } from '../i18n/strings'
-import { getLegalDocumentBySlug, listLegalDocuments, SELLER_DISCLOSURE } from './index'
+import {
+  getLegalDocumentBySlug,
+  listLegalDocuments,
+  requireLegalDocumentBySlug,
+  SELLER_DISCLOSURE,
+} from './index'
 import { LEGAL_DOCUMENTS } from './documents'
 
 describe('legal content', () => {
@@ -36,6 +41,17 @@ describe('legal content', () => {
     }
   })
 
+  it('keeps defined legal-section ids unique within each document locale', () => {
+    for (const doc of listLegalDocuments()) {
+      for (const locale of SUPPORTED_LOCALES) {
+        const ids = doc.bodies[locale]
+          .map((section) => section.id)
+          .filter((id): id is string => id !== undefined)
+        expect(new Set(ids).size, `${doc.slug}/${locale} has duplicate section ids`).toBe(ids.length)
+      }
+    }
+  })
+
   it('is versioned and currently in draft status', () => {
     for (const doc of listLegalDocuments()) {
       expect(doc.version).toMatch(/^v\d+$/)
@@ -54,10 +70,15 @@ describe('legal content', () => {
     }
   })
 
-  it('looks documents up by slug and returns undefined for unknown slugs', () => {
+  it('keeps optional route lookup separate from fail-closed compliance lookup', () => {
     expect(getLegalDocumentBySlug('terms')?.id).toBe('terms')
     expect(getLegalDocumentBySlug('tokushoho')?.id).toBe('tokushoho')
     expect(getLegalDocumentBySlug('nope')).toBeUndefined()
+
+    expect(requireLegalDocumentBySlug('refunds').id).toBe('refunds')
+    expect(() => requireLegalDocumentBySlug('nope')).toThrow(
+      'Required legal document is unavailable: nope',
+    )
   })
 
   it('exports the pending seller disclosure placeholder (pre-sale gate)', () => {

@@ -21,24 +21,79 @@
  * references the exact text that was displayed.
  */
 import type { Locale } from '../../i18n/strings';
-import { getStrings } from '../../i18n/strings';
-import { getLegalDocumentBySlug } from '../../legal-content';
+import { requireLegalDocumentBySlug } from '../../legal-content';
+import type { LegalDocument, LegalSection } from '../../legal-content';
 import type { ConsentSubmission, Jurisdiction, ResolvedJurisdiction } from '../payments/contract';
 import { isResolvedJurisdiction } from '../payments/contract';
 
 /** The UI locale a TW buyer sees — the consent texts are fixed to zh-TW. */
 const TW_LOCALE: Locale = 'zh-TW';
 
-/** Versioned legal documents carrying the jurisdiction-specific disclosures. */
-const TW_NOTICE_DOCUMENT = getLegalDocumentBySlug('refunds');
-const JP_NOTICE_DOCUMENT = getLegalDocumentBySlug('tokushoho');
-const JP_CONSENT_DOCUMENT = getLegalDocumentBySlug('refunds');
+/** Stable machine ids on the versioned legal sections used as checkout evidence. */
+const TW_WITHDRAWAL_NOTICE_SECTION_ID = 'tw-withdrawal-notice';
+const TW_IMMEDIATE_DELIVERY_CONSENT_SECTION_ID = 'tw-immediate-delivery-consent';
+const JP_TOKUSHOHO_NOTICE_SECTION_ID = 'jp-tokushoho-seller-disclosure';
+const JP_REFUNDS_ACK_SECTION_ID = 'jp-refunds-acknowledgement';
 
-/** Stable version ids persisted as `order_compliance` evidence (contract shape: "<jur>-...-v1"). */
-export const TW_NOTICE_VERSION_ID = `tw-7day-removal-notice-${TW_NOTICE_DOCUMENT?.version ?? 'v1'}`;
-export const TW_CONSENT_VERSION_ID = `tw-digital-content-consent-${TW_NOTICE_DOCUMENT?.version ?? 'v1'}`;
-export const JP_NOTICE_VERSION_ID = `jp-tokushoho-disclosure-${JP_NOTICE_DOCUMENT?.version ?? 'v1'}`;
-export const JP_CONSENT_VERSION_ID = `jp-refunds-consent-${JP_CONSENT_DOCUMENT?.version ?? 'v1'}`;
+function requireEvidenceSection(
+  document: LegalDocument,
+  locale: Locale,
+  sectionId: string,
+  evidenceName: string,
+): LegalSection {
+  const matches = document.bodies[locale]?.filter((candidate) => candidate.id === sectionId) ?? [];
+  const section = matches.length === 1 ? matches[0] : undefined;
+  const paragraphs = section?.paragraphs;
+  if (
+    !section ||
+    !section.heading.trim() ||
+    !paragraphs ||
+    paragraphs.length === 0 ||
+    paragraphs.some((paragraph) => !paragraph.trim())
+  ) {
+    throw new Error(
+      `Required legal evidence is unavailable or malformed: ${document.slug}/${locale}/${evidenceName}`,
+    );
+  }
+  return section;
+}
+
+/** Versioned legal documents carrying the jurisdiction-specific disclosures. */
+const TW_NOTICE_DOCUMENT = requireLegalDocumentBySlug('refunds');
+const JP_NOTICE_DOCUMENT = requireLegalDocumentBySlug('tokushoho');
+const JP_CONSENT_DOCUMENT = requireLegalDocumentBySlug('refunds');
+
+/** Required sections are selected by stable ids and validated. No text/index fallback exists. */
+const TW_NOTICE_SECTION = requireEvidenceSection(
+  TW_NOTICE_DOCUMENT,
+  TW_LOCALE,
+  TW_WITHDRAWAL_NOTICE_SECTION_ID,
+  'tw-withdrawal-notice',
+);
+const TW_CONSENT_SECTION = requireEvidenceSection(
+  TW_NOTICE_DOCUMENT,
+  TW_LOCALE,
+  TW_IMMEDIATE_DELIVERY_CONSENT_SECTION_ID,
+  'tw-immediate-delivery-consent',
+);
+const JP_NOTICE_SECTION = requireEvidenceSection(
+  JP_NOTICE_DOCUMENT,
+  'ja',
+  JP_TOKUSHOHO_NOTICE_SECTION_ID,
+  'jp-tokushoho-notice',
+);
+const JP_CONSENT_SECTION = requireEvidenceSection(
+  JP_CONSENT_DOCUMENT,
+  'ja',
+  JP_REFUNDS_ACK_SECTION_ID,
+  'jp-refunds-acknowledgement',
+);
+
+/** Stable version ids persisted as `order_compliance` evidence (contract shape: "<jur>-...-vN"). */
+export const TW_NOTICE_VERSION_ID = `tw-7day-removal-notice-${TW_NOTICE_DOCUMENT.version}`;
+export const TW_CONSENT_VERSION_ID = `tw-digital-content-consent-${TW_NOTICE_DOCUMENT.version}`;
+export const JP_NOTICE_VERSION_ID = `jp-tokushoho-disclosure-${JP_NOTICE_DOCUMENT.version}`;
+export const JP_CONSENT_VERSION_ID = `jp-refunds-consent-${JP_CONSENT_DOCUMENT.version}`;
 
 /**
  * Jurisdiction is NEVER derived from the UI locale (presentation-only) — it is
@@ -61,23 +116,16 @@ export interface TwConsentInfo {
 }
 
 /**
- * The exact TW pre-delivery notice text (the 7-day right-of-withdrawal
- * exclusion) and the consent label, both derived from the versioned legal
- * content. `noticeText` is taken from the refunds document's zh-TW
- * "7 日解除權" section; `consentText` is the localized consent checkbox label.
+ * The exact TW pre-delivery notice and consent statement shown by PurchaseCTA.
+ * Both are stable-id sections of the same versioned refunds document, so the
+ * stored version ids and text snapshots have one authoritative source.
  */
 export function twConsentInfo(): TwConsentInfo {
-  const body = TW_NOTICE_DOCUMENT?.bodies[TW_LOCALE] ?? [];
-  const noticeSection = body.find((section) => section.heading.includes('7 日解除權'));
-  const noticeText =
-    noticeSection?.paragraphs.join('\n') ??
-    body[0]?.paragraphs[0] ??
-    'デジタルコンテンツの即時提供により、7日間のクーリング・オフが適用されない場合があります。';
   return {
     noticeVersion: TW_NOTICE_VERSION_ID,
     consentVersion: TW_CONSENT_VERSION_ID,
-    noticeText,
-    consentText: getStrings(TW_LOCALE).checkout.consentLabel,
+    noticeText: TW_NOTICE_SECTION.paragraphs.join('\n'),
+    consentText: TW_CONSENT_SECTION.paragraphs.join('\n'),
   };
 }
 
@@ -85,24 +133,25 @@ export function twConsentInfo(): TwConsentInfo {
  * The exact JP pre-sale disclosures: the 特定商取引法 disclosure (notice) and the
  * refund/returns policy (consent acknowledgment). JP has no 7-day waiver checkbox;
  * proceeding after viewing these disclosures is the consent (consentGranted: true).
- * Both text snapshots come from the versioned legal content so the persisted
- * evidence references the exact displayed text.
+ * Both snapshots come from stable-id, validated versioned legal sections.
  */
 export interface JpConsentInfo {
   noticeVersion: string;
   consentVersion: string;
+  noticeHeading: string;
+  consentHeading: string;
   noticeText: string;
   consentText: string;
 }
 
 export function jpConsentInfo(): JpConsentInfo {
-  const notice = JP_NOTICE_DOCUMENT?.bodies['ja'] ?? [];
-  const consent = JP_CONSENT_DOCUMENT?.bodies['ja'] ?? [];
   return {
     noticeVersion: JP_NOTICE_VERSION_ID,
     consentVersion: JP_CONSENT_VERSION_ID,
-    noticeText: notice[0]?.paragraphs.join('\n') ?? '特定商取引法に基づく表示',
-    consentText: consent[0]?.paragraphs.join('\n') ?? '返品・返金ポリシー',
+    noticeHeading: JP_NOTICE_SECTION.heading,
+    consentHeading: JP_CONSENT_SECTION.heading,
+    noticeText: JP_NOTICE_SECTION.paragraphs.join('\n'),
+    consentText: JP_CONSENT_SECTION.paragraphs.join('\n'),
   };
 }
 

@@ -148,8 +148,10 @@ describe('book detail — not-found + purchase seam', () => {
 
     const buy = await screen.findByRole('button', { name: /購入する/ })
     fireEvent.click(buy)
-    // Declare a consumer jurisdiction to reach the executor (fail-closed gate).
+    // Declare JP, then proceed only after the exact versioned disclosures have
+    // been rendered. The executor must not be reached before this confirmation.
     fireEvent.click(screen.getByRole('button', { name: '日本の消費者' }))
+    fireEvent.click(screen.getByRole('button', { name: '同意して購入する' }))
 
     expect(await screen.findByText('決済は準備中です。')).toBeInTheDocument()
   })
@@ -164,6 +166,7 @@ describe('book detail — not-found + purchase seam', () => {
     const buy = await screen.findByRole('button', { name: /購入する/ })
     fireEvent.click(buy)
     fireEvent.click(screen.getByRole('button', { name: '日本の消費者' }))
+    fireEvent.click(screen.getByRole('button', { name: '同意して購入する' }))
 
     expect(await screen.findByText('決済は準備中です。')).toBeInTheDocument()
     // The CTA must not stay disabled/pending after a rejection.

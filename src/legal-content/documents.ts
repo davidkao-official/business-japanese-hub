@@ -318,6 +318,7 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
   bodies: {
     ja: [
       {
+        id: 'jp-tokushoho-seller-disclosure',
         heading: '販売者',
         paragraphs: [
           '販売者名：販売者名確認中（登録名は確定次第表示します）。住所・電話番号・通信販売業務責任者名は確認中です。',
@@ -465,6 +466,7 @@ export const REFUNDS_DOCUMENT: LegalDocument = {
   bodies: {
     ja: [
       {
+        id: 'jp-refunds-acknowledgement',
         heading: '返品・返金の基本方針',
         paragraphs: [
           'デジタルコンテンツの性質上、購入後の返品・返金は、瑕疵（不具合）がある場合を除き、原則として受け付けておりません。',
@@ -547,10 +549,16 @@ export const REFUNDS_DOCUMENT: LegalDocument = {
         ],
       },
       {
+        id: 'tw-withdrawal-notice',
         heading: '台灣消費者保護法與 7 日解除權',
         paragraphs: [
           '若已於購買前取得「事先同意立即提供數位內容」，依台灣消費者保護法第 19 條之 7 日解除權可能不適用。本網站於購買流程中取得此項同意（同意機制屬購買功能之實作範圍）。',
         ],
+      },
+      {
+        id: 'tw-immediate-delivery-consent',
+        heading: '數位內容即時提供之事先同意',
+        paragraphs: ['本人同意立即提供／下載數位內容。'],
       },
       {
         heading: '退款申請程序',

@@ -12,10 +12,9 @@
  *   - TW → the 7-day right-of-withdrawal exclusion notice + a mandatory prior
  *     consent checkbox before the executor is called — unchecked submission is
  *     blocked (the executor's `consent_required` gate is defense in depth);
- *   - JP → proceeds after viewing the JP disclosures (the executor receives a
- *     JP proceeded-after-disclosure ConsentSubmission so the server persists
- *     order_compliance evidence). The server additionally applies the
- *     authoritative Japan tax-status gate.
+ *   - JP → the exact versioned Tokushoho + refund disclosures are rendered
+ *     before any executor call. Proceeding after viewing them records the same
+ *     displayed snapshots in order_compliance; no TW-style checkbox is used.
  */
 import { useRef, useState } from 'react'
 import type { Book } from '../content/types'
@@ -27,6 +26,7 @@ import {
   buildConsentSubmission,
   buildJpConsentSubmission,
   consentRequiredFor,
+  jpConsentInfo,
   twConsentInfo,
 } from '../lib/purchase/checkoutConsent'
 import type { CheckoutExecutor } from '../lib/purchase/executor'
@@ -42,7 +42,7 @@ export interface PurchaseCTAProps {
   jurisdiction?: ResolvedJurisdiction
 }
 
-type Phase = 'idle' | 'jurisdiction' | 'consent' | 'pending' | 'unavailable'
+type Phase = 'idle' | 'jurisdiction' | 'consent' | 'jp-disclosure' | 'pending' | 'unavailable'
 
 export function PurchaseCTA({
   book,
@@ -56,6 +56,7 @@ export function PurchaseCTA({
   const jurisdiction = jurisdictionProp ?? declared
   const consentRequired = consentRequiredFor(jurisdiction)
   const consentInfo = consentRequired ? twConsentInfo() : null
+  const jpDisclosureInfo = jurisdiction === 'JP' ? jpConsentInfo() : null
 
   const [phase, setPhase] = useState<Phase>('idle')
   const [consentChecked, setConsentChecked] = useState(false)
@@ -92,14 +93,13 @@ export function PurchaseCTA({
       setPhase('jurisdiction')
       return
     }
-    if (consentRequiredFor(jurisdiction)) {
+    if (jurisdiction === 'TW') {
       setAttempted(false)
       setPhase('consent')
       return
     }
-    // JP has no consent checkbox; proceeding after viewing the JP disclosures
-    // is the consent (buildJpConsentSubmission carries consentGranted: true).
-    void beginPurchase(buildJpConsentSubmission(locale))
+    // JP also gates payment handoff: show the exact evidence before proceeding.
+    setPhase('jp-disclosure')
   }
 
   const onDeclare = (declaredJurisdiction: ResolvedJurisdiction) => {
@@ -109,8 +109,9 @@ export function PurchaseCTA({
       setPhase('consent')
       return
     }
-    // JP proceeds after disclosure (server enforces the authoritative tax gate).
-    void beginPurchase(buildJpConsentSubmission(locale))
+    // Do not submit yet. The versioned JP disclosures must actually be visible
+    // before a proceeded-after-disclosure evidence record can be truthful.
+    setPhase('jp-disclosure')
   }
 
   const onCancelJurisdiction = () => {
@@ -131,14 +132,25 @@ export function PurchaseCTA({
     void beginPurchase(consent)
   }
 
+  const onConfirmJp = () => {
+    if (jurisdiction !== 'JP') return
+    void beginPurchase(buildJpConsentSubmission(locale))
+  }
+
   const onCancelConsent = () => {
     setConsentChecked(false)
     setAttempted(false)
     setPhase('idle')
   }
 
+  const onCancelJpDisclosure = () => {
+    setPhase('idle')
+  }
+
   const priceLabel = book.price ? formatPrice(book.price) : null
   const label = priceLabel ? `${strings.book.purchase}（${priceLabel}）` : strings.book.purchase
+  const showPrimaryButton =
+    phase !== 'jurisdiction' && phase !== 'consent' && phase !== 'jp-disclosure'
 
   return (
     <span className={`purchase-cta${className ? ` ${className}` : ''}`}>
@@ -163,7 +175,8 @@ export function PurchaseCTA({
           </span>
         </span>
       )}
-      {phase === 'consent' && consentInfo ? (
+
+      {phase === 'consent' && consentInfo && (
         <span
           className="purchase-cta__consent"
           role="region"
@@ -197,18 +210,44 @@ export function PurchaseCTA({
             </button>
           </span>
         </span>
-      ) : (
-        phase !== 'jurisdiction' && (
-          <button
-            type="button"
-            className="btn btn--primary"
-            onClick={onPrimaryClick}
-            disabled={phase === 'pending'}
-          >
-            {phase === 'pending' ? strings.book.pending : label}
-          </button>
-        )
       )}
+
+      {phase === 'jp-disclosure' && jpDisclosureInfo && (
+        <span
+          className="purchase-cta__consent"
+          role="region"
+          aria-label={jpDisclosureInfo.noticeHeading}
+        >
+          <span className="purchase-cta__notice" role="note">
+            <strong>{jpDisclosureInfo.noticeHeading}</strong>
+            <span className="purchase-cta__notice-text">{jpDisclosureInfo.noticeText}</span>
+          </span>
+          <span className="purchase-cta__notice" role="note">
+            <strong>{jpDisclosureInfo.consentHeading}</strong>
+            <span className="purchase-cta__notice-text">{jpDisclosureInfo.consentText}</span>
+          </span>
+          <span className="purchase-cta__actions">
+            <button type="button" className="btn btn--primary" onClick={onConfirmJp}>
+              {strings.checkout.confirmPurchase}
+            </button>
+            <button type="button" className="btn btn--ghost" onClick={onCancelJpDisclosure}>
+              {strings.checkout.cancel}
+            </button>
+          </span>
+        </span>
+      )}
+
+      {showPrimaryButton && (
+        <button
+          type="button"
+          className="btn btn--primary"
+          onClick={onPrimaryClick}
+          disabled={phase === 'pending'}
+        >
+          {phase === 'pending' ? strings.book.pending : label}
+        </button>
+      )}
+
       {phase === 'unavailable' && (
         <span className="purchase-cta__note" role="status">
           {strings.book.purchaseUnavailable}

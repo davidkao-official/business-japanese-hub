@@ -15,6 +15,8 @@ import type { Locale } from '../i18n/strings'
 export type LegalDocumentStatus = 'draft' | 'review' | 'live'
 
 export interface LegalSection {
+  /** Stable machine id for sections referenced by compliance evidence. */
+  id?: string
   heading: string
   paragraphs: string[]
 }
