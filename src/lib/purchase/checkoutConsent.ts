@@ -41,7 +41,8 @@ function requireEvidenceSection(
   sectionId: string,
   evidenceName: string,
 ): LegalSection {
-  const section = document.bodies[locale]?.find((candidate) => candidate.id === sectionId);
+  const matches = document.bodies[locale]?.filter((candidate) => candidate.id === sectionId) ?? [];
+  const section = matches.length === 1 ? matches[0] : undefined;
   const paragraphs = section?.paragraphs;
   if (
     !section ||
