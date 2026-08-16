@@ -1,12 +1,10 @@
 # Supabase project config (https://supabase.com/docs/guides/cli/config)
-# Minimal config for the #9 payment Edge Functions. Ingress `verify_jwt`
-# contract (decision-record §3.5):
-#   - checkout / orders-status / finance  → platform JWT gate ON
-#   - ecpay-callback / ecpay-browser-return → platform JWT gate OFF (ECPay server
-#     POST / browser navigation carry no user JWT; the handlers self-verify)
+# Minimal config for the payment Edge Functions. Ingress `verify_jwt` contract:
+#   - checkout / orders-status / finance → platform JWT gate ON
+#   - provider callbacks / browser returns → platform JWT gate OFF; callbacks
+#     self-verify provider authenticity and browser returns are state-neutral
 #   - repair-reconcile → gate OFF; the ONLY authorization is the shared
-#     scheduled-job secret header checked inside the handler (internal pg_cron
-#     callers carry that secret, not a user JWT — see 0004_scheduled_jobs.sql).
+#     scheduled-job secret header checked inside the handler.
 project_id = "business-japanese-hub"
 
 [api]
@@ -40,4 +38,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.ecpay-browser-return]
+verify_jwt = false
+
+[functions.paypal-webhook]
+verify_jwt = false
+
+[functions.paypal-browser-return]
 verify_jwt = false
