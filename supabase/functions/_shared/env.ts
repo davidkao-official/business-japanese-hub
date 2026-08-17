@@ -27,14 +27,18 @@ export interface Env {
   ecpayHashIV: string;
   /** 'stage' | 'prod'; undefined fails closed to stage (§16 — never mixed). */
   ecpayEnv: EcpayEnv | undefined;
-  /** PayPal OAuth client id (server-only; never client-facing, §15). */
-  paypalClientId: string;
-  /** PayPal OAuth client secret (server-only; never client-facing, §15). */
-  paypalClientSecret: string;
-  /** 'stage' | 'prod'; undefined fails closed to sandbox (§16). */
+  /**
+   * PayPal OAuth client id (server-only; never client-facing, §15). Optional:
+   * ECPay-only deployments must keep working without PayPal credentials —
+   * PayPal config is required only when a PayPal operation is actually used.
+   */
+  paypalClientId?: string;
+  /** PayPal OAuth client secret (server-only; never client-facing, §15). Optional. */
+  paypalClientSecret?: string;
+  /** 'sandbox' | 'prod'; undefined fails closed to sandbox (§16). Optional. */
   paypalEnv: PaypalEnv | undefined;
-  /** Server-configured webhook id used by verify-webhook-signature (§21). */
-  paypalWebhookId: string;
+  /** Server-configured webhook id used by verify-webhook-signature (§21). Optional. */
+  paypalWebhookId?: string;
   /** Secret shared with the pg_cron / pg_net scheduled-job callers. */
   scheduledJobSecret: string | undefined;
   /**
@@ -80,10 +84,13 @@ export function readEnvFrom(reader: EnvReader): Env {
     ecpayHashKey: required(reader, 'ECPAY_HASH_KEY'),
     ecpayHashIV: required(reader, 'ECPAY_HASH_IV'),
     ecpayEnv: parseEcpayEnv(reader.get('ECPAY_ENV')),
-    paypalClientId: required(reader, 'PAYPAL_CLIENT_ID'),
-    paypalClientSecret: required(reader, 'PAYPAL_CLIENT_SECRET'),
+    // PayPal credentials are OPTIONAL at read time — an ECPay-only deployment
+    // must boot and serve TWD without them. The adapter factories fail closed
+    // only when a PayPal operation is actually requested (#21).
+    paypalClientId: reader.get('PAYPAL_CLIENT_ID'),
+    paypalClientSecret: reader.get('PAYPAL_CLIENT_SECRET'),
     paypalEnv: parsePaypalEnv(reader.get('PAYPAL_ENV')),
-    paypalWebhookId: required(reader, 'PAYPAL_WEBHOOK_ID'),
+    paypalWebhookId: reader.get('PAYPAL_WEBHOOK_ID'),
     scheduledJobSecret: reader.get('SCHEDULED_JOB_SECRET'),
     fundingReconCsv: reader.get('FUNDING_RECON_CSV'),
   };

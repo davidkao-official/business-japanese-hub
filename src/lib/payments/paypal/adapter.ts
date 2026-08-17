@@ -281,14 +281,16 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
   }
 
   /**
-   * Verify a PayPal webhook (§21): requires the transmission headers, checks the
-   * signature via `POST /v1/notifications/verify-webhook-signature` (the
-   * authoritative SDK-free path), then normalizes the event. `webhook_event` is
-   * the parsed raw body — the request is sent compact and in received key order
-   * so the CRC32 over it matches what PayPal signed; any deviation fails closed
-   * (verification ≠ SUCCESS → throw). A verified event with a non-successful
-   * capture status is NOT a rejection — it is returned as a normalized
-   * `failed` / `unknown` event for durable persistence.
+   * Verify a PayPal webhook (§21): requires the transmission headers, then
+   * checks the signature via PayPal's postback `POST /v1/notifications/
+   * verify-webhook-signature` endpoint (the authoritative SDK-free path). The
+   * raw request body is kept byte-for-byte for the event fingerprint and
+   * sanitized evidence; the `webhook_event` field posted back is the parsed
+   * event object. Verification is fail-closed: any non-SUCCESS result (or
+   * missing transmission header / malformed body) throws and grants nothing. A
+   * verified event with a non-successful capture status is NOT a rejection — it
+   * is returned as a normalized `failed` / `unknown` event for durable
+   * persistence.
    */
   async verifyCallback(request: ProviderCallbackRequest): Promise<VerifiedProviderEvent> {
     if (request.provider !== 'paypal') {

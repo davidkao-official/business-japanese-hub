@@ -589,4 +589,58 @@ describe('checkout handler — currency → provider routing (§21)', () => {
     expect(mock.callsFor('orders', 'insert').length).toBe(0);
     expect(mock.callsFor('payments', 'insert').length).toBe(0);
   });
+
+  it('TWD/ECPay checkout works when PayPal is NOT configured (ECPay-only deployment)', async () => {
+    const { mock, adapter, deps } = setup({
+      env: testEnv({ paypalClientId: undefined, paypalClientSecret: undefined, paypalWebhookId: undefined }),
+    });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    // The ECPay adapter is used and the payment is created as TWD/ecpay.
+    expect(adapter.createCheckout).toHaveBeenCalledTimes(1);
+    expect(mock.callsFor('payments', 'insert')[0].args[0]).toMatchObject({
+      provider: 'ecpay',
+      currency: 'TWD',
+      amount_minor: 79000,
+    });
+  });
+
+  it('USD checkout with PayPal NOT configured → refused BEFORE any insert (no silent fallback)', async () => {
+    const { deps } = usdSetup();
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'user-1' } },
+      catalog: { data: CATALOG_USD },
+      orders: { data: { id: 'ord-1' } },
+      order_compliance: { data: null },
+      payments: { data: PAYMENT_ROW },
+      ...jpTax('taxable'),
+    });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-usd',
+        JSON.stringify({ bookId: 'book-usd', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      {
+        ...deps,
+        env: testEnv({ paypalClientId: undefined, paypalClientSecret: undefined, paypalWebhookId: undefined }),
+        db: mock.db,
+      },
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'provider_configuration_unavailable' });
+    // Fail closed BEFORE creating any Order / Payment row.
+    expect(mock.callsFor('orders', 'insert').length).toBe(0);
+    expect(mock.callsFor('payments', 'insert').length).toBe(0);
+    expect(mock.callsFor('order_compliance', 'insert').length).toBe(0);
+  });
 });

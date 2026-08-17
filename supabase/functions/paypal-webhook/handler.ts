@@ -41,6 +41,7 @@ import {
   type HandlerResult,
 } from '../_shared/http.ts';
 import { buildPaymentEventRow } from '../_shared/events.ts';
+import { isPaypalConfigured } from '../_shared/paypal.ts';
 import {
   applyPaymentEvent,
   applyVerifiedSuccess,
@@ -62,6 +63,15 @@ export async function handlePaypalWebhook(
   deps: PaypalWebhookHandlerDeps,
 ): Promise<HandlerResult> {
   if (req.method !== 'POST') return methodNotAllowed('POST');
+  // Fail closed when PayPal server-side config is absent: an ECPay-only
+  // deployment must not process (or ack) PayPal webhooks, and this endpoint
+  // must never grant without a verified signature (§21).
+  if (!isPaypalConfigured(deps.env)) {
+    return jsonResult(503, {
+      error: 'paypal is not configured',
+      reason: 'provider_configuration_unavailable',
+    });
+  }
   const now = deps.now ?? (() => new Date());
 
   // 1. Signature + payload verification (throws on invalid → 4xx, no ack). The

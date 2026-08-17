@@ -41,6 +41,7 @@ import type { DbClient } from '../_shared/db.ts';
 import type { Logger } from '../_shared/log.ts';
 import { authenticateBearer } from '../_shared/auth.ts';
 import { mapLocaleToEcpayLanguage } from '../_shared/ecpay.ts';
+import { isPaypalConfigured } from '../_shared/paypal.ts';
 import { generateMerchantReference, isMerchantRefCollision } from '../_shared/merchant-ref.ts';
 import { applyPaymentEvent, type PaymentRow } from '../_shared/flow.ts';
 import type { ProviderAdapters } from '../_shared/provider.ts';
@@ -203,6 +204,15 @@ async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerRes
   // currency (e.g. JPY) is unsupported and refuses BEFORE any insert (#20 stays
   // untouched). The client never decides the provider.
   const provider = resolveProviderForCurrency(currency);
+  // USD → PayPal requires PayPal server-side config. Refuse BEFORE creating any
+  // Order / Payment row when it is absent (never silently fall USD back to
+  // another provider) — an ECPay-only deployment keeps serving TWD (§21).
+  if (provider === 'paypal' && !isPaypalConfigured(deps.env)) {
+    return jsonResult(422, {
+      error: 'checkout refused: paypal provider is not configured',
+      reason: 'provider_configuration_unavailable',
+    });
+  }
   const adapter = deps.adapters[provider];
 
   let orderId: string | null = null;

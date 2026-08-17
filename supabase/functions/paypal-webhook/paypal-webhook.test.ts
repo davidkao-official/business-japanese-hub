@@ -118,6 +118,24 @@ function run(
 }
 
 describe('paypal-webhook handler', () => {
+  it('fails closed (503) when PayPal is NOT configured — no processing, no grant', async () => {
+    const { mock, adapter } = baseMock();
+    const result = await handlePaypalWebhook(
+      handlerRequest('POST', 'https://test.supabase.co/functions/v1/paypal-webhook', WEBHOOK_BODY, WEBHOOK_HEADERS),
+      {
+        env: testEnv({ paypalClientId: undefined, paypalClientSecret: undefined, paypalWebhookId: undefined }),
+        db: mock.db,
+        adapter,
+        log: fakeLogger(),
+      },
+    );
+    expect(result.status).toBe(503);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'provider_configuration_unavailable' });
+    // Never acks, never persists an event, never grants.
+    expect(mock.callsFor('payment_events', 'insert').length).toBe(0);
+    expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
+  });
+
   it('forged / unverified webhook → rejected (no ack, no processing)', async () => {
     const { mock, adapter } = baseMock();
     adapter.verifyCallback.mockRejectedValue(new Error('invalid webhook signature or payload'));

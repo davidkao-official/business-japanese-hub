@@ -15,6 +15,8 @@ import { fetchFinanceRole } from '../_shared/finance-role.ts';
 import type { DbClient } from '../_shared/db.ts';
 import type { Logger } from '../_shared/log.ts';
 import type { ProviderAdapters } from '../_shared/provider.ts';
+import { PaypalConfigurationUnavailableError } from '../_shared/paypal.ts';
+import type { ProviderRefundResult } from '../../../src/lib/payments/contract.ts';
 import {
   badRequest,
   forbidden,
@@ -259,12 +261,27 @@ async function requestManualRefund(
     payment.provider_payment_ref &&
     (payment.status === 'succeeded' || payment.status === 'duplicate_success')
   ) {
-    const refundResult = await deps.adapters.paypal.refund({
-      paymentId: payment.id,
-      providerPaymentRef: payment.provider_payment_ref,
-      amount: { amount: Number(payment.amount_minor), currency: payment.currency },
-      merchantReference: payment.provider_merchant_ref,
-    });
+    let refundResult: ProviderRefundResult;
+    try {
+      refundResult = await deps.adapters.paypal.refund({
+        paymentId: payment.id,
+        providerPaymentRef: payment.provider_payment_ref,
+        amount: { amount: Number(payment.amount_minor), currency: payment.currency },
+        merchantReference: payment.provider_merchant_ref,
+      });
+    } catch (err) {
+      if (err instanceof PaypalConfigurationUnavailableError) {
+        deps.log.warn(
+          { paymentId: payment.id, refundId: refundInsert.data.id },
+          'paypal refund refused: provider not configured; refund left requested',
+        );
+        return jsonResult(502, {
+          error: 'paypal is not configured',
+          reason: 'provider_configuration_unavailable',
+        });
+      }
+      throw err;
+    }
     if (refundResult.ok && refundResult.status === 'succeeded') {
       try {
         await confirmRefund(
