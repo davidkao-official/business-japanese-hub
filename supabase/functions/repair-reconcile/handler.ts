@@ -151,7 +151,9 @@ export async function handleRepairReconcile(
  * refunds is the source of truth and entitlement is revoked exactly once.
  * Ambiguous results stay in a recoverable state. A refund OLDER than the
  * retention window is NEVER auto-resumed (no refund POST) — it is marked
- * `provider_status_code = REVIEW_REQUIRED` for operator/reconciliation review.
+ * `provider_status_code = REVIEW_REQUIRED` for operator/reconciliation review,
+ * and the scan QUERY excludes rows already marked REVIEW_REQUIRED (NULL-safe)
+ * so they neither starve `REPAIR_SCAN_LIMIT` nor get re-POSTed.
  */
 async function runRefundResume(
   deps: RepairReconcileHandlerDeps,
@@ -162,6 +164,11 @@ async function runRefundResume(
     .select('*')
     .eq('provider', 'paypal')
     .in('status', ['requested', 'processing'])
+    // §21/B7: exclude refunds already routed to operator review so they never
+    // consume REPAIR_SCAN_LIMIT or get re-POSTed. NULL-safe: rows with a NULL
+    // provider_status_code (normal recent refunds) remain eligible, and only
+    // rows explicitly marked REVIEW_REQUIRED are filtered out.
+    .or('provider_status_code.is.null,provider_status_code.neq.REVIEW_REQUIRED')
     .limit(REPAIR_SCAN_LIMIT);
   if (error) throw new Error(`refund resume scan failed: ${error.message}`);
   const rows = (data ?? []) as unknown as RefundRow[];

@@ -86,6 +86,10 @@ export function createMockDb(initial?: Record<string, MockRoute>): MockDb {
         record(table, 'in', args);
         return builder;
       },
+      or: (...args) => {
+        record(table, 'or', args);
+        return builder;
+      },
       order: (...args) => {
         record(table, 'order', args);
         return builder;
