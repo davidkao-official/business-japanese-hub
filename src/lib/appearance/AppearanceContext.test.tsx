@@ -181,4 +181,11 @@ describe('AppearanceProvider', () => {
     expect(screen.getByTestId('effective')).toHaveTextContent('dark')
     expect(document.documentElement.dataset.theme).toBe('dark')
   })
+
+  it('starts each test from a neutral document theme (no leakage)', () => {
+    // Regression: the provider leaves <html data-theme> set for its mount, so
+    // setup.ts resets the shared jsdom document before each test. A prior dark
+    // test in this file must not leak theme state into the next test.
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false)
+  })
 })
