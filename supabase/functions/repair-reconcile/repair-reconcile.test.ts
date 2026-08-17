@@ -162,4 +162,81 @@ describe('repair-reconcile handler', () => {
     );
     expect(result.status).toBe(405);
   });
+
+  it('B3: resumes a PayPal processing refund → provider confirms → refund succeeded + entitlement revoked exactly once', async () => {
+    const paypalPayment = {
+      id: 'pay-1',
+      order_id: 'ord-1',
+      provider: 'paypal',
+      provider_merchant_ref: 'BJH202608160001',
+      provider_payment_ref: 'CAPTURE-1',
+      amount_minor: 1999,
+      currency: 'USD',
+      method: 'credit',
+      status: 'succeeded',
+      provider_status_code: null,
+      provider_status_message: null,
+      created_at: '2026-08-16T11:55:00Z', // recent — not a Layer B stale candidate
+      paid_at: '2026-08-16T11:00:00Z',
+      last_verified_at: null,
+      provider_fee_amount_minor: null,
+      reconciliation_status: null,
+    };
+    const paypalOrder = { ...ORDER_ROW, status: 'paid', currency: 'USD', amount_minor: 1999 };
+    const mock = createMockDb({
+      payments: { data: [paypalPayment] },
+      orders: { data: paypalOrder },
+      'rpc:grant_entitlement': { data: null },
+      refunds: {
+        data: [{
+          id: 'ref-1',
+          payment_id: 'pay-1',
+          provider: 'paypal',
+          provider_refund_ref: null,
+          amount_minor: 1999,
+          currency: 'USD',
+          status: 'processing',
+          reason_code: null,
+          requested_by: 'user-1',
+          provider_status_code: 'TRANSPORT_UNAVAILABLE',
+          requested_at: '2026-08-16T11:00:00Z',
+          completed_at: null,
+        }],
+      },
+      book_entitlement: { data: null },
+      admin_audit_log: { data: null },
+    });
+    const paypalAdapter = createFakeAdapter('paypal');
+    paypalAdapter.refund.mockResolvedValue({
+      ok: true,
+      status: 'succeeded',
+      providerRefundRef: 'REFUND-1',
+      rawStatusCode: 'COMPLETED',
+    });
+    const deps = {
+      env: testEnv(),
+      db: mock.db,
+      adapters: { ecpay: createFakeAdapter(), paypal: paypalAdapter },
+      log: fakeLogger(),
+      now: () => new Date('2026-08-16T12:00:00Z'),
+    };
+
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.body)).toMatchObject({ refunds_confirmed: 1 });
+
+    // The resume re-used the SAME stable PayPal-Request-Id (keyed on payment id).
+    expect(paypalAdapter.refund).toHaveBeenCalledWith(
+      expect.objectContaining({ paymentId: 'pay-1', providerPaymentRef: 'CAPTURE-1', amount: { amount: 1999, currency: 'USD' } }),
+    );
+    // Provider-confirmed refund → refunds succeeded (fact source) + entitlement
+    // revoked exactly once (no second monetary refund, no double revoke).
+    const succeededUpdate = mock.callsFor('refunds', 'update').find((c) => c.args[0]?.status === 'succeeded');
+    expect(succeededUpdate).toBeDefined();
+    expect(mock.callsFor('book_entitlement', 'update').length).toBe(1);
+    expect(mock.callsFor('book_entitlement', 'update')[0].args[0]).toMatchObject({
+      status: 'revoked',
+      revocation_reason: 'refund',
+    });
+  });
 });

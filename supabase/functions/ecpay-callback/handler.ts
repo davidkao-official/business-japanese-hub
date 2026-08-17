@@ -98,10 +98,18 @@ export async function handleEcpayCallback(
     deps.log.error({ error: eventInsert.error.message }, 'payment_events insert failed; NOT acknowledging');
     return jsonResult(500, { error: 'event persist failed' });
   }
-  if (!eventInsert.data) {
-    deps.log.info({ eventFingerprint: event.eventFingerprint }, 'duplicate callback (replay) — idempotent 1|OK');
-    return textResult(200, '1|OK');
+  const isReplay = !eventInsert.data;
+  if (isReplay) {
+    deps.log.info(
+      { eventFingerprint: event.eventFingerprint },
+      'duplicate callback (replay) — re-applying idempotently',
+    );
   }
+  // Continue processing REGARDLESS of fresh/replay (§21/B2): the verified path
+  // is idempotent (state.ts + grant upsert + grant-first ordering), so a replay
+  // after a partially-failed first delivery self-heals the missing work instead
+  // of being silently acked with a bare `1|OK` and never granting. Normal ACK
+  // behavior and exactly-one entitlement are preserved.
 
   // 3. Local payment lookup by MerchantTradeNo (unknown ref → no entitlement).
   let payment: PaymentRow;

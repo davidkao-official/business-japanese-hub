@@ -249,6 +249,32 @@ describe('paypal-webhook handler', () => {
     expect(mock.rpcCalls('grant_entitlement').length).toBe(1);
   });
 
+  it('B5: a CAPTURE.COMPLETED without resource.custom_id correlates via the related order and grants exactly once', async () => {
+    // The adapter resolves the merchant ref from the authoritative PayPal Order
+    // (payload has capture id / amount / status / related order id, NO custom_id).
+    // Here verifyCallback is faked to the resolved event; the handler must still
+    // correlate by provider_merchant_ref and grant exactly once (§21/B5).
+    const { mock, adapter } = baseMock();
+    adapter.verifyCallback.mockResolvedValue({
+      ...EVENT_OK,
+      providerMerchantRef: 'BJH202608160001',
+      providerPaymentRef: 'ORDER-1',
+    });
+    adapter.confirmPayment.mockResolvedValue(SNAPSHOT_OK);
+    const result = await run(adapter, mock.db);
+    expect(result.status).toBe(200);
+    expect(mock.rpcCalls('grant_entitlement').length).toBe(1);
+  });
+
+  it('B5: never grants when the correlated custom_id matches no local payment', async () => {
+    const { mock, adapter } = baseMock({ payments: { data: null } });
+    // The resolved order custom_id is not this payment's merchant ref.
+    adapter.verifyCallback.mockResolvedValue({ ...EVENT_OK, providerMerchantRef: 'SOMEONE-ELSE' });
+    const result = await run(adapter, mock.db);
+    expect(result.status).toBe(404);
+    expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
+  });
+
   it('second real success on an already-paid order → duplicate_success, never a second entitlement', async () => {
     const { mock, adapter } = baseMock({
       // The order was already paid by an EARLIER payment; this is a genuine

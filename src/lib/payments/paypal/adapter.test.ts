@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   InvalidWebhookSignatureError,
   PaypalPaymentProviderAdapter,
+  RECONCILE_MAX_PAGES,
+  ReconciliationIncompleteError,
   paypalMoneyFromString,
   sanitizePaypalEvent,
   usdMajorFromCanonical,
@@ -246,6 +248,81 @@ describe('PaypalPaymentProviderAdapter.verifyCallback', () => {
       adapter.verifyCallback({ form: {}, provider: 'ecpay' }),
     ).rejects.toThrow(/cannot verify provider 'ecpay'/);
   });
+
+  it('B1: posts the EXACT received event bytes as webhook_event (no re-serialization)', async () => {
+    // Deliberately non-canonical JSON: unusual whitespace + non-alphabetical key
+    // order. PayPal's signature covers the event exactly as received, so the
+    // postback must embed these exact bytes — never a re-serialized object.
+    const rawBody =
+      '{ "summary" :   "Payment completed", "resource" : { "status" : "COMPLETED", "custom_id" : "BJH202608160001", "amount" : { "value" : "19.99", "currency_code" : "USD" }, "id" : "CAPTURE-1", "supplementary_data" : { "related_ids" : { "order_id" : "ORDER-1" } } }, "event_type" : "PAYMENT.CAPTURE.COMPLETED", "id" : "WEBHOOK-1" }';
+    const { transport, requests } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v1/notifications/verify-webhook-signature', 200, JSON.parse(VERIFY_OK)),
+    ]);
+    const adapter = makeAdapter({ transport });
+    await adapter.verifyCallback({ provider: 'paypal', body: rawBody, headers: webhookHeaders() });
+
+    const verify = requests.find((r) => r.url.includes('/v1/notifications/verify-webhook-signature'));
+    expect(verify).toBeDefined();
+    // The exact received bytes are embedded verbatim as the webhook_event value.
+    expect(verify!.body).toContain(`"webhook_event":${rawBody}`);
+    // The odd whitespace/key-order representation is present — a canonical
+    // re-serialization would not contain it.
+    expect(verify!.body).toContain('{ "summary" :   "Payment completed"');
+    // The embedded event still parses (it is the raw event object, intact).
+    expect(JSON.parse(verify!.body).webhook_event.id).toBe('WEBHOOK-1');
+  });
+
+  it('B5: correlates a CAPTURE.COMPLETED without resource.custom_id via the related order', async () => {
+    const rawBody = JSON.stringify({
+      id: 'WEBHOOK-3',
+      event_type: 'PAYMENT.CAPTURE.COMPLETED',
+      resource: {
+        id: 'CAPTURE-1',
+        status: 'COMPLETED',
+        amount: { currency_code: 'USD', value: '19.99' },
+        create_time: '2026-08-16T10:31:00Z',
+        // No resource.custom_id — documented omission; only the related order id.
+        supplementary_data: { related_ids: { order_id: 'ORDER-1' } },
+      },
+    });
+    const orderBody = JSON.stringify({
+      id: 'ORDER-1',
+      status: 'COMPLETED',
+      purchase_units: [{ custom_id: 'BJH202608160001', amount: { currency_code: 'USD', value: '19.99' } }],
+    });
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v1/notifications/verify-webhook-signature', 200, JSON.parse(VERIFY_OK)),
+      jsonRoute('/v2/checkout/orders/ORDER-1', 200, JSON.parse(orderBody)),
+    ]);
+    const adapter = makeAdapter({ transport });
+    const event = await adapter.verifyCallback({ provider: 'paypal', body: rawBody, headers: webhookHeaders() });
+    expect(event.providerMerchantRef).toBe('BJH202608160001');
+    expect(event.providerPaymentRef).toBe('ORDER-1');
+    expect(event.status).toBe('succeeded');
+  });
+
+  it('B5: fails closed when the capture custom_id is absent AND the order cannot resolve it', async () => {
+    const rawBody = JSON.stringify({
+      id: 'WEBHOOK-4',
+      event_type: 'PAYMENT.CAPTURE.COMPLETED',
+      resource: {
+        id: 'CAPTURE-1',
+        status: 'COMPLETED',
+        supplementary_data: { related_ids: { order_id: 'ORDER-X' } },
+      },
+    });
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v1/notifications/verify-webhook-signature', 200, JSON.parse(VERIFY_OK)),
+      { match: '/v2/checkout/orders/ORDER-X', status: 404, body: '{}' },
+    ]);
+    const adapter = makeAdapter({ transport });
+    await expect(
+      adapter.verifyCallback({ provider: 'paypal', body: rawBody, headers: webhookHeaders() }),
+    ).rejects.toThrow(/missing custom_id/);
+  });
 });
 
 describe('PaypalPaymentProviderAdapter.confirmPayment', () => {
@@ -380,6 +457,50 @@ describe('PaypalPaymentProviderAdapter.refund / reconcile', () => {
     ).rejects.toBeInstanceOf(UnsupportedCurrencyForProvider);
   });
 
+  it('B3: a transport exception after refund dispatch is recoverable (pending, not failed)', async () => {
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+    ]); // no refund route → the request throws (network reset / timeout)
+    const adapter = makeAdapter({ transport });
+    const result = await adapter.refund({
+      paymentId: 'pay-1',
+      providerPaymentRef: 'CAPTURE-1',
+      amount: { amount: 1999, currency: 'USD' },
+      merchantReference: 'BJH202608160001',
+    });
+    expect(result).toEqual({ ok: true, status: 'pending', rawStatusCode: 'TRANSPORT_UNAVAILABLE' });
+  });
+
+  it('B3: an ambiguous HTTP 5xx refund response is recoverable (pending, not failed)', async () => {
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v2/payments/captures/CAPTURE-1/refund', 500, '{}'),
+    ]);
+    const adapter = makeAdapter({ transport });
+    const result = await adapter.refund({
+      paymentId: 'pay-1',
+      providerPaymentRef: 'CAPTURE-1',
+      amount: { amount: 1999, currency: 'USD' },
+      merchantReference: 'BJH202608160001',
+    });
+    expect(result).toEqual({ ok: true, status: 'pending', rawStatusCode: 'HTTP_500' });
+  });
+
+  it('B3: a definitive 4xx refund response is terminal failed', async () => {
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v2/payments/captures/CAPTURE-1/refund', 422, JSON.stringify({ name: 'UNPROCESSABLE_ENTITY', details: [] })),
+    ]);
+    const adapter = makeAdapter({ transport });
+    const result = await adapter.refund({
+      paymentId: 'pay-1',
+      providerPaymentRef: 'CAPTURE-1',
+      amount: { amount: 1999, currency: 'USD' },
+      merchantReference: 'BJH202608160001',
+    });
+    expect(result).toEqual({ ok: false, status: 'failed', rawStatusCode: 'HTTP_422' });
+  });
+
   it('reconcile returns the reporting transaction entries', async () => {
     const { transport } = fakeTransport([
       jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
@@ -389,6 +510,46 @@ describe('PaypalPaymentProviderAdapter.refund / reconcile', () => {
     const data = await adapter.reconcile({ from: '2026-08-15', to: '2026-08-16' });
     expect(data.provider).toBe('paypal');
     expect(data.entries).toHaveLength(1);
+  });
+
+  it('B4: reconciles ALL pages (page/page_size/total_pages), never truncating', async () => {
+    const requests: RecordedRequest[] = [];
+    const transport: PaypalTransport = {
+      async request(method, url, init = {}) {
+        requests.push({ method, url, body: init.body ?? '', headers: init.headers ?? {} });
+        if (url.includes('/v1/oauth2/token')) return { status: 200, body: OAUTH_BODY };
+        if (url.includes('/v1/reporting/transactions')) {
+          const page = new URL(url).searchParams.get('page') ?? '1';
+          return { status: 200, body: JSON.stringify({ transaction_details: [{ page }], total_pages: 3 }) };
+        }
+        throw new Error(`fake transport: no route for ${method} ${url}`);
+      },
+    };
+    const adapter = makeAdapter({ transport });
+    const data = await adapter.reconcile({ from: '2026-08-15', to: '2026-08-16' });
+
+    expect(data.entries).toEqual([{ page: '1' }, { page: '2' }, { page: '3' }]);
+    const pages = requests.filter((r) => r.url.includes('/v1/reporting/transactions'));
+    expect(pages).toHaveLength(3);
+    expect(pages[0].url).toContain('page_size=500');
+    expect(pages[0].url).toContain('page=1');
+    expect(pages[2].url).toContain('page=3');
+  });
+
+  it('B4: fails explicitly when the range exceeds the page cap (never silently truncates)', async () => {
+    const transport: PaypalTransport = {
+      async request(_method, url) {
+        if (url.includes('/v1/oauth2/token')) return { status: 200, body: OAUTH_BODY };
+        if (url.includes('/v1/reporting/transactions')) {
+          return { status: 200, body: JSON.stringify({ transaction_details: [], total_pages: RECONCILE_MAX_PAGES + 1 }) };
+        }
+        throw new Error(`fake transport: no route for ${url}`);
+      },
+    };
+    const adapter = makeAdapter({ transport });
+    await expect(adapter.reconcile({ from: '2026-08-15', to: '2026-08-16' })).rejects.toBeInstanceOf(
+      ReconciliationIncompleteError,
+    );
   });
 });
 

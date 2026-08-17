@@ -223,21 +223,50 @@ describe('ecpay-callback handler', () => {
     expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
   });
 
-  it('same callback twice (replay) → one transition, one entitlement, idempotent 1|OK', async () => {
+  it('same callback twice (replay) → no second grant, order stays paid, idempotent 1|OK', async () => {
     const { mock, adapter } = baseMock();
     const first = await run(FORM_OK, adapter, mock.db);
     expect(first.status).toBe(200);
     expect(first.body).toBe('1|OK');
+    expect(mock.rpcCalls('grant_entitlement').length).toBe(1);
 
-    // Replay: the UNIQUE(provider, event_fingerprint) insert is ignored (null row).
+    // Replay: the UNIQUE(provider, event_fingerprint) insert is ignored (null
+    // row), and the handler re-processes against PERSISTED state (payment
+    // succeeded, order paid) → no second grant, order never downgrades (§21/B2).
     mock.setRoute('payment_events', { data: null });
+    mock.setRoute('payments', { data: { ...PAYMENT_ROW, status: 'succeeded', paid_at: '2026-08-16T12:00:00Z' } });
+    mock.setRoute('orders', { data: { ...ORDER_ROW, status: 'paid', paid_at: '2026-08-16T12:00:00Z' } });
     const second = await run(FORM_OK, adapter, mock.db);
     expect(second.status).toBe(200);
     expect(second.body).toBe('1|OK');
 
-    expect(mock.callsFor('payments', 'update').length).toBe(1);
-    expect(mock.callsFor('orders', 'update').length).toBe(1);
-    expect(mock.rpcCalls('grant_entitlement').length).toBe(1);
+    expect(mock.rpcCalls('grant_entitlement').length).toBe(1); // exactly one grant
+    expect(mock.callsFor('orders', 'update').length).toBe(1); // order paid exactly once (no downgrade)
+  });
+
+  it('B2: duplicate ECPay callback self-heals a partially-failed first delivery (missing work completes exactly once)', async () => {
+    const { mock, adapter } = baseMock();
+    // First delivery: durable receipt lands, then the grant RPC fails → 500 (no
+    // ack). Grant-first ordering leaves the order pending.
+    mock.setRoute('rpc:grant_entitlement', { error: 'grant_entitlement: internal error' });
+    const first = await run(FORM_OK, adapter, mock.db);
+    expect(first.status).toBe(500);
+    expect(first.body).not.toBe('1|OK');
+    expect(mock.rpcCalls('grant_entitlement').length).toBe(1); // attempted once
+
+    // Partial persisted state: payment succeeded, order still pending.
+    mock.setRoute('payments', { data: { ...PAYMENT_ROW, status: 'succeeded' } });
+    mock.setRoute('payment_events', { data: null });
+    mock.setRoute('rpc:grant_entitlement', { data: null });
+
+    // ECPay re-delivers the SAME callback; the receipt dedups but the handler
+    // re-processes idempotently → grant lands → order paid, exactly once.
+    const replay = await run(FORM_OK, adapter, mock.db);
+    expect(replay.status).toBe(200);
+    expect(replay.body).toBe('1|OK');
+    expect(mock.rpcCalls('grant_entitlement').length).toBe(2); // re-applied (idempotent upsert)
+    const orderUpdate = mock.callsFor('orders', 'update')[0];
+    expect(orderUpdate.args[0]).toMatchObject({ status: 'paid' });
   });
 
   it('late failed callback after succeeded → succeeded unchanged; 1|OK', async () => {

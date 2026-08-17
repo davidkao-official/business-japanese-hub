@@ -59,11 +59,30 @@ export const PAYPAL_REQUEST_TIMEOUT_MS = 15_000;
 /** `PayPal-Request-Id` prefix for provider-side idempotency keys (§21). */
 export const PAYPAL_REQUEST_ID_PREFIX = 'bjh';
 
+/** Transaction-search page size (PayPal max is 500; §21/B4). */
+export const RECONCILE_PAGE_SIZE = 500;
+
+/**
+ * Hard cap on reconciliation pages. A range that needs more pages than this is
+ * never silently truncated — the caller must narrow the range.
+ */
+export const RECONCILE_MAX_PAGES = 100;
+
 /** Thrown when a webhook's transmission signature fails verification. */
 export class InvalidWebhookSignatureError extends Error {
   constructor() {
     super('PayPal webhook signature verification failed');
     this.name = 'InvalidWebhookSignatureError';
+  }
+}
+
+/** Thrown when a reconciliation range exceeds the provider/API hard limits. */
+export class ReconciliationIncompleteError extends Error {
+  constructor(range: ReconciliationRange, pagesNeeded: number) {
+    super(
+      `PayPal reconciliation range ${range.from}..${range.to} is incomplete (needs ${pagesNeeded} pages, cap ${RECONCILE_MAX_PAGES}); narrow the range`,
+    );
+    this.name = 'ReconciliationIncompleteError';
   }
 }
 
@@ -284,13 +303,14 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
    * Verify a PayPal webhook (§21): requires the transmission headers, then
    * checks the signature via PayPal's postback `POST /v1/notifications/
    * verify-webhook-signature` endpoint (the authoritative SDK-free path). The
-   * raw request body is kept byte-for-byte for the event fingerprint and
-   * sanitized evidence; the `webhook_event` field posted back is the parsed
-   * event object. Verification is fail-closed: any non-SUCCESS result (or
-   * missing transmission header / malformed body) throws and grants nothing. A
-   * verified event with a non-successful capture status is NOT a rejection — it
-   * is returned as a normalized `failed` / `unknown` event for durable
-   * persistence.
+   * `webhook_event` field is the EXACT received event bytes spliced into the
+   * postback (never a re-serialization of the parsed object), because PayPal's
+   * signature covers the event exactly as received (B1, #21). The raw request
+   * body is also kept byte-for-byte for the event fingerprint and sanitized
+   * evidence. Verification is fail-closed: any non-SUCCESS result (or missing
+   * transmission header / malformed body) throws and grants nothing. A verified
+   * event with a non-successful capture status is NOT a rejection — it is
+   * returned as a normalized `failed` / `unknown` event for durable persistence.
    */
   async verifyCallback(request: ProviderCallbackRequest): Promise<VerifiedProviderEvent> {
     if (request.provider !== 'paypal') {
@@ -318,19 +338,23 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
     }
 
     const token = await this.accessToken();
+    // Build the postback JSON by splicing the EXACT received event bytes into
+    // `webhook_event` — never re-serialize the parsed object, or PayPal's CRC32
+    // over the event can diverge from what was signed (B1, #21). The scalar
+    // fields are JSON-stringified (they are plain strings, safe to embed).
+    const verifyBody =
+      `{"transmission_id":${JSON.stringify(transmissionId)}` +
+      `,"transmission_time":${JSON.stringify(transmissionTime)}` +
+      `,"cert_url":${JSON.stringify(certUrl)}` +
+      `,"auth_algo":${JSON.stringify(authAlgo)}` +
+      `,"transmission_sig":${JSON.stringify(transmissionSig)}` +
+      `,"webhook_id":${JSON.stringify(this.webhookId)}` +
+      `,"webhook_event":${body}}`;
     const verifyRes = await this.transport.request(
       'POST',
       `${this.urls.apiBase}/v1/notifications/verify-webhook-signature`,
       {
-        body: JSON.stringify({
-          transmission_id: transmissionId,
-          transmission_time: transmissionTime,
-          cert_url: certUrl,
-          auth_algo: authAlgo,
-          transmission_sig: transmissionSig,
-          webhook_id: this.webhookId,
-          webhook_event: event,
-        }),
+        body: verifyBody,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       },
     );
@@ -356,16 +380,26 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
     // type: APPROVED events carry them on the order resource; capture events on
     // the capture resource (+ related order id).
     const resource = event.resource ?? {};
-    const customId =
-      event.event_type === 'CHECKOUT.ORDER.APPROVED'
-        ? resource.purchase_units?.[0]?.custom_id
-        : resource.custom_id;
-    const orderId =
-      event.event_type === 'CHECKOUT.ORDER.APPROVED'
-        ? resource.id
-        : resource.supplementary_data?.related_ids?.order_id;
-    if (!customId || !orderId) {
-      throw new Error('paypal webhook missing custom_id / order id');
+    const isOrderApproved = event.event_type === 'CHECKOUT.ORDER.APPROVED';
+    let customId: string | null | undefined = isOrderApproved
+      ? resource.purchase_units?.[0]?.custom_id
+      : resource.custom_id;
+    const orderId = isOrderApproved ? resource.id : resource.supplementary_data?.related_ids?.order_id;
+    if (!orderId) {
+      throw new Error('paypal webhook missing order id');
+    }
+    if (!customId) {
+      // A capture webhook may omit `resource.custom_id` while carrying the
+      // related order id (§21/B5). Recover the local merchant ref from the
+      // authoritative PayPal Order's purchase unit; fail closed if it cannot be
+      // resolved (never correlate by guessing).
+      if (isOrderApproved) {
+        throw new Error('paypal webhook missing custom_id');
+      }
+      customId = await this.resolveOrderCustomId(orderId);
+      if (!customId) {
+        throw new Error('paypal webhook missing custom_id (capture correlation)');
+      }
     }
 
     const amountField =
@@ -438,9 +472,17 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
   /**
    * Full refund via the capture (§7 / §21): `POST /v2/payments/captures/{id}/
    * refund` with an empty body (MVP full refund only — PayPal refunds the full
-   * captured amount). Returns the normalized provider result; entitlement is
-   * only revoked after the refund is provider-confirmed (`refunds` is the source
-   * of truth, §7.1).
+   * captured amount). Uses a stable `PayPal-Request-Id` keyed on the local
+   * payment id, so a retry with the same id is provider-idempotent (§21/B3).
+   *
+   * AMBIGUITY (§21/B3): a transport exception (timeout/network reset) or an
+   * ambiguous HTTP 5xx/429 after the POST may mean PayPal processed the refund
+   * even though we never received the response. Those are returned as
+   * `ok: true, status: 'pending'` (recoverable) — NEVER a terminal `failed` —
+   * so the orchestration layer leaves the refund requested/processing and the
+   * repair loop resumes it with the same `PayPal-Request-Id`. A definitive 4xx
+   * means the refund was rejected → `failed`. Entitlement is only revoked after
+   * a provider-confirmed `succeeded` (refunds is the source of truth, §7.1).
    */
   async refund(input: RefundInput): Promise<ProviderRefundResult> {
     if (input.amount.currency !== 'USD') {
@@ -455,64 +497,95 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
     } catch {
       return { ok: false, status: 'failed', rawStatusCode: 'OAUTH_FAILED' };
     }
-    const res = await this.transport.request(
-      'POST',
-      `${this.urls.apiBase}/v2/payments/captures/${encodeURIComponent(input.providerPaymentRef)}/refund`,
-      {
-        body: '{}',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          'PayPal-Request-Id': `${PAYPAL_REQUEST_ID_PREFIX}-refund-${input.paymentId}`,
-        },
-      },
-    );
-    if (res.status !== 201 && res.status !== 200) {
-      return { ok: false, status: 'failed', rawStatusCode: `HTTP_${res.status}` };
-    }
-    let data: { id?: string; status?: string };
+    let res: { status: number; body: string };
     try {
-      data = JSON.parse(res.body) as { id?: string; status?: string };
+      res = await this.transport.request(
+        'POST',
+        `${this.urls.apiBase}/v2/payments/captures/${encodeURIComponent(input.providerPaymentRef)}/refund`,
+        {
+          body: '{}',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+            'PayPal-Request-Id': `${PAYPAL_REQUEST_ID_PREFIX}-refund-${input.paymentId}`,
+          },
+        },
+      );
     } catch {
-      return { ok: false, status: 'failed', rawStatusCode: 'BAD_RESPONSE' };
+      // Network reset / timeout after dispatch — the provider may have processed
+      // the refund. Leave it recoverable (pending), never a terminal failure.
+      return { ok: true, status: 'pending', rawStatusCode: 'TRANSPORT_UNAVAILABLE' };
     }
-    if (data.status === 'COMPLETED') {
-      return { ok: true, status: 'succeeded', providerRefundRef: data.id, rawStatusCode: data.status };
+    if (res.status === 201 || res.status === 200) {
+      let data: { id?: string; status?: string };
+      try {
+        data = JSON.parse(res.body) as { id?: string; status?: string };
+      } catch {
+        return { ok: false, status: 'failed', rawStatusCode: 'BAD_RESPONSE' };
+      }
+      if (data.status === 'COMPLETED') {
+        return { ok: true, status: 'succeeded', providerRefundRef: data.id, rawStatusCode: data.status };
+      }
+      if (data.status === 'PENDING') {
+        return { ok: true, status: 'pending', providerRefundRef: data.id, rawStatusCode: data.status };
+      }
+      return { ok: false, status: 'failed', providerRefundRef: data.id, rawStatusCode: data.status };
     }
-    if (data.status === 'PENDING') {
-      return { ok: true, status: 'pending', providerRefundRef: data.id, rawStatusCode: data.status };
+    // Ambiguous 5xx / rate limit: the provider may have processed the refund.
+    // Recoverable via the stable PayPal-Request-Id on retry (§21/B3).
+    if (res.status >= 500 || res.status === 429) {
+      return { ok: true, status: 'pending', rawStatusCode: `HTTP_${res.status}` };
     }
-    return { ok: false, status: 'failed', providerRefundRef: data.id, rawStatusCode: data.status };
+    // Definitive 4xx → the refund request was rejected by the provider.
+    return { ok: false, status: 'failed', rawStatusCode: `HTTP_${res.status}` };
   }
 
   /**
    * Reporting-based reconciliation (§21 / §6 Layer C analog): query the PayPal
-   * transactions report for a date range and return the raw entries. The
-   * orchestration layer matches them against local payments; download is bounded
-   * to the 31-day reporting window.
+   * transactions report for a date range, paginating ALL pages (page/page_size/
+   * total_pages, page_size ≤ 500) and aggregating every `transaction_details`
+   * entry. The orchestration layer matches them against local payments.
+   *
+   * Never silently truncates: if the range requires more than
+   * `RECONCILE_MAX_PAGES` (a provider/API hard limit), it throws
+   * `ReconciliationIncompleteError` so the caller can narrow the range.
    */
   async reconcile(input: ReconciliationRange): Promise<ProviderReconciliationData> {
     const token = await this.accessToken();
-    const params = new URLSearchParams({
+    const baseParams = new URLSearchParams({
       start_date: `${input.from}T00:00:00Z`,
       end_date: `${input.to}T23:59:59Z`,
       fields: 'all',
+      page_size: String(RECONCILE_PAGE_SIZE),
     });
-    const res = await this.transport.request(
-      'GET',
-      `${this.urls.apiBase}/v1/reporting/transactions?${params.toString()}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
-    if (res.status !== 200) {
-      throw new PaypalApiError('reporting transactions', res.status, res.body);
-    }
-    let data: { transaction_details?: unknown[] };
-    try {
-      data = JSON.parse(res.body) as { transaction_details?: unknown[] };
-    } catch {
-      throw new PaypalApiError('reporting transactions response parse', res.status, res.body);
-    }
-    return { provider: 'paypal', entries: data.transaction_details ?? [] };
+    const entries: unknown[] = [];
+    let page = 1;
+    let totalPages: number | null = null;
+    do {
+      const params = new URLSearchParams(baseParams);
+      params.set('page', String(page));
+      const res = await this.transport.request(
+        'GET',
+        `${this.urls.apiBase}/v1/reporting/transactions?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (res.status !== 200) {
+        throw new PaypalApiError('reporting transactions', res.status, res.body);
+      }
+      let data: { transaction_details?: unknown[]; total_pages?: number };
+      try {
+        data = JSON.parse(res.body) as { transaction_details?: unknown[]; total_pages?: number };
+      } catch {
+        throw new PaypalApiError('reporting transactions response parse', res.status, res.body);
+      }
+      entries.push(...(data.transaction_details ?? []));
+      totalPages = typeof data.total_pages === 'number' ? data.total_pages : 1;
+      if (totalPages > RECONCILE_MAX_PAGES) {
+        throw new ReconciliationIncompleteError(input, totalPages);
+      }
+      page += 1;
+    } while (page <= totalPages);
+    return { provider: 'paypal', entries };
   }
 
   /* ------------------------- private helpers ------------------------- */
@@ -564,6 +637,20 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
       throw new PaypalApiError('get order', res.status, res.body);
     }
     return JSON.parse(res.body) as PaypalOrder;
+  }
+
+  /**
+   * Recover the purchase-unit `custom_id` from the authoritative PayPal Order
+   * (§21/B5). Used when a capture webhook omits `resource.custom_id` but carries
+   * the related order id. Returns null (fail-closed) on any failure.
+   */
+  private async resolveOrderCustomId(orderId: string): Promise<string | null> {
+    try {
+      const order = await this.getOrder(orderId);
+      return order?.purchase_units?.[0]?.custom_id ?? null;
+    } catch {
+      return null;
+    }
   }
 
   private async captureOrder(orderId: string): Promise<PaypalCapture | null> {

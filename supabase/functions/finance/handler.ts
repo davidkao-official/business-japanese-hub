@@ -282,6 +282,20 @@ async function requestManualRefund(
       }
       throw err;
     }
+    // Persist whatever the provider told us BEFORE any transition — including an
+    // ambiguous pending / failed — so a later repair/resume has the provider
+    // refund ref + status (§21/B3).
+    const { error: refPersistError } = await deps.db
+      .from('refunds')
+      .update({
+        provider_refund_ref: refundResult.providerRefundRef ?? null,
+        provider_status_code: refundResult.rawStatusCode ?? null,
+      })
+      .eq('id', refundInsert.data.id);
+    if (refPersistError) {
+      deps.log.error({ error: refPersistError.message }, 'refund provider ref persist failed');
+    }
+
     if (refundResult.ok && refundResult.status === 'succeeded') {
       try {
         await confirmRefund(
@@ -302,6 +316,9 @@ async function requestManualRefund(
       });
     }
     if (refundResult.ok && refundResult.status === 'pending') {
+      // Ambiguous (transport 5xx/timeout) or genuinely pending — leave it in the
+      // recoverable `processing` state; the repair loop resumes it with the same
+      // stable PayPal-Request-Id (§21/B3). Never a terminal failed refund here.
       const { error: processingError } = await deps.db
         .from('refunds')
         .update({ status: 'processing' })
@@ -316,7 +333,7 @@ async function requestManualRefund(
     }
     deps.log.warn(
       { paymentId: payment.id, refundId: refundInsert.data.id, rawStatusCode: refundResult.rawStatusCode },
-      'paypal refund request failed; left requested for operator review',
+      'paypal refund request rejected; left requested for operator review',
     );
   }
 

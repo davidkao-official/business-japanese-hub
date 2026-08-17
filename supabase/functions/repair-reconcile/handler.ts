@@ -15,6 +15,7 @@
  */
 import type {
   ProviderPaymentSnapshot,
+  ProviderRefundResult,
   VerifiedProviderEvent,
 } from '../../../src/lib/payments/contract.ts';
 import { parseFundingReconDetailCsv } from '../../../src/lib/payments/ecpay/adapter.ts';
@@ -35,9 +36,11 @@ import {
   applyVerifiedSuccess,
   confirmRefund,
   loadOrder,
+  loadPaymentById,
   loadPaymentByMerchantRef,
   loadRequestedRefundForPayment,
   type PaymentRow,
+  type RefundRow,
 } from '../_shared/flow.ts';
 
 export interface RepairReconcileHandlerDeps {
@@ -67,6 +70,13 @@ export interface LayerCResult {
   entries: number;
   matched: number;
   mismatched: number;
+}
+
+/** Result of resuming ambiguous PayPal refunds (§21/B3). */
+export interface RefundResumeResult {
+  scanned: number;
+  resumed: number;
+  confirmed: number;
 }
 
 export async function handleRepairReconcile(
@@ -101,14 +111,107 @@ export async function handleRepairReconcile(
     }
   }
 
-  deps.log.info({ layerB, layerC }, 'repair-reconcile run');
+  // Resume ambiguous PayPal refunds (requested/processing) with the same stable
+  // PayPal-Request-Id so provider idempotency returns the current result (§21/B3).
+  let refundResume: RefundResumeResult = { scanned: 0, resumed: 0, confirmed: 0 };
+  try {
+    refundResume = await runRefundResume(deps, now);
+  } catch (err) {
+    deps.log.error({ error: err instanceof Error ? err.message : String(err) }, 'refund resume failed');
+  }
+
+  deps.log.info({ layerB, layerC, refundResume }, 'repair-reconcile run');
   return jsonResult(200, {
     repaired: layerB.repaired,
     granted: layerB.granted,
     stillUnknown: layerB.stillUnknown,
     scanned: layerB.scanned,
+    refunds_resumed: refundResume.resumed,
+    refunds_confirmed: refundResume.confirmed,
     reconciliation: layerC,
   });
+}
+
+/**
+ * Resume PayPal refunds stuck in `requested` / `processing` (§21/B3). Re-invokes
+ * the provider refund with the SAME stable `PayPal-Request-Id` (keyed on the
+ * local payment id), so provider-side idempotency returns the current result
+ * without creating a second monetary refund (within PayPal's 6-hour idempotency
+ * window). A provider-confirmed `succeeded` drives `confirmRefund` — refunds is
+ * the source of truth and entitlement is revoked exactly once. Ambiguous results
+ * stay in a recoverable state.
+ */
+async function runRefundResume(
+  deps: RepairReconcileHandlerDeps,
+  now: () => Date,
+): Promise<RefundResumeResult> {
+  const { data, error } = await deps.db
+    .from('refunds')
+    .select('*')
+    .eq('provider', 'paypal')
+    .in('status', ['requested', 'processing'])
+    .limit(REPAIR_SCAN_LIMIT);
+  if (error) throw new Error(`refund resume scan failed: ${error.message}`);
+  const rows = (data ?? []) as unknown as RefundRow[];
+
+  let resumed = 0;
+  let confirmed = 0;
+  for (const refundRow of rows) {
+    const payment = await loadPaymentById(deps.db, refundRow.payment_id);
+    if (!payment || !payment.provider_payment_ref) continue;
+
+    let refundResult: ProviderRefundResult;
+    try {
+      refundResult = await deps.adapters.paypal.refund({
+        paymentId: payment.id,
+        providerPaymentRef: payment.provider_payment_ref,
+        amount: { amount: Number(payment.amount_minor), currency: payment.currency },
+        merchantReference: payment.provider_merchant_ref,
+      });
+    } catch (err) {
+      deps.log.error(
+        { refundId: refundRow.id, error: err instanceof Error ? err.message : String(err) },
+        'refund resume: provider call failed',
+      );
+      continue;
+    }
+
+    // Persist whatever the provider returned (ref/status) before transitioning.
+    const { error: persistError } = await deps.db
+      .from('refunds')
+      .update({
+        provider_refund_ref: refundResult.providerRefundRef ?? refundRow.provider_refund_ref,
+        provider_status_code: refundResult.rawStatusCode ?? refundRow.provider_status_code,
+      })
+      .eq('id', refundRow.id);
+    if (persistError) {
+      deps.log.error({ error: persistError.message }, 'refund resume: ref persist failed');
+    }
+
+    if (refundResult.ok && refundResult.status === 'succeeded') {
+      try {
+        await confirmRefund({ db: deps.db, log: deps.log, now }, refundRow.id);
+        confirmed += 1;
+      } catch (err) {
+        deps.log.error(
+          { refundId: refundRow.id, error: err instanceof Error ? err.message : String(err) },
+          'refund resume: confirm failed',
+        );
+      }
+    } else if (refundResult.ok && refundResult.status === 'pending' && refundRow.status === 'requested') {
+      // Still ambiguous — move to the recoverable `processing` state for the
+      // next run. Never a terminal failure (§21/B3).
+      const { error: processingError } = await deps.db
+        .from('refunds')
+        .update({ status: 'processing' })
+        .eq('id', refundRow.id);
+      if (processingError) {
+        deps.log.error({ error: processingError.message }, 'refund resume: processing update failed');
+      }
+    }
+    resumed += 1;
+  }
+  return { scanned: rows.length, resumed, confirmed };
 }
 
 async function runLayerB(
