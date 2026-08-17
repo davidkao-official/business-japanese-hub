@@ -30,6 +30,12 @@ export interface AppStrings {
     library: string
     skipToContent: string
   }
+  appearance: {
+    label: string
+    system: string
+    light: string
+    dark: string
+  }
   storefront: {
     catalog: string
     viewDetails: string
@@ -204,6 +210,12 @@ const ja: AppStrings = {
     home: 'ホーム',
     library: 'マイライブラリ',
     skipToContent: '本文へスキップ',
+  },
+  appearance: {
+    label: '外観',
+    system: 'システム',
+    light: 'ライト',
+    dark: 'ダーク',
   },
   storefront: {
     catalog: 'すべての書籍',
@@ -382,6 +394,12 @@ const en: AppStrings = {
     library: 'My Library',
     skipToContent: 'Skip to content',
   },
+  appearance: {
+    label: 'Appearance',
+    system: 'System',
+    light: 'Light',
+    dark: 'Dark',
+  },
   storefront: {
     catalog: 'All books',
     viewDetails: 'View details',
@@ -558,6 +576,12 @@ const zhTW: AppStrings = {
     home: '首頁',
     library: '我的書庫',
     skipToContent: '跳到主要內容',
+  },
+  appearance: {
+    label: '外觀',
+    system: '系統',
+    light: '亮色',
+    dark: '深色',
   },
   storefront: {
     catalog: '所有書籍',

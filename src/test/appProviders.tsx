@@ -11,6 +11,7 @@ import { render } from '@testing-library/react'
 import type { ReactElement, ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
+import { AppearanceProvider } from '../lib/appearance/AppearanceContext'
 import { AuthProvider } from '../lib/auth/AuthContext'
 import type { AuthClient, SessionUser } from '../lib/auth/types'
 import { UserStateProvider } from '../lib/persistence/UserStateContext'
@@ -77,15 +78,17 @@ export function renderWithAppProviders(ui: ReactElement, options: RenderAppOptio
   const authClient = createMockAuthClient(session)
 
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <AuthProvider authClient={authClient}>
-      <UserStateProvider repository={repository}>
-        <PurchaseProvider executor={purchaseExecutor}>
-          <MemoryRouter initialEntries={initialEntries} initialIndex={initialIndex}>
-            {children}
-          </MemoryRouter>
-        </PurchaseProvider>
-      </UserStateProvider>
-    </AuthProvider>
+    <AppearanceProvider>
+      <AuthProvider authClient={authClient}>
+        <UserStateProvider repository={repository}>
+          <PurchaseProvider executor={purchaseExecutor}>
+            <MemoryRouter initialEntries={initialEntries} initialIndex={initialIndex}>
+              {children}
+            </MemoryRouter>
+          </PurchaseProvider>
+        </UserStateProvider>
+      </AuthProvider>
+    </AppearanceProvider>
   )
 
   return { ...render(ui, { wrapper }), authClient, repository }

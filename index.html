@@ -8,6 +8,36 @@
       content="ビジネス日本語ハブ — ビジネスシーンで役立つ日本語を学ぶためのプラットフォームです。"
     />
     <title>ビジネス日本語ハブ</title>
+    <script>
+      // Resolve the effective theme before first paint so a saved Dark (or
+      // Light) preference never flashes the wrong theme on reload/navigation.
+      // This mirrors src/lib/appearance; keep the storage key and validation
+      // in sync there. Any failure falls back to the OS scheme — never throws.
+      (function () {
+        try {
+          var dark = false
+          try {
+            var stored = window.localStorage.getItem('business-japanese-hub.appearance')
+            var pref =
+              stored === 'system' || stored === 'light' || stored === 'dark'
+                ? stored
+                : 'system'
+            dark =
+              pref === 'dark' ||
+              (pref === 'system' &&
+                !!window.matchMedia &&
+                window.matchMedia('(prefers-color-scheme: dark)').matches)
+          } catch (e) {
+            dark =
+              !!window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches
+          }
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        } catch (e) {
+          /* theme resolution must never break document parsing */
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

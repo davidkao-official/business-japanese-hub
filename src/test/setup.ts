@@ -19,9 +19,10 @@ Object.defineProperty(window.navigator, 'languages', {
 window.scrollTo = () => {}
 
 beforeEach(() => {
-  // Locale preference is presentation state, not durable test state. Each test
-  // starts from the deterministic browser locale above unless it opts in.
+  // Locale + appearance preferences are presentation state, not durable test
+  // state. Each test starts from the deterministic defaults unless it opts in.
   window.localStorage.removeItem('business-japanese-hub.locale')
+  window.localStorage.removeItem('business-japanese-hub.appearance')
 })
 
 // Vitest runs without `globals: true`, so testing-library's auto-cleanup is
@@ -30,4 +31,5 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   window.localStorage.removeItem('business-japanese-hub.locale')
+  window.localStorage.removeItem('business-japanese-hub.appearance')
 })

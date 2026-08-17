@@ -67,7 +67,7 @@ describe('deployment base contract', () => {
       const tokenLight = /:root\s*\{([^}]*)\}/.exec(tokens)?.[1]?.match(
         /--color-bg:\s*([^;]+);/,
       )?.[1]?.trim();
-      const tokenDark = /@media\s*\(prefers-color-scheme:\s*dark\)\s*\{([^}]*)\}/.exec(
+      const tokenDark = /:root\[data-theme='dark'\]\s*\{([^}]*)\}/.exec(
         tokens,
       )?.[1]?.match(/--color-bg:\s*([^;]+);/)?.[1]?.trim();
       expect(lightColor).toBe(tokenLight);
