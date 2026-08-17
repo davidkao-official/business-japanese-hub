@@ -9,6 +9,7 @@ import { LegalIndexPage } from './app/legal/LegalIndexPage'
 import { LegalPage } from './app/legal/LegalPage'
 import { Layout } from './components/Layout'
 import { ReaderPage } from './reader/ReaderPage'
+import { AppearanceProvider } from './lib/appearance/AppearanceContext'
 import { AuthProvider } from './lib/auth/AuthContext'
 import { createNullAuthClient } from './lib/auth/nullAuthClient'
 import { SupabaseAuthClient } from './lib/auth/supabaseAuthClient'
@@ -67,28 +68,30 @@ export default function App() {
   const purchaseExecutor = useMemo(() => createCheckoutPurchaseExecutor(), [])
 
   return (
-    <AuthProvider authClient={services.authClient}>
-      <UserStateProvider repository={services.repository}>
-        <PurchaseProvider executor={purchaseExecutor}>
-          <BrowserRouter>
-            <Routes>
-              <Route element={<Layout />}>
-                <Route index element={<HomePage />} />
-                <Route path="library" element={<LibraryPage />} />
-                <Route path="books/:slug" element={<BookPage />} />
-                <Route path="purchase/result" element={<PurchaseResultPage />} />
-                <Route path="legal" element={<LegalIndexPage />} />
-                <Route path="legal/:slug" element={<LegalPage />} />
-                <Route path="*" element={<NotFoundPage />} />
-              </Route>
-              {/* The reader is an immersive surface — it renders OUTSIDE the site
-                  chrome (no Header/Footer) and owns the whole viewport. */}
-              <Route path="books/:slug/read" element={<ReaderPage />} />
-              <Route path="books/:slug/read/:chapterSlug" element={<ReaderPage />} />
-            </Routes>
-          </BrowserRouter>
-        </PurchaseProvider>
-      </UserStateProvider>
-    </AuthProvider>
+    <AppearanceProvider>
+      <AuthProvider authClient={services.authClient}>
+        <UserStateProvider repository={services.repository}>
+          <PurchaseProvider executor={purchaseExecutor}>
+            <BrowserRouter>
+              <Routes>
+                <Route element={<Layout />}>
+                  <Route index element={<HomePage />} />
+                  <Route path="library" element={<LibraryPage />} />
+                  <Route path="books/:slug" element={<BookPage />} />
+                  <Route path="purchase/result" element={<PurchaseResultPage />} />
+                  <Route path="legal" element={<LegalIndexPage />} />
+                  <Route path="legal/:slug" element={<LegalPage />} />
+                  <Route path="*" element={<NotFoundPage />} />
+                </Route>
+                {/* The reader is an immersive surface — it renders OUTSIDE the site
+                    chrome (no Header/Footer) and owns the whole viewport. */}
+                <Route path="books/:slug/read" element={<ReaderPage />} />
+                <Route path="books/:slug/read/:chapterSlug" element={<ReaderPage />} />
+              </Routes>
+            </BrowserRouter>
+          </PurchaseProvider>
+        </UserStateProvider>
+      </AuthProvider>
+    </AppearanceProvider>
   )
 }
