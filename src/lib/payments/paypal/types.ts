@@ -34,6 +34,8 @@ export interface PaypalCapture {
   custom_id?: string;
   create_time?: string;
   update_time?: string;
+  /** HATEOAS links (self / up → order / refund). */
+  links?: Array<{ href: string; rel: string; method?: string }>;
   supplementary_data?: {
     related_ids?: { order_id?: string };
   };
@@ -54,6 +56,8 @@ export interface PaypalWebhookEvent {
     amount?: { currency_code: string; value: string };
     custom_id?: string;
     create_time?: string;
+    /** HATEOAS links (capture/refund/order); used to resolve parent objects (§21/B6). */
+    links?: Array<{ href: string; rel: string; method?: string }>;
     purchase_units?: Array<{
       custom_id?: string;
       amount?: { currency_code: string; value: string };

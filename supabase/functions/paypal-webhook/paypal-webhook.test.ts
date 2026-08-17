@@ -275,6 +275,30 @@ describe('paypal-webhook handler', () => {
     expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
   });
 
+  it('B6: a refund/reversal webhook (non-granting unknown) is processed without rejection and never grants', async () => {
+    const { mock, adapter } = baseMock();
+    // A realistic PAYMENT.CAPTURE.REFUNDED shape (status unknown) — the handler
+    // must not reject it and must not grant or revoke (§21/B6).
+    adapter.verifyCallback.mockResolvedValue({
+      ...EVENT_OK,
+      providerMerchantRef: 'BJH202608160001',
+      providerPaymentRef: 'ORDER-1',
+      status: 'unknown',
+      rawStatusCode: 'REFUNDED',
+    });
+    adapter.confirmPayment.mockResolvedValue({
+      ...SNAPSHOT_OK,
+      status: 'unknown',
+      rawStatusCode: 'REFUNDED',
+    });
+    const result = await run(adapter, mock.db);
+    expect(result.status).toBe(200);
+    const paymentUpdate = mock.callsFor('payments', 'update')[0];
+    expect(paymentUpdate.args[0]).toMatchObject({ status: 'verification_pending' });
+    expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
+    expect(mock.callsFor('book_entitlement', 'update').length).toBe(0);
+  });
+
   it('second real success on an already-paid order → duplicate_success, never a second entitlement', async () => {
     const { mock, adapter } = baseMock({
       // The order was already paid by an EARLIER payment; this is a genuine

@@ -57,6 +57,16 @@ export const VERIFICATION_PENDING_AFTER_MS = 10 * 60 * 1000;
 export const STALE_PENDING_AFTER_MS = 30 * 60 * 1000;
 export const REPAIR_SCAN_LIMIT = 50;
 
+/**
+ * PayPal refund `PayPal-Request-Id` retention window (§21/B7): a refund captured
+ * payment request using the same Request-Id can be retried for up to 45 days.
+ * Beyond that, automatic retry must NOT issue another monetary refund POST.
+ */
+export const PAYPAL_REFUND_IDEMPOTENCY_MS = 45 * 24 * 60 * 60 * 1000;
+
+/** Marker written to `refunds.provider_status_code` for an aged, operator-review refund. */
+export const AGED_REFUND_REVIEW_MARKER = 'REVIEW_REQUIRED';
+
 export interface LayerBResult {
   scanned: number;
   repaired: number;
@@ -133,13 +143,15 @@ export async function handleRepairReconcile(
 }
 
 /**
- * Resume PayPal refunds stuck in `requested` / `processing` (§21/B3). Re-invokes
- * the provider refund with the SAME stable `PayPal-Request-Id` (keyed on the
- * local payment id), so provider-side idempotency returns the current result
- * without creating a second monetary refund (within PayPal's 6-hour idempotency
- * window). A provider-confirmed `succeeded` drives `confirmRefund` — refunds is
- * the source of truth and entitlement is revoked exactly once. Ambiguous results
- * stay in a recoverable state.
+ * Resume PayPal refunds stuck in `requested` / `processing` (§21/B3, B7). For a
+ * refund within PayPal's `PayPal-Request-Id` retention window (45 days), re-invoke
+ * the provider refund with the SAME stable key (keyed on the local payment id), so
+ * provider-side idempotency returns the current result without creating a second
+ * monetary refund. A provider-confirmed `succeeded` drives `confirmRefund` —
+ * refunds is the source of truth and entitlement is revoked exactly once.
+ * Ambiguous results stay in a recoverable state. A refund OLDER than the
+ * retention window is NEVER auto-resumed (no refund POST) — it is marked
+ * `provider_status_code = REVIEW_REQUIRED` for operator/reconciliation review.
  */
 async function runRefundResume(
   deps: RepairReconcileHandlerDeps,
@@ -157,6 +169,26 @@ async function runRefundResume(
   let resumed = 0;
   let confirmed = 0;
   for (const refundRow of rows) {
+    // §21/B7: never auto-resume a refund outside PayPal's `PayPal-Request-Id`
+    // retention window (45 days). Re-POSTing with a new key could create a
+    // SECOND monetary refund; with no key the retry is no longer idempotent.
+    // Route the aged refund to operator/reconciliation review instead.
+    const ageMs = now().getTime() - new Date(refundRow.requested_at).getTime();
+    if (ageMs > PAYPAL_REFUND_IDEMPOTENCY_MS) {
+      deps.log.warn(
+        { refundId: refundRow.id, requestedAt: refundRow.requested_at },
+        'refund aged beyond PayPal Request-Id retention; operator review required',
+      );
+      const { error: agedError } = await deps.db
+        .from('refunds')
+        .update({ provider_status_code: AGED_REFUND_REVIEW_MARKER })
+        .eq('id', refundRow.id);
+      if (agedError) {
+        deps.log.error({ error: agedError.message }, 'refund aged marker update failed');
+      }
+      continue;
+    }
+
     const payment = await loadPaymentById(deps.db, refundRow.payment_id);
     if (!payment || !payment.provider_payment_ref) continue;
 

@@ -239,4 +239,69 @@ describe('repair-reconcile handler', () => {
       revocation_reason: 'refund',
     });
   });
+
+  it('B7: does NOT auto-resume an aged PayPal refund outside the Request-Id retention window (no refund POST)', async () => {
+    const paypalPayment = {
+      id: 'pay-1',
+      order_id: 'ord-1',
+      provider: 'paypal',
+      provider_merchant_ref: 'BJH202608160001',
+      provider_payment_ref: 'CAPTURE-1',
+      amount_minor: 1999,
+      currency: 'USD',
+      method: 'credit',
+      status: 'succeeded',
+      provider_status_code: null,
+      provider_status_message: null,
+      created_at: '2026-08-16T11:55:00Z',
+      paid_at: '2026-06-01T11:00:00Z',
+      last_verified_at: null,
+      provider_fee_amount_minor: null,
+      reconciliation_status: null,
+    };
+    const mock = createMockDb({
+      payments: { data: [paypalPayment] },
+      orders: { data: { ...ORDER_ROW, status: 'paid', currency: 'USD', amount_minor: 1999 } },
+      'rpc:grant_entitlement': { data: null },
+      refunds: {
+        data: [{
+          id: 'ref-aged',
+          payment_id: 'pay-1',
+          provider: 'paypal',
+          provider_refund_ref: null,
+          amount_minor: 1999,
+          currency: 'USD',
+          status: 'processing',
+          reason_code: null,
+          requested_by: 'user-1',
+          provider_status_code: 'TRANSPORT_UNAVAILABLE',
+          // 46 days before the injected now (2026-08-16T12:00:00Z).
+          requested_at: '2026-07-01T12:00:00Z',
+          completed_at: null,
+        }],
+      },
+      book_entitlement: { data: null },
+      admin_audit_log: { data: null },
+    });
+    const paypalAdapter = createFakeAdapter('paypal');
+    const deps = {
+      env: testEnv(),
+      db: mock.db,
+      adapters: { ecpay: createFakeAdapter(), paypal: paypalAdapter },
+      log: fakeLogger(),
+      now: () => new Date('2026-08-16T12:00:00Z'),
+    };
+
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.body)).toMatchObject({ refunds_resumed: 0 });
+
+    // Automatic repair MUST NOT issue another monetary refund POST.
+    expect(paypalAdapter.refund).not.toHaveBeenCalled();
+    // The aged refund is routed to operator/reconciliation review.
+    const markerUpdate = mock.callsFor('refunds', 'update')[0];
+    expect(markerUpdate.args[0]).toMatchObject({ provider_status_code: 'REVIEW_REQUIRED' });
+    // Entitlement is never revoked without provider-confirmed refund success.
+    expect(mock.callsFor('book_entitlement', 'update').length).toBe(0);
+  });
 });

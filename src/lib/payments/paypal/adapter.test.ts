@@ -323,6 +323,105 @@ describe('PaypalPaymentProviderAdapter.verifyCallback', () => {
       adapter.verifyCallback({ provider: 'paypal', body: rawBody, headers: webhookHeaders() }),
     ).rejects.toThrow(/missing custom_id/);
   });
+
+  it('B6: correlates a CAPTURE.REVERSED event with related_ids.order_id (never grants)', async () => {
+    const rawBody = JSON.stringify({
+      id: 'WEBHOOK-R1',
+      event_type: 'PAYMENT.CAPTURE.REVERSED',
+      resource: {
+        id: 'CAPTURE-1',
+        status: 'REVERSED',
+        custom_id: 'BJH202608160001',
+        amount: { currency_code: 'USD', value: '19.99' },
+        supplementary_data: { related_ids: { order_id: 'ORDER-1' } },
+      },
+    });
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v1/notifications/verify-webhook-signature', 200, JSON.parse(VERIFY_OK)),
+    ]);
+    const adapter = makeAdapter({ transport });
+    const event = await adapter.verifyCallback({ provider: 'paypal', body: rawBody, headers: webhookHeaders() });
+    expect(event.providerMerchantRef).toBe('BJH202608160001');
+    expect(event.providerPaymentRef).toBe('ORDER-1'); // order id, NEVER the capture id
+    expect(event.status).toBe('unknown'); // non-granting
+  });
+
+  it('B6: correlates a CAPTURE.REFUNDED event without related_ids via its HATEOAS up link', async () => {
+    const rawBody = JSON.stringify({
+      id: 'WEBHOOK-R2',
+      event_type: 'PAYMENT.CAPTURE.REFUNDED',
+      resource: {
+        id: 'CAPTURE-1',
+        status: 'REFUNDED',
+        custom_id: 'BJH202608160001',
+        amount: { currency_code: 'USD', value: '19.99' },
+        // No related_ids.order_id — only the HATEOAS up link to the order.
+        links: [{ href: `${SANDBOX_API}/v2/checkout/orders/ORDER-1`, rel: 'up', method: 'GET' }],
+      },
+    });
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v1/notifications/verify-webhook-signature', 200, JSON.parse(VERIFY_OK)),
+    ]);
+    const adapter = makeAdapter({ transport });
+    const event = await adapter.verifyCallback({ provider: 'paypal', body: rawBody, headers: webhookHeaders() });
+    expect(event.providerMerchantRef).toBe('BJH202608160001');
+    expect(event.providerPaymentRef).toBe('ORDER-1');
+    expect(event.status).toBe('unknown');
+  });
+
+  it('B6: resolves a PAYMENT.REFUND.* event (refund resource) via parent capture → order, and never uses the refund id as an order id', async () => {
+    const rawBody = JSON.stringify({
+      id: 'WEBHOOK-R3',
+      event_type: 'PAYMENT.REFUND.COMPLETED',
+      resource: {
+        id: 'REFUND-1',
+        status: 'COMPLETED',
+        amount: { currency_code: 'USD', value: '19.99' },
+        // No custom_id, no related_ids — only the up link to the parent capture.
+        links: [{ href: `${SANDBOX_API}/v2/payments/captures/CAPTURE-1`, rel: 'up', method: 'GET' }],
+      },
+    });
+    const captureBody = JSON.stringify({
+      id: 'CAPTURE-1',
+      status: 'REFUNDED',
+      amount: { currency_code: 'USD', value: '19.99' },
+      links: [{ href: `${SANDBOX_API}/v2/checkout/orders/ORDER-1`, rel: 'up', method: 'GET' }],
+    });
+    const orderBody = JSON.stringify({
+      id: 'ORDER-1',
+      status: 'COMPLETED',
+      purchase_units: [{ custom_id: 'BJH202608160001', amount: { currency_code: 'USD', value: '19.99' } }],
+    });
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v1/notifications/verify-webhook-signature', 200, JSON.parse(VERIFY_OK)),
+      jsonRoute('/v2/payments/captures/CAPTURE-1', 200, JSON.parse(captureBody)),
+      jsonRoute('/v2/checkout/orders/ORDER-1', 200, JSON.parse(orderBody)),
+    ]);
+    const adapter = makeAdapter({ transport });
+    const event = await adapter.verifyCallback({ provider: 'paypal', body: rawBody, headers: webhookHeaders() });
+    expect(event.providerMerchantRef).toBe('BJH202608160001'); // from the order purchase unit
+    expect(event.providerPaymentRef).toBe('ORDER-1'); // real order id, never 'REFUND-1'
+    expect(event.status).toBe('unknown');
+  });
+
+  it('B6: fails closed when a refund event chain cannot resolve an order id', async () => {
+    const rawBody = JSON.stringify({
+      id: 'WEBHOOK-R4',
+      event_type: 'PAYMENT.REFUND.COMPLETED',
+      resource: { id: 'REFUND-1', status: 'COMPLETED' }, // no links, no related order
+    });
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v1/notifications/verify-webhook-signature', 200, JSON.parse(VERIFY_OK)),
+    ]);
+    const adapter = makeAdapter({ transport });
+    await expect(
+      adapter.verifyCallback({ provider: 'paypal', body: rawBody, headers: webhookHeaders() }),
+    ).rejects.toThrow(/missing order id/);
+  });
 });
 
 describe('PaypalPaymentProviderAdapter.confirmPayment', () => {

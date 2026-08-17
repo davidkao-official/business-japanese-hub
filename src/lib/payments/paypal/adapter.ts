@@ -377,14 +377,16 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
       PAYPAL_CAPTURE_EVENT_STATUS[event.event_type] ?? 'unknown';
 
     // custom_id (our local merchant ref) + order id location differs by event
-    // type: APPROVED events carry them on the order resource; capture events on
-    // the capture resource (+ related order id).
+    // type (§21/B6): APPROVED events carry them on the order resource; capture
+    // events on the capture resource (+ related order id). Refund/reversal
+    // events may carry only HATEOAS links — resolve the parent capture → order
+    // before correlating. NEVER treat a refund id as an Orders v2 order id.
     const resource = event.resource ?? {};
     const isOrderApproved = event.event_type === 'CHECKOUT.ORDER.APPROVED';
     let customId: string | null | undefined = isOrderApproved
       ? resource.purchase_units?.[0]?.custom_id
       : resource.custom_id;
-    const orderId = isOrderApproved ? resource.id : resource.supplementary_data?.related_ids?.order_id;
+    const orderId = await this.resolveEventOrderId(event.event_type ?? '', resource, isOrderApproved);
     if (!orderId) {
       throw new Error('paypal webhook missing order id');
     }
@@ -651,6 +653,83 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Resolve the Orders v2 order id for a webhook event (§21/B6). Resolution
+   * chain (fail-closed — returns null only when the chain is genuinely broken):
+   *   1. APPROVED events → `resource.id` (the order id).
+   *   2. Direct `resource.supplementary_data.related_ids.order_id` (capture events).
+   *   3. HATEOAS `up` link on the resource that points at an order.
+   *   4. For a REFUND event (resource is a refund), resolve the parent capture
+   *      from its `up` link, then the capture's order.
+   *   5. For a CAPTURE event, GET the capture and read its order id.
+   * A refund id is NEVER used as an order id.
+   */
+  private async resolveEventOrderId(
+    eventType: string,
+    resource: {
+      id?: string;
+      links?: Array<{ href: string; rel: string }>;
+      supplementary_data?: { related_ids?: { order_id?: string } };
+    },
+    isOrderApproved: boolean,
+  ): Promise<string | null> {
+    if (isOrderApproved) {
+      return resource.id ?? null;
+    }
+    const direct = resource.supplementary_data?.related_ids?.order_id;
+    if (direct) return direct;
+    const fromResourceLink = this.orderIdFromLinks(resource.links);
+    if (fromResourceLink) return fromResourceLink;
+
+    // No direct order id. A refund resource's `up` link points at its parent
+    // capture; a capture resource's `id` IS the capture. Resolve the capture.
+    const isRefundEvent = eventType.startsWith('PAYMENT.REFUND.');
+    const captureId = isRefundEvent ? this.captureIdFromLinks(resource.links) : resource.id;
+    if (!captureId) return null;
+    return this.resolveCaptureOrderId(captureId);
+  }
+
+  /** Resolve the order id of a capture (direct related id, then its `up` link). */
+  private async resolveCaptureOrderId(captureId: string): Promise<string | null> {
+    try {
+      const capture = await this.getCapture(captureId);
+      if (!capture) return null;
+      const direct = capture.supplementary_data?.related_ids?.order_id;
+      if (direct) return direct;
+      return this.orderIdFromLinks(capture.links);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Extract an Orders v2 order id from a HATEOAS `up` link href. */
+  private orderIdFromLinks(links?: Array<{ href: string; rel: string }>): string | null {
+    const href = links?.find((l) => l.rel === 'up')?.href ?? '';
+    const match = /\/(?:v2\/checkout\/orders|checkout\/orders)\/([^/?]+)/.exec(href);
+    return match?.[1] ?? null;
+  }
+
+  /** Extract a capture id from a HATEOAS `up` link href (refund → capture). */
+  private captureIdFromLinks(links?: Array<{ href: string; rel: string }>): string | null {
+    const href = links?.find((l) => l.rel === 'up')?.href ?? '';
+    const match = /\/(?:v2\/payments\/captures|payments\/captures)\/([^/?]+)/.exec(href);
+    return match?.[1] ?? null;
+  }
+
+  private async getCapture(captureId: string): Promise<PaypalCapture | null> {
+    const token = await this.accessToken();
+    const res = await this.transport.request('GET', `${this.urls.apiBase}/v2/payments/captures/${encodeURIComponent(captureId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 404) {
+      return null;
+    }
+    if (res.status !== 200) {
+      throw new PaypalApiError('get capture', res.status, res.body);
+    }
+    return JSON.parse(res.body) as PaypalCapture;
   }
 
   private async captureOrder(orderId: string): Promise<PaypalCapture | null> {
