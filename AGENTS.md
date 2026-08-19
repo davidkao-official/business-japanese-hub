@@ -40,13 +40,14 @@
 - Payment implementation（#9）以 `docs/payments/decision-record.md` 為唯一 contract；payment architecture 為 provider-neutral，ECPay（綠界）只是第一支 TWD adapter。Provider-specific mechanics 不得污染 Book / Reader / Library / Entitlement architecture；paid ownership 只能由 verified authoritative server event 驅動。所有 payment `/api/*` endpoints 都必須在 server-only execution boundary 執行（Supabase Edge Functions，見 decision-record §3.5）；client 永不可提供可信 amount/currency，server 以 authoritative catalog price seam 取價（見 §8.3）。
 - 與 `docs/product-contract.md` 衝突的實作方向應被視為錯誤，先釐清再動手。
 
-## 當前階段：Prototype MVP
+## 當前階段：Paid Launch／first revenue
 
-- 立即目標是 **Prototype MVP**（見 `docs/product-contract.md` §15）：讓陌生訪客在手機與桌面直接免費閱讀 **1–2 本 free/public prototype books**，不需 login / checkout / payment。Critical path：`Storefront → Book Detail → free read → Universal Reader → chapter navigation`。
-- **Paid Launch** 工作（#20 JPY adapter、#21 USD adapter、#25 legal/compliance、#28 locale switching、#29 legal evidence）明確 **deferred**，不是 Prototype blocker。
-- **既有 payment / entitlement / legal architecture 不得刪除、繞過或弱化**；它只是不在 Prototype critical path。
-- Free/public access 必須以 generic catalog/access 語意表達（例如 `Price.tier: 'free'`），**不得 hard-code book slug**，也不得讓未來的 paid books 意外公開。
-- Prototype 不得顯示 fake checkout UI 或 disabled payment CTA；用清楚的 free-reading 語言。
+- **Prototype MVP 已完成**：陌生訪客可在手機與桌面免登入閱讀 free/public books，既有 public reading path 必須持續可用。
+- 立即目標是 **Paid Launch／最快安全的第一筆真實營收**（見 `docs/product-contract.md` §15 與 #45）。優先完成最小可合法、安全上線的 Book／currency／provider 組合；不等待所有未來 provider。
+- 第一個付費 Book 必須是真實、可販售的內容，不得只把 prototype flag 翻成 paid；catalog 價格、checkout、payment、entitlement、receipt 與 refund/reconciliation 必須維持 server-authoritative 與 fail-closed。
+- #20 JPY 在 seller／merchant entity 與 provider eligibility 有真實證據前不阻塞第一筆營收。不得猜測 merchant eligibility、seller identity、tax status、credentials、專業法律核准或外部 account state。
+- Free/public access 仍必須以 generic catalog/access 語意表達（例如 `Price.tier: 'free'`），**不得 hard-code book slug**，也不得讓 paid books 意外公開。
+- **既有 payment / entitlement / legal architecture 不得刪除、繞過或弱化**；Paid Launch 必須沿用它們完成 production golden path。
 - UI / Reader quality 維持 P0，遵循 `docs/ui-ux-research.md`。
 
 ## 文件地圖
