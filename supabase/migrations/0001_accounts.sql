@@ -62,7 +62,7 @@ create table if not exists public.reading_state (
   block_id   text,
   -- Optional intra-block offset (e.g. character/paragraph index). Semantics are
   -- a renderer-level detail; persisted opaquely here.
-  offset     int,
+  "offset"   int,
   updated_at timestamptz not null default now(),
   primary key (user_id, book_id)
 );
@@ -84,7 +84,7 @@ create table if not exists public.bookmark (
   book_id    text not null,
   chapter_id text not null,
   block_id   text,
-  offset     int,
+  "offset"   int,
   created_at timestamptz not null default now()
 );
 

@@ -149,8 +149,11 @@ supabase/functions/
   checkout/            -> POST /functions/v1/checkout/books/:bookId
   ecpay-callback/      -> POST /functions/v1/ecpay-callback
   ecpay-browser-return -> POST /functions/v1/ecpay-browser-return
+  paypal-webhook/      -> POST /functions/v1/paypal-webhook
+  paypal-browser-return -> GET|POST /functions/v1/paypal-browser-return
   orders-status/       -> GET  /functions/v1/orders-status/:orderId/status
   finance/             -> GET  /functions/v1/finance
+  repair-reconcile/    -> POST /functions/v1/repair-reconcile
 ```
 
 **Ingress contract（#9 implementation-ready）：**
@@ -162,14 +165,17 @@ Supabase 把每個 Edge Function 部署成獨立 endpoint `https://<project-ref>
 | `POST /api/checkout/books/:bookId` | `POST /functions/v1/checkout/books/:bookId` |
 | `POST /api/payments/ecpay/callback` | `POST /functions/v1/ecpay-callback` |
 | `POST /api/payments/ecpay/browser-return` | `POST /functions/v1/ecpay-browser-return` |
+| `POST /api/payments/paypal/webhook` | `POST /functions/v1/paypal-webhook` |
+| `GET\|POST /api/payments/paypal/browser-return` | `GET\|POST /functions/v1/paypal-browser-return` |
 | `GET /api/orders/:orderId/status` | `GET /functions/v1/orders-status/:orderId/status` |
 | `GET /api/admin/finance/*` | `GET /functions/v1/finance`（finance sub-route 在 function 內解析） |
+| `POST /api/internal/repair-reconcile` | `POST /functions/v1/repair-reconcile`（shared-secret authenticated） |
 
 - **決策：** SPA 與內部 callers 直接呼叫 deployed `/functions/v1/<function-name>` URL（Supabase platform gateway），**不依賴額外的 `/api/*` reverse-proxy rewrite**。每個 function 以 `/functions/v1/<function-name>` 為 base，路徑參數接在其後（如 `/functions/v1/checkout/books/<bookId>`），function 內以 URL Pattern 解析 request pathname。本機開發以 `supabase start` + `supabase functions serve` 提供 `/functions/v1/*`；Vite dev server 以 proxy 對應轉送。
-- **Platform-level JWT 驗證（`verify_jwt`）：** `supabase/config.toml` 必須設定 `verify_jwt = false` **只** 對 `ecpay-callback` 與 `ecpay-browser-return`（兩者的 request 都不攜帶 Supabase user JWT：ECPay server POST 與 browser navigation 均無）。`checkout`、`orders-status`、`finance` 維持 `verify_jwt = true`（platform 在 function 執行前驗證 `Authorization` header，missing / invalid → 401），function 內再以 server-side JWT / session 驗證 ownership 與 role（見下方「Authenticated order-status / finance access」）。
-- **public handler 仍必須自我驗證：** 即使 `ecpay-callback` / `ecpay-browser-return` 關閉 platform JWT check，handler 內仍必須驗證 ECPay `CheckMacValue`、local invariants（§4.4）與 browser-input，不可因關閉 `verify_jwt` 而省略。
+- **Platform-level JWT 驗證（`verify_jwt`）：** `supabase/config.toml` 對不攜帶 Supabase user JWT 的 provider/public ingress（`ecpay-callback`、`ecpay-browser-return`、`paypal-webhook`、`paypal-browser-return`）與 shared-secret internal job（`repair-reconcile`）設定 `verify_jwt = false`。`checkout`、`orders-status`、`finance` 維持 `verify_jwt = true`（platform 在 function 執行前驗證 `Authorization` header，missing / invalid → 401），function 內再以 server-side JWT / session 驗證 ownership 與 role（見下方「Authenticated order-status / finance access」）。
+- **public/internal handler 仍必須自我驗證：** 關閉 platform JWT check 不等於信任 request。ECPay callback 驗證 `CheckMacValue` 與 local invariants（§4.4）；PayPal webhook 以 PayPal verification endpoint 驗證 transmission signature 並核對 local amount/currency/reference；browser-return 永不 mint entitlement；`repair-reconcile` 必須驗證 dedicated scheduled-job secret。
 
-**Secrets（provider secrets server-only）：** 以 `supabase secrets set ECPAY_MERCHANT_ID=... ECPAY_HASH_KEY=... ECPAY_HASH_IV=... ECPAY_ENV=...` 設定在專案層級，Edge Function 以 `Deno.env` 讀取；永不進入 repository / client bundle / build artifact（§15）。stage 與 production 使用**不同 Supabase 專案**，憑證不可混用（§16）。
+**Secrets（provider secrets server-only）：** ECPay 的 merchant/hash credentials 與 PayPal 的 client ID/client secret/webhook ID/environment，以及 scheduled-job secret，皆以 `supabase secrets set` 設定在專案層級；Edge Function 以 `Deno.env` 讀取，永不進入 repository / client bundle / build artifact（§15）。stage 與 production 使用**不同 Supabase 專案**，憑證不可混用（§16）。
 
 **Service-role persistence：** Edge Function 內以 runtime 提供的 `SUPABASE_SERVICE_ROLE_KEY` 建立 service-role client（絕不使用 anon key）；所有 `orders` / `payments` / `refunds` / `payment_events` 寫入與 `grant_entitlement` 寫入點（沿用 `src/lib/persistence/grant.ts` pattern）都只透過此 client；service-role secret 永不進入瀏覽器。
 
@@ -358,10 +364,10 @@ MVP 三層 reconciliation：
 | Layer | 內容 |
 | --- | --- |
 | **Layer A — transaction-time** | `ReturnURL` → CheckMac → `QueryTradeInfo` → paid / entitlement |
-| **Layer B — repair loop** | scheduled job：掃描 `verification_pending` / stale pending payments → `QueryTradeInfo` → repair missed/ambiguous callbacks |
-| **Layer C — financial reconciliation** | daily production job：`FundingReconDetail` CSV → match local refs / amount → flag mismatch → discover confirmed refunds |
+| **Layer B — repair loop** | 10-minute scheduled `mode=repair`：掃描 `verification_pending` / stale pending payments → ECPay `QueryTradeInfo` 或 PayPal Orders confirmation → repair missed/ambiguous callbacks；只有 signed/authoritative snapshot 的 ref + amount + currency 全部符合才可進 atomic finalizer |
+| **Layer C — financial reconciliation** | daily scheduled `mode=reconcile`：ECPay `FundingReconDetail` CSV + PayPal Transaction Search → match local transaction ref / amount / currency → flag mismatch → discover provider-confirmed full refunds/reversals |
 
-`FundingReconDetail` 是 production-only CSV API（`https://payment.ecPay.com.tw/CreditDetail/FundingReconDetail`），內容含請款與退款資訊（退款金額為負數），官方建議每日執行；stage 不會有真實授權，因此沒有可用的測試環境。`#9` 應用官方 schema 製作 fixture CSV 測 parser/matcher，production 才跑真實 download。
+`FundingReconDetail` 是 production-only CSV API（`https://payment.ecPay.com.tw/CreditDetail/FundingReconDetail`），內容含請款與退款資訊（退款金額為負數），官方建議每日執行；stage 不會有真實授權，因此沒有可用的測試環境。PayPal Layer C 使用 Transaction Search `fields=all` 並完整分頁；adapter 只輸出 normalized money-moving entries，orchestration 以 capture/reference transaction ID 與 full-refund invariant 比對。Malformed、pending、partial 或錯誤 currency 都不得撤銷 entitlement。
 
 「尚未出現在 settlement report」與「真的 mismatch」要區分開（例如當日交易通常要到隔日 14:00 後才能取得相關資料），不要交易成功幾分鐘就報 reconciliation failure。
 
@@ -764,7 +770,7 @@ ECPay 官方要求 duplicate callback 要安全處理；Business Japanese Hub �
 
 ## 15. Security & secrets
 
-環境變數（僅存在 server-side secret/environment config）：`ECPAY_MERCHANT_ID`、`ECPAY_HASH_KEY`、`ECPAY_HASH_IV`、`ECPAY_ENV`。
+環境變數（僅存在 server-side secret/environment config）：ECPay 使用 `ECPAY_MERCHANT_ID`、`ECPAY_HASH_KEY`、`ECPAY_HASH_IV`、`ECPAY_ENV`；PayPal 使用 `PAYPAL_CLIENT_ID`、`PAYPAL_CLIENT_SECRET`、`PAYPAL_WEBHOOK_ID`、`PAYPAL_ENV`。Credentials 是 provider-scoped：未使用的 provider 可不設定，但該 provider 的 checkout/callback/reconciliation 必須在任何 state change 前 fail closed。
 
 **Absolutely forbidden：** `NEXT_PUBLIC_ECPAY_HASH_KEY` / `VITE_ECPAY_HASH_KEY`、client-side signature generation、committed production `.env` secret、logs 含 `HashKey`/`HashIV`、共享 ECPay merchant password、PAN/CVV persistence。
 

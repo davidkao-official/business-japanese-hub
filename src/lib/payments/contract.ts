@@ -144,8 +144,10 @@ export interface VerifiedProviderEvent {
   provider: PaymentProvider;
   providerMerchantRef: string;
   providerPaymentRef?: string;
+  /** Provider refund/capture reference carried by a confirmed refund/reversal event. */
+  providerRefundRef?: string;
   eventFingerprint: string;
-  status: 'succeeded' | 'failed' | 'unknown';
+  status: 'succeeded' | 'failed' | 'refunded' | 'unknown';
   amount?: Money;
   paidAt?: string;
   rawStatusCode?: string;
@@ -180,30 +182,76 @@ export interface ProviderPaymentSnapshot {
 export interface CreateCheckoutInput {
   orderId: string;
   paymentId: string;
-  /** Server-generated merchant reference (ECPay MerchantTradeNo); never client-supplied. */
+  /** Server-generated merchant reference; never client-supplied. */
   merchantReference: string;
   amount: Money;
   itemNameSnapshot: string;
-  /** ECPay Language value (CHT / JPN / ENG). */
-  locale: string;
-  returnUrl: string;
+  /**
+   * Authoritative server callback URL (ECPay ReturnURL). Not used by PayPal —
+   * its webhook is a server-configured endpoint, not a per-order callback.
+   */
+  returnUrl?: string;
+  /**
+   * Browser return target after provider payment / approval
+   * (ECPay OrderResultURL / PayPal approval return_url). Never payment evidence.
+   */
   orderResultUrl: string;
+  /** Browser cancel target (PayPal cancel_url); ECPay ignores. */
+  cancelUrl?: string;
+  /** Provider display language (ECPay Language CHT/JPN/ENG); PayPal ignores. */
+  locale?: string;
 }
 
-export interface CheckoutInstruction {
-  /** URL the browser must full-page POST to (never iframe / modal). */
-  action: string;
-  /** Form fields (form-urlencoded), including provider signature. */
-  fields: Record<string, string>;
-  provider: PaymentProvider;
-  merchantReference: string;
-}
+/**
+ * Provider checkout instruction — a discriminated union over transport kinds so
+ * the provider-neutral seam genuinely supports both ECPay form POST and PayPal
+ * approval redirect (§17.1 / §21). The SERVER picks the transport by routing
+ * currency → provider; the client only renders whatever instruction came back
+ * and NEVER decides the provider, the price, or the payment-success state.
+ */
+export type CheckoutInstruction =
+  | {
+      kind: 'form-post';
+      /** URL the browser must full-page POST to (never iframe / modal). */
+      action: string;
+      /** Form fields (form-urlencoded), including provider signature. */
+      fields: Record<string, string>;
+      provider: PaymentProvider;
+      merchantReference: string;
+      /** Provider payment reference known at checkout time (PayPal order id). */
+      providerPaymentReference?: string;
+    }
+  | {
+      kind: 'redirect';
+      /** URL the browser must navigate to (PayPal approval link). */
+      url: string;
+      provider: PaymentProvider;
+      merchantReference: string;
+      /** Provider payment reference known at checkout time (PayPal order id). */
+      providerPaymentReference?: string;
+    };
 
-/** Raw form-urlencoded callback body parsed as key/value pairs (never JSON). */
-export interface ProviderCallbackRequest {
-  form: Record<string, string>;
-  provider: PaymentProvider;
-}
+/**
+ * Raw provider callback / webhook request. A discriminated union over transport
+ * kinds: ECPay ReturnURL callbacks are `application/x-www-form-urlencoded`
+ * (`form`); PayPal webhooks are JSON and carry the exact raw body + transmission
+ * headers the signature verification needs (§21).
+ */
+export type ProviderCallbackRequest =
+  | {
+      provider: 'ecpay';
+      /** Raw form-urlencoded callback body parsed as key/value pairs (never JSON). */
+      form: Record<string, string>;
+    }
+  | {
+      provider: 'paypal';
+      /** Exact raw webhook body bytes (byte-for-byte; required for verification). */
+      body: string;
+      /** Webhook transmission headers (PAYPAL-TRANSMISSION-* / PayPal-Signature). */
+      headers: Record<string, string>;
+      /** Content-Type of the webhook body. */
+      contentType?: string;
+    };
 
 export interface RefundInput {
   paymentId: string;

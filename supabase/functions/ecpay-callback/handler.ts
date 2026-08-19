@@ -38,11 +38,11 @@ import {
   type HandlerRequest,
   type HandlerResult,
 } from '../_shared/http.ts';
-import { buildPaymentEventRow } from '../_shared/events.ts';
+import { buildPaymentEventRow, sanitizedCallbackPayload } from '../_shared/events.ts';
+import { isEcpayConfigured } from '../_shared/ecpay.ts';
 import {
   applyPaymentEvent,
   applyVerifiedSuccess,
-  loadOrder,
   loadPaymentByMerchantRef,
   type PaymentRow,
 } from '../_shared/flow.ts';
@@ -60,6 +60,12 @@ export async function handleEcpayCallback(
   deps: EcpayCallbackHandlerDeps,
 ): Promise<HandlerResult> {
   if (req.method !== 'POST') return methodNotAllowed('POST');
+  if (!isEcpayConfigured(deps.env)) {
+    return jsonResult(503, {
+      error: 'ecpay is not configured',
+      reason: 'provider_configuration_unavailable',
+    });
+  }
   const form = parseFormUrlEncoded(req.bodyText);
   const now = deps.now ?? (() => new Date());
 
@@ -88,7 +94,7 @@ export async function handleEcpayCallback(
   // 2. Durable receipt. UNIQUE(provider, event_fingerprint); replay → no-op.
   const eventInsert = await deps.db
     .from('payment_events')
-    .insert(buildPaymentEventRow(event, form), {
+    .upsert(buildPaymentEventRow(event, sanitizedCallbackPayload(form)), {
       onConflict: 'provider,event_fingerprint',
       ignoreDuplicates: true,
     })
@@ -98,10 +104,18 @@ export async function handleEcpayCallback(
     deps.log.error({ error: eventInsert.error.message }, 'payment_events insert failed; NOT acknowledging');
     return jsonResult(500, { error: 'event persist failed' });
   }
-  if (!eventInsert.data) {
-    deps.log.info({ eventFingerprint: event.eventFingerprint }, 'duplicate callback (replay) — idempotent 1|OK');
-    return textResult(200, '1|OK');
+  const isReplay = !eventInsert.data;
+  if (isReplay) {
+    deps.log.info(
+      { eventFingerprint: event.eventFingerprint },
+      'duplicate callback (replay) — re-applying idempotently',
+    );
   }
+  // Continue processing REGARDLESS of fresh/replay (§21/B2): the verified path
+  // is idempotent (state.ts + grant upsert + grant-first ordering), so a replay
+  // after a partially-failed first delivery self-heals the missing work instead
+  // of being silently acked with a bare `1|OK` and never granting. Normal ACK
+  // behavior and exactly-one entitlement are preserved.
 
   // 3. Local payment lookup by MerchantTradeNo (unknown ref → no entitlement).
   let payment: PaymentRow;
@@ -210,17 +224,15 @@ export async function handleEcpayCallback(
 
   // 6. Verified success → payment succeeded + order paid + grant exactly once.
   try {
-    const orderRow = await loadOrder(deps.db, payment.order_id);
-    if (!orderRow) throw new Error(`order ${payment.order_id} not found for payment ${payment.id}`);
     const result = await applyVerifiedSuccess({
       db: deps.db,
       log: deps.log,
       now,
-      orderRow,
       paymentRow: payment,
       merchantReference: event.providerMerchantRef,
       providerPaymentReference: snapshot.providerPaymentReference ?? event.providerPaymentRef,
       paidAt: event.paidAt,
+      rawStatusCode: snapshot.rawStatusCode,
     });
     deps.log.info(
       {

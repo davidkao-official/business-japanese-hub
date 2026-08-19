@@ -60,6 +60,24 @@ const SNAPSHOT_OK: ProviderPaymentSnapshot = {
   },
 };
 
+const SUCCESS_TRANSACTION = {
+  payment_status: 'succeeded',
+  order_status: 'paid',
+  granted: true,
+};
+
+const REPLAY_TRANSACTION = {
+  payment_status: 'succeeded',
+  order_status: 'paid',
+  granted: false,
+};
+
+const DUPLICATE_TRANSACTION = {
+  payment_status: 'duplicate_success',
+  order_status: 'paid',
+  granted: false,
+};
+
 function formBody(fields: Record<string, string>): string {
   return new URLSearchParams(fields).toString();
 }
@@ -69,7 +87,7 @@ function baseMock(overrides: Record<string, unknown> = {}) {
     payment_events: { data: { id: 'evt-1' } },
     payments: { data: PAYMENT_ROW },
     orders: { data: ORDER_ROW },
-    'rpc:grant_entitlement': { data: null },
+    'rpc:finalize_payment_success': { data: SUCCESS_TRANSACTION },
     ...overrides,
   });
   const adapter = createFakeAdapter();
@@ -92,6 +110,23 @@ function run(form: Record<string, string>, adapter: ReturnType<typeof createFake
 }
 
 describe('ecpay-callback handler', () => {
+  it('fails closed when ECPay is not configured', async () => {
+    const { mock, adapter } = baseMock();
+    const result = await handleEcpayCallback(
+      handlerRequest('POST', 'https://test.supabase.co/functions/v1/ecpay-callback', formBody(FORM_OK)),
+      {
+        env: testEnv({ ecpayMerchantId: undefined, ecpayHashKey: undefined, ecpayHashIV: undefined }),
+        db: mock.db,
+        adapter,
+        log: fakeLogger(),
+      },
+    );
+    expect(result.status).toBe(503);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'provider_configuration_unavailable' });
+    expect(adapter.verifyCallback).not.toHaveBeenCalled();
+    expect(mock.callsFor('payment_events', 'insert')).toHaveLength(0);
+  });
+
   it('forged CheckMac → rejected (no ack, no processing)', async () => {
     const { mock, adapter } = baseMock();
     adapter.verifyCallback.mockRejectedValue(new Error('Invalid ECPay CheckMacValue for callback'));
@@ -157,20 +192,19 @@ describe('ecpay-callback handler', () => {
     const result = await run(FORM_OK, adapter, mock.db);
     expect(result.status).toBe(200);
     expect(result.body).toBe('1|OK');
+    expect(mock.callsFor('payment_events', 'upsert')).toHaveLength(1);
+    expect(mock.callsFor('payment_events', 'insert')).toHaveLength(0);
     expect(adapter.confirmPayment).toHaveBeenCalledTimes(1);
 
-    const paymentUpdate = mock.callsFor('payments', 'update')[0];
-    expect(paymentUpdate.args[0]).toMatchObject({ status: 'succeeded' });
-    const orderUpdate = mock.callsFor('orders', 'update')[0];
-    expect(orderUpdate.args[0]).toMatchObject({ status: 'paid' });
-    expect(mock.rpcCalls('grant_entitlement').length).toBe(1);
-    const grantArgs = mock.rpcCalls('grant_entitlement')[0].args[0] as Record<string, unknown>;
-    expect(grantArgs).toMatchObject({
-      p_user_id: 'user-1',
-      p_book_id: 'book-a',
-      p_provider: 'ecpay',
-      p_source_order_id: 'ord-1',
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(1);
+    expect(mock.rpcCalls('finalize_payment_success')[0].args[0]).toMatchObject({
+      p_payment_id: 'pay-1',
+      p_provider_payment_ref: 'ECPAY-TRADE-1',
+      p_provider_status_code: '1',
     });
+    expect(mock.callsFor('payments', 'update')).toHaveLength(0);
+    expect(mock.callsFor('orders', 'update')).toHaveLength(0);
+    expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
   });
 
   it('double charge: second genuine success on an already-paid order → duplicate_success, no second grant', async () => {
@@ -178,6 +212,7 @@ describe('ecpay-callback handler', () => {
     const { mock, adapter } = baseMock({
       orders: { data: { ...ORDER_ROW, status: 'paid' } },
       payments: { data: { ...PAYMENT_ROW, provider_merchant_ref: secondRef, status: 'pending' } },
+      'rpc:finalize_payment_success': { data: DUPLICATE_TRANSACTION },
     });
     const secondEvent: VerifiedProviderEvent = {
       provider: 'ecpay',
@@ -215,29 +250,58 @@ describe('ecpay-callback handler', () => {
     expect(result.status).toBe(200);
     expect(result.body).toBe('1|OK');
 
-    // The second payment is marked duplicate_success (the finance review signal)…
-    const paymentUpdates = mock.callsFor('payments', 'update');
-    const lastPaymentUpdate = paymentUpdates[paymentUpdates.length - 1];
-    expect(lastPaymentUpdate.args[0]).toMatchObject({ status: 'duplicate_success' });
-    // …and NO second entitlement is granted (order was already paid).
-    expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
+    // The transaction marks the second payment duplicate_success (the finance
+    // review signal) and never grants a second entitlement.
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(1);
+    expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
   });
 
-  it('same callback twice (replay) → one transition, one entitlement, idempotent 1|OK', async () => {
+  it('same callback twice (replay) → no second grant, order stays paid, idempotent 1|OK', async () => {
     const { mock, adapter } = baseMock();
     const first = await run(FORM_OK, adapter, mock.db);
     expect(first.status).toBe(200);
     expect(first.body).toBe('1|OK');
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(1);
 
-    // Replay: the UNIQUE(provider, event_fingerprint) insert is ignored (null row).
+    // Replay: the UNIQUE(provider, event_fingerprint) insert is ignored (null
+    // row), and the handler re-processes against PERSISTED state (payment
+    // succeeded, order paid) → no second grant, order never downgrades (§21/B2).
     mock.setRoute('payment_events', { data: null });
+    mock.setRoute('payments', { data: { ...PAYMENT_ROW, status: 'succeeded', paid_at: '2026-08-16T12:00:00Z' } });
+    mock.setRoute('orders', { data: { ...ORDER_ROW, status: 'paid', paid_at: '2026-08-16T12:00:00Z' } });
+    mock.setRoute('rpc:finalize_payment_success', { data: REPLAY_TRANSACTION });
     const second = await run(FORM_OK, adapter, mock.db);
     expect(second.status).toBe(200);
     expect(second.body).toBe('1|OK');
 
-    expect(mock.callsFor('payments', 'update').length).toBe(1);
-    expect(mock.callsFor('orders', 'update').length).toBe(1);
-    expect(mock.rpcCalls('grant_entitlement').length).toBe(1);
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(2);
+    expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
+    expect(mock.callsFor('orders', 'update')).toHaveLength(0);
+  });
+
+  it('B2: duplicate ECPay callback self-heals a partially-failed first delivery (missing work completes exactly once)', async () => {
+    const { mock, adapter } = baseMock();
+    // First delivery: durable receipt lands, then the transaction fails → 500
+    // (no ack). Postgres rolls back every financial write.
+    mock.setRoute('rpc:finalize_payment_success', { error: 'transaction failed' });
+    const first = await run(FORM_OK, adapter, mock.db);
+    expect(first.status).toBe(500);
+    expect(first.body).not.toBe('1|OK');
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(1);
+
+    // Partial persisted state: payment succeeded, order still pending.
+    mock.setRoute('payments', { data: { ...PAYMENT_ROW, status: 'succeeded' } });
+    mock.setRoute('payment_events', { data: null });
+    mock.setRoute('rpc:finalize_payment_success', { data: SUCCESS_TRANSACTION });
+
+    // ECPay re-delivers the SAME callback; the receipt dedups but the handler
+    // re-processes idempotently → the whole transaction lands exactly once.
+    const replay = await run(FORM_OK, adapter, mock.db);
+    expect(replay.status).toBe(200);
+    expect(replay.body).toBe('1|OK');
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(2);
+    expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
+    expect(mock.callsFor('orders', 'update')).toHaveLength(0);
   });
 
   it('late failed callback after succeeded → succeeded unchanged; 1|OK', async () => {

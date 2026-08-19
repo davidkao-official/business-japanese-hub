@@ -16,12 +16,14 @@ import {
   UnsupportedCurrencyForProvider,
   type CheckoutResponse,
   type ConsentSubmission,
+  type CreateCheckoutInput,
   type JapanConsumptionTaxStatus,
   type Jurisdiction,
-  type PaymentProviderAdapter,
+  type PaymentProvider,
   type ResolvedJurisdiction,
   isResolvedJurisdiction,
 } from '../../../src/lib/payments/contract.ts';
+import { NoProviderForCurrencyError, resolveProviderForCurrency } from '../../../src/lib/payments/domain.ts';
 import {
   badRequest,
   jsonResult,
@@ -38,14 +40,18 @@ import { edgeFunctionUrl } from '../_shared/env.ts';
 import type { DbClient } from '../_shared/db.ts';
 import type { Logger } from '../_shared/log.ts';
 import { authenticateBearer } from '../_shared/auth.ts';
-import { mapLocaleToEcpayLanguage } from '../_shared/ecpay.ts';
+import { isEcpayConfigured, mapLocaleToEcpayLanguage } from '../_shared/ecpay.ts';
+import { isPaypalConfigured } from '../_shared/paypal.ts';
 import { generateMerchantReference, isMerchantRefCollision } from '../_shared/merchant-ref.ts';
 import { applyPaymentEvent, type PaymentRow } from '../_shared/flow.ts';
+import type { ProviderAdapters } from '../_shared/provider.ts';
+
+export type { ProviderAdapters };
 
 export interface CheckoutHandlerDeps {
   env: Env;
   db: DbClient;
-  adapter: PaymentProviderAdapter;
+  adapters: ProviderAdapters;
   log: Logger;
   now?: () => Date;
   random?: () => number;
@@ -165,7 +171,7 @@ export async function handleCheckout(
     if (err instanceof CatalogUnavailableError) {
       return jsonResult(502, { error: 'catalog unavailable' });
     }
-    if (err instanceof UnsupportedCurrencyForProvider) {
+    if (err instanceof NoProviderForCurrencyError || err instanceof UnsupportedCurrencyForProvider) {
       return jsonResult(422, {
         error: 'checkout refused: provider does not support this currency',
         reason: 'unsupported_currency',
@@ -176,7 +182,7 @@ export async function handleCheckout(
   }
 }
 
-interface CreateCheckoutInput {
+interface CheckoutFlowInput {
   uid: string;
   bookId: string;
   consent: ConsentSubmission | null;
@@ -187,15 +193,39 @@ interface CreateCheckoutInput {
   random: () => number;
 }
 
-async function createCheckoutOrder(input: CreateCheckoutInput): Promise<HandlerResult> {
+async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerResult> {
   const { uid, bookId, consent, jurisdiction, japanTaxStatus, deps, now, random } = input;
 
   // Authoritative server-side price seam (§8.3): released-only catalog row.
   const catalog = await readCatalog(deps.db, bookId, now);
   const currency = String(catalog.currency);
   const amountMinor = Number(catalog.amount_minor);
-  // ECPay only accepts integer TWD (§17.1). Refuse a non-TWD book before any insert.
-  if (currency !== 'TWD') throw new UnsupportedCurrencyForProvider('ecpay');
+  // Server-authoritative routing (§21): TWD → ecpay, USD → paypal; any other
+  // currency (e.g. JPY) is unsupported and refuses BEFORE any insert (#20 stays
+  // untouched). The client never decides the provider.
+  const provider = resolveProviderForCurrency(currency);
+  if (provider !== 'ecpay' && provider !== 'paypal') {
+    return jsonResult(422, {
+      error: 'checkout refused: provider is not enabled for paid launch',
+      reason: 'unsupported_provider',
+    });
+  }
+  // USD → PayPal requires PayPal server-side config. Refuse BEFORE creating any
+  // Order / Payment row when it is absent (never silently fall USD back to
+  // another provider) — an ECPay-only deployment keeps serving TWD (§21).
+  if (provider === 'paypal' && !isPaypalConfigured(deps.env)) {
+    return jsonResult(422, {
+      error: 'checkout refused: paypal provider is not configured',
+      reason: 'provider_configuration_unavailable',
+    });
+  }
+  if (provider === 'ecpay' && !isEcpayConfigured(deps.env)) {
+    return jsonResult(422, {
+      error: 'checkout refused: ecpay provider is not configured',
+      reason: 'provider_configuration_unavailable',
+    });
+  }
+  const adapter = deps.adapters[provider];
 
   let orderId: string | null = null;
   let paymentId: string | null = null;
@@ -245,6 +275,7 @@ async function createCheckoutOrder(input: CreateCheckoutInput): Promise<HandlerR
     const paymentRow = await insertPaymentWithCollisionRetry(
       deps,
       orderId,
+      provider,
       amountMinor,
       currency,
       now,
@@ -252,18 +283,31 @@ async function createCheckoutOrder(input: CreateCheckoutInput): Promise<HandlerR
     );
     paymentId = paymentRow.id;
 
-    // Build the signed provider checkout instruction (§4.2). ReturnURL is the
-    // authoritative callback; OrderResultURL is the browser-return handler.
-    const instruction = await deps.adapter.createCheckout({
+    // Build the provider-appropriate checkout input (§4.2 / §21): ECPay needs
+    // its server callback + browser-return + Language; PayPal needs the browser
+    // approval return/cancel URLs (its webhook is server-configured).
+    const checkoutInput = buildCheckoutInput(deps, provider, {
       orderId,
       paymentId,
       merchantReference: paymentRow.provider_merchant_ref,
       amount: { amount: amountMinor, currency },
       itemNameSnapshot: String(catalog.slug ?? ''),
-      locale: mapLocaleToEcpayLanguage(consent?.locale),
-      returnUrl: edgeFunctionUrl(deps.env, 'ecpay-callback'),
-      orderResultUrl: edgeFunctionUrl(deps.env, 'ecpay-browser-return'),
+      locale: consent?.locale,
     });
+    const instruction = await adapter.createCheckout(checkoutInput);
+
+    // Preserve the provider checkout/session reference known before settlement
+    // (PayPal Order id). The final capture/transaction id is stored separately
+    // in provider_payment_ref only after authoritative confirmation.
+    if (instruction.providerPaymentReference) {
+      const { error: refUpdateError } = await deps.db
+        .from('payments')
+        .update({ provider_checkout_ref: instruction.providerPaymentReference })
+        .eq('id', paymentId);
+      if (refUpdateError) {
+        throw new Error(`provider checkout ref update failed: ${refUpdateError.message}`);
+      }
+    }
 
     // created → pending (payment_initiated).
     await applyPaymentEvent(
@@ -274,7 +318,7 @@ async function createCheckoutOrder(input: CreateCheckoutInput): Promise<HandlerR
 
     const response: CheckoutResponse = { orderId, paymentId, instruction };
     deps.log.info(
-      { orderId, paymentId, bookId, merchantReference: paymentRow.provider_merchant_ref, amountMinor, currency },
+      { orderId, paymentId, bookId, provider, merchantReference: paymentRow.provider_merchant_ref, amountMinor, currency },
       'checkout created',
     );
     return jsonResult(200, response);
@@ -283,6 +327,41 @@ async function createCheckoutOrder(input: CreateCheckoutInput): Promise<HandlerR
     await compensateCreatedRows(deps, orderId, paymentId);
     throw err;
   }
+}
+
+/** Build the provider-appropriate `CreateCheckoutInput` (§21 transport seam). */
+function buildCheckoutInput(
+  deps: CheckoutHandlerDeps,
+  provider: PaymentProvider,
+  params: {
+    orderId: string;
+    paymentId: string;
+    merchantReference: string;
+    amount: { amount: number; currency: string };
+    itemNameSnapshot: string;
+    locale: string | undefined;
+  },
+): CreateCheckoutInput {
+  const base = {
+    orderId: params.orderId,
+    paymentId: params.paymentId,
+    merchantReference: params.merchantReference,
+    amount: params.amount,
+    itemNameSnapshot: params.itemNameSnapshot,
+  };
+  if (provider === 'ecpay') {
+    return {
+      ...base,
+      returnUrl: edgeFunctionUrl(deps.env, 'ecpay-callback'),
+      orderResultUrl: edgeFunctionUrl(deps.env, 'ecpay-browser-return'),
+      locale: mapLocaleToEcpayLanguage(params.locale),
+    };
+  }
+  return {
+    ...base,
+    orderResultUrl: edgeFunctionUrl(deps.env, 'paypal-browser-return'),
+    cancelUrl: edgeFunctionUrl(deps.env, 'paypal-browser-return'),
+  };
 }
 
 async function readCatalog(
@@ -327,6 +406,7 @@ export async function readJapanTaxStatus(db: DbClient): Promise<JapanConsumption
 async function insertPaymentWithCollisionRetry(
   deps: CheckoutHandlerDeps,
   orderId: string,
+  provider: PaymentProvider,
   amountMinor: number,
   currency: string,
   now: () => Date,
@@ -338,7 +418,7 @@ async function insertPaymentWithCollisionRetry(
       .from('payments')
       .insert({
         order_id: orderId,
-        provider: 'ecpay',
+        provider,
         provider_merchant_ref: merchantRef,
         amount_minor: amountMinor,
         currency,

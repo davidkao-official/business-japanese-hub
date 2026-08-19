@@ -67,6 +67,7 @@ function setup(initial: Record<string, unknown> = {}, routes: Record<string, Moc
   });
   const adapter = createFakeAdapter();
   adapter.createCheckout.mockResolvedValue({
+    kind: 'form-post',
     action: CHECKOUT_URL,
     fields: { MerchantTradeNo: 'BJH123456789', CheckMacValue: 'MAC' },
     provider: 'ecpay',
@@ -79,7 +80,7 @@ function setup(initial: Record<string, unknown> = {}, routes: Record<string, Moc
     deps: {
       env: testEnv(),
       db: mock.db,
-      adapter,
+      adapters: { ecpay: adapter, paypal: createFakeAdapter('paypal') },
       log: fakeLogger(),
       now: () => new Date('2026-08-16T12:00:00Z'),
       random: () => 0.5,
@@ -481,5 +482,187 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     expect(result.status).toBe(200);
     expect(adapter.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ locale: 'JPN' }));
     expect(vi.isMockFunction(adapter.createCheckout)).toBe(true);
+  });
+});
+
+describe('checkout handler — currency → provider routing (§21)', () => {
+  const CATALOG_USD = {
+    book_id: 'book-usd',
+    slug: 'usd-book',
+    currency: 'USD',
+    amount_minor: 1999,
+    published_revision: 'usd-book@e1-r1',
+    released_at: '2026-01-01T00:00:00Z',
+  };
+
+  function usdSetup(routes: Record<string, unknown> = {}) {
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'user-1' } },
+      catalog: { data: CATALOG_USD },
+      orders: { data: { id: 'ord-1' } },
+      order_compliance: { data: null },
+      payments: { data: { ...PAYMENT_ROW, provider: 'paypal', currency: 'USD', amount_minor: 1999 } },
+      ...jpTax('taxable'),
+      ...routes,
+    });
+    const ecpayAdapter = createFakeAdapter();
+    const paypalAdapter = createFakeAdapter('paypal');
+    paypalAdapter.createCheckout.mockResolvedValue({
+      kind: 'redirect',
+      url: 'https://www.sandbox.paypal.com/checkoutnow?token=ORDER-1',
+      provider: 'paypal',
+      merchantReference: 'BJH123456789',
+      providerPaymentReference: 'ORDER-1',
+    });
+    const deps = {
+      env: testEnv(),
+      db: mock.db,
+      adapters: { ecpay: ecpayAdapter, paypal: paypalAdapter },
+      log: fakeLogger(),
+      now: () => new Date('2026-08-16T12:00:00Z'),
+      random: () => 0.5,
+    };
+    return { mock, ecpayAdapter, paypalAdapter, deps };
+  }
+
+  it('USD catalog → PayPal adapter, redirect instruction, payment provider=paypal', async () => {
+    const { mock, ecpayAdapter, paypalAdapter, deps } = usdSetup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-usd',
+        JSON.stringify({ bookId: 'book-usd', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    const body = JSON.parse(result.body) as { instruction: { kind: string; url: string; providerPaymentReference: string } };
+    expect(body.instruction.kind).toBe('redirect');
+    expect(body.instruction.url).toContain('checkoutnow');
+    expect(body.instruction.providerPaymentReference).toBe('ORDER-1');
+
+    // The PayPal adapter is used, the ECPay adapter is NOT.
+    expect(paypalAdapter.createCheckout).toHaveBeenCalledTimes(1);
+    expect(ecpayAdapter.createCheckout).not.toHaveBeenCalled();
+    expect(paypalAdapter.createCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: 'ord-1',
+        amount: { amount: 1999, currency: 'USD' },
+        orderResultUrl: 'https://test.supabase.co/functions/v1/paypal-browser-return',
+      }),
+    );
+
+    // Payment insert uses the routed provider and USD; the PayPal order id is
+    // persisted separately from the later capture/transaction id.
+    const paymentInsert = mock.callsFor('payments', 'insert')[0];
+    expect(paymentInsert.args[0]).toMatchObject({
+      provider: 'paypal',
+      amount_minor: 1999,
+      currency: 'USD',
+      status: 'created',
+    });
+    const refUpdate = mock.callsFor('payments', 'update').find((c) => c.args[0]?.provider_checkout_ref === 'ORDER-1');
+    expect(refUpdate).toBeDefined();
+    expect(mock.callsFor('payments', 'update').some((c) => c.args[0]?.provider_payment_ref === 'ORDER-1')).toBe(false);
+  });
+
+  it('JPY catalog → refused as unsupported_currency before any insert (#20 untouched)', async () => {
+    const { deps } = usdSetup();
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'user-1' } },
+      catalog: { data: { ...CATALOG_USD, currency: 'JPY', amount_minor: 880 } },
+      orders: { data: { id: 'ord-1' } },
+      order_compliance: { data: null },
+      payments: { data: PAYMENT_ROW },
+      ...jpTax('taxable'),
+    });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-usd',
+        JSON.stringify({ bookId: 'book-usd', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      { ...deps, db: mock.db },
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'unsupported_currency' });
+    expect(mock.callsFor('orders', 'insert').length).toBe(0);
+    expect(mock.callsFor('payments', 'insert').length).toBe(0);
+  });
+
+  it('TWD/ECPay checkout works when PayPal is NOT configured (ECPay-only deployment)', async () => {
+    const { mock, adapter, deps } = setup({
+      env: testEnv({ paypalClientId: undefined, paypalClientSecret: undefined, paypalWebhookId: undefined }),
+    });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    // The ECPay adapter is used and the payment is created as TWD/ecpay.
+    expect(adapter.createCheckout).toHaveBeenCalledTimes(1);
+    expect(mock.callsFor('payments', 'insert')[0].args[0]).toMatchObject({
+      provider: 'ecpay',
+      currency: 'TWD',
+      amount_minor: 79000,
+    });
+  });
+
+  it('USD checkout with PayPal NOT configured → refused BEFORE any insert (no silent fallback)', async () => {
+    const { deps } = usdSetup();
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'user-1' } },
+      catalog: { data: CATALOG_USD },
+      orders: { data: { id: 'ord-1' } },
+      order_compliance: { data: null },
+      payments: { data: PAYMENT_ROW },
+      ...jpTax('taxable'),
+    });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-usd',
+        JSON.stringify({ bookId: 'book-usd', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      {
+        ...deps,
+        env: testEnv({ paypalClientId: undefined, paypalClientSecret: undefined, paypalWebhookId: undefined }),
+        db: mock.db,
+      },
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'provider_configuration_unavailable' });
+    // Fail closed BEFORE creating any Order / Payment row.
+    expect(mock.callsFor('orders', 'insert').length).toBe(0);
+    expect(mock.callsFor('payments', 'insert').length).toBe(0);
+    expect(mock.callsFor('order_compliance', 'insert').length).toBe(0);
+  });
+
+  it('TWD checkout with ECPay NOT configured → refused BEFORE any insert', async () => {
+    const { mock, deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      {
+        ...deps,
+        env: testEnv({ ecpayMerchantId: undefined, ecpayHashKey: undefined, ecpayHashIV: undefined }),
+      },
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'provider_configuration_unavailable' });
+    expect(mock.callsFor('orders', 'insert')).toHaveLength(0);
+    expect(mock.callsFor('payments', 'insert')).toHaveLength(0);
   });
 });

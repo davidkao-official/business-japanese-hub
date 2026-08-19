@@ -31,6 +31,17 @@ function browserForm(overrides: Record<string, string> = {}) {
 }
 
 describe('ecpay-browser-return handler', () => {
+  it('fails closed when ECPay is not configured', async () => {
+    const { mock, deps } = setup();
+    const result = await handleBrowserReturn(
+      handlerRequest('POST', 'https://test.supabase.co/functions/v1/ecpay-browser-return', browserForm()),
+      { ...deps, env: testEnv({ ecpayMerchantId: undefined, ecpayHashKey: undefined, ecpayHashIV: undefined }) },
+    );
+    expect(result.status).toBe(503);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'provider_configuration_unavailable' });
+    expect(mock.callsFor('payments', 'select')).toHaveLength(0);
+  });
+
   it('maps MerchantTradeNo → local order and 303-redirects to the result page', async () => {
     const { deps } = setup();
     const result = await handleBrowserReturn(

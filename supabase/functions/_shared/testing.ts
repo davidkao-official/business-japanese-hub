@@ -86,6 +86,10 @@ export function createMockDb(initial?: Record<string, MockRoute>): MockDb {
         record(table, 'in', args);
         return builder;
       },
+      or: (...args) => {
+        record(table, 'or', args);
+        return builder;
+      },
       order: (...args) => {
         record(table, 'order', args);
         return builder;
@@ -96,6 +100,10 @@ export function createMockDb(initial?: Record<string, MockRoute>): MockDb {
       },
       insert: (...args) => {
         record(table, 'insert', args);
+        return builder;
+      },
+      upsert: (...args) => {
+        record(table, 'upsert', args);
         return builder;
       },
       update: (...args) => {
@@ -157,20 +165,22 @@ export function createMockDb(initial?: Record<string, MockRoute>): MockDb {
 }
 
 export interface FakeAdapter {
-  provider: 'ecpay';
+  provider: string;
   createCheckout: ReturnType<typeof vi.fn>;
   verifyCallback: ReturnType<typeof vi.fn>;
   confirmPayment: ReturnType<typeof vi.fn>;
   refund: ReturnType<typeof vi.fn>;
+  reconcile: ReturnType<typeof vi.fn>;
 }
 
-export function createFakeAdapter(): FakeAdapter & PaymentProviderAdapter {
+export function createFakeAdapter(provider = 'ecpay'): FakeAdapter & PaymentProviderAdapter {
   const adapter: FakeAdapter = {
-    provider: 'ecpay',
+    provider,
     createCheckout: vi.fn(),
     verifyCallback: vi.fn(),
     confirmPayment: vi.fn(),
     refund: vi.fn(),
+    reconcile: vi.fn().mockResolvedValue({ provider, entries: [] }),
   };
   return adapter as FakeAdapter & PaymentProviderAdapter;
 }
@@ -183,6 +193,10 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
     ecpayHashKey: 'test-hash-key',
     ecpayHashIV: 'test-hash-iv',
     ecpayEnv: 'stage',
+    paypalClientId: 'test-paypal-client-id',
+    paypalClientSecret: 'test-paypal-client-secret',
+    paypalEnv: 'sandbox',
+    paypalWebhookId: 'test-webhook-id',
     scheduledJobSecret: 'test-scheduled-secret',
     fundingReconCsv: undefined,
     ...overrides,

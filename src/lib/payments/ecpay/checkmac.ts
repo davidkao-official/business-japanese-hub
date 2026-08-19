@@ -26,6 +26,10 @@
  * (Supabase Edge Functions) and Node (vitest).
  */
 
+import { sha256Hex } from '../crypto';
+
+export { sha256Hex };
+
 /**
  * The documented substitution step (§5). Applied to the output of a URL encoder;
  * on `encodeURIComponent` output these are no-ops (encodeURIComponent never
@@ -52,22 +56,6 @@ export function applyEcpayEncodeSubstitutions(encoded: string): string {
  */
 export function ecpayUrlEncode(input: string): string {
   return applyEcpayEncodeSubstitutions(encodeURIComponent(input));
-}
-
-/**
- * SHA-256 hex digest of a UTF-8 string (lowercase hex), via the Web Crypto API.
- * Used for CheckMacValue and for the payment-event fingerprint (§12). Shared so
- * the signature and fingerprint code paths live in exactly one place.
- */
-export async function sha256Hex(input: string): Promise<string> {
-  const data = new TextEncoder().encode(input);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  const bytes = new Uint8Array(digest);
-  let out = '';
-  for (let i = 0; i < bytes.length; i++) {
-    out += bytes[i].toString(16).padStart(2, '0');
-  }
-  return out;
 }
 
 /**

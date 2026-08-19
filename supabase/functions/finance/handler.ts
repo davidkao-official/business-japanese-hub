@@ -14,6 +14,9 @@
 import { fetchFinanceRole } from '../_shared/finance-role.ts';
 import type { DbClient } from '../_shared/db.ts';
 import type { Logger } from '../_shared/log.ts';
+import type { ProviderAdapters } from '../_shared/provider.ts';
+import { PaypalConfigurationUnavailableError } from '../_shared/paypal.ts';
+import type { ProviderRefundResult } from '../../../src/lib/payments/contract.ts';
 import {
   badRequest,
   forbidden,
@@ -31,6 +34,8 @@ import { confirmRefund, loadPaymentById, type PaymentRow } from '../_shared/flow
 export interface FinanceHandlerDeps {
   db: DbClient;
   log: Logger;
+  /** Adapters for provider-automatable refunds (PayPal); ECPay stays manual. */
+  adapters: ProviderAdapters;
   now?: () => Date;
 }
 
@@ -247,5 +252,96 @@ async function requestManualRefund(
     { paymentId: payment.id, refundId: refundInsert.data.id, actor: actorUid },
     'manual refund requested',
   );
+
+  // Provider-automatable refund (PayPal, §21): execute the full refund via the
+  // adapter and confirm immediately when the provider confirms it. ECPay stays
+  // on the manual flow (portal refund → confirm_refund action) unchanged.
+  if (
+    payment.provider === 'paypal' &&
+    payment.provider_payment_ref &&
+    (payment.status === 'succeeded' || payment.status === 'duplicate_success')
+  ) {
+    let refundResult: ProviderRefundResult;
+    try {
+      refundResult = await deps.adapters.paypal.refund({
+        paymentId: payment.id,
+        providerPaymentRef: payment.provider_payment_ref,
+        amount: { amount: Number(payment.amount_minor), currency: payment.currency },
+        merchantReference: payment.provider_merchant_ref,
+      });
+    } catch (err) {
+      if (err instanceof PaypalConfigurationUnavailableError) {
+        deps.log.warn(
+          { paymentId: payment.id, refundId: refundInsert.data.id },
+          'paypal refund refused: provider not configured; refund left requested',
+        );
+        return jsonResult(502, {
+          error: 'paypal is not configured',
+          reason: 'provider_configuration_unavailable',
+        });
+      }
+      throw err;
+    }
+    if (refundResult.ok && refundResult.status === 'succeeded') {
+      try {
+        await confirmRefund(
+          { db: deps.db, log: deps.log, now: deps.now ?? (() => new Date()), actor: actorUid },
+          String(refundInsert.data.id),
+          {
+            providerRefundRef: refundResult.providerRefundRef,
+            providerStatusCode: refundResult.rawStatusCode,
+          },
+        );
+      } catch (err) {
+        deps.log.error(
+          { refundId: refundInsert.data.id, error: err instanceof Error ? err.message : String(err) },
+          'paypal refund confirm failed after provider success',
+        );
+        return jsonResult(502, { error: 'refund confirm failed' });
+      }
+      return jsonResult(200, {
+        refund: { id: refundInsert.data.id, status: 'succeeded', provider_refund_ref: refundResult.providerRefundRef ?? null },
+        payment_status: 'refunded',
+        status: 'succeeded',
+      });
+    }
+
+    // Ambiguous/non-success results remain recoverable facts. Persist the
+    // provider reference/status before any processing transition so repair can
+    // safely retry with the same idempotency key (§21/B3). Confirmed success is
+    // handled above in the atomic finalization transaction.
+    const { error: refPersistError } = await deps.db
+      .from('refunds')
+      .update({
+        provider_refund_ref: refundResult.providerRefundRef ?? null,
+        provider_status_code: refundResult.rawStatusCode ?? null,
+      })
+      .eq('id', refundInsert.data.id);
+    if (refPersistError) {
+      deps.log.error({ error: refPersistError.message }, 'refund provider ref persist failed');
+    }
+
+    if (refundResult.ok && refundResult.status === 'pending') {
+      // Ambiguous (transport 5xx/timeout) or genuinely pending — leave it in the
+      // recoverable `processing` state; the repair loop resumes it with the same
+      // stable PayPal-Request-Id (§21/B3). Never a terminal failed refund here.
+      const { error: processingError } = await deps.db
+        .from('refunds')
+        .update({ status: 'processing' })
+        .eq('id', refundInsert.data.id);
+      if (processingError) {
+        deps.log.error({ error: processingError.message }, 'refund processing update failed');
+      }
+      return jsonResult(202, {
+        refund: { id: refundInsert.data.id, status: 'processing', provider_refund_ref: refundResult.providerRefundRef ?? null },
+        status: 'processing',
+      });
+    }
+    deps.log.warn(
+      { paymentId: payment.id, refundId: refundInsert.data.id, rawStatusCode: refundResult.rawStatusCode },
+      'paypal refund request rejected; left requested for operator review',
+    );
+  }
+
   return jsonResult(201, { refund: refundInsert.data, status: 'requested' });
 }

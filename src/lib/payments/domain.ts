@@ -7,7 +7,32 @@
  */
 
 import { moneyEquals } from './money';
-import type { Order, PaymentAttempt, ProviderPaymentSnapshot, Refund } from './contract';
+import type { Order, PaymentAttempt, PaymentProvider, ProviderPaymentSnapshot, Refund } from './contract';
+
+/**
+ * Thrown when a currency has no approved payment provider (e.g. JPY before #20).
+ * Distinct from the adapter-level `UnsupportedCurrencyForProvider` (a provider
+ * refusing a currency it cannot take); this is routing-level — no provider is
+ * assigned at all.
+ */
+export class NoProviderForCurrencyError extends Error {
+  constructor(currency: string) {
+    super(`No payment provider supports currency ${currency}`);
+    this.name = 'NoProviderForCurrencyError';
+  }
+}
+
+/**
+ * Server-authoritative currency → provider routing (§21). TWD → ecpay (first
+ * adapter), USD → paypal. Anything else (JPY, …) is unsupported and refuses
+ * checkout before any order / payment row is created — #20 stays untouched. The
+ * client never decides the provider; this is the ONLY routing decision point.
+ */
+export function resolveProviderForCurrency(currency: string): PaymentProvider {
+  if (currency === 'TWD') return 'ecpay';
+  if (currency === 'USD') return 'paypal';
+  throw new NoProviderForCurrencyError(currency);
+}
 
 /**
  * True only when this payment qualifies to grant entitlement (§13):

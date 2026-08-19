@@ -59,9 +59,14 @@ export interface FetchClient {
   (url: string, init?: FetchClientInit): Promise<FetchClientResponse>;
 }
 
-/** Full-page form POST of the provider checkout instruction (never iframe). */
+/** Full-page form POST of a form-post checkout instruction (never iframe). */
 export interface SubmitForm {
   (action: string, fields: Record<string, string>): void;
+}
+
+/** Full-page navigation to a redirect checkout instruction (PayPal approval URL). */
+export interface Navigate {
+  (url: string): void;
 }
 
 /** Server-authoritative auth token source (Supabase session JWT). */
@@ -88,6 +93,11 @@ const defaultSubmitForm: SubmitForm = (action, fields) => {
   document.body.appendChild(form);
   form.submit();
   document.body.removeChild(form);
+};
+
+/** Default redirect navigation (PayPal approval link) — full-page, same tab. */
+const defaultNavigate: Navigate = (url) => {
+  window.location.assign(url);
 };
 
 /* ------------------------------------------------------------------------- *
@@ -137,8 +147,10 @@ export interface CheckoutExecutorDeps {
   functionsBaseUrl?: string | null;
   /** Injectable HTTP client; defaults to a `globalThis.fetch` wrapper. */
   fetchClient?: FetchClient;
-  /** Injectable full-page form submitter; defaults to the hidden-form POST. */
+  /** Injectable full-page form submitter (form-post instructions); defaults to the hidden-form POST. */
   submitForm?: SubmitForm;
+  /** Injectable full-page navigator (redirect instructions); defaults to `window.location.assign`. */
+  navigate?: Navigate;
   /** Bearer token source for the authenticated checkout call. */
   authToken?: AuthTokenSource;
 }
@@ -166,6 +178,7 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
   const baseUrl = deps.functionsBaseUrl ?? resolveFunctionsBaseUrl();
   const fetchClient = deps.fetchClient ?? defaultFetchClient;
   const submitForm = deps.submitForm ?? defaultSubmitForm;
+  const navigate = deps.navigate ?? defaultNavigate;
 
   return async (intent, consent = null) => {
     if (!baseUrl) {
@@ -221,22 +234,35 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
       return { ok: false, reason: 'failed', message: 'invalid checkout response' };
     }
 
-    // Validate the minimum shape before trusting it.
+    // Validate the minimum shape before trusting it. The instruction is a
+    // discriminated union over transports: `form-post` (action + fields) or
+    // `redirect` (url). The server picks the transport; the client only renders
+    // it and NEVER decides the provider or payment success (§21).
+    const instruction = data.instruction;
+    const validInstruction =
+      instruction !== null &&
+      typeof instruction === 'object' &&
+      ((instruction as { kind?: string }).kind === 'form-post'
+        ? typeof (instruction as { action?: unknown }).action === 'string' &&
+          typeof (instruction as { fields?: unknown }).fields === 'object' &&
+          (instruction as { fields?: unknown }).fields !== null
+        : (instruction as { kind?: string }).kind === 'redirect' &&
+          typeof (instruction as { url?: unknown }).url === 'string');
     if (
       !data ||
       typeof data.orderId !== 'string' ||
-      !data.instruction ||
-      typeof data.instruction.action !== 'string' ||
-      typeof data.instruction.fields !== 'object' ||
-      data.instruction.fields === null
+      !validInstruction
     ) {
       return { ok: false, reason: 'failed', message: 'invalid checkout response' };
     }
 
-    // Full-page form POST to the provider (never iframe/modal). This navigates
-    // the browser to the provider checkout; the page returns "pending" and the
-    // browser-return flow (PurchaseResultPage) drives the rest.
-    submitForm(data.instruction.action, data.instruction.fields);
+    // Render the server-chosen transport: full-page form POST for ECPay, full-page
+    // navigation to the approval URL for PayPal (never iframe/modal, §16/§17.1).
+    if (instruction.kind === 'form-post') {
+      submitForm(instruction.action, instruction.fields);
+    } else {
+      navigate(instruction.url);
+    }
     return { ok: true, orderId: data.orderId, status: 'pending' };
   };
 }

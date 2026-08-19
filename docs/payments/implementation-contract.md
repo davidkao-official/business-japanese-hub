@@ -2,7 +2,7 @@
 
 > **本文件不是 source of truth。**
 > 唯一規範來源是：
-> 1. `supabase/migrations/0002_commerce.sql`、`supabase/migrations/0003_compliance_finance.sql`（SQL 就是 contract）
+> 1. `supabase/migrations/`（SQL 就是 contract；包含 commerce、compliance、PayPal 與 transactional finalizers）
 > 2. `src/lib/payments/contract.ts`（共享 TS contract）
 > 3. `docs/payments/decision-record.md`（canonical decision record：§8 Money、§8.3 catalog seam、§9 entitlement migration、§12 data model、§13 idempotency、§14 finance、§15 security）
 >
@@ -14,7 +14,7 @@
 | --- | --- | --- | --- |
 | `catalog` | 0002 | Authoritative server-side price seam (§8.3). Checkout reads `released_at <= now()`; client display uses the static bundle `Price`. | **No-read boundary**: RLS on, zero client policies, `revoke` from anon/authenticated/PUBLIC, `grant select` to `service_role` only. service_role keeps its Supabase-default INSERT/UPDATE (used by `scripts/update-catalog.ts`). |
 | `orders` | 0002 | One purchase intent. `amount_minor/currency/published_revision/item_name_snapshot` are **immutable** (trigger `orders_immutable_fields_check`); orchestration updates only `status/paid_at/refunded_at`. | Server-only. |
-| `payments` | 0002 | Payment attempts. `provider_merchant_ref` (ECPay MerchantTradeNo) unique per provider; `provider_payment_ref` (TradeNo) unique once known (partial index). | Server-only. |
+| `payments` | 0002 + 0006 + 20260819212459 | Payment attempts. `provider_merchant_ref` is the local/provider correlation key; `provider_checkout_ref` preserves a checkout/session id such as a PayPal Order ID; `provider_payment_ref` holds the final capture/transaction id. Each reference is unique per provider once known. | Server-only. |
 | `refunds` | 0002 | **Source of truth for refunds** (§7). MVP full refund only; provider-confirmed refund → `status='succeeded'`. | Server-only. |
 | `payment_events` | 0002 | Reliability ledger; `UNIQUE(provider, event_fingerprint)` makes duplicate callbacks a no-op. `sanitized_payload_json` holds allowlisted financial/status fields only. | Server-only. |
 | `book_entitlement` | 0001 + 0003 | Ownership. 0003 adds `source_order_id`/`status`/`revoked_at`/`revocation_reason` and relaxes the provider CHECK. Retains the 0001 select-only policy for the owning user. | Client can only read own rows; writes only via `grant_entitlement`. |
@@ -33,8 +33,18 @@
 
 1. Payment attempt: `UNIQUE(provider, provider_merchant_ref)`.
 2. Provider transaction: partial unique index `payments_provider_payment_ref_uidx` on `(provider, provider_payment_ref) WHERE provider_payment_ref IS NOT NULL`.
-3. Callback receipt: `UNIQUE(provider, event_fingerprint)`.
-4. Ownership: `UNIQUE(user_id, book_id)` on `book_entitlement`.
+3. Provider checkout/session: partial unique index `payments_provider_checkout_ref_uidx` on `(provider, provider_checkout_ref) WHERE provider_checkout_ref IS NOT NULL`.
+4. Callback receipt: `UNIQUE(provider, event_fingerprint)`; receipt uses conflict-ignoring upsert, then re-applies the idempotent transaction on replay.
+5. Ownership: `UNIQUE(user_id, book_id)` on `book_entitlement`.
+
+## Transactional financial finalizers
+
+Migration `20260819212459_payment_atomicity_and_paypal_correlation.sql` defines two `security definer` RPCs whose EXECUTE privilege is revoked from `PUBLIC`, `anon`, and `authenticated` and granted only to `service_role`:
+
+- `finalize_payment_success(...)` locks the Payment and Order rows and commits the verified Payment state, Order state, and provider-neutral Entitlement grant in one transaction. A replay is a no-op; a second real successful attempt becomes `duplicate_success` and never re-grants.
+- `finalize_refund_success(...)` takes locks in one global `Payment → Refund → Order` order and commits the provider-confirmed refund fact plus all derived Payment/Order/Entitlement transitions in one transaction. Before mutation it enforces the MVP full-refund invariant: refund provider, amount, and currency must exactly match the locked payment. It repairs legacy half-applied refund facts on replay; a duplicate-payment refund preserves the paid Order and active Entitlement.
+
+Provider transaction/capture IDs remain in `payments.provider_*` and `refunds.provider_*`; `book_entitlement.provider_ref` never receives them. Paid entitlement provenance uses `source_order_id`.
 
 ## `grant_entitlement` (recreated in 0003, 8-arg)
 
@@ -76,9 +86,23 @@ Checkout reads released-only: `WHERE book_id = $1 AND released_at IS NOT NULL AN
 
 ## Environment dependency
 
-Real end-to-end enforcement (RLS, triggers, grants) requires a provisioned Supabase
-instance: `supabase start` (or a project) + `supabase db reset` to apply 0001→0003.
-Until then, the migration contract tests (`src/lib/persistence/migration-0002.test.ts`,
-`migration-0003.test.ts`) parse the SQL text and assert security intent without
-executing it; real enforcement is verified against the deployed instance (mirroring
-`docs/accounts-and-entitlement.md` §9).
+Real end-to-end enforcement (RLS, triggers, grants) requires a Supabase database:
+`supabase db start` (or a project) + `supabase db reset --local` applies every
+migration. Run `supabase test db --local supabase/tests` for transactional pgTAP
+regressions and `supabase db lint --local --schema public --level warning` for
+schema errors. TypeScript migration contract tests remain a fast source-level
+guard, but do not replace database execution.
+
+Edge Function entrypoints have a separate runtime gate:
+`deno check supabase/functions/*/index.ts`. The GitHub quality gate runs this,
+then recreates the local database, executes every pgTAP contract, and lints the
+resulting schema; Node-only typechecking is not a substitute for the Deno gate.
+
+Provider credentials are scoped independently. A PayPal-only deployment may
+omit every `ECPAY_*` credential and an ECPay-only deployment may omit every
+`PAYPAL_*` credential; selecting an unconfigured provider fails before inserts,
+and its unauthenticated callback/webhook endpoints return 503 without acking.
+The secret-authenticated scheduled endpoint accepts `mode=repair` (10-minute
+provider confirmation/refund recovery) and `mode=reconcile` (daily ECPay/PayPal
+financial reporting); migration `20260820090000_scheduled_reconciliation_modes.sql`
+wires the two cron jobs to those modes.

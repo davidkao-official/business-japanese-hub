@@ -46,10 +46,14 @@ export interface PaymentEventRow {
  * Build the durable `payment_events` row for a verified callback. `payment_id`
  * is null at insert time (the payment lookup happens after the durable receipt,
  * §4.5); it is nullable in the schema.
+ *
+ * `sanitizedPayload` is the provider-specific allowlisted evidence (ECPay fields
+ * via `sanitizedCallbackPayload`, PayPal event fields via the adapter) — never a
+ * raw provider payload dump.
  */
 export function buildPaymentEventRow(
   event: VerifiedProviderEvent,
-  form: Record<string, string>,
+  sanitizedPayload: Record<string, unknown>,
 ): PaymentEventRow {
   return {
     provider: event.provider,
@@ -58,7 +62,7 @@ export function buildPaymentEventRow(
     event_fingerprint: event.eventFingerprint,
     event_type: 'callback.received',
     signature_valid: true,
-    sanitized_payload_json: sanitizedCallbackPayload(form),
+    sanitized_payload_json: sanitizedPayload,
     processed_at: null,
     processing_result: null,
   };

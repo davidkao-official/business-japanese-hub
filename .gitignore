@@ -34,3 +34,7 @@ Thumbs.db
 
 # Tool state (OMC project memory / session state)
 .omc/
+
+# Supabase CLI local state
+supabase/.branches/
+supabase/.temp/
