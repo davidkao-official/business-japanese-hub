@@ -20,7 +20,7 @@ Business Japanese Hub 是 premium、web-first 的數位出版與學習平台，�
 
 ## 關鍵決策摘要
 
-- 當前目標是 **Prototype MVP**：公開 **1–2 本 free/public prototype books**，陌生訪客免登入即可免費閱讀（Storefront → Book Detail → Universal Reader）。Paid Launch（payment / compliance / legal）為後續階段，非 Prototype blocker（見 [product contract §15](docs/product-contract.md#15-產品階段prototype-mvp--paid-launch)）。
+- **Prototype MVP 已完成**；當前目標是 **Paid Launch／最快安全的第一筆真實營收**。保留陌生訪客免登入閱讀 free/public books 的正式能力，同時完成最小可上線的 paid Book、authoritative pricing、payment／entitlement、compliance 與 production deployment（見 [product contract §15](docs/product-contract.md#15-產品階段paid-launchprototype-mvp-已完成)）。
 - UI / Reader quality 是 **P0**（核心產品需求，不是 post-MVP polish）。
 - 抽象為 `Book → Chapter → Content Blocks`，不是 LMS 的 `Course → Module → Lesson`。
 - Payment architecture 為 **provider-neutral**；**ECPay（綠界）是第一支 TWD adapter**（見 [payment decision record](docs/payments/decision-record.md)）。
@@ -32,6 +32,6 @@ Business Japanese Hub 是 premium、web-first 的數位出版與學習平台，�
 - **Production build**：`pnpm build` → 輸出 `dist/`（`vite.config.ts` 使用絕對 base `/`）。
 - **靜態 host 要求**：`BrowserRouter` 使用 root base，host 必須把未匹配的 route 都 serve `index.html`（SPA fallback），否則 nested route（如 `/books/:slug`）直接載入或重整會 404。
 - **CI**：`.github/workflows/ci.yml` 在每次 push 到 `main` 與每個 PR 執行 typecheck / lint / test / build。目前沒有自動部署，build 產物由 host 部署。
-- **Prototype 模式**：未設定 Supabase 環境變數時，平台以 public 模式運行——兩本免費 Prototype 書可匿名完整閱讀（Storefront → Book Detail → Universal Reader）。設定 Supabase 環境後會啟用 account / persistence / purchase 功能。
+- **Public catalog 模式**：未設定 Supabase 環境變數時，平台只提供 free/public books 的匿名閱讀（Storefront → Book Detail → Universal Reader），paid purchase fail closed。Paid Launch production 必須設定 Supabase 與 server-only payment/compliance integrations，才會啟用 account／persistence／purchase 功能。
 
 更多細節請見 [product contract](docs/product-contract.md)。

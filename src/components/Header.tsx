@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useStrings } from '../i18n/strings'
+import { AppearanceControl } from './AppearanceControl'
 import { Navigation } from './Navigation'
 
 export function Header() {
@@ -11,7 +12,10 @@ export function Header() {
         <Link className="site-header__brand" to="/">
           {strings.app.name}
         </Link>
-        <Navigation />
+        <div className="site-header__tools">
+          <Navigation />
+          <AppearanceControl />
+        </div>
       </div>
     </header>
   )

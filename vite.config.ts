@@ -13,7 +13,7 @@ import react from '@vitejs/plugin-react'
 function extractBackgroundColors(): { light: string; dark: string } {
   const css = readFileSync(new URL('./src/styles/tokens.css', import.meta.url), 'utf8')
   const light = /:root\s*\{([^}]*)\}/.exec(css)?.[1]?.match(/--color-bg:\s*([^;]+);/)?.[1]?.trim()
-  const dark = /@media\s*\(prefers-color-scheme:\s*dark\)\s*\{([^}]*)\}/.exec(css)?.[1]?.match(
+  const dark = /:root\[data-theme='dark'\]\s*\{([^}]*)\}/.exec(css)?.[1]?.match(
     /--color-bg:\s*([^;]+);/,
   )?.[1]?.trim()
   if (!light || !dark) {

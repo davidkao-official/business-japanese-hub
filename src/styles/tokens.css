@@ -10,12 +10,17 @@
  *
  * Naming convention: --<category>-<element>-<modifier>
  *
- * Light theme is the default; dark-ready overrides live under
- * `prefers-color-scheme: dark` and are inherited everywhere.
+ * Theming is attribute-driven: `:root` is the warm paper Light theme and
+ * `:root[data-theme='dark']` re-skins the same tokens for the editorial Dark
+ * theme. The effective value of `data-theme` is resolved from the user's
+ * System / Light / Dark preference before first paint (index.html inline
+ * script) and kept in sync by src/lib/appearance (AppearanceProvider).
  * =====================================================================
  */
 
 :root {
+  color-scheme: light;
+
   /* ---------------------------------------------------------------
    * Breakpoints — reference only.
    * CSS custom properties are NOT usable inside media queries, so media
@@ -203,36 +208,37 @@
 }
 
 /* ---------------------------------------------------------------
- * Dark-ready overrides — honor the OS-level color scheme.
- * Light remains the authored default; dark simply re-skins tokens.
+ * Dark theme overrides — `data-theme='dark'` is set by the appearance
+ * preference (System resolves to the OS scheme before paint). Light stays
+ * the authored default; dark simply re-skins the same tokens.
  * --------------------------------------------------------------- */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #161815;
-    --color-bg-elevated: #1d201c;
-    --color-surface: #1d201c;
-    --color-surface-muted: #262a25;
-    --color-text: #e7e4db;
-    --color-text-muted: #a4ab9e;
-    --color-text-inverse: #161815;
-    --color-border: #2f342d;
-    --color-border-strong: #434940;
+:root[data-theme='dark'] {
+  color-scheme: dark;
 
-    --color-accent: #e08a70;
-    --color-accent-hover: #eaa08c;
-    --color-accent-soft: #3b2721;
-    --color-accent-contrast: #161815;
+  --color-bg: #161815;
+  --color-bg-elevated: #1d201c;
+  --color-surface: #1d201c;
+  --color-surface-muted: #262a25;
+  --color-text: #e7e4db;
+  --color-text-muted: #a4ab9e;
+  --color-text-inverse: #161815;
+  --color-border: #2f342d;
+  --color-border-strong: #434940;
 
-    --color-focus: #8ab4e8;
-    --color-focus-inverse: #2f6fb3;
+  --color-accent: #e08a70;
+  --color-accent-hover: #eaa08c;
+  --color-accent-soft: #3b2721;
+  --color-accent-contrast: #161815;
 
-    --color-success: #6fae83;
-    --color-warning: #d0a165;
-    --color-danger: #e08585;
-    --color-info: #8ab4e8;
+  --color-focus: #8ab4e8;
+  --color-focus-inverse: #2f6fb3;
 
-    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-    --shadow-md: 0 4px 12px rgb(0 0 0 / 0.45);
-    --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.55);
-  }
+  --color-success: #6fae83;
+  --color-warning: #d0a165;
+  --color-danger: #e08585;
+  --color-info: #8ab4e8;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.45);
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.55);
 }

@@ -136,13 +136,13 @@ Business Japanese Hub 是一個 **premium、web-first 的數位出版與學習�
 8. 平台與 Book 的責任分界依第 7 節：平台負責 rendering / navigation / access / purchase state / library / reading state / search / responsive / accessibility；書負責其 metadata 與內容。
 9. MVP non-goals 依第 13 節，不得為了它們投入 MVP 實作資源。
 
-## 15. 產品階段：Prototype MVP → Paid Launch
+## 15. 產品階段：Paid Launch（Prototype MVP 已完成）
 
 本契約區分兩個不同的產品階段。兩者共享相同的 book-based commerce contract 與 platform architecture，但 delivery priority 與 product-stage boundary 不同。
 
-### 15.1 Prototype MVP（現階段目標）
+### 15.1 Prototype MVP（已完成的里程碑）
 
-Prototype 的成功條件是 **user-value validation**，不是 commerce readiness。Prototype 必須讓陌生訪客在不需要登入、結帳或付款的前提下，透過真實的產品流程體驗平台：
+Prototype 的成功條件是 **user-value validation**，不是 commerce readiness。此里程碑已完成：陌生訪客可以在不需要登入、結帳或付款的前提下，透過真實的產品流程體驗平台：
 
 ```text
 Storefront → Book Detail → free read → Universal Reader → chapter navigation
@@ -153,16 +153,23 @@ Storefront → Book Detail → free read → Universal Reader → chapter naviga
 - 不得顯示 fake checkout UI 或 disabled payment CTA；改用清楚的 free-reading 語言。
 - UI / Reader quality 維持 P0，遵循 `docs/ui-ux-research.md`（§8 的具體化）。
 - 平台維持 book-agnostic；free/public access 必須以 generic catalog/access 語意表達（例如 `Price.tier: 'free'`），**不得 hard-code book slug**。
-- 下列 paid-launch 工作項**明確 deferred**，不是 Prototype blocker：#20（JPY adapter）、#21（USD adapter）、#25（legal/compliance surfaces）、#28（locale switching）、#29（legal evidence fail-closed）。
-- **既有 payment / entitlement / legal architecture 不得刪除、繞過或弱化**；它們只是不在 Prototype critical path。
+- Prototype 階段曾 deferred 的 payment／compliance／legal 工作現依 Paid Launch 優先級處理；完成狀態以 live GitHub 與 repository 為準。
+- **既有 payment / entitlement / legal architecture 不得刪除、繞過或弱化**；free/public path 也不得因 Paid Launch 回歸。
 
-### 15.2 Paid Launch（後續階段）
+### 15.2 Paid Launch（現階段目標）
 
-Paid Launch 依既有 provider-neutral payment core 與 server-authoritative entitlement contract（§10、`docs/payments/decision-record.md`）啟用商業化。Prototype 是 Paid Launch 的前置階段，不取代長期 book-based commerce model。
+Paid Launch 的成功條件是 **最快安全的第一筆真實營收**。依既有 provider-neutral payment core 與 server-authoritative entitlement contract（§10、`docs/payments/decision-record.md`）啟用商業化；Prototype 是已完成的前置里程碑，不取代長期 book-based commerce model。
+
+- 至少一本真實、可信且可獨立販售的 paid Book，價格由 server-authoritative catalog 決定。
+- 先上線最小可合法、安全啟用的 currency／provider 組合；不得為等待所有未來 provider 延後第一筆營收。
+- Paid golden path 必須涵蓋 authentication、checkout、verified authoritative payment、exactly-one entitlement、Reader access、receipt／order confirmation、refund 與 reconciliation。
+- Seller identity、tax status、merchant/KYC、credentials、專業法律核准與真實 sandbox/live 結果必須由真實證據提供；缺失時 fail closed，不得捏造或以 client state 代替。
+- Free/public books 與免登入閱讀仍是正式產品能力，Paid Launch 不得破壞。
+- UI / Reader quality、responsive、accessibility 與 production operability 仍為 P0。
 
 ### 15.3 Stage 判定
 
-未來 agent 決定實作優先級時：若工作屬於 Prototype critical path 或直接支撐其品質（content、storefront、book detail、reader、free access），應立即執行；若工作屬於 paid-launch 準備（payment adapter、checkout compliance、locale switching、legal evidence），應視為 Paid Launch 項目，不阻塞 Prototype。
+未來 agent 決定實作優先級時，以 Paid Launch／first revenue 為當前 delivery target：先完成直接解鎖第一筆安全付費交易的 Book、pricing、payment、compliance、deployment 與 golden-path 品質；只支援未來 provider、額外 currency 或非必要擴張的工作不得阻塞。Prototype milestone 與 free/public reader path 必須持續回歸驗證。
 
 ---
 
