@@ -22,9 +22,10 @@ export interface Env {
   supabaseUrl: string;
   /** Server-only; the ONLY key used to build the DB client (never the anon key). */
   supabaseServiceRoleKey: string;
-  ecpayMerchantId: string;
-  ecpayHashKey: string;
-  ecpayHashIV: string;
+  /** ECPay credentials are provider-scoped; optional for PayPal-only deploys. */
+  ecpayMerchantId?: string;
+  ecpayHashKey?: string;
+  ecpayHashIV?: string;
   /** 'stage' | 'prod'; undefined fails closed to stage (§16 — never mixed). */
   ecpayEnv: EcpayEnv | undefined;
   /**
@@ -80,13 +81,12 @@ export function readEnvFrom(reader: EnvReader): Env {
   return {
     supabaseUrl: required(reader, 'SUPABASE_URL'),
     supabaseServiceRoleKey: required(reader, 'SUPABASE_SERVICE_ROLE_KEY'),
-    ecpayMerchantId: required(reader, 'ECPAY_MERCHANT_ID'),
-    ecpayHashKey: required(reader, 'ECPAY_HASH_KEY'),
-    ecpayHashIV: required(reader, 'ECPAY_HASH_IV'),
+    ecpayMerchantId: reader.get('ECPAY_MERCHANT_ID'),
+    ecpayHashKey: reader.get('ECPAY_HASH_KEY'),
+    ecpayHashIV: reader.get('ECPAY_HASH_IV'),
     ecpayEnv: parseEcpayEnv(reader.get('ECPAY_ENV')),
-    // PayPal credentials are OPTIONAL at read time — an ECPay-only deployment
-    // must boot and serve TWD without them. The adapter factories fail closed
-    // only when a PayPal operation is actually requested (#21).
+    // Provider credentials are OPTIONAL at read time. Adapter/handler seams
+    // enforce the selected provider before any state change.
     paypalClientId: reader.get('PAYPAL_CLIENT_ID'),
     paypalClientSecret: reader.get('PAYPAL_CLIENT_SECRET'),
     paypalEnv: parsePaypalEnv(reader.get('PAYPAL_ENV')),

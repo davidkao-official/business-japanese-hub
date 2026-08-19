@@ -9,7 +9,7 @@
  */
 import type { PaymentProviderAdapter } from '../../../src/lib/payments/contract.ts';
 import type { Env } from './env.ts';
-import { createEcpayAdapter } from './ecpay.ts';
+import { createEcpayAdapterSafely } from './ecpay.ts';
 import { createPaypalAdapterSafely } from './paypal.ts';
 
 /** The adapters available to the orchestration seams (one per routed provider). */
@@ -22,5 +22,5 @@ export function createProviderAdapters(env: Env): ProviderAdapters {
   // PayPal is built via the safe factory: an ECPay-only deployment gets a
   // fail-closed stub so cold start never throws; the checkout/webhook seams
   // refuse PayPal operations before any state change when it is not configured.
-  return { ecpay: createEcpayAdapter(env), paypal: createPaypalAdapterSafely(env) };
+  return { ecpay: createEcpayAdapterSafely(env), paypal: createPaypalAdapterSafely(env) };
 }

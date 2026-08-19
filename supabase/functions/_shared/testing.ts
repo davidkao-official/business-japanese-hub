@@ -102,6 +102,10 @@ export function createMockDb(initial?: Record<string, MockRoute>): MockDb {
         record(table, 'insert', args);
         return builder;
       },
+      upsert: (...args) => {
+        record(table, 'upsert', args);
+        return builder;
+      },
       update: (...args) => {
         record(table, 'update', args);
         return builder;
@@ -166,6 +170,7 @@ export interface FakeAdapter {
   verifyCallback: ReturnType<typeof vi.fn>;
   confirmPayment: ReturnType<typeof vi.fn>;
   refund: ReturnType<typeof vi.fn>;
+  reconcile: ReturnType<typeof vi.fn>;
 }
 
 export function createFakeAdapter(provider = 'ecpay'): FakeAdapter & PaymentProviderAdapter {
@@ -175,6 +180,7 @@ export function createFakeAdapter(provider = 'ecpay'): FakeAdapter & PaymentProv
     verifyCallback: vi.fn(),
     confirmPayment: vi.fn(),
     refund: vi.fn(),
+    reconcile: vi.fn().mockResolvedValue({ provider, entries: [] }),
   };
   return adapter as FakeAdapter & PaymentProviderAdapter;
 }

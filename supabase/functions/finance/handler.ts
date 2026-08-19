@@ -282,25 +282,15 @@ async function requestManualRefund(
       }
       throw err;
     }
-    // Persist whatever the provider told us BEFORE any transition — including an
-    // ambiguous pending / failed — so a later repair/resume has the provider
-    // refund ref + status (§21/B3).
-    const { error: refPersistError } = await deps.db
-      .from('refunds')
-      .update({
-        provider_refund_ref: refundResult.providerRefundRef ?? null,
-        provider_status_code: refundResult.rawStatusCode ?? null,
-      })
-      .eq('id', refundInsert.data.id);
-    if (refPersistError) {
-      deps.log.error({ error: refPersistError.message }, 'refund provider ref persist failed');
-    }
-
     if (refundResult.ok && refundResult.status === 'succeeded') {
       try {
         await confirmRefund(
           { db: deps.db, log: deps.log, now: deps.now ?? (() => new Date()), actor: actorUid },
           String(refundInsert.data.id),
+          {
+            providerRefundRef: refundResult.providerRefundRef,
+            providerStatusCode: refundResult.rawStatusCode,
+          },
         );
       } catch (err) {
         deps.log.error(
@@ -315,6 +305,22 @@ async function requestManualRefund(
         status: 'succeeded',
       });
     }
+
+    // Ambiguous/non-success results remain recoverable facts. Persist the
+    // provider reference/status before any processing transition so repair can
+    // safely retry with the same idempotency key (§21/B3). Confirmed success is
+    // handled above in the atomic finalization transaction.
+    const { error: refPersistError } = await deps.db
+      .from('refunds')
+      .update({
+        provider_refund_ref: refundResult.providerRefundRef ?? null,
+        provider_status_code: refundResult.rawStatusCode ?? null,
+      })
+      .eq('id', refundInsert.data.id);
+    if (refPersistError) {
+      deps.log.error({ error: refPersistError.message }, 'refund provider ref persist failed');
+    }
+
     if (refundResult.ok && refundResult.status === 'pending') {
       // Ambiguous (transport 5xx/timeout) or genuinely pending — leave it in the
       // recoverable `processing` state; the repair loop resumes it with the same

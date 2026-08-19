@@ -69,12 +69,31 @@ export interface PaypalWebhookEvent {
 }
 
 /** Event types the adapter recognizes; unknown types map to `unknown`. */
-export const PAYPAL_CAPTURE_EVENT_STATUS: Record<string, 'succeeded' | 'failed' | 'unknown'> = {
+export const PAYPAL_CAPTURE_EVENT_STATUS: Record<string, 'succeeded' | 'failed' | 'refunded' | 'unknown'> = {
   'PAYMENT.CAPTURE.COMPLETED': 'succeeded',
   'PAYMENT.CAPTURE.DENIED': 'failed',
   'PAYMENT.CAPTURE.DECLINED': 'failed',
   'PAYMENT.CAPTURE.PENDING': 'unknown',
-  'PAYMENT.CAPTURE.REFUNDED': 'unknown',
-  'PAYMENT.CAPTURE.REVERSED': 'unknown',
+  'PAYMENT.CAPTURE.REFUNDED': 'refunded',
+  'PAYMENT.CAPTURE.REVERSED': 'refunded',
+  'PAYMENT.REFUND.COMPLETED': 'refunded',
+  'PAYMENT.REFUND.PENDING': 'unknown',
+  'PAYMENT.REFUND.FAILED': 'unknown',
+  'PAYMENT.REFUND.CANCELLED': 'unknown',
   'CHECKOUT.ORDER.APPROVED': 'unknown',
 };
+
+/** Provider-normalized PayPal Transaction Search row used by Layer C. */
+export interface PaypalReconciliationEntry {
+  kind: 'payment' | 'refund';
+  /** Transaction Search row id (capture for payment; refund/reversal event for refund). */
+  transactionId: string;
+  /** Originating capture id for a refund/reversal. */
+  referenceTransactionId?: string;
+  eventCode: string;
+  /** PayPal transaction_status (S completed, V reversed, P pending, etc.). */
+  status: string;
+  /** Absolute canonical USD amount. Direction is represented by `kind`. */
+  amount: { amount: number; currency: 'USD' };
+  occurredAt?: string;
+}

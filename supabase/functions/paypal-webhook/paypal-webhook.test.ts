@@ -23,6 +23,7 @@ const PAYMENT_ROW_USD = {
   order_id: 'ord-1',
   provider: 'paypal',
   provider_merchant_ref: 'BJH202608160001',
+  provider_checkout_ref: 'ORDER-1',
   provider_payment_ref: null,
   amount_minor: 1999,
   currency: 'USD',
@@ -88,12 +89,30 @@ const WEBHOOK_HEADERS = {
   'paypal-auth-algo': 'SHA256withRSA',
 };
 
+const SUCCESS_TRANSACTION = {
+  payment_status: 'succeeded',
+  order_status: 'paid',
+  granted: true,
+};
+
+const REPLAY_TRANSACTION = {
+  payment_status: 'succeeded',
+  order_status: 'paid',
+  granted: false,
+};
+
+const DUPLICATE_TRANSACTION = {
+  payment_status: 'duplicate_success',
+  order_status: 'paid',
+  granted: false,
+};
+
 function baseMock(overrides: Record<string, unknown> = {}) {
   const mock = createMockDb({
     payment_events: { data: { id: 'evt-1' } },
     payments: { data: PAYMENT_ROW_USD },
     orders: { data: ORDER_ROW_USD },
-    'rpc:grant_entitlement': { data: null },
+    'rpc:finalize_payment_success': { data: SUCCESS_TRANSACTION },
     ...overrides,
   });
   const adapter = createFakeAdapter('paypal');
@@ -149,14 +168,18 @@ describe('paypal-webhook handler', () => {
     const { mock, adapter } = baseMock();
     const result = await run(adapter, mock.db);
     expect(result.status).toBe(200);
+    expect(mock.callsFor('payment_events', 'upsert')).toHaveLength(1);
+    expect(mock.callsFor('payment_events', 'insert')).toHaveLength(0);
 
-    const paymentUpdate = mock.callsFor('payments', 'update')[0];
-    expect(paymentUpdate.args[0]).toMatchObject({ status: 'succeeded', provider_payment_ref: 'CAPTURE-1' });
-    const orderUpdate = mock.callsFor('orders', 'update')[0];
-    expect(orderUpdate.args[0]).toMatchObject({ status: 'paid' });
-    expect(mock.rpcCalls('grant_entitlement').length).toBe(1);
-    const grant = mock.rpcCalls('grant_entitlement')[0];
-    expect(grant.args[0]).toMatchObject({ p_provider: 'paypal', p_source_order_id: 'ord-1' });
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(1);
+    expect(mock.rpcCalls('finalize_payment_success')[0].args[0]).toMatchObject({
+      p_payment_id: 'pay-1',
+      p_provider_payment_ref: 'CAPTURE-1',
+      p_provider_status_code: 'COMPLETED',
+    });
+    expect(mock.callsFor('payments', 'update')).toHaveLength(0);
+    expect(mock.callsFor('orders', 'update')).toHaveLength(0);
+    expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
   });
 
   it('duplicate / replayed webhook → re-processed idempotently against persisted state (no second grant)', async () => {
@@ -164,38 +187,38 @@ describe('paypal-webhook handler', () => {
     // First delivery is processed (durable receipt inserted → grant).
     const first = await run(adapter, mock.db);
     expect(first.status).toBe(200);
-    expect(mock.rpcCalls('grant_entitlement').length).toBe(1);
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(1);
     // A replayed delivery hits the UNIQUE(provider, event_fingerprint) no-op
     // (insert returns no row) → the handler re-runs the idempotent path against
     // the PERSISTED state (order now paid), so it acks and grants nothing more.
     mock.setRoute('payment_events', { data: null });
     mock.setRoute('orders', { data: { ...ORDER_ROW_USD, status: 'paid', paid_at: '2026-08-16T12:00:00Z' } });
     mock.setRoute('payments', { data: { ...PAYMENT_ROW_USD, status: 'succeeded', paid_at: '2026-08-16T12:00:00Z' } });
+    mock.setRoute('rpc:finalize_payment_success', { data: REPLAY_TRANSACTION });
     const second = await run(adapter, mock.db);
     expect(second.status).toBe(200);
-    expect(mock.rpcCalls('grant_entitlement').length).toBe(1);
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(2);
+    expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
   });
 
-  it('replay after a partial first-delivery failure self-heals: grant re-applied, order paid', async () => {
+  it('replay after a failed first transaction self-heals atomically', async () => {
     const { mock, adapter } = baseMock();
-    // First delivery: durable receipt lands, then the grant RPC fails → the
-    // handler returns 500 (no ack). Grant-first ordering in applyVerifiedSuccess
-    // leaves the order PENDING (payment was updated to succeeded).
-    mock.setRoute('rpc:grant_entitlement', { error: 'grant_entitlement: internal error' });
+    // First delivery: durable receipt lands, then the financial transaction
+    // fails → the handler returns 500 (no ack) and Postgres rolls it all back.
+    mock.setRoute('rpc:finalize_payment_success', { error: 'transaction failed' });
     const first = await run(adapter, mock.db);
     expect(first.status).toBe(500);
-    expect(mock.rpcCalls('grant_entitlement').length).toBe(1); // attempted once
-    mock.setRoute('payments', { data: { ...PAYMENT_ROW_USD, status: 'succeeded', paid_at: '2026-08-16T12:00:00Z' } });
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(1);
 
     // PayPal re-delivers the SAME event; the durable receipt dedups, but the
-    // handler re-processes idempotently and the grant now lands → order paid.
+    // handler re-processes idempotently and the whole transaction now lands.
     mock.setRoute('payment_events', { data: null });
-    mock.setRoute('rpc:grant_entitlement', { data: null });
+    mock.setRoute('rpc:finalize_payment_success', { data: SUCCESS_TRANSACTION });
     const retry = await run(adapter, mock.db);
     expect(retry.status).toBe(200);
-    expect(mock.rpcCalls('grant_entitlement').length).toBe(2); // re-applied
-    const orderUpdate = mock.callsFor('orders', 'update')[0];
-    expect(orderUpdate.args[0]).toMatchObject({ status: 'paid' });
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(2);
+    expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
+    expect(mock.callsFor('orders', 'update')).toHaveLength(0);
   });
 
   it('unknown custom_id → no entitlement, not acknowledged as processed', async () => {
@@ -246,7 +269,7 @@ describe('paypal-webhook handler', () => {
     const result = await run(adapter, mock.db);
     expect(result.status).toBe(200);
     expect(adapter.confirmPayment).toHaveBeenCalledTimes(1);
-    expect(mock.rpcCalls('grant_entitlement').length).toBe(1);
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(1);
   });
 
   it('B5: a CAPTURE.COMPLETED without resource.custom_id correlates via the related order and grants exactly once', async () => {
@@ -263,7 +286,7 @@ describe('paypal-webhook handler', () => {
     adapter.confirmPayment.mockResolvedValue(SNAPSHOT_OK);
     const result = await run(adapter, mock.db);
     expect(result.status).toBe(200);
-    expect(mock.rpcCalls('grant_entitlement').length).toBe(1);
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(1);
   });
 
   it('B5: never grants when the correlated custom_id matches no local payment', async () => {
@@ -275,28 +298,70 @@ describe('paypal-webhook handler', () => {
     expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
   });
 
-  it('B6: a refund/reversal webhook (non-granting unknown) is processed without rejection and never grants', async () => {
+  it('B6: a provider-confirmed refund is atomically recorded and revokes the primary entitlement', async () => {
     const { mock, adapter } = baseMock();
-    // A realistic PAYMENT.CAPTURE.REFUNDED shape (status unknown) — the handler
-    // must not reject it and must not grant or revoke (§21/B6).
+    mock.setRoute('rpc:finalize_refund_success', {
+      data: {
+        refund_id: 'refund-1',
+        refund_status: 'succeeded',
+        payment_status: 'refunded',
+        order_status: 'refunded',
+        entitlement_revoked: true,
+        already_confirmed: false,
+      },
+    });
     adapter.verifyCallback.mockResolvedValue({
       ...EVENT_OK,
       providerMerchantRef: 'BJH202608160001',
       providerPaymentRef: 'ORDER-1',
-      status: 'unknown',
-      rawStatusCode: 'REFUNDED',
-    });
-    adapter.confirmPayment.mockResolvedValue({
-      ...SNAPSHOT_OK,
-      status: 'unknown',
+      status: 'refunded',
+      providerRefundRef: 'REFUND-1',
       rawStatusCode: 'REFUNDED',
     });
     const result = await run(adapter, mock.db);
     expect(result.status).toBe(200);
-    const paymentUpdate = mock.callsFor('payments', 'update')[0];
-    expect(paymentUpdate.args[0]).toMatchObject({ status: 'verification_pending' });
+    expect(adapter.confirmPayment).not.toHaveBeenCalled();
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(1);
+    expect(mock.rpcCalls('finalize_refund_success')[0].args[0]).toMatchObject({
+      p_payment_id: 'pay-1',
+      p_provider_refund_ref: 'REFUND-1',
+      p_provider_status_code: 'REFUNDED',
+    });
     expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
-    expect(mock.callsFor('book_entitlement', 'update').length).toBe(0);
+  });
+
+  it('B6: a partial provider refund is recorded as a finance mismatch and never revokes ownership', async () => {
+    const { mock, adapter } = baseMock();
+    adapter.verifyCallback.mockResolvedValue({
+      ...EVENT_OK,
+      status: 'refunded',
+      providerRefundRef: 'REFUND-PARTIAL',
+      amount: { amount: 500, currency: 'USD' },
+      rawStatusCode: 'COMPLETED',
+    });
+    const result = await run(adapter, mock.db);
+    expect(result.status).toBe(200);
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(0);
+    expect(mock.callsFor('payments', 'update')[0].args[0]).toMatchObject({
+      reconciliation_status: 'mismatch',
+    });
+  });
+
+  it('B6: a refund correlated to a different PayPal order never revokes ownership', async () => {
+    const { mock, adapter } = baseMock();
+    adapter.verifyCallback.mockResolvedValue({
+      ...EVENT_OK,
+      status: 'refunded',
+      providerPaymentRef: 'ORDER-OTHER',
+      providerRefundRef: 'REFUND-OTHER',
+      rawStatusCode: 'COMPLETED',
+    });
+    const result = await run(adapter, mock.db);
+    expect(result.status).toBe(200);
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(0);
+    expect(mock.callsFor('payments', 'update')[0].args[0]).toMatchObject({
+      reconciliation_status: 'mismatch',
+    });
   });
 
   it('second real success on an already-paid order → duplicate_success, never a second entitlement', async () => {
@@ -305,16 +370,15 @@ describe('paypal-webhook handler', () => {
       // second charge (double charge), not a replay of this payment's success.
       orders: { data: { ...ORDER_ROW_USD, status: 'paid', paid_at: '2026-08-16T11:00:00Z' } },
       book_entitlement: { data: [{ user_id: 'user-1', book_id: 'book-a', provider: 'paypal' }] },
+      'rpc:finalize_payment_success': { data: DUPLICATE_TRANSACTION },
     });
     const result = await run(adapter, mock.db);
     expect(result.status).toBe(200);
     // Exactly one grant — and it came from the FIRST payment, never this one.
     expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
-    const paymentUpdates = mock.callsFor('payments', 'update');
-    // The second genuine charge is marked duplicate_success for finance review
-    // (first update is its own pending → succeeded; second is succeeded →
-    // duplicate_success), and NEVER grants a second entitlement.
-    expect(paymentUpdates[paymentUpdates.length - 1].args[0]).toMatchObject({ status: 'duplicate_success' });
+    // The database transaction marks the second genuine charge for finance
+    // review and never grants a second entitlement.
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(1);
     // The order stays paid — a paid order never downgrades.
     expect(mock.callsFor('orders', 'update').length).toBe(0);
   });

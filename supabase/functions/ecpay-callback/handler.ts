@@ -39,10 +39,10 @@ import {
   type HandlerResult,
 } from '../_shared/http.ts';
 import { buildPaymentEventRow, sanitizedCallbackPayload } from '../_shared/events.ts';
+import { isEcpayConfigured } from '../_shared/ecpay.ts';
 import {
   applyPaymentEvent,
   applyVerifiedSuccess,
-  loadOrder,
   loadPaymentByMerchantRef,
   type PaymentRow,
 } from '../_shared/flow.ts';
@@ -60,6 +60,12 @@ export async function handleEcpayCallback(
   deps: EcpayCallbackHandlerDeps,
 ): Promise<HandlerResult> {
   if (req.method !== 'POST') return methodNotAllowed('POST');
+  if (!isEcpayConfigured(deps.env)) {
+    return jsonResult(503, {
+      error: 'ecpay is not configured',
+      reason: 'provider_configuration_unavailable',
+    });
+  }
   const form = parseFormUrlEncoded(req.bodyText);
   const now = deps.now ?? (() => new Date());
 
@@ -88,7 +94,7 @@ export async function handleEcpayCallback(
   // 2. Durable receipt. UNIQUE(provider, event_fingerprint); replay → no-op.
   const eventInsert = await deps.db
     .from('payment_events')
-    .insert(buildPaymentEventRow(event, sanitizedCallbackPayload(form)), {
+    .upsert(buildPaymentEventRow(event, sanitizedCallbackPayload(form)), {
       onConflict: 'provider,event_fingerprint',
       ignoreDuplicates: true,
     })
@@ -218,13 +224,10 @@ export async function handleEcpayCallback(
 
   // 6. Verified success → payment succeeded + order paid + grant exactly once.
   try {
-    const orderRow = await loadOrder(deps.db, payment.order_id);
-    if (!orderRow) throw new Error(`order ${payment.order_id} not found for payment ${payment.id}`);
     const result = await applyVerifiedSuccess({
       db: deps.db,
       log: deps.log,
       now,
-      orderRow,
       paymentRow: payment,
       merchantReference: event.providerMerchantRef,
       providerPaymentReference: snapshot.providerPaymentReference ?? event.providerPaymentRef,

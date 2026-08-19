@@ -22,10 +22,6 @@ max_rows = 1000
 port = 54322
 major_version = 15
 
-[functions]
-enabled = true
-verify_jwt = true
-
 [functions.checkout]
 verify_jwt = true
 

@@ -1,17 +1,16 @@
 /**
  * Internal scheduled-job handler — `POST /functions/v1/repair-reconcile`
- * (verify_jwt=true but the ONLY authorization is the shared scheduled-job secret,
+ * (`verify_jwt=false`; the ONLY authorization is the shared scheduled-job secret,
  * decision-record §3.5 / §6).
  *
  * Layer B (repair loop): scans `verification_pending` (and stale `pending`)
- * payments and re-runs QueryTradeInfo via the adapter, applying the SAME
- * verified-success path as the callback (idempotent — state.ts + the
- * `grant_entitlement` upsert make repeats no-ops).
+ * payments and re-runs provider confirmation via the routed adapter, applying
+ * the same immutable success gate and atomic finalizer as live callbacks.
  *
- * Layer C (financial reconciliation): parses a production FundingReconDetail CSV
- * (operator-provided; no stage sandbox, decision-record §6/§7) and marks
- * `payments.reconciliation_status` matched / mismatch. When no reconciliation
- * source is configured, it logs and skips.
+ * Layer C (financial reconciliation): parses ECPay FundingReconDetail and calls
+ * PayPal Transaction Search, then matches immutable refs/amount/currency and
+ * discovers provider-confirmed full refunds. Cron sends an explicit `mode` so
+ * reporting runs daily while repair runs every ten minutes.
  */
 import type {
   ProviderPaymentSnapshot,
@@ -19,7 +18,9 @@ import type {
   VerifiedProviderEvent,
 } from '../../../src/lib/payments/contract.ts';
 import { parseFundingReconDetailCsv } from '../../../src/lib/payments/ecpay/adapter.ts';
+import { isVerifiedSuccessSnapshot } from '../../../src/lib/payments/domain.ts';
 import { minorUnitFor } from '../../../src/lib/payments/money.ts';
+import type { PaypalReconciliationEntry } from '../../../src/lib/payments/paypal/types.ts';
 import type { Env } from '../_shared/env.ts';
 import type { DbClient } from '../_shared/db.ts';
 import type { Logger } from '../_shared/log.ts';
@@ -32,12 +33,14 @@ import {
   type HandlerResult,
 } from '../_shared/http.ts';
 import type { ProviderAdapters } from '../_shared/provider.ts';
+import { isPaypalConfigured } from '../_shared/paypal.ts';
 import {
   applyVerifiedSuccess,
   confirmRefund,
-  loadOrder,
+  confirmProviderRefund,
   loadPaymentById,
   loadPaymentByMerchantRef,
+  loadPaymentByProviderPaymentRef,
   loadRequestedRefundForPayment,
   type PaymentRow,
   type RefundRow,
@@ -102,32 +105,64 @@ export async function handleRepairReconcile(
   }
 
   const now = deps.now ?? (() => new Date());
+  const mode = scheduledMode(req.bodyText);
+  if (!mode) return jsonResult(400, { error: 'invalid scheduled-job mode' });
+  const shouldRepair = mode === 'all' || mode === 'repair';
+  const shouldReconcile = mode === 'all' || mode === 'reconcile';
 
-  let layerB: LayerBResult;
-  try {
-    layerB = await runLayerB(deps, now);
-  } catch (err) {
-    deps.log.error({ error: err instanceof Error ? err.message : String(err) }, 'repair layer B failed');
-    return jsonResult(500, { error: 'repair scan failed' });
-  }
-
-  let layerC: LayerCResult = { skipped: true, entries: 0, matched: 0, mismatched: 0, reason: 'no reconciliation source configured' };
-  if (deps.env.fundingReconCsv) {
+  let layerB: LayerBResult = { scanned: 0, repaired: 0, granted: 0, stillUnknown: 0 };
+  if (shouldRepair) {
     try {
-      layerC = await runLayerC(deps, deps.env.fundingReconCsv);
+      layerB = await runLayerB(deps, now);
     } catch (err) {
-      deps.log.error({ error: err instanceof Error ? err.message : String(err) }, 'reconciliation layer C failed');
-      layerC = { skipped: true, entries: 0, matched: 0, mismatched: 0, reason: 'reconciliation failed' };
+      deps.log.error({ error: err instanceof Error ? err.message : String(err) }, 'repair layer B failed');
+      return jsonResult(500, { error: 'repair scan failed' });
     }
   }
+
+  const reconciliationRuns: LayerCResult[] = [];
+  let reconciliationFailed = false;
+  if (shouldReconcile && deps.env.fundingReconCsv) {
+    try {
+      reconciliationRuns.push(await runLayerC(deps, deps.env.fundingReconCsv));
+    } catch (err) {
+      deps.log.error({ error: err instanceof Error ? err.message : String(err) }, 'reconciliation layer C failed');
+      reconciliationFailed = true;
+    }
+  }
+  if (shouldReconcile && isPaypalConfigured(deps.env) && deps.adapters.paypal.reconcile) {
+    try {
+      reconciliationRuns.push(await runPaypalLayerC(deps, now));
+    } catch (err) {
+      deps.log.error({ error: err instanceof Error ? err.message : String(err) }, 'PayPal reconciliation layer C failed');
+      reconciliationFailed = true;
+    }
+  }
+  const layerC: LayerCResult = reconciliationRuns.length > 0
+    ? {
+        skipped: false,
+        entries: reconciliationRuns.reduce((sum, result) => sum + result.entries, 0),
+        matched: reconciliationRuns.reduce((sum, result) => sum + result.matched, 0),
+        mismatched: reconciliationRuns.reduce((sum, result) => sum + result.mismatched, 0),
+        ...(reconciliationFailed ? { reason: 'one or more reconciliation sources failed' } : {}),
+      }
+    : {
+        skipped: true,
+        entries: 0,
+        matched: 0,
+        mismatched: 0,
+        reason: reconciliationFailed ? 'reconciliation failed' : 'no reconciliation source configured',
+      };
 
   // Resume ambiguous PayPal refunds (requested/processing) with the same stable
   // PayPal-Request-Id so provider idempotency returns the current result (§21/B3).
   let refundResume: RefundResumeResult = { scanned: 0, resumed: 0, confirmed: 0 };
-  try {
-    refundResume = await runRefundResume(deps, now);
-  } catch (err) {
-    deps.log.error({ error: err instanceof Error ? err.message : String(err) }, 'refund resume failed');
+  if (shouldRepair) {
+    try {
+      refundResume = await runRefundResume(deps, now);
+    } catch (err) {
+      deps.log.error({ error: err instanceof Error ? err.message : String(err) }, 'refund resume failed');
+    }
   }
 
   deps.log.info({ layerB, layerC, refundResume }, 'repair-reconcile run');
@@ -140,6 +175,19 @@ export async function handleRepairReconcile(
     refunds_confirmed: refundResume.confirmed,
     reconciliation: layerC,
   });
+}
+
+function scheduledMode(bodyText: string): 'repair' | 'reconcile' | 'all' | null {
+  if (!bodyText.trim()) return 'all';
+  try {
+    const value = JSON.parse(bodyText) as { mode?: unknown };
+    if (value.mode === undefined) return 'all';
+    return value.mode === 'repair' || value.mode === 'reconcile' || value.mode === 'all'
+      ? value.mode
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -215,21 +263,16 @@ async function runRefundResume(
       continue;
     }
 
-    // Persist whatever the provider returned (ref/status) before transitioning.
-    const { error: persistError } = await deps.db
-      .from('refunds')
-      .update({
-        provider_refund_ref: refundResult.providerRefundRef ?? refundRow.provider_refund_ref,
-        provider_status_code: refundResult.rawStatusCode ?? refundRow.provider_status_code,
-      })
-      .eq('id', refundRow.id);
-    if (persistError) {
-      deps.log.error({ error: persistError.message }, 'refund resume: ref persist failed');
-    }
-
     if (refundResult.ok && refundResult.status === 'succeeded') {
       try {
-        await confirmRefund({ db: deps.db, log: deps.log, now }, refundRow.id);
+        await confirmRefund(
+          { db: deps.db, log: deps.log, now },
+          refundRow.id,
+          {
+            providerRefundRef: refundResult.providerRefundRef,
+            providerStatusCode: refundResult.rawStatusCode,
+          },
+        );
         confirmed += 1;
       } catch (err) {
         deps.log.error(
@@ -237,7 +280,22 @@ async function runRefundResume(
           'refund resume: confirm failed',
         );
       }
-    } else if (refundResult.ok && refundResult.status === 'pending' && refundRow.status === 'requested') {
+    } else {
+      // Persist ambiguous/non-success provider facts for the next repair pass.
+      // A confirmed success is persisted inside finalize_refund_success above.
+      const { error: persistError } = await deps.db
+        .from('refunds')
+        .update({
+          provider_refund_ref: refundResult.providerRefundRef ?? refundRow.provider_refund_ref,
+          provider_status_code: refundResult.rawStatusCode ?? refundRow.provider_status_code,
+        })
+        .eq('id', refundRow.id);
+      if (persistError) {
+        deps.log.error({ error: persistError.message }, 'refund resume: ref persist failed');
+      }
+    }
+
+    if (refundResult.ok && refundResult.status === 'pending' && refundRow.status === 'requested') {
       // Still ambiguous — move to the recoverable `processing` state for the
       // next run. Never a terminal failure (§21/B3).
       const { error: processingError } = await deps.db
@@ -258,20 +316,23 @@ async function runLayerB(
   now: () => Date,
 ): Promise<LayerBResult> {
   const nowMs = now().getTime();
-  const staleBefore = new Date(nowMs - STALE_PENDING_AFTER_MS).toISOString();
-  const pendingBefore = new Date(nowMs - VERIFICATION_PENDING_AFTER_MS).toISOString();
+  const stalePendingBefore = new Date(nowMs - STALE_PENDING_AFTER_MS).toISOString();
+  const verificationPendingBefore = new Date(nowMs - VERIFICATION_PENDING_AFTER_MS).toISOString();
 
   const { data, error } = await deps.db
     .from('payments')
     .select('*')
     .in('provider', ['ecpay', 'paypal'])
-    .in('status', ['verification_pending', 'pending'])
-    .lte('created_at', staleBefore)
+    .or(
+      `and(status.eq.verification_pending,created_at.lte.${verificationPendingBefore}),` +
+        `and(status.eq.pending,created_at.lte.${stalePendingBefore})`,
+    )
     .limit(REPAIR_SCAN_LIMIT);
   if (error) throw new Error(`repair scan failed: ${error.message}`);
   const rows = (data ?? []) as unknown as PaymentRow[];
-  const candidates = rows.filter(
-    (row) => row.status === 'verification_pending' || row.created_at <= pendingBefore,
+  const candidates = rows.filter((row) =>
+    (row.status === 'verification_pending' && row.created_at <= verificationPendingBefore) ||
+    (row.status === 'pending' && row.created_at <= stalePendingBefore)
   );
 
   let repaired = 0;
@@ -282,7 +343,12 @@ async function runLayerB(
     const event: VerifiedProviderEvent = {
       provider,
       providerMerchantRef: paymentRow.provider_merchant_ref,
-      providerPaymentRef: paymentRow.provider_payment_ref ?? undefined,
+      // PayPal confirmation starts from the checkout Order id. The eventual
+      // capture id belongs in provider_payment_ref only after confirmation.
+      providerPaymentRef:
+        provider === 'paypal'
+          ? (paymentRow.provider_checkout_ref ?? undefined)
+          : (paymentRow.provider_payment_ref ?? undefined),
       eventFingerprint: 'repair',
       status: 'unknown',
       amount: { amount: Number(paymentRow.amount_minor), currency: paymentRow.currency },
@@ -294,22 +360,16 @@ async function runLayerB(
       stillUnknown += 1;
       continue;
     }
-    if (snapshot.status !== 'succeeded') {
+    if (!isRepairSnapshotVerified(paymentRow, snapshot)) {
       stillUnknown += 1; // TradeStatus=0 / not-yet-approved is not terminal (§6) — leave for the next run
       continue;
     }
 
-    const orderRow = await loadOrder(deps.db, paymentRow.order_id);
-    if (!orderRow) {
-      deps.log.warn({ paymentId: paymentRow.id }, 'repair: order row missing; skipping');
-      continue;
-    }
     try {
       const result = await applyVerifiedSuccess({
         db: deps.db,
         log: deps.log,
         now,
-        orderRow,
         paymentRow,
         merchantReference: paymentRow.provider_merchant_ref,
         providerPaymentReference: snapshot.providerPaymentReference,
@@ -326,6 +386,35 @@ async function runLayerB(
     }
   }
   return { scanned: candidates.length, repaired, granted, stillUnknown };
+}
+
+/**
+ * Layer B applies the same immutable amount/currency gate as live callbacks.
+ * ECPay additionally requires every signed QueryTradeInfo evidence field to
+ * match the local merchant reference, amount, and returned trade reference.
+ */
+function isRepairSnapshotVerified(payment: PaymentRow, snapshot: ProviderPaymentSnapshot): boolean {
+  if (
+    snapshot.provider !== payment.provider ||
+    snapshot.merchantReference !== payment.provider_merchant_ref ||
+    !isVerifiedSuccessSnapshot(snapshot, Number(payment.amount_minor), payment.currency)
+  ) {
+    return false;
+  }
+  if (payment.provider !== 'ecpay') return payment.provider === 'paypal';
+
+  const query = snapshot.queryResponse;
+  const localTwd = Number(payment.amount_minor) / minorUnitFor('TWD');
+  return (
+    payment.currency === 'TWD' &&
+    Number.isSafeInteger(localTwd) &&
+    query?.merchantTradeNo === payment.provider_merchant_ref &&
+    typeof query.tradeNo === 'string' &&
+    query.tradeNo.length > 0 &&
+    snapshot.providerPaymentReference === query.tradeNo &&
+    Number(query.tradeAmt) === localTwd &&
+    query.tradeStatus === '1'
+  );
 }
 
 async function runLayerC(deps: RepairReconcileHandlerDeps, csv: string): Promise<LayerCResult> {
@@ -386,4 +475,86 @@ async function runLayerC(deps: RepairReconcileHandlerDeps, csv: string): Promise
   }
   deps.log.info({ entries: entries.length, matched, mismatched }, 'reconciliation (Layer C) applied');
   return { skipped: false, entries: entries.length, matched, mismatched };
+}
+
+/** Daily PayPal Transaction Search matcher over a trailing three-day window. */
+async function runPaypalLayerC(
+  deps: RepairReconcileHandlerDeps,
+  now: () => Date,
+): Promise<LayerCResult> {
+  const reconcile = deps.adapters.paypal.reconcile;
+  if (!reconcile) {
+    return { skipped: true, entries: 0, matched: 0, mismatched: 0, reason: 'paypal reconciliation unavailable' };
+  }
+  const toDate = now();
+  const fromDate = new Date(toDate.getTime() - 2 * 24 * 60 * 60 * 1000);
+  const data = await reconcile.call(deps.adapters.paypal, {
+    from: fromDate.toISOString().slice(0, 10),
+    to: toDate.toISOString().slice(0, 10),
+  });
+  if (data.provider !== 'paypal') throw new Error(`unexpected reconciliation provider: ${data.provider}`);
+
+  let matched = 0;
+  let mismatched = 0;
+  for (const unknownEntry of data.entries) {
+    if (!isPaypalReconciliationEntry(unknownEntry)) continue;
+    const entry = unknownEntry;
+    const paymentRef = entry.kind === 'refund' ? entry.referenceTransactionId : entry.transactionId;
+    if (!paymentRef) continue;
+
+    let payment: PaymentRow | null;
+    try {
+      payment = await loadPaymentByProviderPaymentRef(deps.db, 'paypal', paymentRef);
+    } catch {
+      continue;
+    }
+    if (!payment) continue;
+
+    const providerCompleted = entry.kind === 'payment' ? entry.status === 'S' : ['S', 'V'].includes(entry.status);
+    if (!providerCompleted) continue;
+    const amountMatches =
+      entry.amount.amount === Number(payment.amount_minor) && entry.amount.currency === payment.currency;
+    if (!amountMatches) {
+      await setReconciliationStatus(deps, payment.id, 'mismatch');
+      mismatched += 1;
+      continue;
+    }
+
+    if (entry.kind === 'refund') {
+      await confirmProviderRefund(
+        { db: deps.db, log: deps.log, now },
+        payment.id,
+        entry.transactionId,
+        `${entry.eventCode}:${entry.status}`,
+      );
+    }
+    await setReconciliationStatus(deps, payment.id, 'matched');
+    matched += 1;
+  }
+  deps.log.info({ entries: data.entries.length, matched, mismatched }, 'PayPal reconciliation (Layer C) applied');
+  return { skipped: false, entries: data.entries.length, matched, mismatched };
+}
+
+function isPaypalReconciliationEntry(value: unknown): value is PaypalReconciliationEntry {
+  if (value === null || typeof value !== 'object') return false;
+  const entry = value as Partial<PaypalReconciliationEntry>;
+  return (
+    (entry.kind === 'payment' || entry.kind === 'refund') &&
+    typeof entry.transactionId === 'string' &&
+    typeof entry.eventCode === 'string' &&
+    typeof entry.status === 'string' &&
+    entry.amount !== undefined &&
+    Number.isSafeInteger(entry.amount.amount) &&
+    entry.amount.currency === 'USD' &&
+    (entry.kind === 'payment' || typeof entry.referenceTransactionId === 'string')
+  );
+}
+
+async function setReconciliationStatus(
+  deps: RepairReconcileHandlerDeps,
+  paymentId: string,
+  status: 'matched' | 'mismatch',
+): Promise<void> {
+  const { error } = await deps.db.from('payments').update({ reconciliation_status: status }).eq('id', paymentId);
+  if (error) throw new Error(`reconciliation status update failed: ${error.message}`);
 }

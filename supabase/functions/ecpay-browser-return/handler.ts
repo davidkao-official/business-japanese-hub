@@ -15,10 +15,12 @@ import type { DbClient } from '../_shared/db.ts';
 import type { Logger } from '../_shared/log.ts';
 import {
   methodNotAllowed,
+  jsonResult,
   redirectResult,
   type HandlerRequest,
   type HandlerResult,
 } from '../_shared/http.ts';
+import { isEcpayConfigured } from '../_shared/ecpay.ts';
 import { loadPaymentByMerchantRef } from '../_shared/flow.ts';
 
 export interface BrowserReturnHandlerDeps {
@@ -32,6 +34,12 @@ export async function handleBrowserReturn(
   deps: BrowserReturnHandlerDeps,
 ): Promise<HandlerResult> {
   if (req.method !== 'POST') return methodNotAllowed('POST');
+  if (!isEcpayConfigured(deps.env)) {
+    return jsonResult(503, {
+      error: 'ecpay is not configured',
+      reason: 'provider_configuration_unavailable',
+    });
+  }
   const form = parseFormUrlEncoded(req.bodyText);
 
   // Diagnostics only — a mismatch never fails the redirect.

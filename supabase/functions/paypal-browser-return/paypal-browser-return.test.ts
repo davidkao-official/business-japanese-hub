@@ -15,7 +15,8 @@ const PAYMENT_ROW_PAYPAL = {
   order_id: 'ord-1',
   provider: 'paypal',
   provider_merchant_ref: 'BJH202608160001',
-  provider_payment_ref: 'ORDER-1',
+  provider_checkout_ref: 'ORDER-1',
+  provider_payment_ref: 'CAPTURE-1',
   amount_minor: 1999,
   currency: 'USD',
   method: 'credit',
@@ -53,6 +54,11 @@ describe('paypal-browser-return handler', () => {
     );
     expect(result.status).toBe(303);
     expect(result.headers?.Location).toBe('/purchase/result?order=ord-1');
+    expect(mock.callsFor('payments', 'eq')).toContainEqual({
+      table: 'payments',
+      method: 'eq',
+      args: ['provider_checkout_ref', 'ORDER-1'],
+    });
     // Browser return must NEVER mutate payment/order/entitlement state.
     expect(mock.callsFor('payments', 'update').length).toBe(0);
     expect(mock.callsFor('orders', 'update').length).toBe(0);

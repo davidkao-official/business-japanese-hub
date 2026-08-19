@@ -23,13 +23,34 @@ const SNAPSHOT_OK: ProviderPaymentSnapshot = {
   amount: { amount: 79000, currency: 'TWD' },
   paidAt: '2026-08-16T12:00:00Z',
   rawStatusCode: '1',
+  queryResponse: {
+    merchantTradeNo: 'BJH123456789',
+    tradeNo: 'ECPAY-TRADE-1',
+    tradeAmt: '790',
+    tradeStatus: '1',
+  },
+};
+
+const SUCCESS_TRANSACTION = {
+  payment_status: 'succeeded',
+  order_status: 'paid',
+  granted: true,
+};
+
+const REFUND_TRANSACTION = {
+  refund_id: 'ref-1',
+  refund_status: 'succeeded',
+  payment_status: 'refunded',
+  order_status: 'refunded',
+  entitlement_revoked: true,
+  already_confirmed: false,
 };
 
 function setup(overrides: Record<string, unknown> = {}) {
   const mock = createMockDb({
     payments: { data: [] },
     orders: { data: ORDER_ROW },
-    'rpc:grant_entitlement': { data: null },
+    'rpc:finalize_payment_success': { data: SUCCESS_TRANSACTION },
     ...overrides,
   });
   const adapter = createFakeAdapter();
@@ -38,7 +59,9 @@ function setup(overrides: Record<string, unknown> = {}) {
     mock,
     adapter,
     deps: {
-      env: testEnv(),
+      // Most handler tests exercise repair/refund seams with injected fakes;
+      // leave PayPal reporting disabled unless a test explicitly enables it.
+      env: testEnv({ paypalClientId: undefined, paypalClientSecret: undefined, paypalWebhookId: undefined }),
       db: mock.db,
       adapters: { ecpay: adapter, paypal: createFakeAdapter('paypal') },
       log: fakeLogger(),
@@ -47,9 +70,13 @@ function setup(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function run(deps: ReturnType<typeof setup>['deps'], headers: Record<string, string> = {}) {
+function run(
+  deps: ReturnType<typeof setup>['deps'],
+  headers: Record<string, string> = {},
+  body = '{}',
+) {
   return handleRepairReconcile(
-    handlerRequest('POST', 'https://test.supabase.co/functions/v1/repair-reconcile', '{}', headers),
+    handlerRequest('POST', 'https://test.supabase.co/functions/v1/repair-reconcile', body, headers),
     deps,
   );
 }
@@ -67,6 +94,30 @@ describe('repair-reconcile handler', () => {
     expect(result.status).toBe(401);
   });
 
+  it('repair schedule does not run provider reporting', async () => {
+    const { deps } = setup({ payments: { data: [] } });
+    deps.env = testEnv();
+    await run(
+      deps,
+      { 'x-scheduled-job-secret': 'test-scheduled-secret' },
+      JSON.stringify({ mode: 'repair' }),
+    );
+    expect(deps.adapters.paypal.reconcile).not.toHaveBeenCalled();
+  });
+
+  it('reconcile schedule does not run Layer B provider confirmation', async () => {
+    const { adapter, deps } = setup({
+      payments: { data: [{ ...PAYMENT_ROW, status: 'verification_pending' }] },
+    });
+    deps.env = testEnv();
+    await run(
+      deps,
+      { 'x-scheduled-job-secret': 'test-scheduled-secret' },
+      JSON.stringify({ mode: 'reconcile' }),
+    );
+    expect(adapter.confirmPayment).not.toHaveBeenCalled();
+  });
+
   it('verification_pending → confirmed paid → entitlement granted exactly once', async () => {
     const { mock, deps } = setup({
       payments: { data: [{ ...PAYMENT_ROW, status: 'verification_pending' }] },
@@ -79,23 +130,120 @@ describe('repair-reconcile handler', () => {
     expect(body.scanned).toBe(1);
     expect(body.reconciliation).toMatchObject({ skipped: true }); // no CSV source configured
 
-    const paymentUpdate = mock.callsFor('payments', 'update')[0];
-    expect(paymentUpdate.args[0]).toMatchObject({ status: 'succeeded' });
-    const orderUpdate = mock.callsFor('orders', 'update')[0];
-    expect(orderUpdate.args[0]).toMatchObject({ status: 'paid' });
-    expect(mock.rpcCalls('grant_entitlement').length).toBe(1);
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(1);
+    expect(mock.rpcCalls('finalize_payment_success')[0].args[0]).toMatchObject({
+      p_payment_id: 'pay-1',
+      p_provider_payment_ref: 'ECPAY-TRADE-1',
+    });
+    expect(mock.callsFor('payments', 'update')).toHaveLength(0);
+    expect(mock.callsFor('orders', 'update')).toHaveLength(0);
+    expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
+  });
+
+  it('scans verification_pending after 10 minutes but leaves ordinary pending until 30 minutes', async () => {
+    const { mock, deps } = setup({
+      payments: {
+        data: [
+          { ...PAYMENT_ROW, status: 'verification_pending', created_at: '2026-08-16T11:45:00Z' },
+          { ...PAYMENT_ROW, id: 'pay-young-pending', status: 'pending', created_at: '2026-08-16T11:45:00Z' },
+        ],
+      },
+    });
+
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+
+    expect(JSON.parse(result.body)).toMatchObject({ scanned: 1, repaired: 1 });
+    const scanFilter = String(mock.callsFor('payments', 'or')[0].args[0]);
+    expect(scanFilter).toContain('status.eq.verification_pending,created_at.lte.2026-08-16T11:50:00.000Z');
+    expect(scanFilter).toContain('status.eq.pending,created_at.lte.2026-08-16T11:30:00.000Z');
+  });
+
+  it('repairs PayPal with its checkout Order id and verifies the immutable amount/currency', async () => {
+    const paypalPayment = {
+      ...PAYMENT_ROW,
+      provider: 'paypal',
+      status: 'verification_pending',
+      provider_merchant_ref: 'BJH202608160001',
+      provider_checkout_ref: 'ORDER-1',
+      provider_payment_ref: null,
+      amount_minor: 1999,
+      currency: 'USD',
+    };
+    const { mock, deps } = setup({ payments: { data: [paypalPayment] } });
+    const paypal = deps.adapters.paypal;
+    paypal.confirmPayment.mockResolvedValue({
+      provider: 'paypal',
+      merchantReference: paypalPayment.provider_merchant_ref,
+      providerPaymentReference: 'CAPTURE-1',
+      status: 'succeeded',
+      amount: { amount: 1999, currency: 'USD' },
+      rawStatusCode: 'COMPLETED',
+    });
+
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+
+    expect(result.status).toBe(200);
+    expect(paypal.confirmPayment).toHaveBeenCalledWith(
+      expect.objectContaining({ providerPaymentRef: 'ORDER-1' }),
+    );
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(1);
+  });
+
+  it('does not repair PayPal when the authoritative snapshot amount differs', async () => {
+    const paypalPayment = {
+      ...PAYMENT_ROW,
+      provider: 'paypal',
+      status: 'verification_pending',
+      provider_merchant_ref: 'BJH202608160001',
+      provider_checkout_ref: 'ORDER-1',
+      provider_payment_ref: null,
+      amount_minor: 1999,
+      currency: 'USD',
+    };
+    const { mock, deps } = setup({ payments: { data: [paypalPayment] } });
+    deps.adapters.paypal.confirmPayment.mockResolvedValue({
+      provider: 'paypal',
+      merchantReference: paypalPayment.provider_merchant_ref,
+      providerPaymentReference: 'CAPTURE-1',
+      status: 'succeeded',
+      amount: { amount: 2000, currency: 'USD' },
+      rawStatusCode: 'COMPLETED',
+    });
+
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+
+    expect(JSON.parse(result.body)).toMatchObject({ repaired: 0, stillUnknown: 1 });
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(0);
+  });
+
+  it('does not repair ECPay unless the signed QueryTradeInfo fields match the local payment', async () => {
+    const { mock, adapter, deps } = setup({
+      payments: { data: [{ ...PAYMENT_ROW, status: 'verification_pending' }] },
+    });
+    adapter.confirmPayment.mockResolvedValue({
+      ...SNAPSHOT_OK,
+      queryResponse: { ...SNAPSHOT_OK.queryResponse, merchantTradeNo: 'WRONG-REF' },
+    });
+
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+
+    expect(JSON.parse(result.body)).toMatchObject({ repaired: 0, stillUnknown: 1 });
+    expect(mock.rpcCalls('finalize_payment_success')).toHaveLength(0);
   });
 
   it('a re-run on an already-succeeded payment grants nothing (idempotent)', async () => {
     const { mock, deps } = setup({
       payments: { data: [{ ...PAYMENT_ROW, status: 'succeeded', paid_at: '2026-08-16T12:00:00Z' }] },
       orders: { data: { ...ORDER_ROW, status: 'paid', paid_at: '2026-08-16T12:00:00Z' } },
+      'rpc:finalize_payment_success': {
+        data: { payment_status: 'succeeded', order_status: 'paid', granted: false },
+      },
     });
     const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
     expect(result.status).toBe(200);
     const body = JSON.parse(result.body);
-    // Even if the scan surfaces the payment, the success path is a no-change and
-    // grants nothing (shouldGrantEntitlement requires a still-pending order).
+    // Even if the scan surfaces the payment, the locked transaction recognizes
+    // the fulfilled state and grants nothing.
     expect(body.granted).toBe(0);
     expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
   });
@@ -132,6 +280,7 @@ describe('repair-reconcile handler', () => {
       },
       book_entitlement: { data: null },
       admin_audit_log: { data: null },
+      'rpc:finalize_refund_success': { data: REFUND_TRANSACTION },
     });
     const csv =
       '特店編號,撥款日期,撥款金額,特店訂單編號,交易序號,交易日期,交易時間,交易金額,手續費,交易狀態,退款金額,退款狀態,交易類別\n' +
@@ -142,16 +291,117 @@ describe('repair-reconcile handler', () => {
     const body = JSON.parse(result.body);
     expect(body.reconciliation).toMatchObject({ skipped: false, entries: 1 });
 
-    // refunds → succeeded (fact source); payment → refunded; order → refunded.
-    expect(mock.callsFor('refunds', 'update')[0].args[0]).toMatchObject({ status: 'succeeded' });
-    const paymentUpdates = mock.callsFor('payments', 'update');
-    expect(paymentUpdates[paymentUpdates.length - 1].args[0]).toMatchObject({ status: 'refunded' });
-    const orderUpdates = mock.callsFor('orders', 'update');
-    expect(orderUpdates[orderUpdates.length - 1].args[0]).toMatchObject({ status: 'refunded' });
+    // Refund, payment, order, and entitlement transition in one locked DB
+    // transaction; the worker only records reconciliation metadata directly.
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(1);
+    expect(mock.rpcCalls('finalize_refund_success')[0].args[0]).toMatchObject({
+      p_refund_id: 'ref-1',
+    });
+    expect(mock.callsFor('refunds', 'update')).toHaveLength(0);
+    expect(mock.callsFor('orders', 'update')).toHaveLength(0);
+    expect(mock.callsFor('book_entitlement', 'update')).toHaveLength(0);
+  });
 
-    // Primary-payment refund → entitlement revoked with reason 'refund'.
-    const revokeUpdate = mock.callsFor('book_entitlement', 'update')[0];
-    expect(revokeUpdate.args[0]).toMatchObject({ status: 'revoked', revocation_reason: 'refund' });
+  it('PayPal Layer C is scheduled and marks a matching captured payment', async () => {
+    const payment = {
+      ...PAYMENT_ROW,
+      provider: 'paypal',
+      status: 'succeeded',
+      provider_merchant_ref: 'BJH202608160001',
+      provider_checkout_ref: 'ORDER-1',
+      provider_payment_ref: 'CAPTURE-1',
+      amount_minor: 1999,
+      currency: 'USD',
+      created_at: '2026-08-16T11:55:00Z',
+    };
+    const { mock, deps } = setup({ payments: { data: [payment] } });
+    deps.env = testEnv();
+    deps.adapters.paypal.reconcile.mockResolvedValue({
+      provider: 'paypal',
+      entries: [{
+        kind: 'payment',
+        transactionId: 'CAPTURE-1',
+        eventCode: 'T0006',
+        status: 'S',
+        amount: { amount: 1999, currency: 'USD' },
+      }],
+    });
+
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+
+    expect(result.status).toBe(200);
+    expect(deps.adapters.paypal.reconcile).toHaveBeenCalledWith({ from: '2026-08-14', to: '2026-08-16' });
+    expect(JSON.parse(result.body).reconciliation).toMatchObject({ skipped: false, entries: 1, matched: 1 });
+    expect(mock.callsFor('payments', 'update')[0].args[0]).toMatchObject({ reconciliation_status: 'matched' });
+  });
+
+  it('PayPal Layer C confirms a full refund by its reference capture', async () => {
+    const payment = {
+      ...PAYMENT_ROW,
+      provider: 'paypal',
+      status: 'succeeded',
+      provider_merchant_ref: 'BJH202608160001',
+      provider_payment_ref: 'CAPTURE-1',
+      amount_minor: 1999,
+      currency: 'USD',
+      created_at: '2026-08-16T11:55:00Z',
+    };
+    const { mock, deps } = setup({
+      payments: { data: [payment] },
+      'rpc:finalize_refund_success': { data: REFUND_TRANSACTION },
+    });
+    deps.env = testEnv();
+    deps.adapters.paypal.reconcile.mockResolvedValue({
+      provider: 'paypal',
+      entries: [{
+        kind: 'refund',
+        transactionId: 'REFUND-1',
+        referenceTransactionId: 'CAPTURE-1',
+        eventCode: 'T1107',
+        status: 'S',
+        amount: { amount: 1999, currency: 'USD' },
+      }],
+    });
+
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+
+    expect(result.status).toBe(200);
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(1);
+    expect(mock.rpcCalls('finalize_refund_success')[0].args[0]).toMatchObject({
+      p_payment_id: 'pay-1',
+      p_provider_refund_ref: 'REFUND-1',
+      p_provider_status_code: 'T1107:S',
+    });
+  });
+
+  it('PayPal Layer C refuses a partial refund and flags reconciliation mismatch', async () => {
+    const payment = {
+      ...PAYMENT_ROW,
+      provider: 'paypal',
+      status: 'succeeded',
+      provider_payment_ref: 'CAPTURE-1',
+      amount_minor: 1999,
+      currency: 'USD',
+      created_at: '2026-08-16T11:55:00Z',
+    };
+    const { mock, deps } = setup({ payments: { data: [payment] } });
+    deps.env = testEnv();
+    deps.adapters.paypal.reconcile.mockResolvedValue({
+      provider: 'paypal',
+      entries: [{
+        kind: 'refund',
+        transactionId: 'REFUND-PARTIAL',
+        referenceTransactionId: 'CAPTURE-1',
+        eventCode: 'T1107',
+        status: 'S',
+        amount: { amount: 500, currency: 'USD' },
+      }],
+    });
+
+    await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(0);
+    expect(mock.callsFor('payments', 'update')[0].args[0]).toMatchObject({ reconciliation_status: 'mismatch' });
   });
 
   it('method not POST → 405', async () => {
@@ -186,7 +436,7 @@ describe('repair-reconcile handler', () => {
     const mock = createMockDb({
       payments: { data: [paypalPayment] },
       orders: { data: paypalOrder },
-      'rpc:grant_entitlement': { data: null },
+      'rpc:finalize_refund_success': { data: REFUND_TRANSACTION },
       refunds: {
         data: [{
           id: 'ref-1',
@@ -229,15 +479,13 @@ describe('repair-reconcile handler', () => {
     expect(paypalAdapter.refund).toHaveBeenCalledWith(
       expect.objectContaining({ paymentId: 'pay-1', providerPaymentRef: 'CAPTURE-1', amount: { amount: 1999, currency: 'USD' } }),
     );
-    // Provider-confirmed refund → refunds succeeded (fact source) + entitlement
-    // revoked exactly once (no second monetary refund, no double revoke).
-    const succeededUpdate = mock.callsFor('refunds', 'update').find((c) => c.args[0]?.status === 'succeeded');
-    expect(succeededUpdate).toBeDefined();
-    expect(mock.callsFor('book_entitlement', 'update').length).toBe(1);
-    expect(mock.callsFor('book_entitlement', 'update')[0].args[0]).toMatchObject({
-      status: 'revoked',
-      revocation_reason: 'refund',
+    // Provider-confirmed refund is finalized with entitlement revocation inside
+    // one locked transaction (no direct table writes in the worker).
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(1);
+    expect(mock.rpcCalls('finalize_refund_success')[0].args[0]).toMatchObject({
+      p_refund_id: 'ref-1',
     });
+    expect(mock.callsFor('book_entitlement', 'update')).toHaveLength(0);
   });
 
   it('B7: does NOT auto-resume an aged PayPal refund outside the Request-Id retention window (no refund POST)', async () => {
@@ -262,7 +510,6 @@ describe('repair-reconcile handler', () => {
     const mock = createMockDb({
       payments: { data: [paypalPayment] },
       orders: { data: { ...ORDER_ROW, status: 'paid', currency: 'USD', amount_minor: 1999 } },
-      'rpc:grant_entitlement': { data: null },
       refunds: {
         data: [{
           id: 'ref-aged',
@@ -357,7 +604,7 @@ describe('repair-reconcile handler', () => {
     const mock = createMockDb({
       payments: { data: [paypalPayment] },
       orders: { data: { ...ORDER_ROW, status: 'paid', currency: 'USD', amount_minor: 1999 } },
-      'rpc:grant_entitlement': { data: null },
+      'rpc:finalize_refund_success': { data: { ...REFUND_TRANSACTION, refund_id: 'ref-recent' } },
       refunds: { data: [...agedReviewRequired, recentRefund] },
       book_entitlement: { data: null },
       admin_audit_log: { data: null },

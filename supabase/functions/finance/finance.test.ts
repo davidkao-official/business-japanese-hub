@@ -29,6 +29,21 @@ const REFUND_ROW = {
   completed_at: null,
 };
 
+const PRIMARY_REFUND_TRANSACTION = {
+  refund_id: 'ref-1',
+  refund_status: 'succeeded',
+  payment_status: 'refunded',
+  order_status: 'refunded',
+  entitlement_revoked: true,
+  already_confirmed: false,
+};
+
+const DUPLICATE_REFUND_TRANSACTION = {
+  ...PRIMARY_REFUND_TRANSACTION,
+  order_status: 'paid',
+  entitlement_revoked: false,
+};
+
 function setup(overrides: Record<string, unknown> = {}) {
   const mock = createMockDb({
     'auth:getUser': { data: { id: 'user-1' } },
@@ -174,6 +189,7 @@ describe('finance handler', () => {
       refunds: { data: { id: 'ref-1' } },
       book_entitlement: { data: null },
       admin_audit_log: { data: null },
+      'rpc:finalize_refund_success': { data: PRIMARY_REFUND_TRANSACTION },
     });
     const paypalAdapter = createFakeAdapter('paypal');
     paypalAdapter.refund.mockResolvedValue({
@@ -209,14 +225,16 @@ describe('finance handler', () => {
         amount: { amount: 1999, currency: 'USD' },
       }),
     );
-    // Provider-confirmed refund → refunds succeeded (fact source) + entitlement revoked.
-    // (The handler persists provider ref/status first, then confirmRefund marks it
-    // succeeded — §21/B3.)
-    const succeededUpdate = mock.callsFor('refunds', 'update').find((c) => c.args[0]?.status === 'succeeded');
-    expect(succeededUpdate).toBeDefined();
-    expect(succeededUpdate!.args[0]).toMatchObject({ status: 'succeeded' });
-    const revokeUpdate = mock.callsFor('book_entitlement', 'update')[0];
-    expect(revokeUpdate.args[0]).toMatchObject({ status: 'revoked', revocation_reason: 'refund' });
+    // Provider reference, refund fact, payment/order state, and entitlement
+    // revocation are committed in one locked database transaction.
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(1);
+    expect(mock.rpcCalls('finalize_refund_success')[0].args[0]).toMatchObject({
+      p_refund_id: 'ref-1',
+      p_provider_refund_ref: 'REFUND-1',
+      p_provider_status_code: 'COMPLETED',
+    });
+    expect(mock.callsFor('refunds', 'update')).toHaveLength(0);
+    expect(mock.callsFor('book_entitlement', 'update')).toHaveLength(0);
   });
 
   it('B3: finance_admin request_refund on a PayPal payment with an ambiguous transport result → processing + provider ref/status persisted (not terminal failed)', async () => {
@@ -286,6 +304,7 @@ describe('finance handler', () => {
       orders: { data: { ...ORDER_ROW, status: 'paid' } },
       book_entitlement: { data: null },
       admin_audit_log: { data: null },
+      'rpc:finalize_refund_success': { data: PRIMARY_REFUND_TRANSACTION },
     });
     const result = await handleFinance(
       handlerRequest(
@@ -305,23 +324,12 @@ describe('finance handler', () => {
       entitlement_revoked: true,
     });
 
-    // refunds → succeeded (fact source), payment → refunded, order → refunded.
-    expect(mock.callsFor('refunds', 'update')[0].args[0]).toMatchObject({ status: 'succeeded' });
-    const paymentUpdates = mock.callsFor('payments', 'update');
-    expect(paymentUpdates[paymentUpdates.length - 1].args[0]).toMatchObject({ status: 'refunded' });
-    const orderUpdates = mock.callsFor('orders', 'update');
-    expect(orderUpdates[orderUpdates.length - 1].args[0]).toMatchObject({ status: 'refunded' });
-
-    // Entitlement for the order's source_order_id is revoked with reason 'refund'.
-    const revokeUpdate = mock.callsFor('book_entitlement', 'update')[0];
-    expect(revokeUpdate.args[0]).toMatchObject({
-      status: 'revoked',
-      revocation_reason: 'refund',
-    });
-    const revokeEqs = mock.callsFor('book_entitlement', 'eq');
-    expect(
-      revokeEqs.some((c) => c.args[0] === 'source_order_id' && c.args[1] === 'ord-1'),
-    ).toBe(true);
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(1);
+    expect(mock.rpcCalls('finalize_refund_success')[0].args[0]).toMatchObject({ p_refund_id: 'ref-1' });
+    expect(mock.callsFor('refunds', 'update')).toHaveLength(0);
+    expect(mock.callsFor('payments', 'update')).toHaveLength(0);
+    expect(mock.callsFor('orders', 'update')).toHaveLength(0);
+    expect(mock.callsFor('book_entitlement', 'update')).toHaveLength(0);
   });
 
   it('finance_admin confirm_refund (duplicate_success payment) → payment refunded only; ownership preserved', async () => {
@@ -332,6 +340,7 @@ describe('finance handler', () => {
       orders: { data: { ...ORDER_ROW, status: 'paid' } },
       book_entitlement: { data: null },
       admin_audit_log: { data: null },
+      'rpc:finalize_refund_success': { data: DUPLICATE_REFUND_TRANSACTION },
     });
     const result = await handleFinance(
       handlerRequest(
@@ -352,8 +361,8 @@ describe('finance handler', () => {
     });
 
     // The duplicate refund refunds the payment but NEVER touches order/entitlement.
-    const paymentUpdates = mock.callsFor('payments', 'update');
-    expect(paymentUpdates[paymentUpdates.length - 1].args[0]).toMatchObject({ status: 'refunded' });
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(1);
+    expect(mock.callsFor('payments', 'update')).toHaveLength(0);
     expect(mock.callsFor('orders', 'update').length).toBe(0);
     expect(mock.callsFor('book_entitlement', 'update').length).toBe(0);
   });

@@ -47,7 +47,13 @@ import {
 import { isSafeMoney, minorUnitFor } from '../money';
 import { sha256Hex } from '../crypto';
 import { resolvePaypalEnv, type PaypalEnv, type PaypalUrls } from './urls';
-import { PAYPAL_CAPTURE_EVENT_STATUS, type PaypalCapture, type PaypalOrder, type PaypalWebhookEvent } from './types';
+import {
+  PAYPAL_CAPTURE_EVENT_STATUS,
+  type PaypalCapture,
+  type PaypalOrder,
+  type PaypalReconciliationEntry,
+  type PaypalWebhookEvent,
+} from './types';
 
 /* ------------------------------------------------------------------------- *
  * Constants / errors
@@ -66,7 +72,8 @@ export const RECONCILE_PAGE_SIZE = 500;
  * Hard cap on reconciliation pages. A range that needs more pages than this is
  * never silently truncated — the caller must narrow the range.
  */
-export const RECONCILE_MAX_PAGES = 100;
+export const RECONCILE_MAX_PAGES = 20;
+export const RECONCILE_MAX_RANGE_DAYS = 31;
 
 /** Thrown when a webhook's transmission signature fails verification. */
 export class InvalidWebhookSignatureError extends Error {
@@ -83,6 +90,13 @@ export class ReconciliationIncompleteError extends Error {
       `PayPal reconciliation range ${range.from}..${range.to} is incomplete (needs ${pagesNeeded} pages, cap ${RECONCILE_MAX_PAGES}); narrow the range`,
     );
     this.name = 'ReconciliationIncompleteError';
+  }
+}
+
+export class InvalidReconciliationRangeError extends Error {
+  constructor(range: ReconciliationRange) {
+    super(`PayPal reconciliation range ${range.from}..${range.to} must be valid ISO dates spanning at most 31 days`);
+    this.name = 'InvalidReconciliationRangeError';
   }
 }
 
@@ -189,6 +203,51 @@ export function paypalMoneyFromString(value: string, currency: string): Money {
     throw new Error(`PayPal amount is not a safe integer in minor units: ${JSON.stringify({ value, currency })}`);
   }
   return { amount: minor, currency: 'USD' };
+}
+
+/** Money-moving PayPal T-codes that remove a prior captured payment. */
+const PAYPAL_REFUND_OR_REVERSAL_CODES = new Set(['T1100', 'T1106', 'T1107', 'T1120', 'T1201']);
+
+/**
+ * Normalize one Transaction Search row. Malformed/unsupported currencies are
+ * dropped rather than guessed; the scheduled matcher then remains fail closed.
+ */
+export function normalizePaypalReconciliationEntry(raw: unknown): PaypalReconciliationEntry | null {
+  if (raw === null || typeof raw !== 'object') return null;
+  const transactionInfo = (raw as { transaction_info?: unknown }).transaction_info;
+  if (transactionInfo === null || typeof transactionInfo !== 'object') return null;
+  const info = transactionInfo as Record<string, unknown>;
+  const transactionId = typeof info.transaction_id === 'string' ? info.transaction_id : '';
+  const eventCode = typeof info.transaction_event_code === 'string' ? info.transaction_event_code : '';
+  const status = typeof info.transaction_status === 'string' ? info.transaction_status : '';
+  const rawAmount = info.transaction_amount;
+  if (!transactionId || !eventCode || !status || rawAmount === null || typeof rawAmount !== 'object') return null;
+  const money = rawAmount as Record<string, unknown>;
+  if (typeof money.currency_code !== 'string' || typeof money.value !== 'string') return null;
+
+  let amount: Money;
+  try {
+    amount = paypalMoneyFromString(money.value.replace(/^-/, ''), money.currency_code);
+  } catch {
+    return null;
+  }
+
+  const isRefund = PAYPAL_REFUND_OR_REVERSAL_CODES.has(eventCode) || status === 'V';
+  const providerReference = typeof info.paypal_reference_id === 'string' ? info.paypal_reference_id : undefined;
+  const referenceTransactionId = isRefund ? (providerReference || (status === 'V' ? transactionId : undefined)) : undefined;
+  if (isRefund && !referenceTransactionId) return null;
+
+  return {
+    kind: isRefund ? 'refund' : 'payment',
+    transactionId,
+    ...(referenceTransactionId ? { referenceTransactionId } : {}),
+    eventCode,
+    status,
+    amount: amount as { amount: number; currency: 'USD' },
+    ...(typeof info.transaction_updated_date === 'string'
+      ? { occurredAt: info.transaction_updated_date }
+      : {}),
+  };
 }
 
 /**
@@ -371,8 +430,9 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
       throw new InvalidWebhookSignatureError();
     }
 
-    // Normalized status per event type (§21): only a real CAPTURE.COMPLETED is a
-    // succeeded candidate; APPROVED / PENDING / REFUNDED / REVERSED are not.
+    // Normalized status per event type (§21): CAPTURE.COMPLETED is the only paid
+    // success; provider-confirmed REFUNDED/REVERSED events use the distinct
+    // refund path; APPROVED/PENDING remain non-granting unknown events.
     const status: VerifiedProviderEvent['status'] =
       PAYPAL_CAPTURE_EVENT_STATUS[event.event_type] ?? 'unknown';
 
@@ -413,6 +473,7 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
       provider: 'paypal',
       providerMerchantRef: customId,
       providerPaymentRef: orderId,
+      providerRefundRef: status === 'refunded' ? resource.id : undefined,
       eventFingerprint: await sha256Hex(body),
       status,
       amount: amountField ? paypalMoneyFromString(amountField.value, amountField.currency_code) : undefined,
@@ -553,17 +614,25 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
    * `ReconciliationIncompleteError` so the caller can narrow the range.
    */
   async reconcile(input: ReconciliationRange): Promise<ProviderReconciliationData> {
-    const token = await this.accessToken();
+    const fromMs = isoDateMs(input.from);
+    const toMs = isoDateMs(input.to);
+    const inclusiveDays = fromMs === null || toMs === null ? Number.POSITIVE_INFINITY : Math.floor((toMs - fromMs) / 86_400_000) + 1;
+    if (fromMs === null || toMs === null || toMs < fromMs || inclusiveDays > RECONCILE_MAX_RANGE_DAYS) {
+      throw new InvalidReconciliationRangeError(input);
+    }
     const baseParams = new URLSearchParams({
       start_date: `${input.from}T00:00:00Z`,
       end_date: `${input.to}T23:59:59Z`,
       fields: 'all',
       page_size: String(RECONCILE_PAGE_SIZE),
     });
-    const entries: unknown[] = [];
+    const entries: PaypalReconciliationEntry[] = [];
     let page = 1;
     let totalPages: number | null = null;
     do {
+      // Re-check the cached token on every page so a long paginated report can
+      // refresh safely at expiry instead of failing mid-scan.
+      const token = await this.accessToken();
       const params = new URLSearchParams(baseParams);
       params.set('page', String(page));
       const res = await this.transport.request(
@@ -580,7 +649,10 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
       } catch {
         throw new PaypalApiError('reporting transactions response parse', res.status, res.body);
       }
-      entries.push(...(data.transaction_details ?? []));
+      for (const rawEntry of data.transaction_details ?? []) {
+        const entry = normalizePaypalReconciliationEntry(rawEntry);
+        if (entry) entries.push(entry);
+      }
       totalPages = typeof data.total_pages === 'number' ? data.total_pages : 1;
       if (totalPages > RECONCILE_MAX_PAGES) {
         throw new ReconciliationIncompleteError(input, totalPages);
@@ -788,6 +860,14 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
       rawStatusCode: code,
     };
   }
+}
+
+function isoDateMs(value: string): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value
+    ? null
+    : date.getTime();
 }
 
 /** The order-level amount (purchase_units[0].amount), if present. */

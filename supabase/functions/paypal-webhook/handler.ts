@@ -45,7 +45,7 @@ import { isPaypalConfigured } from '../_shared/paypal.ts';
 import {
   applyPaymentEvent,
   applyVerifiedSuccess,
-  loadOrder,
+  confirmProviderRefund,
   loadPaymentByMerchantRef,
   type PaymentRow,
 } from '../_shared/flow.ts';
@@ -110,7 +110,7 @@ export async function handlePaypalWebhook(
   }
   const eventInsert = await deps.db
     .from('payment_events')
-    .insert(buildPaymentEventRow(event, sanitized), {
+    .upsert(buildPaymentEventRow(event, sanitized), {
       onConflict: 'provider,event_fingerprint',
       ignoreDuplicates: true,
     })
@@ -127,11 +127,9 @@ export async function handlePaypalWebhook(
       'duplicate webhook (replay) — re-applying idempotently',
     );
   }
-  // Continue processing below REGARDLESS of fresh/replay: the verified-success
-  // path is idempotent (state.ts + grant upsert), so a replay after a
-  // partially-failed first delivery self-heals (grant-first ordering in
-  // applyVerifiedSuccess keeps the order pending until the grant lands) instead
-  // of being silently acked without ever granting (reviewer finding, #21).
+  // Continue processing below REGARDLESS of fresh/replay: payment/refund
+  // finalization is idempotent and transactional, so a replay after a failed
+  // first delivery completes the missing work instead of being silently acked.
 
   // 3. Local payment lookup by custom_id (unknown ref → no entitlement).
   let payment: PaymentRow;
@@ -155,7 +153,59 @@ export async function handlePaypalWebhook(
 
   const localAmount: Money = { amount: Number(payment.amount_minor), currency: payment.currency };
 
-  // 4. Dispatch on the normalized event status.
+  // 4. A verified provider refund/reversal is authoritative refund evidence.
+  // Record the refund fact and derived payment/order/entitlement transitions in
+  // one locked DB transaction; never route it through payment confirmation.
+  if (event.status === 'refunded') {
+    const fullAmountMatches =
+      event.amount?.amount === localAmount.amount && event.amount.currency === localAmount.currency;
+    const checkoutReferenceMatches =
+      !payment.provider_checkout_ref || event.providerPaymentRef === payment.provider_checkout_ref;
+    if (!event.providerRefundRef || !fullAmountMatches || !checkoutReferenceMatches) {
+      deps.log.warn(
+        {
+          paymentId: payment.id,
+          merchantReference: event.providerMerchantRef,
+          fullAmountMatches,
+          checkoutReferenceMatches,
+        },
+        'provider refund evidence does not match the full local payment; finance review required',
+      );
+      const { error } = await deps.db
+        .from('payments')
+        .update({
+          reconciliation_status: 'mismatch',
+          provider_status_code: event.rawStatusCode ?? null,
+          provider_status_message: 'refund evidence mismatch; finance review required',
+          last_verified_at: now().toISOString(),
+        })
+        .eq('id', payment.id);
+      if (error) return persistenceFailure(deps, new Error(`refund mismatch persist failed: ${error.message}`));
+      return textResult(200, 'OK');
+    }
+    try {
+      const result = await confirmProviderRefund(
+        { db: deps.db, log: deps.log, now },
+        payment.id,
+        event.providerRefundRef,
+        event.rawStatusCode,
+      );
+      deps.log.info(
+        {
+          paymentId: payment.id,
+          refundId: result.refundId,
+          entitlementRevoked: result.entitlementRevoked,
+          alreadyConfirmed: result.alreadyConfirmed,
+        },
+        'provider-confirmed refund applied from webhook',
+      );
+      return textResult(200, 'OK');
+    } catch (err) {
+      return persistenceFailure(deps, err);
+    }
+  }
+
+  // 5. Dispatch on the remaining normalized event statuses.
   if (event.status === 'failed') {
     // Terminal provider failure (PAYMENT.CAPTURE.DENIED/DECLINED) → failed.
     return persistAndAck(
@@ -167,7 +217,7 @@ export async function handlePaypalWebhook(
     );
   }
 
-  // 5. succeeded (CAPTURE.COMPLETED) or unknown (APPROVED / PENDING / REFUNDED) →
+  // 6. succeeded (CAPTURE.COMPLETED) or unknown (APPROVED / PENDING) →
   // confirm against the authoritative order state; confirmPayment issues the
   // server capture when the order is APPROVED (§21).
   let snapshot: ProviderPaymentSnapshot;
@@ -193,7 +243,7 @@ export async function handlePaypalWebhook(
     );
   }
 
-  // 6. Success predicate: the provider-confirmed amount/currency must equal the
+  // 7. Success predicate: the provider-confirmed amount/currency must equal the
   // immutable local payment amount (amount/currency mismatch → no entitlement).
   if (!isVerifiedSuccessSnapshot(snapshot, localAmount.amount, localAmount.currency)) {
     deps.log.warn(
@@ -209,15 +259,12 @@ export async function handlePaypalWebhook(
     );
   }
 
-  // 7. Verified success → payment succeeded + order paid + grant exactly once.
+  // 8. Verified success → payment succeeded + order paid + grant exactly once.
   try {
-    const orderRow = await loadOrder(deps.db, payment.order_id);
-    if (!orderRow) throw new Error(`order ${payment.order_id} not found for payment ${payment.id}`);
     const result = await applyVerifiedSuccess({
       db: deps.db,
       log: deps.log,
       now,
-      orderRow,
       paymentRow: payment,
       merchantReference: event.providerMerchantRef,
       providerPaymentReference: snapshot.providerPaymentReference ?? event.providerPaymentRef,

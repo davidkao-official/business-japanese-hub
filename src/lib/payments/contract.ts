@@ -144,8 +144,10 @@ export interface VerifiedProviderEvent {
   provider: PaymentProvider;
   providerMerchantRef: string;
   providerPaymentRef?: string;
+  /** Provider refund/capture reference carried by a confirmed refund/reversal event. */
+  providerRefundRef?: string;
   eventFingerprint: string;
-  status: 'succeeded' | 'failed' | 'unknown';
+  status: 'succeeded' | 'failed' | 'refunded' | 'unknown';
   amount?: Money;
   paidAt?: string;
   rawStatusCode?: string;

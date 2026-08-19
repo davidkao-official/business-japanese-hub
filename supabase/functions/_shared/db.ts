@@ -37,9 +37,11 @@ export interface DbBuilder {
   lte(column: string, value: unknown): DbBuilder;
   gte(column: string, value: unknown): DbBuilder;
   in(column: string, values: readonly unknown[]): DbBuilder;
+  or(filters: string): DbBuilder;
   order(column: string, opts?: { ascending?: boolean }): DbBuilder;
   limit(count: number): DbBuilder;
-  insert(row: unknown, opts?: { onConflict?: string; ignoreDuplicates?: boolean }): DbBuilder;
+  insert(row: unknown): DbBuilder;
+  upsert(row: unknown, opts?: { onConflict?: string; ignoreDuplicates?: boolean }): DbBuilder;
   update(partial: Record<string, unknown>): DbBuilder;
   delete(): DbBuilder;
   maybeSingle(): Promise<DbResult<Record<string, unknown>>>;

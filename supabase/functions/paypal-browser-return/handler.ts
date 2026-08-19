@@ -6,9 +6,10 @@
  * redirects the browser here after approval (query params `token` = order id /
  * `PayerID`). This endpoint NEVER modifies Order / Payment / Entitlement — the
  * authoritative state comes only from the server webhook + capture confirmation.
- * It maps the PayPal order id (stored at checkout as `provider_payment_ref`) to
- * the local order and 303-redirects to the SPA result page, which polls the
- * server order status.
+ * It maps the PayPal order id (stored at checkout as `provider_checkout_ref`) to
+ * the local order and 303-redirects to the SPA result page. The later capture
+ * id is stored independently in `provider_payment_ref`, so webhook-before-return
+ * cannot break this lookup.
  */
 import type { Env } from '../_shared/env.ts';
 import type { DbClient } from '../_shared/db.ts';
@@ -19,7 +20,7 @@ import {
   type HandlerRequest,
   type HandlerResult,
 } from '../_shared/http.ts';
-import { loadPaymentByProviderPaymentRef } from '../_shared/flow.ts';
+import { loadPaymentByProviderCheckoutRef } from '../_shared/flow.ts';
 
 export interface PaypalBrowserReturnHandlerDeps {
   env: Env;
@@ -46,7 +47,7 @@ export async function handlePaypalBrowserReturn(
   let orderId: string | null = null;
   if (orderToken) {
     try {
-      const payment = await loadPaymentByProviderPaymentRef(deps.db, 'paypal', orderToken);
+      const payment = await loadPaymentByProviderCheckoutRef(deps.db, 'paypal', orderToken);
       orderId = payment?.order_id ?? null;
     } catch {
       orderId = null;

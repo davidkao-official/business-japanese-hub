@@ -40,7 +40,7 @@ import { edgeFunctionUrl } from '../_shared/env.ts';
 import type { DbClient } from '../_shared/db.ts';
 import type { Logger } from '../_shared/log.ts';
 import { authenticateBearer } from '../_shared/auth.ts';
-import { mapLocaleToEcpayLanguage } from '../_shared/ecpay.ts';
+import { isEcpayConfigured, mapLocaleToEcpayLanguage } from '../_shared/ecpay.ts';
 import { isPaypalConfigured } from '../_shared/paypal.ts';
 import { generateMerchantReference, isMerchantRefCollision } from '../_shared/merchant-ref.ts';
 import { applyPaymentEvent, type PaymentRow } from '../_shared/flow.ts';
@@ -204,12 +204,24 @@ async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerRes
   // currency (e.g. JPY) is unsupported and refuses BEFORE any insert (#20 stays
   // untouched). The client never decides the provider.
   const provider = resolveProviderForCurrency(currency);
+  if (provider !== 'ecpay' && provider !== 'paypal') {
+    return jsonResult(422, {
+      error: 'checkout refused: provider is not enabled for paid launch',
+      reason: 'unsupported_provider',
+    });
+  }
   // USD → PayPal requires PayPal server-side config. Refuse BEFORE creating any
   // Order / Payment row when it is absent (never silently fall USD back to
   // another provider) — an ECPay-only deployment keeps serving TWD (§21).
   if (provider === 'paypal' && !isPaypalConfigured(deps.env)) {
     return jsonResult(422, {
       error: 'checkout refused: paypal provider is not configured',
+      reason: 'provider_configuration_unavailable',
+    });
+  }
+  if (provider === 'ecpay' && !isEcpayConfigured(deps.env)) {
+    return jsonResult(422, {
+      error: 'checkout refused: ecpay provider is not configured',
       reason: 'provider_configuration_unavailable',
     });
   }
@@ -284,15 +296,16 @@ async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerRes
     });
     const instruction = await adapter.createCheckout(checkoutInput);
 
-    // Persist a provider payment reference known at checkout time (PayPal order
-    // id) so the browser-return / repair flows can map it back to this payment.
+    // Preserve the provider checkout/session reference known before settlement
+    // (PayPal Order id). The final capture/transaction id is stored separately
+    // in provider_payment_ref only after authoritative confirmation.
     if (instruction.providerPaymentReference) {
       const { error: refUpdateError } = await deps.db
         .from('payments')
-        .update({ provider_payment_ref: instruction.providerPaymentReference })
+        .update({ provider_checkout_ref: instruction.providerPaymentReference })
         .eq('id', paymentId);
       if (refUpdateError) {
-        throw new Error(`provider payment ref update failed: ${refUpdateError.message}`);
+        throw new Error(`provider checkout ref update failed: ${refUpdateError.message}`);
       }
     }
 

@@ -553,7 +553,8 @@ describe('checkout handler — currency → provider routing (§21)', () => {
       }),
     );
 
-    // Payment insert uses the routed provider and USD; PayPal order id is persisted.
+    // Payment insert uses the routed provider and USD; the PayPal order id is
+    // persisted separately from the later capture/transaction id.
     const paymentInsert = mock.callsFor('payments', 'insert')[0];
     expect(paymentInsert.args[0]).toMatchObject({
       provider: 'paypal',
@@ -561,8 +562,9 @@ describe('checkout handler — currency → provider routing (§21)', () => {
       currency: 'USD',
       status: 'created',
     });
-    const refUpdate = mock.callsFor('payments', 'update').find((c) => c.args[0]?.provider_payment_ref === 'ORDER-1');
+    const refUpdate = mock.callsFor('payments', 'update').find((c) => c.args[0]?.provider_checkout_ref === 'ORDER-1');
     expect(refUpdate).toBeDefined();
+    expect(mock.callsFor('payments', 'update').some((c) => c.args[0]?.provider_payment_ref === 'ORDER-1')).toBe(false);
   });
 
   it('JPY catalog → refused as unsupported_currency before any insert (#20 untouched)', async () => {
@@ -642,5 +644,25 @@ describe('checkout handler — currency → provider routing (§21)', () => {
     expect(mock.callsFor('orders', 'insert').length).toBe(0);
     expect(mock.callsFor('payments', 'insert').length).toBe(0);
     expect(mock.callsFor('order_compliance', 'insert').length).toBe(0);
+  });
+
+  it('TWD checkout with ECPay NOT configured → refused BEFORE any insert', async () => {
+    const { mock, deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      {
+        ...deps,
+        env: testEnv({ ecpayMerchantId: undefined, ecpayHashKey: undefined, ecpayHashIV: undefined }),
+      },
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'provider_configuration_unavailable' });
+    expect(mock.callsFor('orders', 'insert')).toHaveLength(0);
+    expect(mock.callsFor('payments', 'insert')).toHaveLength(0);
   });
 });

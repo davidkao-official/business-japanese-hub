@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   InvalidWebhookSignatureError,
+  InvalidReconciliationRangeError,
   PaypalPaymentProviderAdapter,
   RECONCILE_MAX_PAGES,
   ReconciliationIncompleteError,
+  normalizePaypalReconciliationEntry,
   paypalMoneyFromString,
   sanitizePaypalEvent,
   usdMajorFromCanonical,
@@ -324,7 +326,7 @@ describe('PaypalPaymentProviderAdapter.verifyCallback', () => {
     ).rejects.toThrow(/missing custom_id/);
   });
 
-  it('B6: correlates a CAPTURE.REVERSED event with related_ids.order_id (never grants)', async () => {
+  it('B6: classifies a correlated CAPTURE.REVERSED event as provider-confirmed refunded', async () => {
     const rawBody = JSON.stringify({
       id: 'WEBHOOK-R1',
       event_type: 'PAYMENT.CAPTURE.REVERSED',
@@ -344,7 +346,8 @@ describe('PaypalPaymentProviderAdapter.verifyCallback', () => {
     const event = await adapter.verifyCallback({ provider: 'paypal', body: rawBody, headers: webhookHeaders() });
     expect(event.providerMerchantRef).toBe('BJH202608160001');
     expect(event.providerPaymentRef).toBe('ORDER-1'); // order id, NEVER the capture id
-    expect(event.status).toBe('unknown'); // non-granting
+    expect(event.status).toBe('refunded');
+    expect(event.providerRefundRef).toBe('CAPTURE-1');
   });
 
   it('B6: correlates a CAPTURE.REFUNDED event without related_ids via its HATEOAS up link', async () => {
@@ -368,7 +371,8 @@ describe('PaypalPaymentProviderAdapter.verifyCallback', () => {
     const event = await adapter.verifyCallback({ provider: 'paypal', body: rawBody, headers: webhookHeaders() });
     expect(event.providerMerchantRef).toBe('BJH202608160001');
     expect(event.providerPaymentRef).toBe('ORDER-1');
-    expect(event.status).toBe('unknown');
+    expect(event.status).toBe('refunded');
+    expect(event.providerRefundRef).toBe('CAPTURE-1');
   });
 
   it('B6: resolves a PAYMENT.REFUND.* event (refund resource) via parent capture → order, and never uses the refund id as an order id', async () => {
@@ -404,7 +408,8 @@ describe('PaypalPaymentProviderAdapter.verifyCallback', () => {
     const event = await adapter.verifyCallback({ provider: 'paypal', body: rawBody, headers: webhookHeaders() });
     expect(event.providerMerchantRef).toBe('BJH202608160001'); // from the order purchase unit
     expect(event.providerPaymentRef).toBe('ORDER-1'); // real order id, never 'REFUND-1'
-    expect(event.status).toBe('unknown');
+    expect(event.status).toBe('refunded');
+    expect(event.providerRefundRef).toBe('REFUND-1');
   });
 
   it('B6: fails closed when a refund event chain cannot resolve an order id', async () => {
@@ -573,7 +578,7 @@ describe('PaypalPaymentProviderAdapter.refund / reconcile', () => {
   it('B3: an ambiguous HTTP 5xx refund response is recoverable (pending, not failed)', async () => {
     const { transport } = fakeTransport([
       jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
-      jsonRoute('/v2/payments/captures/CAPTURE-1/refund', 500, '{}'),
+      jsonRoute('/v2/payments/captures/CAPTURE-1/refund', 500, {}),
     ]);
     const adapter = makeAdapter({ transport });
     const result = await adapter.refund({
@@ -588,7 +593,10 @@ describe('PaypalPaymentProviderAdapter.refund / reconcile', () => {
   it('B3: a definitive 4xx refund response is terminal failed', async () => {
     const { transport } = fakeTransport([
       jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
-      jsonRoute('/v2/payments/captures/CAPTURE-1/refund', 422, JSON.stringify({ name: 'UNPROCESSABLE_ENTITY', details: [] })),
+      jsonRoute('/v2/payments/captures/CAPTURE-1/refund', 422, {
+        name: 'UNPROCESSABLE_ENTITY',
+        details: [],
+      }),
     ]);
     const adapter = makeAdapter({ transport });
     const result = await adapter.refund({
@@ -603,12 +611,17 @@ describe('PaypalPaymentProviderAdapter.refund / reconcile', () => {
   it('reconcile returns the reporting transaction entries', async () => {
     const { transport } = fakeTransport([
       jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
-      jsonRoute('/v1/reporting/transactions', 200, { transaction_details: [{ transaction_info: { transaction_id: 'TXN-1' } }] }),
+      jsonRoute('/v1/reporting/transactions', 200, {
+        transaction_details: [{ transaction_info: {
+          transaction_id: 'TXN-1', transaction_event_code: 'T0006', transaction_status: 'S',
+          transaction_amount: { currency_code: 'USD', value: '19.99' },
+        } }],
+      }),
     ]);
     const adapter = makeAdapter({ transport });
     const data = await adapter.reconcile({ from: '2026-08-15', to: '2026-08-16' });
     expect(data.provider).toBe('paypal');
-    expect(data.entries).toHaveLength(1);
+    expect(data.entries).toEqual([{ kind: 'payment', transactionId: 'TXN-1', eventCode: 'T0006', status: 'S', amount: { amount: 1999, currency: 'USD' } }]);
   });
 
   it('B4: reconciles ALL pages (page/page_size/total_pages), never truncating', async () => {
@@ -619,7 +632,13 @@ describe('PaypalPaymentProviderAdapter.refund / reconcile', () => {
         if (url.includes('/v1/oauth2/token')) return { status: 200, body: OAUTH_BODY };
         if (url.includes('/v1/reporting/transactions')) {
           const page = new URL(url).searchParams.get('page') ?? '1';
-          return { status: 200, body: JSON.stringify({ transaction_details: [{ page }], total_pages: 3 }) };
+          return { status: 200, body: JSON.stringify({
+            transaction_details: [{ transaction_info: {
+              transaction_id: `TXN-${page}`, transaction_event_code: 'T0006', transaction_status: 'S',
+              transaction_amount: { currency_code: 'USD', value: '19.99' },
+            } }],
+            total_pages: 3,
+          }) };
         }
         throw new Error(`fake transport: no route for ${method} ${url}`);
       },
@@ -627,7 +646,11 @@ describe('PaypalPaymentProviderAdapter.refund / reconcile', () => {
     const adapter = makeAdapter({ transport });
     const data = await adapter.reconcile({ from: '2026-08-15', to: '2026-08-16' });
 
-    expect(data.entries).toEqual([{ page: '1' }, { page: '2' }, { page: '3' }]);
+    expect(data.entries).toEqual([
+      expect.objectContaining({ transactionId: 'TXN-1' }),
+      expect.objectContaining({ transactionId: 'TXN-2' }),
+      expect.objectContaining({ transactionId: 'TXN-3' }),
+    ]);
     const pages = requests.filter((r) => r.url.includes('/v1/reporting/transactions'));
     expect(pages).toHaveLength(3);
     expect(pages[0].url).toContain('page_size=500');
@@ -650,9 +673,49 @@ describe('PaypalPaymentProviderAdapter.refund / reconcile', () => {
       ReconciliationIncompleteError,
     );
   });
+
+  it('rejects a range longer than PayPal\'s 31-day maximum before any request', async () => {
+    let requests = 0;
+    const adapter = makeAdapter({
+      transport: {
+        async request() {
+          requests += 1;
+          throw new Error('must not request');
+        },
+      },
+    });
+    await expect(adapter.reconcile({ from: '2026-01-01', to: '2026-02-01' })).rejects.toBeInstanceOf(
+      InvalidReconciliationRangeError,
+    );
+    expect(requests).toBe(0);
+  });
 });
 
 describe('pure helpers', () => {
+  it('normalizes a PayPal refund report row to its originating capture', () => {
+    expect(normalizePaypalReconciliationEntry({ transaction_info: {
+      transaction_id: 'REFUND-1',
+      paypal_reference_id: 'CAPTURE-1',
+      paypal_reference_id_type: 'TXN',
+      transaction_event_code: 'T1107',
+      transaction_status: 'S',
+      transaction_amount: { currency_code: 'USD', value: '-19.99' },
+      transaction_updated_date: '2026-08-16T12:00:00Z',
+    } })).toEqual({
+      kind: 'refund',
+      transactionId: 'REFUND-1',
+      referenceTransactionId: 'CAPTURE-1',
+      eventCode: 'T1107',
+      status: 'S',
+      amount: { amount: 1999, currency: 'USD' },
+      occurredAt: '2026-08-16T12:00:00Z',
+    });
+  });
+
+  it('drops malformed report rows instead of guessing financial facts', () => {
+    expect(normalizePaypalReconciliationEntry({ transaction_info: { transaction_id: 'TXN-1' } })).toBeNull();
+  });
+
   it('usdMajorFromCanonical converts minor units to a 2-decimal major string', () => {
     expect(usdMajorFromCanonical({ amount: 1999, currency: 'USD' })).toBe('19.99');
     expect(usdMajorFromCanonical({ amount: 79000, currency: 'USD' })).toBe('790.00');
