@@ -4,10 +4,9 @@
  * sign-in, owned access, block-prefix boundaries, malformed-boundary denial,
  * resume routing, and free-tier public reading.
  *
- * The platform catalog only registers free Prototype books (src/reader/catalog.ts),
- * so the paid-tier paths are exercised by mocking the catalog module to resolve
- * the paid synthetic fixture (`paidKeigoBook`) — keeping test-only paid data out
- * of the production catalog while preserving the paid entitlement regression.
+ * This focused suite uses a compact synthetic paid fixture to exercise extra
+ * boundary shapes. The authored commercial Book's production integration is
+ * covered separately in commercial-reader-access.test.tsx.
  */
 
 import { describe, expect, it, vi } from 'vitest'

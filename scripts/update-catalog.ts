@@ -31,49 +31,10 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isSafeMoney } from '../src/lib/payments/contract';
-import type { Money } from '../src/lib/payments/contract';
 import { contentDistRoot } from './lib/books';
-
-/** Shape of the releaseTimestamp source within a publish snapshot. */
-interface SnapshotDescriptor {
-  id?: string;
-  slug?: string;
-  createdAt?: string;
-  releasedAt?: string;
-}
-
-/** Minimal view of the published Book inside a snapshot (fields the seam needs). */
-interface SnapshotBook {
-  id?: string;
-  slug?: string;
-  price?: { tier?: string; amount?: number; currency?: string };
-  publication?: { status?: string; releasedAt?: string };
-}
-
-/** Parsed `content-dist/books/<slug>/current.json`. */
-interface SnapshotFile {
-  schema?: string;
-  descriptor?: SnapshotDescriptor;
-  book?: SnapshotBook;
-}
-
-/** A row this script would upsert into `public.catalog`. */
-interface CatalogRow {
-  book_id: string;
-  slug: string;
-  currency: string;
-  amount_minor: number;
-  published_revision: string;
-  released_at: string;
-  updated_at: string;
-}
-
-/** Per-book build outcome. */
-type BuildResult =
-  | { kind: 'row'; row: CatalogRow }
-  | { kind: 'skip'; reason: string }
-  | { kind: 'error'; reason: string };
+import { buildCatalogRow, catalogRetirements } from './lib/catalog';
+import type { CatalogRow, SnapshotFile } from './lib/catalog';
+import { verifyCommittedRelease } from './lib/releases';
 
 interface UpdateCatalogOptions {
   slug?: string;
@@ -130,83 +91,28 @@ function readSnapshot(slug: string): SnapshotFile | null {
   }
 }
 
-/** Release timestamp for a snapshot: descriptor.createdAt (full ISO) if present, else the date. */
-function releaseTimestamp(snapshot: SnapshotFile): string | null {
-  if (snapshot.descriptor?.createdAt) return snapshot.descriptor.createdAt;
-  const releasedAt = snapshot.book?.publication?.releasedAt;
-  return releasedAt ? `${releasedAt}T00:00:00Z` : null;
-}
-
-/**
- * Converts the major-unit display `Price.amount` to the canonical minor-unit
- * `amount_minor` (locked Money contract, §8.1). Returns null for currencies whose
- * minor-unit exponent is not locked (JPY=1, TWD/USD=100).
- */
-function toAmountMinor(price: { amount?: number; currency?: string }): number | null {
-  if (price.amount === undefined || price.currency === undefined) return null;
-  const exponent =
-    price.currency === 'JPY' ? 1 : price.currency === 'TWD' || price.currency === 'USD' ? 100 : null;
-  if (exponent === null) return null;
-  return price.amount * exponent;
-}
-
-/** Builds the catalog row for one released snapshot, or reports skip/error. */
-function buildCatalogRow(slug: string, snapshot: SnapshotFile): BuildResult {
-  const book = snapshot.book;
-  const releasedAt = releaseTimestamp(snapshot);
-  const publishedRevision = snapshot.descriptor?.id;
-  const bookId = book?.id;
-  const bookSlug = book?.slug ?? slug;
-  const tier = book?.price?.tier;
-
-  // Never price unreleased content.
-  if (book?.publication?.status !== 'published') {
-    return { kind: 'error', reason: `not a published snapshot (publication.status=${String(book?.publication?.status)})` };
-  }
-  if (releasedAt === null) {
-    return { kind: 'error', reason: 'no release timestamp on the snapshot' };
-  }
-  if (!publishedRevision) {
-    return { kind: 'error', reason: 'snapshot has no descriptor.id' };
-  }
-  if (!bookId) {
-    return { kind: 'error', reason: 'snapshot has no book.id' };
-  }
-
-  // Only paid books have a price seam; free/preview books are not sold.
-  if (tier !== 'paid') {
-    return { kind: 'skip', reason: `tier=${String(tier)} (not sold via the price seam)` };
-  }
-
-  const amountMinor = toAmountMinor(book.price ?? {});
-  const currency = book.price?.currency;
-  if (amountMinor === null || !currency) {
-    return { kind: 'error', reason: 'paid book is missing amount/currency or has an unlocked currency' };
-  }
-  if (!isSafeMoney({ amount: amountMinor, currency } as Money)) {
-    return { kind: 'error', reason: `converted amount_minor=${amountMinor} is not a safe, non-negative integer` };
-  }
-
-  return {
-    kind: 'row',
-    row: {
-      book_id: bookId,
-      slug: bookSlug,
-      currency,
-      amount_minor: amountMinor,
-      published_revision: publishedRevision,
-      released_at: releasedAt,
-      updated_at: new Date().toISOString(),
-    },
-  };
-}
-
 async function upsertCatalog(client: SupabaseClient, rows: CatalogRow[]): Promise<number> {
+  if (rows.length === 0) return 0;
   const { error } = await client.from('catalog').upsert(rows, { onConflict: 'book_id' });
   if (error) {
     throw new Error(`catalog upsert failed: ${error.message}`);
   }
   return rows.length;
+}
+
+async function existingCatalogBookIds(client: SupabaseClient): Promise<string[]> {
+  const { data, error } = await client.from('catalog').select('book_id');
+  if (error) throw new Error(`catalog inventory read failed: ${error.message}`);
+  return (data ?? [])
+    .map((row) => (typeof row.book_id === 'string' ? row.book_id : null))
+    .filter((bookId): bookId is string => bookId !== null);
+}
+
+async function retireCatalog(client: SupabaseClient, bookIds: string[]): Promise<number> {
+  if (bookIds.length === 0) return 0;
+  const { error } = await client.from('catalog').delete().in('book_id', bookIds);
+  if (error) throw new Error(`catalog retirement failed: ${error.message}`);
+  return bookIds.length;
 }
 
 async function main(): Promise<number> {
@@ -223,13 +129,12 @@ async function main(): Promise<number> {
     return 1;
   }
   if (targets.length === 0) {
-    console.log('No published snapshots under content-dist/books/*/current.json (run pnpm workflow:publish first).');
-    return 0;
+    console.log('No released snapshots found; a full live sync will retire every stale server catalog row.');
   }
 
   const rows: CatalogRow[] = [];
+  const explicitRetirements: string[] = [];
   let failed = 0;
-  let skipped = 0;
   for (const target of targets) {
     const snapshot = readSnapshot(target);
     if (snapshot === null) {
@@ -237,27 +142,36 @@ async function main(): Promise<number> {
       failed += 1;
       continue;
     }
+    const integrityIssues = verifyCommittedRelease(target, contentDistRoot());
+    if (integrityIssues.length > 0) {
+      console.error(`ERR  ${target}: release integrity failed: ${integrityIssues.join('; ')}`);
+      failed += 1;
+      continue;
+    }
     const result = buildCatalogRow(target, snapshot);
     if (result.kind === 'row') {
       rows.push(result.row);
       console.log(`ok   ${target}: ${result.row.currency} ${result.row.amount_minor} (minor) @ ${result.row.published_revision}`);
-    } else if (result.kind === 'skip') {
-      skipped += 1;
-      console.log(`-    ${target}: skipped (${result.reason})`);
+    } else if (result.kind === 'retire') {
+      explicitRetirements.push(result.bookId);
+      console.log(`-    ${target}: retire ${result.bookId} (${result.reason})`);
     } else {
       failed += 1;
       console.error(`ERR  ${target}: ${result.reason}`);
     }
   }
 
-  if (rows.length === 0) {
-    console.log(`\nNo catalog rows to seed (${skipped} skipped, ${failed} failed).`);
-    return failed > 0 ? 1 : 0;
+  if (failed > 0) {
+    console.error(`\nERR  ${failed} release snapshot(s) failed validation; catalog was not changed.`);
+    return 1;
   }
 
   if (dryRun) {
-    console.log(`\n--dry-run: would upsert ${rows.length} catalog row(s); nothing written.`);
-    return failed > 0 ? 1 : 0;
+    const fullSyncNote = slug === undefined ? ' and retire any stale server rows' : '';
+    console.log(
+      `\n--dry-run: would retire ${explicitRetirements.length} known row(s)${fullSyncNote}, then upsert ${rows.length} catalog row(s); nothing written.`,
+    );
+    return 0;
   }
 
   const url = process.env.SUPABASE_URL;
@@ -270,14 +184,18 @@ async function main(): Promise<number> {
 
   const client = createClient(url, serviceRoleKey);
   try {
-    const count = await upsertCatalog(client, rows);
-    console.log(`\nSeeded ${count} catalog row(s) via service_role.`);
+    const existing = slug === undefined ? await existingCatalogBookIds(client) : [];
+    const retirements = catalogRetirements(existing, rows, explicitRetirements, slug === undefined);
+    // Fail closed: withdrawn/free/stale products stop selling before any price is activated.
+    const retired = await retireCatalog(client, retirements);
+    const seeded = await upsertCatalog(client, rows);
+    console.log(`\nRetired ${retired} catalog row(s); seeded ${seeded} paid row(s) via service_role.`);
   } catch (err) {
     console.error(`\nERR  ${err instanceof Error ? err.message : String(err)}`);
     return 1;
   }
 
-  return failed > 0 ? 1 : 0;
+  return 0;
 }
 
 void main()

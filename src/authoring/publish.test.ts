@@ -10,6 +10,8 @@ import {
 } from './publish';
 import type { SnapshotDescriptor } from './publish';
 
+const CONTENT_HASH = 'a'.repeat(64);
+
 function history(entries: Array<Partial<SnapshotDescriptor>>): SnapshotDescriptor[] {
   return entries.map(
     (entry, index) =>
@@ -18,6 +20,7 @@ function history(entries: Array<Partial<SnapshotDescriptor>>): SnapshotDescripto
         slug: 'book',
         editionNumber: 1,
         revision: index + 1,
+        contentHash: CONTENT_HASH,
         status: 'published',
         releasedAt: '2026-08-14',
         createdAt: '2026-08-14T00:00:00.000Z',
@@ -28,9 +31,14 @@ function history(entries: Array<Partial<SnapshotDescriptor>>): SnapshotDescripto
 
 describe('snapshot ids', () => {
   it('formats and parses a snapshot id', () => {
-    const id = snapshotIdFor('keigo-essentials', 1, 3);
-    expect(id).toBe('keigo-essentials@e1-r3');
-    expect(parseSnapshotId(id)).toEqual({ slug: 'keigo-essentials', editionNumber: 1, revision: 3 });
+    const id = snapshotIdFor('keigo-essentials', 1, 3, CONTENT_HASH);
+    expect(id).toBe('keigo-essentials@e1-r3-aaaaaaaaaaaa');
+    expect(parseSnapshotId(id)).toEqual({
+      slug: 'keigo-essentials',
+      editionNumber: 1,
+      revision: 3,
+      contentHashPrefix: 'aaaaaaaaaaaa',
+    });
   });
 
   it('rejects malformed snapshot ids', () => {
@@ -60,15 +68,16 @@ describe('nextRevision', () => {
 });
 
 describe('snapshotDescriptorFor', () => {
-  it('derives the descriptor from the book and a creation timestamp', () => {
-    const descriptor = snapshotDescriptorFor(sampleBook, 3, '2026-08-14T21:00:00.000Z');
+  it('preserves an explicitly authored release date in the descriptor', () => {
+    const descriptor = snapshotDescriptorFor(sampleBook, 3, '2026-08-14T21:00:00.000Z', CONTENT_HASH);
     expect(descriptor).toEqual({
-      id: 'keigo-essentials@e1-r3',
+      id: 'keigo-essentials@e1-r3-aaaaaaaaaaaa',
       slug: 'keigo-essentials',
       editionNumber: 1,
       revision: 3,
+      contentHash: CONTENT_HASH,
       status: 'published',
-      releasedAt: '2026-08-14',
+      releasedAt: '2026-08-01',
       createdAt: '2026-08-14T21:00:00.000Z',
     });
   });
@@ -76,8 +85,21 @@ describe('snapshotDescriptorFor', () => {
   it('defaults the edition to 1 when the book has none', () => {
     const book = { ...sampleBook };
     delete book.edition;
-    const descriptor = snapshotDescriptorFor(book, 1, '2026-08-14T00:00:00.000Z');
+    const descriptor = snapshotDescriptorFor(book, 1, '2026-08-14T00:00:00.000Z', CONTENT_HASH);
     expect(descriptor.editionNumber).toBe(1);
+  });
+
+  it('falls back to the creation date when no release date was authored', () => {
+    const book = { ...sampleBook, publication: { status: 'draft' as const } };
+    expect(snapshotDescriptorFor(book, 1, '2026-08-14T21:00:00.000Z', CONTENT_HASH).releasedAt).toBe(
+      '2026-08-14',
+    );
+  });
+
+  it('rejects a descriptor without a full lowercase SHA-256 content hash', () => {
+    expect(() => snapshotDescriptorFor(sampleBook, 1, '2026-08-14T00:00:00.000Z', 'short')).toThrow(
+      /contentHash/,
+    );
   });
 });
 

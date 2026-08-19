@@ -27,6 +27,7 @@ import { nextRevision, snapshotDescriptorFor, withPublishedState } from '../src/
 import type { SnapshotDescriptor } from '../src/authoring/publish';
 import { boundaryFor, contentDistRoot, discoverBooks, formatIssue, writeJson } from './lib/books';
 import type { LoadedBook } from './lib/books';
+import { releaseContentHash } from './lib/releases';
 
 const PUBLISH_SNAPSHOT_SCHEMA = 'publish-snapshot-v1';
 
@@ -88,8 +89,8 @@ function publishOne(book: LoadedBook): boolean {
   const editionNumber = value.edition?.number ?? 1;
   const revision = nextRevision(history.snapshots, book.slug, editionNumber);
   const createdAt = new Date().toISOString();
-  const descriptor = snapshotDescriptorFor(value, revision, createdAt);
-  const publishedBook = withPublishedState(value, descriptor.releasedAt);
+  const releasedAt = value.publication?.releasedAt ?? createdAt.slice(0, 10);
+  const publishedBook = withPublishedState(value, releasedAt);
 
   const boundary = effectiveBoundary(book, value.chapters[value.chapters.length - 1]!.id);
   const derived = derivePreview(value, boundary);
@@ -101,9 +102,17 @@ function publishOne(book: LoadedBook): boolean {
     return false;
   }
 
+  const catalog = book.manifest?.catalog ?? {};
+  const contentHash = releaseContentHash(
+    { book: publishedBook, preview: derived.value, catalog },
+    join(book.bookDir, 'assets'),
+  );
+  const descriptor = snapshotDescriptorFor(value, revision, createdAt, contentHash);
+
   const snapshot = {
     schema: PUBLISH_SNAPSHOT_SCHEMA,
     descriptor,
+    catalog,
     preview: derived.value,
     book: publishedBook,
   };

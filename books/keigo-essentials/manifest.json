@@ -1,4 +1,5 @@
 {
   "book": "./book.json",
+  "catalog": { "order": 20 },
   "notes": "プロトタイプ版は tier: free（全章を無料公開）。プレビュー境界（manifest.preview.boundary）は有料書籍（tier: paid）のときだけ宣言する。境界変更は本ファイルの編集のみで反映され、プラットフォーム側のコード変更は不要。"
 }
