@@ -1,0 +1,14 @@
+{
+  "snapshots": [
+    {
+      "id": "keigo-essentials@e1-r1-5a21f380dd97",
+      "slug": "keigo-essentials",
+      "editionNumber": 1,
+      "revision": 1,
+      "contentHash": "5a21f380dd97330eac694b4cd7e76ad9c27f219d8b07bf9f95a1d0a0f4dc7dcc",
+      "status": "published",
+      "releasedAt": "2026-08-01",
+      "createdAt": "2026-08-19T22:55:31.122Z"
+    }
+  ]
+}

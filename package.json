@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "pnpm workflow:verify-releases && tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "eslint .",
@@ -17,6 +17,7 @@
     "workflow:validate": "tsx scripts/validate.ts",
     "workflow:preview": "tsx scripts/preview.ts",
     "workflow:publish": "tsx scripts/publish.ts",
+    "workflow:verify-releases": "tsx scripts/verify-releases.ts",
     "workflow:rollback": "tsx scripts/rollback.ts"
   },
   "dependencies": {

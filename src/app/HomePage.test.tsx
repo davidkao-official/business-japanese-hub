@@ -2,37 +2,35 @@ import { describe, expect, it } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import { renderWithAppProviders } from '../test/appProviders'
 import { HomePage } from './HomePage'
-import { sampleBook } from '../content/fixtures/sample-book'
-import { secondBook } from '../content/fixtures/second-book'
 
 describe('storefront', () => {
-  it('features the first catalog entry and lists the rest as a compact shelf', async () => {
+  it('features the commercial Book and lists both free Books as a compact shelf', async () => {
     renderWithAppProviders(<HomePage />)
 
-    expect(screen.getByRole('heading', { name: sampleBook.title })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '会議の日本語' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'すべての書籍' })).toBeInTheDocument()
-    await waitFor(() =>
-      expect(screen.getByRole('link', { name: new RegExp(secondBook.title) })).toBeInTheDocument(),
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: /ビジネス日本語：敬語の基礎/ })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: /ビジネスメールの作法/ })).toBeInTheDocument()
+    })
+  })
+
+  it('shows authoritative USD pricing plus purchase and preview actions for the paid feature', async () => {
+    renderWithAppProviders(<HomePage />)
+
+    await waitFor(() => expect(screen.getAllByText('USD 12').length).toBeGreaterThan(0))
+    expect(screen.getByRole('button', { name: '購入する（USD 12）' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '試し読み' })).toHaveAttribute(
+      'href',
+      '/books/meeting-japanese/read/meeting-purpose',
     )
   })
 
-  it('shows the free tier and a free-reading CTA for the Prototype feature (no purchase)', async () => {
+  it('keeps the two Prototype books visibly free without changing their access tier', async () => {
     renderWithAppProviders(<HomePage />)
 
-    await waitFor(() => expect(screen.getAllByText('無料').length).toBeGreaterThan(0))
-    expect(screen.getByRole('link', { name: '読み始める' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /購入する/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: '試し読み' })).not.toBeInTheDocument()
-  })
-
-  it('never exposes purchase/payment affordances on the Prototype storefront', async () => {
-    renderWithAppProviders(<HomePage />)
-
-    await waitFor(() =>
-      expect(screen.getAllByRole('link', { name: '読み始める' }).length).toBeGreaterThan(0),
-    )
+    await waitFor(() => expect(screen.getAllByText('無料')).toHaveLength(2))
     expect(screen.queryByText('¥880')).not.toBeInTheDocument()
     expect(screen.queryByText('¥660')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /購入する/ })).not.toBeInTheDocument()
   })
 })

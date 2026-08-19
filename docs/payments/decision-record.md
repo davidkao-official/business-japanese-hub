@@ -457,7 +457,7 @@ interface Money {
 
 **不變量：** client 提供的 `amount` / `currency` 永遠不是付款真相。Checkout 輸入至少為 `bookId`（§3.4），任何 client 提供的 price / amount 一律忽略／拒絕。Server 必須從 **server-side authoritative price source** 取價，不得從 SPA bundle、也不得從 client request 取價。
 
-**Seam 決策：** 建立最小 **`catalog`** 表作為 server-side authoritative price seam。現有 static content（`books/` → `content-dist/`）是 authoring / display 來源，其 `Price.amount` 是 major-unit display value（`src/content/types.ts`；§8.2），不能直接被 server 當 canonical payment amount；且 SPA bundle 是 public artifact，不適合作為 server 取價來源。因此價格由 **publish workflow（`scripts/publish.ts`）以 service-role 寫入 `catalog`**，checkout Edge Function 以 service-role 讀取。（此 `catalog` 是 DB server-side price catalog，與 client-side `src/reader/catalog.ts` book registry 不同層。）
+**Seam 決策：** 建立最小 **`catalog`** 表作為 server-side authoritative price seam。現有 static content（`books/` → committed `content-dist/` release）是 authoring / display 來源，其 `Price.amount` 是 major-unit display value（`src/content/types.ts`；§8.2），不能直接被 server 當 canonical payment amount；且 SPA bundle 是 public artifact，不適合作為 server 取價來源。`scripts/publish.ts` 產生 web/server 共用的 content-addressed snapshot；`scripts/update-catalog.ts` 再以 service-role 將該 snapshot 同步到 DB，checkout Edge Function 只讀 DB。（此 `catalog` 是 DB server-side price catalog，與 client-side `src/reader/catalog.ts` book registry 不同層。）
 
 `catalog` 表 contract（migration 屬 #9 bounded migration，本節鎖 contract 與 DB constraints）：
 
@@ -470,7 +470,8 @@ interface Money {
 | `published_revision` | immutable published snapshot id（`content-dist/books/<slug>/snapshots/<id>.json`），NOT NULL |
 | `released_at` | 該 published snapshot 正式 release 時間，NOT NULL `timestamptz` |
 
-- **寫入：** 僅 `service_role`（publish workflow 或 operator）。Display `Price.amount`（major unit）依該 currency 的 minor-unit semantics（§8.1）換算成 `amount_minor`（TWD 790 → 79000、JPY 880 → 880），換算以 unit test 鎖死（沿用 `price.test.ts` 的 pattern）。
+- **寫入／撤架：** 僅 `service_role`（release deploy/operator）。Display `Price.amount`（major unit）依該 currency 的 minor-unit semantics（§8.1）換算成 `amount_minor`（TWD 790 → 79000、JPY 880 → 880），換算以 unit test 鎖死。Full sync 會先刪除 free、unpublished、removed 與其他 stale rows，再 upsert paid rows；任何 release validation error 都在 mutation 前 fail closed。
+- **Activation time：** `released_at` 取 publish `createdAt` 與 authored `publication.releasedAt` UTC 起點兩者較晚者，future-dated Book 不會提前開賣。
 - **讀取（released-only）：** checkout Edge Function 以 service-role client 依 `book_id` **只讀 explicitly released 的 row**：`WHERE book_id = $1 AND released_at IS NOT NULL AND released_at <= now()`。無該 book（未 publish／未 release／無價）→ refuse checkout。
 - **Order snapshot 含 published revision：** 建立 `Order` 時，snapshot 除了 immutable `Money`（amount + currency）與 book reference（`book_id` / `item_name_snapshot`）之外，**必須一併持久化 `published_revision`**（或等價的 immutable catalog snapshot identifier）進 `orders`（§12），建立後不可變更（§8.1.5）；據此精確辨識實際售出的 published revision。
 - **Access（no-read boundary）：** `catalog` 是 server-only authoritative price source；browser / anon / authenticated 一律不可讀寫。`catalog` 建在 `public` schema；`public` 是 Supabase Data API 的 exposed schema，但 **exposure 是 schema-level，table 仍須角色 GRANT 才能被 API 存取**（官方：A table isn't reachable through the Data API unless you have granted a role privileges on it）。因此 no-read boundary 由兩層構成：① `REVOKE ALL ON catalog FROM anon, authenticated`（並 REVOKE `PUBLIC` default）——anon / authenticated 對 `catalog` 無任何權限，Data API 對其回傳 42501/403；② `enable row level security` 且**不建立任何 client SELECT policy**——即使日後誤加 GRANT，無 policy 也看不到任何 row。僅 `GRANT SELECT ON catalog TO service_role`（service_role 為 server-side 角色、bypass RLS，只有 checkout Edge Function 的 service-role client 使用）。Client 顯示價格仍用 static bundle 的 `Price`（§8.2），價格真相只在 server 側。

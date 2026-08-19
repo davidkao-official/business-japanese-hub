@@ -25,18 +25,25 @@ export interface SnapshotDescriptor {
   editionNumber: number;
   /** 1-based auto-incremented publish counter for this (slug, edition). */
   revision: number;
+  /** SHA-256 of the released Book, preview metadata, catalog metadata, and assets. */
+  contentHash: string;
   status: 'published';
-  /** Date-only ISO 8601 (YYYY-MM-DD) release date, derived from `createdAt`. */
+  /** Date-only ISO 8601 release date, authored when supplied, else derived from `createdAt`. */
   releasedAt: string;
   /** Full ISO 8601 timestamp when the snapshot was created. */
   createdAt: string;
 }
 
-const SNAPSHOT_ID_PATTERN = /^(.+)@e(\d+)-r(\d+)$/;
+const SNAPSHOT_ID_PATTERN = /^(.+)@e(\d+)-r(\d+)-([a-f0-9]{12})$/;
 
 /** Builds a snapshot id such as "keigo-essentials@e1-r1". */
-export function snapshotIdFor(slug: string, editionNumber: number, revision: number): string {
-  return `${slug}@e${editionNumber}-r${revision}`;
+export function snapshotIdFor(
+  slug: string,
+  editionNumber: number,
+  revision: number,
+  contentHash: string,
+): string {
+  return `${slug}@e${editionNumber}-r${revision}-${contentHash.slice(0, 12)}`;
 }
 
 /** Parsed parts of a snapshot id; `null` when the id does not match the format. */
@@ -44,6 +51,7 @@ export interface ParsedSnapshotId {
   slug: string;
   editionNumber: number;
   revision: number;
+  contentHashPrefix: string;
 }
 
 /** Parses a snapshot id; returns `null` for ids outside the documented format. */
@@ -54,6 +62,7 @@ export function parseSnapshotId(id: string): ParsedSnapshotId | null {
     slug: match[1]!,
     editionNumber: Number(match[2]),
     revision: Number(match[3]),
+    contentHashPrefix: match[4]!,
   };
 }
 
@@ -75,15 +84,24 @@ export function nextRevision(
   return max + 1;
 }
 
-/** Builds the descriptor for a snapshot; `releasedAt` is the date part of `createdAt`. */
-export function snapshotDescriptorFor(book: Book, revision: number, createdAt: string): SnapshotDescriptor {
+/** Builds the descriptor, preserving an authored release date when present. */
+export function snapshotDescriptorFor(
+  book: Book,
+  revision: number,
+  createdAt: string,
+  contentHash: string,
+): SnapshotDescriptor {
+  if (!/^[a-f0-9]{64}$/.test(contentHash)) {
+    throw new Error('contentHash must be a lowercase SHA-256 digest');
+  }
   return {
-    id: snapshotIdFor(book.slug, book.edition?.number ?? 1, revision),
+    id: snapshotIdFor(book.slug, book.edition?.number ?? 1, revision, contentHash),
     slug: book.slug,
     editionNumber: book.edition?.number ?? 1,
     revision,
+    contentHash,
     status: 'published',
-    releasedAt: createdAt.slice(0, 10),
+    releasedAt: book.publication?.releasedAt ?? createdAt.slice(0, 10),
     createdAt,
   };
 }

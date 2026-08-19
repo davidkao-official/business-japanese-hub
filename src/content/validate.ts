@@ -943,9 +943,19 @@ function checkPublication(record: Record<string, unknown>, path: string, ctx: Va
 }
 
 function checkPrice(record: Record<string, unknown>, path: string, ctx: ValidationContext): void {
-  readRequiredStringEnum(record, 'tier', PRICE_TIERS, `${path}.tier`, ctx);
-  readOptionalNumber(record, 'amount', `${path}.amount`, ctx, { min: 0 });
+  const tier = readRequiredStringEnum(record, 'tier', PRICE_TIERS, `${path}.tier`, ctx);
+  const amount = readOptionalNumber(record, 'amount', `${path}.amount`, ctx, { min: 0 });
   readOptionalStringFormat(record, 'currency', `${path}.currency`, ctx, isIso4217Format, 'an uppercase 3-letter ISO 4217 currency code');
+  if (tier === 'paid') {
+    if (record['amount'] === undefined) {
+      push(ctx.issues, `${path}.amount`, 'missing_field', 'paid Books require field "amount"');
+    } else if (amount === 0) {
+      push(ctx.issues, `${path}.amount`, 'invalid_number', 'paid Books require an amount greater than 0');
+    }
+    if (record['currency'] === undefined) {
+      push(ctx.issues, `${path}.currency`, 'missing_field', 'paid Books require field "currency"');
+    }
+  }
 }
 
 function checkAudience(record: Record<string, unknown>, path: string, ctx: ValidationContext): void {

@@ -3,7 +3,8 @@
  *
  * The scripts are run with tsx (`pnpm workflow:*`). They discover authoring
  * books under `books/<slug>/`, load `book.json` and `manifest.json`, and write
- * pipeline output under the gitignored `content-dist/` directory.
+ * pipeline output under `content-dist/`. Released snapshots and assets are
+ * committed production inputs; preview-only artifacts remain gitignored.
  *
  * Paths are resolved relative to this file (via `import.meta.url`), so the
  * scripts work regardless of the caller's working directory.
@@ -25,7 +26,7 @@ export function booksRoot(root: string = repoRoot()): string {
   return join(root, 'books');
 }
 
-/** Absolute path to the gitignored pipeline output directory (`content-dist/`). */
+/** Absolute path to the release pipeline directory (`content-dist/`). */
 export function contentDistRoot(root: string = repoRoot()): string {
   return join(root, 'content-dist');
 }
@@ -38,6 +39,8 @@ export function contentDistRoot(root: string = repoRoot()): string {
 export interface BookManifest {
   /** Relative path (from the book directory) to the Book JSON file. */
   book?: string;
+  /** Editorial storefront order; lower non-negative values appear first. */
+  catalog?: { order?: number };
   /** Preview boundary — where the free preview ends. */
   preview?: { boundary?: PreviewBoundary };
   /** Free-form notes; ignored by the pipeline. */

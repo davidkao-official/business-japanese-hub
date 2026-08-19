@@ -1,0 +1,11 @@
+{
+  "book": "./book.json",
+  "catalog": { "order": 10 },
+  "preview": {
+    "boundary": {
+      "kind": "chapter",
+      "chapterId": "mj-ch-1"
+    }
+  },
+  "notes": "第1章を無料プレビューとして公開し、第2章以降は購入者に提供する。"
+}

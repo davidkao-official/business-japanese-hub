@@ -2,7 +2,7 @@
 
 本文說明 issue #10 建立的內容作者與出版工作流：**作者 → 驗證 → 本機預覽 → 審查 → 出版**。
 
-MVP 的設計目標是「最小成本、適合重複出版書籍」：不是完整 CMS。非工程師只要編輯 `books/` 底下的 JSON 與圖片檔，不需要寫 React。所有驗證、預覽、出版都由 repository 內建的 CLI 指令完成，結果輸出到 gitignored 的 `content-dist/`。
+MVP 的設計目標是「最小成本、適合重複出版書籍」：不是完整 CMS。非工程師只要編輯 `books/` 底下的 JSON 與圖片檔，不需要寫 React。Vite build 只讀 committed release snapshot；CLI 產生 preview、content-addressed release 與 server-authoritative catalog price 的共同輸入。
 
 ---
 
@@ -10,7 +10,7 @@ MVP 的設計目標是「最小成本、適合重複出版書籍」：不是完�
 
 ```text
 books/<slug>/book.json      ← 書籍內容（純 JSON，內容模型）
-books/<slug>/manifest.json  ← 每本書的介面層元資料（含 preview boundary）
+books/<slug>/manifest.json  ← 介面層元資料（catalog order + preview boundary）
 books/<slug>/assets/**      ← 書的圖片素材
 
             │ pnpm workflow:validate（驗證每一本書）
@@ -23,7 +23,7 @@ books/<slug>/assets/**      ← 書的圖片素材
 
             │ pnpm workflow:publish（審查通過後出版）
             ▼
-  content-dist/books/<slug>/current.json   ← 平台載入的出版成品（self-contained）
+  content-dist/books/<slug>/current.json   ← server catalog／release 的 self-contained 成品
   content-dist/books/<slug>/snapshots/<id>.json  ← 不可變快照
   content-dist/books/<slug>/history.json    ← 出版紀錄（append-only）
   content-dist/assets/books/<slug>/**      ← 目前出版版本的素材（publish／rollback 重建）
@@ -32,13 +32,18 @@ books/<slug>/assets/**      ← 書的圖片素材
             │ pnpm workflow:rollback（需要時）
             ▼
   current.json 重新指向舊快照（快照永不刪除）
+
+            │ pnpm build
+            ▼
+  committed current.json 與 release assets 自動進入 web catalog
 ```
 
 角色分工：
 
 - **作者（非工程師）**：只碰 `books/<slug>/` 的 JSON 與圖片。
-- **CLI（本工作流）**：驗證、預覽、出版、回滾，全部可重現、可被 CI 呼叫。
-- **平台／閱讀器**：只讀 `content-dist/` 的成品，不讀作者原始檔。
+- **CLI（本工作流）**：驗證、預覽、出版、回滾，全部可重現、可被 CI 呼叫。`content-dist/preview/` 保持本機輸出；release snapshots、history 與 assets 必須 commit。
+- **平台／閱讀器**：build 時透過單一 catalog seam 讀取並驗證 committed `content-dist/books/*/current.json`，只收錄 `publication.status: published` 的書。
+- **server catalog**：同樣只從該 `current.json` 取得 authoritative amount／currency／published revision；web 與 checkout 不可能各讀一份可漂移的 Book/price。client 顯示價格仍不具有交易權威性。
 
 ---
 
@@ -120,6 +125,7 @@ books/my-book/
 ```json
 {
   "book": "./book.json",
+  "catalog": { "order": 10 },
   "preview": {
     "boundary": { "kind": "chapter", "chapterId": "ch-1" }
   },
@@ -128,6 +134,7 @@ books/my-book/
 ```
 
 - `book`：指到書內容檔的相對路徑（預設 `./book.json`）。
+- `catalog.order`：非負整數，控制 Storefront 的編輯排序；數字較小者在前。未填的書排在有明確順序的書之後。
 - `preview.boundary`：免費預覽的終點。詳見 §3.3。
 - `notes`：給人類看的備註，不影響任何管線。
 
@@ -160,7 +167,7 @@ ERR  my-book: 2 issue(s)
 ### 3.2 本機／預覽渲染：`pnpm workflow:preview`
 
 `pnpm workflow:preview` 為每一本「合法」的書產生預覽 payload，寫入
-`content-dist/preview/<slug>.json`（`content-dist/` 已 gitignore，供本機與預覽環境使用）：
+`content-dist/preview/<slug>.json`（只有此 preview 子目錄 gitignore，供本機與預覽環境使用）：
 
 ```bash
 pnpm workflow:preview
@@ -234,28 +241,29 @@ pnpm workflow:publish --slug=keigo-essentials  # 只出版一本
 1. **先驗證整個目錄**：任何一本不合法，出版直接中止（exit 1），**不寫任何東西**。因為平台載入的是整個目錄，一本壞書不能進 live。
 2. 對目標書計算下一個 `revision`（同 `(slug, edition)` 的遞增計數器）。
 3. 用與 preview 相同的 boundary 產生預覽 payload。
-4. 寫**不可變快照** `content-dist/books/<slug>/snapshots/<slug>@e<edition>-r<revision>.json`（已存在則拒絕覆寫）。
-5. 重寫 `content-dist/books/<slug>/current.json` —— 平台載入的 self-contained 出版成品（schema `publish-snapshot-v1`）。
+4. 計算 release payload（完整 Book、preview、catalog metadata、所有 assets）的 SHA-256，寫**不可變快照** `content-dist/books/<slug>/snapshots/<slug>@e<edition>-r<revision>-<hash12>.json`（已存在則拒絕覆寫）。
+5. 重寫 `content-dist/books/<slug>/current.json`，作為 server-authoritative catalog 與 release 的 self-contained 成品（schema `publish-snapshot-v1`）。
 6. 在 `history.json` 追加一筆快照描述（append-only log）。
 7. 快照 `books/<slug>/assets/**` → `content-dist/assets/snapshots/<slug>/<snapshotId>/`（不可變），並重建 `content-dist/assets/books/<slug>/`（目前版本素材）。
 
-快照內容：`{ schema, descriptor, preview, book }`。其中：
+快照內容：`{ schema, descriptor, catalog, preview, book }`。其中：
 
-- `descriptor`：`{ id, slug, editionNumber, revision, status: "published", releasedAt, createdAt }`。
+- `descriptor`：`{ id, slug, editionNumber, revision, contentHash, status: "published", releasedAt, createdAt }`；id 帶 12 位 hash prefix，release history 與完整 hash 均由 git durable 保存。若 source 已宣告 `publication.releasedAt` 則保留，否則取 publish timestamp 的日期。
+- `catalog`：storefront 的 generic ordering metadata。
 - `preview`：§3.2 的預覽 payload。
 - `book`：`publication.status = "published"` 且帶 `releasedAt` 的完整書籍資料。
 
 ### 5.2 版本模型
 
 - `edition.number`：作者填寫（`book.edition.number`），重大改版時手動 +1。沒填時視為 1。
-- `revision`：管線每次出版自動遞增（同 `(slug, edition)`），例如 `keigo-essentials@e1-r1`、`@e1-r2`。
-- 快照**永不修改、永不刪除**；「目前出版版本」由 `current.json` 指標決定。
+- `revision`：管線依 committed `history.json` 每次出版自動遞增（同 `(slug, edition)`）；snapshot id 另含 release content hash，clean CI 也不會讓不同內容重用同一 immutable identity。
+- 快照**永不修改、永不刪除**；「目前出版版本」由 committed `current.json` 指標決定。任何 source 編輯在再次 publish 之前不會改變 web 或 server 商品。
 
 ### 5.3 回滾：`pnpm workflow:rollback`
 
 ```bash
 pnpm workflow:rollback --slug=keigo-essentials                    # 回到前一版
-pnpm workflow:rollback --slug=keigo-essentials --to=keigo-essentials@e1-r1
+pnpm workflow:rollback --slug=keigo-essentials --to=<完整 snapshot id>
 ```
 
 - 移動 `current.json` 指標（快照保留），並**把 `content-dist/assets/books/<slug>/` 重建為目標快照的素材**（從 `content-dist/assets/snapshots/<slug>/<snapshotId>/`），確保「舊內容 + 舊素材」一致，不會出現新舊混雜的出版成品。
@@ -267,7 +275,9 @@ pnpm workflow:rollback --slug=keigo-essentials --to=keigo-essentials@e1-r1
 1. 編輯 `books/<slug>/book.json`、`manifest.json` 或 `assets/`。
 2. `pnpm workflow:validate`（確認合法）→ `pnpm workflow:preview`（確認界線正確）。
 3. `pnpm workflow:publish --slug=<slug>` → 產生新 revision，`current.json` 更新。
-4. 平台重新讀 `current.json` 即看到新內容。
+4. 檢查並 commit `content-dist/books/**` 與 `content-dist/assets/**` 的 release diff。
+5. `pnpm exec tsx scripts/update-catalog.ts --slug=<slug> --dry-run` 驗證 authoritative amount、currency 與 revision。
+6. production deploy 先以 service-role 執行 catalog sync（移除 `--dry-run`），再部署同一 commit 的 web build。full sync 會先刪除 free、unpublished、removed 與其他 stale rows，再 upsert paid rows；任何 snapshot 驗證錯誤都在 DB mutation 前中止。
 
 ---
 
@@ -283,11 +293,11 @@ MVP 的作者端是「檔案 + JSON + CLI」，**CMS 不是目前的工作流依
 
 ---
 
-## 7. #5 Universal Reader 的整合介面
+## 7. Universal Reader 與 server catalog 的整合介面
 
-平台（Universal Reader + 單一 entitlement gate）**只讀出版成品**，不讀作者原始檔。
+Web build 以 `src/reader/catalog.ts` 的單一 seam 自動發現 committed `content-dist/books/*/current.json`，套用與 catalog sync 相同的 release／Book／preview validator、依 snapshot `catalog.order` 排序，並把 release assets 交給 Vite 打包。Universal Reader 只消費這個已驗證的 generic `CatalogEntry`，不依賴任何特定書籍。
 
-要載入一本書，讀：
+Server-authoritative price seam 只讀 release snapshot：
 
 ```text
 content-dist/books/<slug>/current.json   （schema: publish-snapshot-v1）
@@ -297,14 +307,14 @@ content-dist/books/<slug>/current.json   （schema: publish-snapshot-v1）
 
 | 欄位 | 用途 |
 | --- | --- |
-| `book` | 完整書籍（`publication.status = "published"`、`releasedAt`）。entitlement gate 通過後顯示的完整內容。 |
+| `book` | 完整書籍（`publication.status = "published"`、`releasedAt`），也是 authoritative price 的 authored source。 |
 | `book.chapters` | 章節順序（`order`）、章節導覽（`navigation`）、block 內容。 |
 | `preview.chapters` | 免費預覽的**有序章節前綴**。entitlement gate 未通過時只顯示這些。 |
 | `preview.paidStart` | 付費內容起點 `{ chapterId, blockId }`；`null` = 整本免費。gate 用這個決定「從哪裡切付費」。 |
 | `preview.isPartial` | 是否有隱藏內容。 |
 | `descriptor` | 快照 id（`slug@eN-rM`）、`releasedAt` 等版本資訊，可用於顯示版本／更新提示。 |
 
-gate 的規則保持**單一**：未解鎖 → 渲染 `preview.chapters`，並在 `preview.paidStart` 顯示付費提示；已解鎖 → 渲染 `book`。preview boundary 是書層級的一般化元資料，閱讀器不需要針對單一書寫特例。
+gate 的規則保持**單一**：未解鎖只允許 manifest 所定義的 preview prefix；已解鎖才渲染其餘內容。ownership 只取自 server-authoritative entitlement。preview boundary 是書層級的一般化元資料，閱讀器不需要針對單一書寫特例。
 
 ---
 
@@ -315,10 +325,12 @@ gate 的規則保持**單一**：未解鎖 → 渲染 `preview.chapters`，並�
 | `pnpm typecheck` | TypeScript（`tsc -b`，含 app / node / scripts 三個專案） | 每次改動後 |
 | `pnpm lint` | ESLint（含 `src/authoring/**` 測試） | 每次改動後 |
 | `pnpm test` | Vitest 全部測試（含 `src/content/**`、`src/authoring/**`） | 每次改動後 |
-| `pnpm build` | `tsc -b` + Vite build | 出版前／CI |
+| `pnpm build` | committed release hash/history/snapshot/assets integrity + `tsc -b` + Vite build | 出版前／CI |
 | `pnpm workflow:validate` | 內容模型合法性（`validateBook` on 每一本書） | **每次改 book.json 後，出版前必做** |
 | `pnpm workflow:preview` | 預覽 boundary 是否可解析、paidStart 是否正確 | 出版前 |
 | `pnpm workflow:publish` | 全目錄先驗證，不合法直接中止 | 審查通過後 |
+| `pnpm workflow:verify-releases` | current、immutable snapshot、history、assets 與 content hash 完全一致 | commit／deploy 前 |
+| `pnpm exec tsx scripts/update-catalog.ts --slug=<slug> --dry-run` | authoritative minor amount、currency、revision | publish 後、production 寫入前 |
 | `pnpm workflow:rollback` | 回滾目標存在、可回到前一版 | 需要時 |
 
 ---
@@ -335,8 +347,11 @@ mkdir -p books/my-book/assets
 pnpm workflow:validate          # 必須全部 ok
 pnpm workflow:preview           # 檢查 paidStart 是否正確
 
-# 3. 自己審查（可先跑 pnpm typecheck / lint / test / build）
+# 3. 自己審查（pnpm typecheck / lint / test / build）
 
 # 4. 出版
 pnpm workflow:publish --slug=my-book
+
+# 5. 驗證 authoritative server catalog row
+pnpm exec tsx scripts/update-catalog.ts --slug=my-book --dry-run
 ```

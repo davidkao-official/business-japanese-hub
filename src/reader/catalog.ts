@@ -1,52 +1,120 @@
 /**
- * Book data access — the single seam through which the platform resolves books.
+ * Book data access: the single seam through which every product surface
+ * resolves authored Books and their access metadata.
  *
- * The storefront, detail pages, library, and reader are book-agnostic: they
- * consume the `Book` type (and access metadata below) and never assume the
- * topic of any title. Adding a new book is a data-only change — register it
- * here — with no platform code changes (docs/product-contract.md §6).
- *
- * The registry is backed by the TS fixtures under src/content/fixtures. A real
- * registry / backend can replace this implementation without touching any
- * component.
- *
- * Access metadata: each entry may carry a gate-shaped preview boundary (the
- * shape consumed by `canRead` in src/lib/entitlement.ts). This is registry
- * metadata — the `Book` content model deliberately has no preview field (see
- * docs/ui-ux-research.md §4.2; the exact field shape is finalized by the
- * content-model lane). The authoring pipeline declares the same boundary in
- * books/<slug>/manifest.json; here the platform seam normalizes it to the
- * gate shape.
+ * Vite discovers committed `content-dist/books/<slug>/current.json` release
+ * snapshots and their snapshotted assets at build time. The browser and the
+ * server-authoritative catalog seeder therefore consume the same immutable
+ * Book, price, release revision, and preview boundary.
  */
 
-import { sampleBook } from '../content/fixtures/sample-book'
-import { secondBook } from '../content/fixtures/second-book'
-import type { Book } from '../content/types'
+import { validateReleaseSnapshot } from '../authoring/release'
+import type { ReleaseSnapshot } from '../authoring/release'
+import type { Book, ContentBlock } from '../content/types'
 import type { PreviewBoundary } from '../lib/entitlement'
 
-/** One registered book plus its platform-level access metadata. */
+/** One registered Book plus its platform-level access metadata. */
 export interface CatalogEntry {
   book: Book
-  /**
-   * Gate-shaped preview boundary: the ordered chapter prefix a non-owner may
-   * read. Absent ⇒ no preview is offered (whole paid book is locked to
-   * non-owners). Meaningless for `tier: 'free'` / `'preview'` books.
-   */
+  /** Ordered public prefix for an unowned paid Book. Absent means fully locked. */
   previewBoundary?: PreviewBoundary
 }
 
-/**
- * Registration order is the editorial order: the first entry is featured on
- * the storefront and the rest form the compact catalog. Both Prototype books
- * are `tier: 'free'` — publicly readable by everyone with no login / purchase
- * (docs/product-contract.md §15). Free books need no preview boundary; the
- * deny-by-default entitlement gate (src/lib/entitlement.ts) still protects any
- * future paid book regardless of this catalog.
- */
-const entries: CatalogEntry[] = [
-  { book: sampleBook },
-  { book: secondBook },
-]
+interface DiscoveredEntry extends CatalogEntry {
+  order: number
+}
+
+const releaseSnapshotModules = import.meta.glob('../../content-dist/books/*/current.json', {
+  eager: true,
+  import: 'default',
+  query: '?raw',
+}) as Record<string, string>
+
+const releasedAssetModules = import.meta.glob('../../content-dist/assets/books/**/*', {
+  eager: true,
+  import: 'default',
+  query: '?url',
+}) as Record<string, string>
+
+function parseJson(path: string, raw: string): unknown {
+  try {
+    return JSON.parse(raw) as unknown
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(`catalog: invalid JSON in ${path}: ${reason}`)
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function slugFromSnapshotPath(path: string): string {
+  const match = /\/content-dist\/books\/([^/]+)\/current\.json$/.exec(path)
+  if (!match?.[1]) throw new Error(`catalog: unexpected release snapshot path ${path}`)
+  return match[1]
+}
+
+function readSnapshot(path: string, raw: string): ReleaseSnapshot {
+  const parsed = parseJson(path, raw)
+  if (!isRecord(parsed)) throw new Error(`catalog: ${path} must contain a JSON object`)
+  return parsed as ReleaseSnapshot
+}
+
+function resolveAsset(slug: string, source: string): string {
+  const prefix = `/assets/books/${slug}/`
+  if (!source.startsWith(prefix)) return source
+  const relative = source.slice(prefix.length)
+  const modulePath = `../../content-dist/assets/books/${slug}/${relative}`
+  const resolved = releasedAssetModules[modulePath]
+  if (!resolved) throw new Error(`catalog: missing released asset ${modulePath}`)
+  return resolved
+}
+
+function resolveBlockAssets(slug: string, block: ContentBlock): ContentBlock {
+  return block.type === 'image' ? { ...block, src: resolveAsset(slug, block.src) } : block
+}
+
+function resolveBookAssets(book: Book): Book {
+  return {
+    ...book,
+    cover: book.cover ? { ...book.cover, src: resolveAsset(book.slug, book.cover.src) } : undefined,
+    chapters: book.chapters.map((chapter) => ({
+      ...chapter,
+      blocks: chapter.blocks.map((block) => resolveBlockAssets(book.slug, block)),
+    })),
+  }
+}
+
+function discoverEntries(): CatalogEntry[] {
+  const discovered: DiscoveredEntry[] = Object.entries(releaseSnapshotModules).map(([path, raw]) => {
+    const folderSlug = slugFromSnapshotPath(path)
+    const snapshot = readSnapshot(path, raw)
+    const result = validateReleaseSnapshot(snapshot, folderSlug)
+    if (!result.ok) throw new Error(`catalog: invalid release ${folderSlug}: ${result.reason}`)
+    return {
+      book: resolveBookAssets(result.book),
+      previewBoundary: result.previewBoundary,
+      order: result.order,
+    }
+  })
+
+  const published = discovered.filter(({ book }) => book.publication?.status === 'published')
+  const ids = new Set<string>()
+  const slugs = new Set<string>()
+  for (const { book } of published) {
+    if (ids.has(book.id)) throw new Error(`catalog: duplicate published Book id ${book.id}`)
+    if (slugs.has(book.slug)) throw new Error(`catalog: duplicate published Book slug ${book.slug}`)
+    ids.add(book.id)
+    slugs.add(book.slug)
+  }
+
+  return published
+    .sort((left, right) => left.order - right.order || left.book.slug.localeCompare(right.book.slug))
+    .map(({ book, previewBoundary }) => ({ book, previewBoundary }))
+}
+
+const entries = discoverEntries()
 
 export function listCatalogEntries(): CatalogEntry[] {
   return entries

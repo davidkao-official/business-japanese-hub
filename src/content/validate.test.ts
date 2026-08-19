@@ -326,6 +326,19 @@ describe('validateBook', () => {
     expectIssue(result.issues, '$.price.amount', 'invalid_number');
   });
 
+  it('requires a positive amount and currency for a paid Book', () => {
+    const missing = clone(sampleBook);
+    missing.price = { tier: 'paid' };
+    const missingResult = expectInvalid(missing);
+    expectIssue(missingResult.issues, '$.price.amount', 'missing_field');
+    expectIssue(missingResult.issues, '$.price.currency', 'missing_field');
+
+    const zero = clone(sampleBook);
+    zero.price = { tier: 'paid', amount: 0, currency: 'USD' };
+    const zeroResult = expectInvalid(zero);
+    expectIssue(zeroResult.issues, '$.price.amount', 'invalid_number');
+  });
+
   // --- JSON-safety preflight runs before structural reads ---
   it('does not throw on a known-field throwing getter and reports not_json_safe', () => {
     const book = clone(sampleBook);

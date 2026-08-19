@@ -6,9 +6,9 @@ import type { PurchaseExecutor } from '../lib/purchase/types'
 import { BookPage } from './BookPage'
 
 /**
- * The production catalog only registers free Prototype books, so the paid
- * §8.3 CTA-matrix tests resolve `keigo-essentials` to the paid synthetic
- * fixture via a catalog mock; free Prototype behavior uses `email-manners`.
+ * These unit tests isolate the §8.3 CTA matrix with the compact synthetic paid
+ * fixture; production commercial-Book coverage lives in catalog, storefront,
+ * and commercial reader-access integration tests.
  */
 vi.mock('../reader/catalog', async () => {
   const { paidKeigoBook } = await import('../content/fixtures/paid-test-books')
