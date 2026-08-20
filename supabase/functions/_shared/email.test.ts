@@ -144,4 +144,24 @@ describe('order confirmation email', () => {
       vi.useRealTimers();
     }
   });
+
+  it('retries an unparsable success response through the same idempotency key', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockRejectedValue(new SyntaxError('invalid JSON')),
+    });
+    const env = testEnv();
+
+    await expect(
+      createResendEmailSender(env, fetcher).send(buildOrderConfirmationEmail(FACTS, env)),
+    ).resolves.toEqual({
+      ok: false,
+      errorCode: 'malformed_success_response',
+      retryable: true,
+    });
+    expect(fetcher.mock.calls[0]?.[1]?.headers).toMatchObject({
+      'Idempotency-Key': 'order-confirmation/ord-1',
+    });
+  });
 });

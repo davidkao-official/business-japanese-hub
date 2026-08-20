@@ -258,6 +258,11 @@ export function createResendEmailSender(env: Env, fetcher: Fetcher = fetch): Ema
           if (controller.signal.aborted) {
             return { ok: false, errorCode: 'request_timeout', retryable: true };
           }
+          if (response.ok) {
+            // Delivery may already have succeeded. Retry with the same stable
+            // idempotency key so the provider can return the original result.
+            return { ok: false, errorCode: 'malformed_success_response', retryable: true };
+          }
           payload = undefined;
         }
       } catch {
