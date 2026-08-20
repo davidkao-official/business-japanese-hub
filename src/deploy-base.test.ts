@@ -63,11 +63,14 @@ describe('deployment base contract', () => {
     try {
       const base = resolveDeploymentBase('/business-japanese-hub/');
       await build({ base, logLevel: 'error', build: { outDir, emptyOutDir: true } });
-      preparePagesOutput(outDir);
+      preparePagesOutput(outDir, ['released-book']);
 
       const html = readFileSync(join(outDir, 'index.html'), 'utf8');
       expect(html).toMatch(/(?:src|href)="\/business-japanese-hub\/assets\//);
       expect(readFileSync(join(outDir, '404.html'), 'utf8')).toBe(html);
+      expect(JSON.parse(readFileSync(join(outDir, 'deployment-manifest.json'), 'utf8'))).toEqual({
+        bookSlugs: ['released-book'],
+      });
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
@@ -77,7 +80,7 @@ describe('deployment base contract', () => {
     const outDir = mkdtempSync(join(tmpdir(), 'bjh-pages-missing-index-'));
     try {
       writeFileSync(join(outDir, 'unrelated.txt'), 'not a build');
-      expect(() => preparePagesOutput(outDir)).toThrow('index.html');
+      expect(() => preparePagesOutput(outDir, ['released-book'])).toThrow('index.html');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
@@ -87,6 +90,9 @@ describe('deployment base contract', () => {
     const html = '<script type="module" src="/business-japanese-hub/assets/app.js"></script>';
     const fetcher = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      if (url.endsWith('/deployment-manifest.json')) {
+        return Response.json({ bookSlugs: ['released-book'] });
+      }
       if (url.endsWith('/assets/app.js')) return new Response('export {}', { status: 200 });
       if (url.includes('/books/') || url.includes('/purchase/result')) {
         return new Response(html, { status: 404 });
@@ -104,7 +110,7 @@ describe('deployment base contract', () => {
       new URL('https://davidkao-official.github.io/business-japanese-hub/'),
     );
     expect(fetcher).toHaveBeenCalledWith(
-      new URL('https://davidkao-official.github.io/business-japanese-hub/books/meeting-japanese'),
+      new URL('https://davidkao-official.github.io/business-japanese-hub/books/released-book'),
     );
     expect(fetcher).toHaveBeenCalledWith(
       new URL(
@@ -117,6 +123,9 @@ describe('deployment base contract', () => {
     const html = '<link rel="stylesheet" href="/business-japanese-hub/assets/app.css">';
     const fetcher = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
+      if (url.endsWith('/deployment-manifest.json')) {
+        return Response.json({ bookSlugs: ['released-book'] });
+      }
       if (url.endsWith('/assets/app.css')) return new Response('missing', { status: 404 });
       if (url.includes('/books/') || url.includes('/purchase/result')) {
         return new Response(html, { status: 404 });

@@ -1,4 +1,8 @@
-import { preparePagesOutput } from './lib/pages';
+import { contentDistRoot } from './lib/books';
+import { preparePagesOutput, publishedReleaseSlugs } from './lib/pages';
 
-preparePagesOutput('dist');
-console.log('ok   dist/404.html: GitHub Pages SPA fallback prepared');
+const bookSlugs = publishedReleaseSlugs(contentDistRoot());
+preparePagesOutput('dist', bookSlugs);
+console.log(
+  `ok   dist: GitHub Pages SPA fallback + ${bookSlugs.length} published Book route(s) prepared`,
+);

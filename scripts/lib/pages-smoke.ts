@@ -83,8 +83,26 @@ export async function verifyPagesDeployment(
     );
   }
 
+  const manifestResponse = await fetchWithRetry(
+    new URL('deployment-manifest.json', base),
+    (response) => response.ok,
+    'deployment manifest',
+    options,
+  );
+  const manifest = (await manifestResponse.json()) as { bookSlugs?: unknown };
+  if (
+    !Array.isArray(manifest.bookSlugs) ||
+    manifest.bookSlugs.length === 0 ||
+    manifest.bookSlugs.some(
+      (slug) => typeof slug !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug),
+    )
+  ) {
+    throw new Error('Pages deployment smoke received an invalid deployment manifest');
+  }
+  const catalogBookSlug = manifest.bookSlugs[0] as string;
+
   const directRoutes = [
-    'books/meeting-japanese',
+    `books/${catalogBookSlug}`,
     'purchase/result?order=deployment-smoke',
   ];
   for (const route of directRoutes) {

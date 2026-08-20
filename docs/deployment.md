@@ -23,6 +23,13 @@ Repository variables:
 Without the Supabase variables, the live site intentionally serves only the
 free/public catalog and paid purchase remains unavailable.
 
+The current product contract also explicitly accepts that static web Book
+content can be inspected in the browser bundle (`docs/accounts-and-entitlement.md`
+§7). Server-authoritative ownership and in-product access gates are enforced,
+but they are not DRM or a confidentiality boundary; the Pages deployment does
+not claim otherwise. A future private content-delivery layer would be a separate
+product/architecture decision, not a payment-entitlement shortcut.
+
 ## 2. Production Supabase activation
 
 Do not perform these steps until the production project and credentials are
