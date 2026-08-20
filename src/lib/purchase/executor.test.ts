@@ -175,6 +175,25 @@ describe('checkout executor (#9)', () => {
     if (!result.ok) expect(result.reason).toBe('failed')
   })
 
+  it('routes a verification-pending conflict to the server-authoritative order-status page', async () => {
+    const fetchClient = vi.fn().mockResolvedValue(jsonResponse({
+      reason: 'checkout_verification_pending',
+      orderId: 'order-pending-1',
+    }, false, 409))
+    const navigate = vi.fn()
+    const executor = createCheckoutPurchaseExecutor({
+      functionsBaseUrl: BASE,
+      fetchClient,
+      navigate,
+      authToken: 'tok-123',
+    })
+
+    const result = await executor({ bookId: 'book-1' }, consent())
+
+    expect(navigate).toHaveBeenCalledWith('/purchase/result?order=order-pending-1')
+    expect(result).toEqual({ ok: true, orderId: 'order-pending-1', status: 'pending' })
+  })
+
   it('returns failed on an invalid checkout response shape', async () => {
     const fetchClient = vi.fn().mockResolvedValue(jsonResponse({ orderId: 123 }))
     const executor = createCheckoutPurchaseExecutor({

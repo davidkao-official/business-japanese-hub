@@ -100,6 +100,13 @@ const defaultNavigate: Navigate = (url) => {
   window.location.assign(url);
 };
 
+/** Base-path-aware route into the server-authoritative order-status page. */
+export function purchaseResultPath(orderId: string): string {
+  const configuredBase = (import.meta.env.BASE_URL as string | undefined) ?? '/';
+  const base = configuredBase.endsWith('/') ? configuredBase : `${configuredBase}/`;
+  return `${base}purchase/result?order=${encodeURIComponent(orderId)}`;
+}
+
 /* ------------------------------------------------------------------------- *
  * Edge Functions base URL + auth seam
  * ------------------------------------------------------------------------- */
@@ -240,6 +247,21 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
           reason: 'signed_out',
           message: 'authentication is required before checkout',
         };
+      }
+      if (response.status === 409) {
+        try {
+          const conflict = await response.json() as { reason?: unknown; orderId?: unknown };
+          if (
+            conflict.reason === 'checkout_verification_pending' &&
+            typeof conflict.orderId === 'string' &&
+            conflict.orderId.length > 0
+          ) {
+            navigate(purchaseResultPath(conflict.orderId));
+            return { ok: true, orderId: conflict.orderId, status: 'pending' };
+          }
+        } catch {
+          // Malformed conflicts remain a generic fail-closed checkout failure.
+        }
       }
       return { ok: false, reason: 'failed', message: `checkout request failed (${response.status})` };
     }

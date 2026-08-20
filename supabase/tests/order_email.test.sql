@@ -1,6 +1,6 @@
 begin;
 
-select plan(82);
+select plan(84);
 
 select has_column('public', 'catalog', 'item_name', 'catalog has an authoritative sellable item name');
 select col_not_null('public', 'catalog', 'item_name', 'catalog item name is required');
@@ -200,6 +200,20 @@ select public.create_checkout_intent(
 select is((select result->>'outcome' from retry_second), 'retry_created'::text, 'authoritatively failed checkout gets a fresh PaymentAttempt');
 select is((select count(*) from public.orders where book_id = 'book-usd-2'), 1::bigint, 'failed retry preserves the original immutable Order');
 select is((select count(*) from public.payments where order_id = (select id from public.orders where book_id = 'book-usd-2')), 2::bigint, 'failed retry creates exactly one new PaymentAttempt');
+select is(
+  (public.create_checkout_intent(
+    '50000000-0000-0000-0000-000000000001', 'book-usd-2', 'reader@example.com', 'en',
+    'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
+    now(), 'paypal', 'ORDER-US-2C', 'paypal'
+  )->>'outcome'),
+  'resumed'::text,
+  'a retry racing after the new live attempt resumes instead of creating another PaymentAttempt'
+);
+select is(
+  (select count(*) from public.payments where order_id = (select id from public.orders where book_id = 'book-usd-2')),
+  2::bigint,
+  'serialized retries leave exactly one live PaymentAttempt'
+);
 select throws_ok(
   $$ select public.create_checkout_intent(
     '50000000-0000-0000-0000-000000000001', 'book-future', 'reader@example.com', 'en',

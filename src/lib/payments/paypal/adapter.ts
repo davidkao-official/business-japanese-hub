@@ -30,6 +30,7 @@
  */
 
 import {
+  CheckoutVerificationPendingError,
   UnsupportedCurrencyForProvider,
   type CheckoutInstruction,
   type CreateCheckoutInput,
@@ -61,6 +62,9 @@ import {
 
 /** Default finite deadline for PayPal REST calls (no unbounded waits). */
 export const PAYPAL_REQUEST_TIMEOUT_MS = 15_000;
+
+/** Conservative redirect window below PayPal Orders' default six-hour bound. */
+export const PAYPAL_APPROVAL_MAX_AGE_MS = 5 * 60 * 60 * 1000;
 
 /** `PayPal-Request-Id` prefix for provider-side idempotency keys (§21). */
 export const PAYPAL_REQUEST_ID_PREFIX = 'bjh';
@@ -312,6 +316,10 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
     if (!isSafeMoney(input.amount)) {
       throw new Error(`PayPal requires a safe non-negative USD amount, got ${JSON.stringify(input.amount)}`);
     }
+    if (input.existingCheckoutReference) {
+      const existingOrder = await this.getOrder(input.existingCheckoutReference);
+      return this.recoverCheckoutInstruction(input, existingOrder);
+    }
     const token = await this.accessToken();
     const res = await this.transport.request('POST', `${this.urls.apiBase}/v2/checkout/orders`, {
       body: JSON.stringify({
@@ -348,6 +356,57 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
     const approve = order.links?.find((link) => link.rel === 'approve');
     if (!approve?.href || !order.id) {
       throw new Error('PayPal create order response missing approve link / order id');
+    }
+    return {
+      kind: 'redirect',
+      url: approve.href,
+      provider: 'paypal',
+      merchantReference: input.merchantReference,
+      providerPaymentReference: order.id,
+    };
+  }
+
+  /**
+   * Rebuild a redirect only from the exact persisted PayPal Order. This uses a
+   * read-only GET, validates immutable local facts, and refuses stale/terminal
+   * Orders. It never falls back to POST because Request-Id retention is finite.
+   */
+  private recoverCheckoutInstruction(
+    input: CreateCheckoutInput,
+    order: PaypalOrder | null,
+  ): CheckoutInstruction {
+    if (!order || order.id !== input.existingCheckoutReference) {
+      throw new CheckoutVerificationPendingError('persisted PayPal Order is unavailable');
+    }
+    const createdAtMs = Date.parse(order.create_time ?? '');
+    const ageMs = this.now().getTime() - createdAtMs;
+    if (!Number.isFinite(createdAtMs) || ageMs < 0 || ageMs > PAYPAL_APPROVAL_MAX_AGE_MS) {
+      throw new CheckoutVerificationPendingError('persisted PayPal Order is outside the safe approval window');
+    }
+    if (!['CREATED', 'SAVED', 'PAYER_ACTION_REQUIRED'].includes(order.status ?? '')) {
+      throw new CheckoutVerificationPendingError('persisted PayPal Order is not redirectable');
+    }
+    const unit = order.purchase_units?.find((candidate) => candidate.reference_id === input.paymentId);
+    let recoveredAmount: Money | null = null;
+    try {
+      if (unit?.amount) {
+        recoveredAmount = paypalMoneyFromString(unit.amount.value, unit.amount.currency_code);
+      }
+    } catch {
+      recoveredAmount = null;
+    }
+    if (
+      !unit ||
+      unit.custom_id !== input.merchantReference ||
+      !recoveredAmount ||
+      recoveredAmount.amount !== input.amount.amount ||
+      recoveredAmount.currency !== input.amount.currency
+    ) {
+      throw new CheckoutVerificationPendingError('persisted PayPal Order facts do not match the local attempt');
+    }
+    const approve = order.links?.find((link) => link.rel === 'approve');
+    if (!approve?.href) {
+      throw new CheckoutVerificationPendingError('persisted PayPal Order has no approval redirect');
     }
     return {
       kind: 'redirect',

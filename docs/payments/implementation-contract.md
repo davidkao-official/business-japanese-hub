@@ -37,7 +37,7 @@
 3. Provider checkout/session: partial unique index `payments_provider_checkout_ref_uidx` on `(provider, provider_checkout_ref) WHERE provider_checkout_ref IS NOT NULL`.
 4. Callback receipt: `UNIQUE(provider, event_fingerprint)`; receipt uses conflict-ignoring upsert, then re-applies the idempotent transaction on replay.
 5. Ownership: `UNIQUE(user_id, book_id)` on `book_entitlement`.
-6. Open checkout: partial `UNIQUE(user_id, book_id) WHERE status='pending'` on `orders`. A concurrent/replayed live attempt resumes through the same stable provider idempotency key; an authoritatively `failed` Payment gets a new PaymentAttempt and merchant reference on the same immutable Order. Active entitlement or a paid Order returns `owned` before handoff. The migration deliberately stops with a reconciliation hint if legacy data contains duplicate pending Orders; operators must verify provider state rather than silently discard an attempt.
+6. Open checkout: partial `UNIQUE(user_id, book_id) WHERE status='pending'` on `orders`, plus a transaction advisory lock keyed by user + Book for retry decisions. A PayPal attempt with a persisted Order id resumes by read-only GET of that exact Order after immutable-fact validation; when the id was not persisted after an ambiguous create call, POST replay is bounded to five hours (below PayPal Orders' default six-hour Request-Id retention) and older attempts are held for verification. An ECPay `created` attempt is exclusively claimed before reconstructing its not-yet-issued local form; `pending`/`verification_pending` attempts are held so a submitted `MerchantTradeNo` is never reused. An authoritatively `failed` Payment gets a new PaymentAttempt and merchant reference on the same immutable Order. Active entitlement or a paid Order returns `owned` before handoff. The migration deliberately stops with a reconciliation hint if legacy data contains duplicate pending Orders; operators must verify provider state rather than silently discard an attempt.
 7. Receipt delivery: `UNIQUE(order_id, template_key)` in `order_email_outbox`, plus Resend key `order-confirmation/<orderId>`. Automatic send/retry stops before the provider's 24-hour idempotency boundary; aged rows become `dead` for manual handling. `prepare_order_email_send` rechecks that the Order is still paid and atomically fences `processing → sending` immediately before the external call. A refund that wins before the fence suppresses delivery; a fenced historical confirmation may finish, and its copy points to current Library state. Active `sending` rows are never swept by another cron, stale rows recover through the same provider idempotency key, and every worker transition verifies its expected-state compare-and-set matched.
 
 ## Transactional financial finalizers
@@ -79,9 +79,21 @@ create_checkout_intent(
 The RPC re-reads and locks a released positive-price catalog row, snapshots its
 name/revision/amount/currency, and inserts Order + `order_compliance` + Payment
 in one transaction. Launch mappings are exact: USD → PayPal and TWD → ECPay.
-The partial open-intent constraint serializes concurrent retries. `resumed`
-replays the adapter with the same merchant reference/provider idempotency key,
-recovering a lost redirect without creating another local attempt.
+The partial open-intent constraint and user + Book advisory lock serialize
+concurrent retries. `resumed` recovers PayPal through a read-only GET when
+`provider_checkout_ref` is known. Only the ambiguous pre-persistence crash
+window may repeat POST with the same merchant reference / `PayPal-Request-Id`,
+and only for five hours; after that finite provider window the attempt is held
+for authoritative verification instead of risking a second provider Order.
+ECPay does not provide a replay contract: the handler may claim and reconstruct
+an unissued `created` form, but returns `checkout_verification_pending` once the
+attempt is `pending`/`verification_pending` rather than reusing
+`MerchantTradeNo`. That structured conflict sends the authenticated buyer to
+the existing server-authoritative order-status page. Once this RPC has returned
+commercial rows, the Edge handler never compensates by deleting them: another
+request may already have claimed the handoff, and provider/transport failures
+are ambiguous. The durable attempt remains available to status polling and
+repair instead of risking an orphaned real provider payment.
 `retry_created` is emitted only after the prior Payment is authoritatively
 `failed`; it preserves the Order snapshots and creates a new PaymentAttempt.
 `owned` contains no commercial rows and the Edge handler returns an

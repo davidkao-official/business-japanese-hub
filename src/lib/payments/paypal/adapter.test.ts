@@ -13,7 +13,12 @@ import {
   type PaypalTransport,
 } from './adapter';
 import { PAYPAL_URLS } from './urls';
-import { UnsupportedCurrencyForProvider, type CreateCheckoutInput, type VerifiedProviderEvent } from '../contract';
+import {
+  CheckoutVerificationPendingError,
+  UnsupportedCurrencyForProvider,
+  type CreateCheckoutInput,
+  type VerifiedProviderEvent,
+} from '../contract';
 
 /** Test-only sandbox credentials (decision-record §16 / §21). */
 const CLIENT_ID = 'test-paypal-client-id';
@@ -166,6 +171,76 @@ describe('PaypalPaymentProviderAdapter.createCheckout', () => {  it('creates a C
       amount: { currency_code: 'USD', value: '19.99' },
     });
     expect(orderRequest!.headers['PayPal-Request-Id']).toBe('bjh-checkout-BJH202608160001');
+  });
+
+  it('recovers a persisted PayPal Order with GET and never creates a second Order', async () => {
+    const recoveredOrder = {
+      ...JSON.parse(CREATE_ORDER_BODY),
+      create_time: '2026-08-16T10:00:00Z',
+      purchase_units: [{
+        reference_id: 'pay-1',
+        custom_id: 'BJH202608160001',
+        amount: { currency_code: 'USD', value: '19.99' },
+      }],
+    };
+    const { transport, requests } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v2/checkout/orders/ORDER-1', 200, recoveredOrder),
+    ]);
+    const adapter = makeAdapter({ transport });
+
+    const instruction = await adapter.createCheckout(makeCheckoutInput({ existingCheckoutReference: 'ORDER-1' }));
+
+    expect(instruction).toMatchObject({
+      kind: 'redirect',
+      url: APPROVE_URL,
+      providerPaymentReference: 'ORDER-1',
+    });
+    expect(requests.filter((request) => request.method === 'GET' && request.url.endsWith('/ORDER-1'))).toHaveLength(1);
+    expect(requests.filter((request) => request.method === 'POST' && request.url.endsWith('/v2/checkout/orders'))).toHaveLength(0);
+  });
+
+  it('fails closed when a persisted PayPal Order does not exactly match the local attempt', async () => {
+    const mismatchedOrder = {
+      ...JSON.parse(CREATE_ORDER_BODY),
+      create_time: '2026-08-16T10:00:00Z',
+      purchase_units: [{
+        reference_id: 'pay-1',
+        custom_id: 'ANOTHER-MERCHANT-REF',
+        amount: { currency_code: 'USD', value: '19.99' },
+      }],
+    };
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v2/checkout/orders/ORDER-1', 200, mismatchedOrder),
+    ]);
+    const adapter = makeAdapter({ transport });
+
+    await expect(
+      adapter.createCheckout(makeCheckoutInput({ existingCheckoutReference: 'ORDER-1' })),
+    ).rejects.toBeInstanceOf(CheckoutVerificationPendingError);
+  });
+
+  it('does not redirect or POST again when a persisted PayPal Order is outside the safe approval window', async () => {
+    const staleOrder = {
+      ...JSON.parse(CREATE_ORDER_BODY),
+      create_time: '2026-08-16T04:00:00Z',
+      purchase_units: [{
+        reference_id: 'pay-1',
+        custom_id: 'BJH202608160001',
+        amount: { currency_code: 'USD', value: '19.99' },
+      }],
+    };
+    const { transport, requests } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v2/checkout/orders/ORDER-1', 200, staleOrder),
+    ]);
+    const adapter = makeAdapter({ transport });
+
+    await expect(
+      adapter.createCheckout(makeCheckoutInput({ existingCheckoutReference: 'ORDER-1' })),
+    ).rejects.toBeInstanceOf(CheckoutVerificationPendingError);
+    expect(requests.filter((request) => request.method === 'POST' && request.url.endsWith('/v2/checkout/orders'))).toHaveLength(0);
   });
 
   it('throws UnsupportedCurrencyForProvider for a non-USD amount', async () => {

@@ -194,6 +194,12 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     // created → pending transition after the provider instruction was built.
     const paymentUpdate = mock.callsFor('payments', 'update')[0];
     expect(paymentUpdate.args[0]).toMatchObject({ status: 'pending' });
+    expect(mock.callsFor('payments', 'eq').map((call) => call.args)).toEqual(
+      expect.arrayContaining([
+        ['id', 'pay-1'],
+        ['status', 'created'],
+      ]),
+    );
   });
 
   it('rejects relabeled evidence locale before any insert', async () => {
@@ -514,7 +520,43 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     expect(String(createIntent.args[0]).indexOf('HACKED-REF')).toBe(-1);
   });
 
-  it('resumes an existing live attempt through the same idempotent provider handoff', async () => {
+  it('holds an existing live ECPay attempt for authoritative verification without reusing MerchantTradeNo', async () => {
+    const pendingPayment = { ...PAYMENT_ROW, status: 'pending' };
+    const { mock, adapter, deps } = setup({}, {
+      'rpc:create_checkout_intent': {
+        data: {
+          outcome: 'resumed',
+          order: {
+            ...ORDER_ROW,
+            item_name_snapshot: CATALOG_TWD.item_name,
+            amount_minor: CATALOG_TWD.amount_minor,
+            currency: CATALOG_TWD.currency,
+          },
+          payment: pendingPayment,
+        },
+      },
+    });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
+    expect(result.status).toBe(409);
+    expect(JSON.parse(result.body)).toMatchObject({
+      reason: 'checkout_verification_pending',
+      orderId: 'ord-1',
+    });
+    expect(adapter.createCheckout).not.toHaveBeenCalled();
+    expect(mock.callsFor('payments', 'delete')).toHaveLength(0);
+    expect(mock.callsFor('orders', 'delete')).toHaveLength(0);
+  });
+
+  it('recovers an ECPay crash before form handoff by exclusively claiming the created attempt', async () => {
     const { mock, adapter, deps } = setup({}, {
       'rpc:create_checkout_intent': {
         data: {
@@ -529,6 +571,7 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
         },
       },
     });
+
     const result = await handleCheckout(
       handlerRequest(
         'POST',
@@ -540,15 +583,47 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     );
 
     expect(result.status).toBe(200);
-    expect(JSON.parse(result.body)).toMatchObject({ orderId: 'ord-1' });
     expect(adapter.createCheckout).toHaveBeenCalledTimes(1);
+    expect(mock.callsFor('payments', 'eq').map((call) => call.args)).toEqual(
+      expect.arrayContaining([
+        ['id', 'pay-1'],
+        ['status', 'created'],
+      ]),
+    );
+  });
+
+  it('never deletes a newly committed intent when a concurrent resumed handler wins the handoff claim', async () => {
+    const { mock, adapter, deps } = setup({}, {
+      // Simulate the creator's CAS returning no matching row because the
+      // resumed request already changed created→pending.
+      payments: { data: { ...PAYMENT_ROW, id: 'claimed-by-concurrent-handler', status: 'pending' } },
+    });
+
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
+    expect(result.status).toBe(409);
+    expect(JSON.parse(result.body)).toMatchObject({
+      reason: 'checkout_verification_pending',
+      orderId: 'ord-1',
+    });
+    expect(adapter.createCheckout).not.toHaveBeenCalled();
     expect(mock.callsFor('payments', 'delete')).toHaveLength(0);
+    expect(mock.callsFor('order_compliance', 'delete')).toHaveLength(0);
     expect(mock.callsFor('orders', 'delete')).toHaveLength(0);
   });
 
   it('creates a fresh provider handoff for a server-authoritatively failed attempt', async () => {
     const retryPayment = { ...PAYMENT_ROW, id: 'pay-2', provider_merchant_ref: 'BJH-RETRY-2', status: 'created' };
     const { adapter, deps } = setup({}, {
+      payments: { data: retryPayment },
       'rpc:create_checkout_intent': {
         data: {
           outcome: 'retry_created',
@@ -598,16 +673,15 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     expect(adapter.createCheckout).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ['resumed', 0],
-    ['retry_created', 1],
-  ] as const)('provider failure after %s preserves the existing Order and compensates only new rows', async (outcome, paymentDeletes) => {
+  it('provider failure after retry_created preserves the durable Order and Payment for verification', async () => {
+    const outcome = 'retry_created' as const;
     const payment = {
       ...PAYMENT_ROW,
-      id: outcome === 'retry_created' ? 'pay-2' : PAYMENT_ROW.id,
-      provider_merchant_ref: outcome === 'retry_created' ? 'BJH-RETRY-2' : PAYMENT_ROW.provider_merchant_ref,
+      id: 'pay-2',
+      provider_merchant_ref: 'BJH-RETRY-2',
     };
     const { mock, adapter, deps } = setup({}, {
+      payments: { data: payment },
       'rpc:create_checkout_intent': {
         data: {
           outcome,
@@ -633,8 +707,12 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       deps,
     );
 
-    expect(result.status).toBe(502);
-    expect(mock.callsFor('payments', 'delete')).toHaveLength(paymentDeletes);
+    expect(result.status).toBe(409);
+    expect(JSON.parse(result.body)).toMatchObject({
+      reason: 'checkout_verification_pending',
+      orderId: 'ord-1',
+    });
+    expect(mock.callsFor('payments', 'delete')).toHaveLength(0);
     expect(mock.callsFor('order_compliance', 'delete')).toHaveLength(0);
     expect(mock.callsFor('orders', 'delete')).toHaveLength(0);
   });
@@ -792,7 +870,7 @@ describe('checkout handler — currency → provider routing (§21)', () => {
       catalog: { data: CATALOG_USD },
       orders: { data: { id: 'ord-1' } },
       order_compliance: { data: null },
-      payments: { data: { ...PAYMENT_ROW, provider: 'paypal', currency: 'USD', amount_minor: 1999 } },
+      payments: { data: { ...PAYMENT_ROW, provider: 'paypal', currency: 'USD', amount_minor: 1999, method: 'paypal' } },
       'rpc:create_checkout_intent': {
         data: {
           outcome: 'created',
@@ -804,7 +882,7 @@ describe('checkout handler — currency → provider routing (§21)', () => {
             amount_minor: CATALOG_USD.amount_minor,
             currency: CATALOG_USD.currency,
           },
-          payment: { ...PAYMENT_ROW, provider: 'paypal', currency: 'USD', amount_minor: 1999 },
+          payment: { ...PAYMENT_ROW, provider: 'paypal', currency: 'USD', amount_minor: 1999, method: 'paypal' },
         },
       },
       'rpc:is_order_email_scheduler_ready': { data: true },
@@ -871,6 +949,101 @@ describe('checkout handler — currency → provider routing (§21)', () => {
     const refUpdate = mock.callsFor('payments', 'update').find((c) => c.args[0]?.provider_checkout_ref === 'ORDER-1');
     expect(refUpdate).toBeDefined();
     expect(mock.callsFor('payments', 'update').some((c) => c.args[0]?.provider_payment_ref === 'ORDER-1')).toBe(false);
+  });
+
+  it('resumes a live PayPal attempt through its stable Request-Id without creating local rows', async () => {
+    const paypalPayment = {
+      ...PAYMENT_ROW,
+      provider: 'paypal',
+      provider_merchant_ref: 'BJH-PAYPAL-STABLE-1',
+      currency: 'USD',
+      amount_minor: 1999,
+      method: 'paypal',
+      status: 'pending',
+      provider_checkout_ref: 'ORDER-1',
+    };
+    const { mock, ecpayAdapter, paypalAdapter, deps } = usdSetup({
+      'rpc:create_checkout_intent': {
+        data: {
+          outcome: 'resumed',
+          order: {
+            ...ORDER_ROW,
+            book_id: CATALOG_USD.book_id,
+            item_name_snapshot: CATALOG_USD.item_name,
+            published_revision: CATALOG_USD.published_revision,
+            amount_minor: CATALOG_USD.amount_minor,
+            currency: CATALOG_USD.currency,
+          },
+          payment: paypalPayment,
+        },
+      },
+    });
+
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-usd',
+        JSON.stringify({ bookId: 'book-usd', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
+    expect(result.status).toBe(200);
+    expect(paypalAdapter.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
+      merchantReference: 'BJH-PAYPAL-STABLE-1',
+      existingCheckoutReference: 'ORDER-1',
+    }));
+    expect(ecpayAdapter.createCheckout).not.toHaveBeenCalled();
+    expect(mock.callsFor('payments', 'delete')).toHaveLength(0);
+    expect(mock.callsFor('orders', 'delete')).toHaveLength(0);
+  });
+
+  it('holds a PayPal attempt with no persisted Order id after the finite create-order replay window', async () => {
+    const oldPayment = {
+      ...PAYMENT_ROW,
+      provider: 'paypal',
+      provider_merchant_ref: 'BJH-PAYPAL-OLD-1',
+      provider_checkout_ref: null,
+      currency: 'USD',
+      amount_minor: 1999,
+      method: 'paypal',
+      status: 'pending',
+      created_at: '2026-08-16T01:00:00Z',
+    };
+    const { paypalAdapter, deps } = usdSetup({
+      'rpc:create_checkout_intent': {
+        data: {
+          outcome: 'resumed',
+          order: {
+            ...ORDER_ROW,
+            book_id: CATALOG_USD.book_id,
+            item_name_snapshot: CATALOG_USD.item_name,
+            published_revision: CATALOG_USD.published_revision,
+            amount_minor: CATALOG_USD.amount_minor,
+            currency: CATALOG_USD.currency,
+          },
+          payment: oldPayment,
+        },
+      },
+    });
+
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-usd',
+        JSON.stringify({ bookId: 'book-usd', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
+    expect(result.status).toBe(409);
+    expect(JSON.parse(result.body)).toMatchObject({
+      reason: 'checkout_verification_pending',
+      orderId: 'ord-1',
+    });
+    expect(paypalAdapter.createCheckout).not.toHaveBeenCalled();
   });
 
   it('JPY catalog → refused as unsupported_currency before any insert (#20 untouched)', async () => {

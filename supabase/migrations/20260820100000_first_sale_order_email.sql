@@ -134,6 +134,12 @@ declare
 begin
   if p_user_id is null then raise exception 'user id is required'; end if;
   if nullif(btrim(p_book_id), '') is null then raise exception 'book id is required'; end if;
+  -- Serialize checkout/retry decisions for this buyer + Book. Provider
+  -- finalizers do not need this advisory lock; the existing-attempt path below
+  -- additionally locks Payment → Order in their global row-lock order.
+  perform pg_advisory_xact_lock(
+    hashtextextended(p_user_id::text || ':' || btrim(p_book_id), 0)
+  );
   if v_email is null
      or length(v_email) not between 3 and 320
      or v_email !~ '^[^[:space:]@]+@[^[:space:]@]+$' then
@@ -228,13 +234,39 @@ begin
      where user_id = p_user_id
        and book_id = p_book_id
        and status = 'pending';
+    if v_order.id is null then
+      raise exception 'existing checkout intent disappeared during serialization';
+    end if;
+    -- Match financial-finalizer lock order: Payment, then Order. The advisory
+    -- lock prevents two retry RPCs from choosing the same failed attempt, while
+    -- these row locks serialize against an authoritative provider finalizer.
     select * into v_payment
       from public.payments
      where order_id = v_order.id
-     order by created_at desc, id desc
-     limit 1;
-    if v_order.id is null or v_payment.id is null then
+     -- Prefer the one live attempt over older failed history. `created_at`
+     -- alone is not a safe attempt sequence: retries can share a transaction
+     -- timestamp (and UUID ordering is unrelated to insertion order).
+     order by (status in ('created', 'pending', 'verification_pending')) desc,
+              created_at desc, id desc
+     limit 1
+       for update;
+    select * into v_order
+      from public.orders
+     where id = v_order.id
+       for update;
+    if v_payment.id is null then
       raise exception 'existing checkout intent is incomplete';
+    end if;
+    if v_order.status = 'paid' or exists (
+      select 1 from public.book_entitlement entitlement
+       where entitlement.user_id = p_user_id
+         and entitlement.book_id = p_book_id
+         and entitlement.status = 'active'
+    ) then
+      return jsonb_build_object('outcome', 'owned');
+    end if;
+    if v_order.status <> 'pending' then
+      raise exception 'existing checkout Order has non-resumable status %', v_order.status;
     end if;
     if v_payment.provider <> v_expected_provider then
       raise exception 'existing checkout intent provider no longer matches the released catalog';

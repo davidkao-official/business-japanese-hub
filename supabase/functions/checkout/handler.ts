@@ -5,14 +5,15 @@
  * The browser sends ONLY `bookId` + the collected compliance `ConsentSubmission`
  * (never a price/amount). The handler reads the authoritative `catalog` price
  * seam, creates Order + `order_compliance` evidence, then the Payment attempt
- * (server-generated `MerchantTradeNo` with collision retry), builds the signed
- * ECPay checkout instruction, transitions the payment to `pending`, and returns
+ * (server-generated `MerchantTradeNo` with collision retry), exclusively
+ * claims the provider handoff, builds the checkout instruction, and returns
  * `CheckoutResponse`. Any client-supplied price/status field is ignored.
  *
  * Pure handler: `Env` / `DbClient` / adapter / logger are injected; the Deno
  * entry (`index.ts`) wires the real implementations. No top-level `Deno.serve`.
  */
 import {
+  CheckoutVerificationPendingError,
   UnsupportedCurrencyForProvider,
   type CheckoutResponse,
   type ConsentSubmission,
@@ -43,7 +44,7 @@ import { authenticateBearerUser } from '../_shared/auth.ts';
 import { isEcpayConfigured, mapLocaleToEcpayLanguage } from '../_shared/ecpay.ts';
 import { isPaypalConfigured } from '../_shared/paypal.ts';
 import { generateMerchantReference, isMerchantRefCollision } from '../_shared/merchant-ref.ts';
-import { applyPaymentEvent, type PaymentRow } from '../_shared/flow.ts';
+import type { PaymentRow } from '../_shared/flow.ts';
 import type { ProviderAdapters } from '../_shared/provider.ts';
 import {
   canonicalCheckoutEvidence,
@@ -69,6 +70,9 @@ export interface CheckoutHandlerDeps {
 
 /** Collision-retry budget for the UNIQUE(provider, provider_merchant_ref) constraint. */
 export const MAX_MERCHANT_REF_RETRIES = 3;
+
+/** Stay below PayPal Orders' default six-hour Request-Id retention window. */
+export const PAYPAL_CREATE_REPLAY_MAX_AGE_MS = 5 * 60 * 60 * 1000;
 
 /** Sentinels so `handleCheckout` maps distinct failures to distinct HTTP codes. */
 class BookNotFoundError extends Error {}
@@ -305,8 +309,6 @@ async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerRes
 
   let orderId: string | null = null;
   let paymentId: string | null = null;
-  let orderCreatedHere = false;
-  let paymentCreatedHere = false;
 
   try {
     // One service-role-only Postgres transaction re-reads the released catalog
@@ -330,12 +332,30 @@ async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerRes
         reason: 'already_owned',
       });
     }
-    orderCreatedHere = intent.outcome === 'created';
-    paymentCreatedHere = intent.outcome === 'created' || intent.outcome === 'retry_created';
     const orderRow = intent.order;
     const paymentRow = intent.payment;
     orderId = orderRow.id;
     paymentId = paymentRow.id;
+    const claimedCreatedHandoff = paymentRow.status === 'created'
+      ? await claimCreatedPaymentHandoff(deps, paymentRow.id)
+      : false;
+    if (paymentRow.status === 'created' && !claimedCreatedHandoff) {
+      // Another handler won the created→pending claim after this RPC committed.
+      // The rows are now shared durable state; the losing caller must never
+      // compensate/delete them underneath the winner's provider handoff.
+      return checkoutVerificationPending(orderId);
+    }
+    if (intent.outcome === 'resumed' && provider === 'ecpay' && !claimedCreatedHandoff) {
+      return checkoutVerificationPending(orderId);
+    }
+    if (
+      intent.outcome === 'resumed' &&
+      provider === 'paypal' &&
+      !paymentRow.provider_checkout_ref &&
+      !isWithinPaypalCreateReplayWindow(paymentRow.created_at, now())
+    ) {
+      return checkoutVerificationPending(orderId);
+    }
     const snapshotAmountMinor = Number(orderRow.amount_minor);
     const snapshotCurrency = String(orderRow.currency);
     const snapshotItemName = String(orderRow.item_name_snapshot);
@@ -350,8 +370,19 @@ async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerRes
       amount: { amount: snapshotAmountMinor, currency: snapshotCurrency },
       itemNameSnapshot: snapshotItemName,
       locale: consent.locale,
+      existingCheckoutReference: provider === 'paypal'
+        ? (paymentRow.provider_checkout_ref ?? undefined)
+        : undefined,
     });
-    const instruction = await adapter.createCheckout(checkoutInput);
+    let instruction: CheckoutResponse['instruction'];
+    try {
+      instruction = await adapter.createCheckout(checkoutInput);
+    } catch (error) {
+      if (intent.outcome === 'resumed' && error instanceof CheckoutVerificationPendingError) {
+        return checkoutVerificationPending(orderId);
+      }
+      throw error;
+    }
 
     // Preserve the provider checkout/session reference known before settlement
     // (PayPal Order id). The final capture/transaction id is stored separately
@@ -365,13 +396,6 @@ async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerRes
         throw new Error(`provider checkout ref update failed: ${refUpdateError.message}`);
       }
     }
-
-    // created → pending (payment_initiated).
-    await applyPaymentEvent(
-      { db: deps.db, log: deps.log, now },
-      paymentRow,
-      { type: 'payment_initiated', merchantReference: paymentRow.provider_merchant_ref },
-    );
 
     const response: CheckoutResponse = { orderId, paymentId, instruction };
     deps.log.info(
@@ -389,16 +413,48 @@ async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerRes
     );
     return jsonResult(200, response);
   } catch (err) {
-    // Roll back only rows created by THIS call. A resumed provider handoff must
-    // never delete the existing intent, and a failed-attempt retry reuses its
-    // Order while compensating only the new PaymentAttempt.
-    await compensateCreatedRows(
-      deps,
-      orderCreatedHere ? orderId : null,
-      paymentCreatedHere ? paymentId : null,
-    );
+    // Once the atomic RPC returns commercial rows, another request can observe
+    // and claim them immediately. Provider/transport failures are ambiguous and
+    // post-commit deletion can destroy a concurrent real handoff. Preserve the
+    // ledger and send the buyer through authoritative status/repair instead.
+    if (orderId) {
+      deps.log.warn(
+        { orderId, paymentId, error: err instanceof Error ? err.message : String(err) },
+        'checkout handoff requires authoritative verification',
+      );
+      return checkoutVerificationPending(orderId);
+    }
     throw err;
   }
+}
+
+async function claimCreatedPaymentHandoff(
+  deps: CheckoutHandlerDeps,
+  paymentId: string,
+): Promise<boolean> {
+  const { data, error } = await deps.db
+    .from('payments')
+    .update({ status: 'pending' })
+    .eq('id', paymentId)
+    .eq('status', 'created')
+    .select('id')
+    .maybeSingle();
+  if (error) throw new Error(`payment initiation CAS failed: ${error.message}`);
+  return data?.id === paymentId;
+}
+
+function isWithinPaypalCreateReplayWindow(createdAt: string, now: Date): boolean {
+  const createdAtMs = Date.parse(createdAt);
+  const ageMs = now.getTime() - createdAtMs;
+  return Number.isFinite(createdAtMs) && ageMs >= 0 && ageMs <= PAYPAL_CREATE_REPLAY_MAX_AGE_MS;
+}
+
+function checkoutVerificationPending(orderId: string): HandlerResult {
+  return jsonResult(409, {
+    error: 'the existing payment attempt is awaiting authoritative verification',
+    reason: 'checkout_verification_pending',
+    orderId,
+  });
 }
 
 /** Build the provider-appropriate `CreateCheckoutInput` (§21 transport seam). */
@@ -412,6 +468,7 @@ function buildCheckoutInput(
     amount: { amount: number; currency: string };
     itemNameSnapshot: string;
     locale: string | undefined;
+    existingCheckoutReference?: string;
   },
 ): CreateCheckoutInput {
   const base = {
@@ -433,6 +490,9 @@ function buildCheckoutInput(
     ...base,
     orderResultUrl: edgeFunctionUrl(deps.env, 'paypal-browser-return'),
     cancelUrl: edgeFunctionUrl(deps.env, 'paypal-browser-return'),
+    ...(params.existingCheckoutReference
+      ? { existingCheckoutReference: params.existingCheckoutReference }
+      : {}),
   };
 }
 
@@ -528,8 +588,10 @@ async function createAtomicCheckoutIntent(
       const orderRecord = order as Record<string, unknown> | null;
       const paymentRecord = payment as Record<string, unknown> | null;
       const amountMinor = Number(orderRecord?.amount_minor);
+      const outcome = String(data.outcome);
+      const paymentStatus = String(paymentRecord?.status);
       if (
-        !['created', 'resumed', 'retry_created'].includes(String(data.outcome)) ||
+        !['created', 'resumed', 'retry_created'].includes(outcome) ||
         !order ||
         typeof order !== 'object' ||
         !payment ||
@@ -543,12 +605,24 @@ async function createAtomicCheckoutIntent(
         !/^[A-Z]{3}$/.test(orderRecord.currency) ||
         typeof paymentRecord?.id !== 'string' ||
         typeof paymentRecord.provider_merchant_ref !== 'string' ||
-        !paymentRecord.provider_merchant_ref.trim()
+        !paymentRecord.provider_merchant_ref.trim() ||
+        paymentRecord.order_id !== orderRecord.id ||
+        paymentRecord.provider !== provider ||
+        Number(paymentRecord.amount_minor) !== amountMinor ||
+        paymentRecord.currency !== orderRecord.currency ||
+        paymentRecord.method !== (provider === 'paypal' ? 'paypal' : 'credit') ||
+        typeof paymentRecord.created_at !== 'string' ||
+        !Number.isFinite(Date.parse(paymentRecord.created_at)) ||
+        !['created', 'pending', 'verification_pending'].includes(paymentStatus) ||
+        ((outcome === 'created' || outcome === 'retry_created') && paymentStatus !== 'created') ||
+        (paymentRecord.provider_checkout_ref !== null &&
+          paymentRecord.provider_checkout_ref !== undefined &&
+          typeof paymentRecord.provider_checkout_ref !== 'string')
       ) {
         throw new Error('create_checkout_intent returned invalid rows');
       }
       return {
-        outcome: data.outcome as 'created' | 'resumed' | 'retry_created',
+        outcome: outcome as 'created' | 'resumed' | 'retry_created',
         order: order as unknown as AtomicCheckoutRows['order'],
         payment: payment as unknown as PaymentRow,
       };
@@ -562,27 +636,4 @@ async function createAtomicCheckoutIntent(
     deps.log.warn({ merchantReference: merchantRef }, 'merchant reference collision; regenerating');
   }
   throw new Error('could not allocate a unique merchant reference');
-}
-
-/** Best-effort rollback of rows created by a failed checkout call (FK order matters). */
-async function compensateCreatedRows(
-  deps: CheckoutHandlerDeps,
-  orderId: string | null,
-  paymentId: string | null,
-): Promise<void> {
-  if (paymentId) {
-    const { error } = await deps.db.from('payments').delete().eq('id', paymentId);
-    if (error) deps.log.warn({ paymentId, error: error.message }, 'compensation: payment delete failed');
-  }
-  if (orderId) {
-    const { error: complianceError } = await deps.db
-      .from('order_compliance')
-      .delete()
-      .eq('order_id', orderId);
-    if (complianceError) {
-      deps.log.warn({ orderId, error: complianceError.message }, 'compensation: compliance delete failed');
-    }
-    const { error: orderError } = await deps.db.from('orders').delete().eq('id', orderId);
-    if (orderError) deps.log.warn({ orderId, error: orderError.message }, 'compensation: order delete failed');
-  }
 }

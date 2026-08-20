@@ -205,6 +205,12 @@ export interface CreateCheckoutInput {
   cancelUrl?: string;
   /** Provider display language (ECPay Language CHT/JPN/ENG); PayPal ignores. */
   locale?: string;
+  /**
+   * Previously persisted provider checkout/session id. When present, an adapter
+   * may recover that exact provider resource but must never create a replacement
+   * under the same local PaymentAttempt.
+   */
+  existingCheckoutReference?: string;
 }
 
 /**
@@ -303,6 +309,14 @@ export interface PaymentProviderAdapter {
 /* ------------------------------------------------------------------------- *
  * Errors
  * ------------------------------------------------------------------------- */
+
+/** Existing provider state needs authoritative repair/status polling, not a new handoff. */
+export class CheckoutVerificationPendingError extends Error {
+  constructor(message = 'checkout requires authoritative provider verification') {
+    super(message);
+    this.name = 'CheckoutVerificationPendingError';
+  }
+}
 
 /** ECPay only accepts integer TWD; a non-TWD amount is a hard refusal. */
 export class UnsupportedCurrencyForProvider extends Error {
