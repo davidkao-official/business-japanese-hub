@@ -37,7 +37,11 @@ function sender(result: Awaited<ReturnType<EmailSender['send']>>): EmailSender {
 }
 
 function workerDb(routes: Record<string, MockRoute> = {}) {
-  return createMockDb({ 'rpc:prepare_order_email_send': { data: true }, ...routes });
+  return createMockDb({
+    'rpc:prepare_order_email_send': { data: true },
+    order_email_outbox: { data: { id: 'job-1' } },
+    ...routes,
+  });
 }
 
 describe('order-email scheduled worker', () => {
@@ -99,6 +103,9 @@ describe('order-email scheduled worker', () => {
       locked_at: null,
       last_error_code: null,
     });
+    expect(mock.callsFor('order_email_outbox', 'eq').some((call) =>
+      call.args[0] === 'status' && call.args[1] === 'sending'
+    )).toBe(true);
   });
 
   it('suppresses a claimed confirmation when a refund wins the pre-send recheck', async () => {
@@ -144,6 +151,23 @@ describe('order-email scheduled worker', () => {
       status: 'dead',
       last_error_code: 'validation_error',
       locked_at: null,
+    });
+  });
+
+  it('dead-letters a claimed row whose authoritative payment facts are missing', async () => {
+    const mock = workerDb({
+      'rpc:claim_order_email_jobs': { data: [{ ...JOB, provider: null, paymentMethod: null }] },
+    });
+    const emailSender = sender({ ok: true, providerMessageId: 'msg-1' });
+    const result = await handleOrderEmail(request(), {
+      env: testEnv(), db: mock.db, sender: emailSender, log: fakeLogger(), now: () => NOW,
+    });
+
+    expect(JSON.parse(result.body)).toMatchObject({ processed: 1, sent: 0, retry: 0, dead: 1 });
+    expect(emailSender.send).not.toHaveBeenCalled();
+    expect(mock.callsFor('order_email_outbox', 'update')[0]?.args[0]).toMatchObject({
+      status: 'dead',
+      last_error_code: 'missing_payment_snapshot',
     });
   });
 
@@ -199,5 +223,21 @@ describe('order-email scheduled worker', () => {
 
     expect(result.status).toBe(500);
     expect(result.body).not.toContain('reader@example.com');
+  });
+
+  it('returns 500 when a transition CAS matches no processing row', async () => {
+    const mock = workerDb({
+      'rpc:claim_order_email_jobs': { data: [JOB] },
+      order_email_outbox: { data: null },
+    });
+    const result = await handleOrderEmail(request(), {
+      env: testEnv(),
+      db: mock.db,
+      sender: sender({ ok: true, providerMessageId: 'msg-1' }),
+      log: fakeLogger(),
+      now: () => NOW,
+    });
+
+    expect(result.status).toBe(500);
   });
 });

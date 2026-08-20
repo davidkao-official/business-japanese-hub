@@ -32,7 +32,7 @@ export interface EmailSender {
 
 type Fetcher = (
   input: string,
-  init?: { method?: string; headers?: Record<string, string>; body?: string },
+  init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal },
 ) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 type SupportedLocale = 'en' | 'ja' | 'zh-TW';
@@ -52,6 +52,7 @@ const STRINGS: Record<SupportedLocale, {
   refunds: string;
   seller: string;
   support: string;
+  creditCard: string;
 }> = {
   en: {
     subject: (orderId) => `Payment confirmed — order ${orderId}`,
@@ -68,6 +69,7 @@ const STRINGS: Record<SupportedLocale, {
     refunds: 'Refund policy',
     seller: 'Seller',
     support: 'Support',
+    creditCard: 'credit card',
   },
   ja: {
     subject: (orderId) => `お支払い完了 — 注文 ${orderId}`,
@@ -84,6 +86,7 @@ const STRINGS: Record<SupportedLocale, {
     refunds: '返金ポリシー',
     seller: '販売者',
     support: 'お問い合わせ',
+    creditCard: 'クレジットカード',
   },
   'zh-TW': {
     subject: (orderId) => `付款完成 — 訂單 ${orderId}`,
@@ -100,6 +103,7 @@ const STRINGS: Record<SupportedLocale, {
     refunds: '退款政策',
     seller: '銷售者',
     support: '客服',
+    creditCard: '信用卡',
   },
 };
 
@@ -139,11 +143,11 @@ function formatAmount(amountMinor: number, currency: string, locale: SupportedLo
   }
 }
 
-function paymentLabel(provider: string, method: string): string {
+function paymentLabel(provider: string, method: string, locale: SupportedLocale): string {
   const normalizedProvider = provider.toLowerCase();
   if (normalizedProvider === 'paypal') return 'PayPal';
   const providerLabel = normalizedProvider === 'ecpay' ? 'ECPay' : provider;
-  const methodLabel = method.toLowerCase() === 'credit' ? 'credit card' : method;
+  const methodLabel = method.toLowerCase() === 'credit' ? STRINGS[locale].creditCard : method;
   return `${providerLabel} / ${methodLabel}`;
 }
 
@@ -169,7 +173,7 @@ export function buildOrderConfirmationEmail(facts: OrderConfirmationFacts, env: 
   const locale = normalizeLocale(facts.locale);
   const strings = STRINGS[locale];
   const amount = formatAmount(facts.amountMinor, facts.currency, locale);
-  const payment = paymentLabel(facts.provider, facts.paymentMethod);
+  const payment = paymentLabel(facts.provider, facts.paymentMethod, locale);
   const libraryUrl = siteUrl(publicSiteUrl, '/library');
   const refundUrl = siteUrl(publicSiteUrl, '/legal/refunds');
   const lines = [
@@ -227,6 +231,8 @@ export function createResendEmailSender(env: Env, fetcher: Fetcher = fetch): Ema
   return {
     async send(message): Promise<EmailSendResult> {
       let response: Awaited<ReturnType<Fetcher>>;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
       try {
         response = await fetcher('https://api.resend.com/emails', {
           method: 'POST',
@@ -243,9 +249,16 @@ export function createResendEmailSender(env: Env, fetcher: Fetcher = fetch): Ema
             html: message.html,
             text: message.text,
           }),
+          signal: controller.signal,
         });
       } catch {
-        return { ok: false, errorCode: 'network_error', retryable: true };
+        return {
+          ok: false,
+          errorCode: controller.signal.aborted ? 'request_timeout' : 'network_error',
+          retryable: true,
+        };
+      } finally {
+        clearTimeout(timeout);
       }
 
       let payload: unknown;

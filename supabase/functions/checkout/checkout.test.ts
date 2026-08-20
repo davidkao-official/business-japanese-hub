@@ -65,6 +65,7 @@ function setup(initial: Record<string, unknown> = {}, routes: Record<string, Moc
     payments: { data: PAYMENT_ROW },
     'rpc:create_checkout_intent': {
       data: {
+        created: true,
         order: {
           ...ORDER_ROW,
           item_name_snapshot: CATALOG_TWD.item_name,
@@ -513,6 +514,56 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     expect(String(createIntent.args[0]).indexOf('HACKED-REF')).toBe(-1);
   });
 
+  it('returns a conflict without provider handoff for an existing open intent', async () => {
+    const { mock, adapter, deps } = setup({}, {
+      'rpc:create_checkout_intent': {
+        data: {
+          created: false,
+          order: {
+            ...ORDER_ROW,
+            item_name_snapshot: CATALOG_TWD.item_name,
+            amount_minor: CATALOG_TWD.amount_minor,
+            currency: CATALOG_TWD.currency,
+          },
+          payment: PAYMENT_ROW,
+        },
+      },
+    });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
+    expect(result.status).toBe(409);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'checkout_in_progress', orderId: 'ord-1' });
+    expect(adapter.createCheckout).not.toHaveBeenCalled();
+    expect(mock.callsFor('payments', 'delete')).toHaveLength(0);
+    expect(mock.callsFor('orders', 'delete')).toHaveLength(0);
+  });
+
+  it.each([
+    ['no rows', null],
+    ['missing money', { created: true, order: { id: 'ord-1' }, payment: PAYMENT_ROW }],
+  ])('fails closed when create_checkout_intent returns %s', async (_label, data) => {
+    const { adapter, deps } = setup({}, { 'rpc:create_checkout_intent': { data } });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(502);
+    expect(adapter.createCheckout).not.toHaveBeenCalled();
+  });
+
   it('non-TWD catalog amount → UnsupportedCurrencyForProvider surfaces as refusal', async () => {
     const { deps } = setup({});
     const mock = createMockDb({
@@ -525,6 +576,7 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       payments: { data: PAYMENT_ROW },
       'rpc:create_checkout_intent': {
         data: {
+          created: true,
           order: { ...ORDER_ROW, item_name_snapshot: CATALOG_TWD.item_name },
           payment: PAYMENT_ROW,
         },
@@ -602,6 +654,7 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       payments: { data: PAYMENT_ROW },
       'rpc:create_checkout_intent': {
         data: {
+          created: true,
           order: { ...ORDER_ROW, item_name_snapshot: CATALOG_TWD.item_name },
           payment: PAYMENT_ROW,
         },
@@ -649,6 +702,7 @@ describe('checkout handler — currency → provider routing (§21)', () => {
       payments: { data: { ...PAYMENT_ROW, provider: 'paypal', currency: 'USD', amount_minor: 1999 } },
       'rpc:create_checkout_intent': {
         data: {
+          created: true,
           order: {
             ...ORDER_ROW,
             book_id: CATALOG_USD.book_id,

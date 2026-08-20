@@ -37,7 +37,8 @@
 3. Provider checkout/session: partial unique index `payments_provider_checkout_ref_uidx` on `(provider, provider_checkout_ref) WHERE provider_checkout_ref IS NOT NULL`.
 4. Callback receipt: `UNIQUE(provider, event_fingerprint)`; receipt uses conflict-ignoring upsert, then re-applies the idempotent transaction on replay.
 5. Ownership: `UNIQUE(user_id, book_id)` on `book_entitlement`.
-6. Receipt delivery: `UNIQUE(order_id, template_key)` in `order_email_outbox`, plus Resend key `order-confirmation/<orderId>`. Automatic send/retry stops before the provider's 24-hour idempotency boundary; aged rows become `dead` for manual handling. `prepare_order_email_send` rechecks that the Order is still paid immediately before the external send and suppresses a refund that wins after claim.
+6. Open checkout: partial `UNIQUE(user_id, book_id) WHERE status='pending'` on `orders`. A concurrent/replayed request receives the existing intent with `created=false`; the Edge handler returns `409 checkout_in_progress` before a second provider handoff. A terminal Order permits a fresh intent.
+7. Receipt delivery: `UNIQUE(order_id, template_key)` in `order_email_outbox`, plus Resend key `order-confirmation/<orderId>`. Automatic send/retry stops before the provider's 24-hour idempotency boundary; aged rows become `dead` for manual handling. `prepare_order_email_send` rechecks that the Order is still paid and atomically fences `processing → sending` immediately before the external call. A refund that wins before the fence suppresses delivery; a fenced historical confirmation may finish, and its copy points to current Library state. Active `sending` rows are never swept by another cron, stale rows recover through the same provider idempotency key, and every worker transition verifies its expected-state compare-and-set matched.
 
 ## Transactional financial finalizers
 
@@ -72,12 +73,15 @@ create_checkout_intent(
   p_provider text,
   p_provider_merchant_ref text,
   p_payment_method text DEFAULT 'credit'
-) → jsonb  -- { "order": <row>, "payment": <row> }
+) → jsonb  -- { "created": boolean, "order": <row>, "payment": <row> }
 ```
 
 The RPC re-reads and locks a released positive-price catalog row, snapshots its
 name/revision/amount/currency, and inserts Order + `order_compliance` + Payment
 in one transaction. Launch mappings are exact: USD → PayPal and TWD → ECPay.
+The partial open-intent constraint serializes concurrent retries; `created=false`
+returns the existing server rows only so the handler can refuse a duplicate
+provider handoff.
 The payment-method snapshot is likewise exact: PayPal records `paypal` (the
 hosted provider channel, never an inferred funding source) and ECPay records
 `credit` for its fixed credit-card checkout.

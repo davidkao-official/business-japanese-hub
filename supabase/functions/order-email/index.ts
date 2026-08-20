@@ -14,7 +14,6 @@ Deno.serve(async (req) => {
     ? createResendEmailSender(env)
     : { send: async () => ({ ok: false, errorCode: 'not_configured', retryable: false }) };
   const request = toHandlerRequest(req);
-  request.bodyText = await req.text();
   return toResponse(await handleOrderEmail(request, {
     env,
     db,

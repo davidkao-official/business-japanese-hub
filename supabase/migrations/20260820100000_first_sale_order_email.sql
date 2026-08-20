@@ -72,6 +72,12 @@ grant execute on function public.orders_immutable_fields_check() to service_role
 comment on table public.orders is
   'Purchase intent ledger. Catalog, price, compliance, customer-email, and customer-locale snapshots are immutable after creation; orchestration only updates status/paid_at/refunded_at.';
 
+-- A browser retry or concurrent tab must not create two provider handoffs for
+-- the same Book. Terminal Orders leave the predicate and permit a fresh intent.
+create unique index if not exists orders_one_open_checkout_uidx
+  on public.orders (user_id, book_id)
+  where status = 'pending';
+
 -- ---------------------------------------------------------------------------
 -- 2. Atomic service-role-only checkout intent creation.
 --    The trusted Edge handler supplies canonical legal evidence and identity;
@@ -115,7 +121,8 @@ begin
      or v_email !~ '^[^[:space:]@]+@[^[:space:]@]+$' then
     raise exception 'valid customer email is required';
   end if;
-  if p_customer_locale_snapshot not in ('ja', 'en', 'zh-TW') then
+  if p_customer_locale_snapshot is null
+     or p_customer_locale_snapshot not in ('ja', 'en', 'zh-TW') then
     raise exception 'supported customer locale is required';
   end if;
   if p_jurisdiction not in ('TW', 'JP') then
@@ -179,7 +186,30 @@ begin
     p_user_id, v_catalog.book_id, v_catalog.item_name, v_catalog.published_revision,
     v_catalog.amount_minor, v_catalog.currency, 'pending', p_jurisdiction,
     p_japan_tax_status_snapshot, v_email, p_customer_locale_snapshot
-  ) returning * into v_order;
+  ) on conflict (user_id, book_id) where status = 'pending'
+    do nothing
+  returning * into v_order;
+
+  if not found then
+    select * into v_order
+      from public.orders
+     where user_id = p_user_id
+       and book_id = p_book_id
+       and status = 'pending';
+    select * into v_payment
+      from public.payments
+     where order_id = v_order.id
+     order by created_at, id
+     limit 1;
+    if v_order.id is null or v_payment.id is null then
+      raise exception 'existing checkout intent is incomplete';
+    end if;
+    return jsonb_build_object(
+      'created', false,
+      'order', to_jsonb(v_order),
+      'payment', to_jsonb(v_payment)
+    );
+  end if;
 
   insert into public.order_compliance (
     order_id, jurisdiction, locale, notice_version, consent_version,
@@ -198,7 +228,11 @@ begin
     v_catalog.amount_minor, v_catalog.currency, p_payment_method, 'created'
   ) returning * into v_payment;
 
-  return jsonb_build_object('order', to_jsonb(v_order), 'payment', to_jsonb(v_payment));
+  return jsonb_build_object(
+    'created', true,
+    'order', to_jsonb(v_order),
+    'payment', to_jsonb(v_payment)
+  );
 end;
 $$;
 
@@ -222,7 +256,7 @@ create table public.order_email_outbox (
   locale              text check (locale is null or length(btrim(locale)) > 0),
   template_key        text not null default 'order-confirmation-v1',
   status              text not null default 'pending'
-    check (status in ('pending', 'processing', 'retry', 'sent', 'dead')),
+    check (status in ('pending', 'processing', 'sending', 'retry', 'sent', 'dead')),
   attempt_count       integer not null default 0 check (attempt_count >= 0),
   next_attempt_at     timestamptz,
   locked_at           timestamptz,
@@ -239,7 +273,7 @@ create index order_email_outbox_due_idx
   where status in ('pending', 'retry');
 create index order_email_outbox_stale_idx
   on public.order_email_outbox (locked_at)
-  where status = 'processing';
+  where status in ('processing', 'sending');
 
 comment on table public.order_email_outbox is
   'Server-only transactional-email outbox. First fulfillment enqueues one immutable order-confirmation key; retries stop before the provider idempotency window expires.';
@@ -408,7 +442,7 @@ begin
        outbox.status in ('pending', 'retry')
        and coalesce(outbox.next_attempt_at, outbox.created_at) <= p_now
      ) or (
-       outbox.status = 'processing'
+       outbox.status in ('processing', 'sending')
        and outbox.locked_at <= p_now - interval '10 minutes'
      )
      order by outbox.created_at, outbox.id
@@ -441,7 +475,7 @@ begin
   into v_result
   from updated
   join public.orders orders on orders.id = updated.order_id
-  join lateral (
+  left join lateral (
     select payments.provider, payments.method
       from public.payments payments
      where payments.order_id = orders.id
@@ -459,8 +493,10 @@ revoke all on function public.claim_order_email_jobs(integer,timestamptz) from a
 revoke all on function public.claim_order_email_jobs(integer,timestamptz) from authenticated;
 grant execute on function public.claim_order_email_jobs(integer,timestamptz) to service_role;
 
--- Recheck the authoritative Order immediately before the external send. The
--- RPC also closes a claimed job as dead when a refund won the race after claim.
+-- Recheck the authoritative Order and establish the durable `sending` fence
+-- immediately before the external call. A refund that wins before this lock
+-- closes the job; one that commits after the fence cannot erase in-flight send
+-- evidence from a concurrent cron.
 create or replace function public.prepare_order_email_send(p_job_id uuid)
 returns boolean
 language plpgsql
@@ -482,7 +518,12 @@ begin
     from public.orders
    where id = v_order_id
    for key share;
-  if v_order_status = 'paid' then return true; end if;
+  if v_order_status = 'paid' then
+    update public.order_email_outbox
+       set status = 'sending'
+     where id = p_job_id and status = 'processing';
+    return found;
+  end if;
 
   update public.order_email_outbox
      set status = 'dead',

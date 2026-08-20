@@ -91,7 +91,10 @@ export async function handleOrderStatus(
       payment?.provider === 'ecpay' || payment?.provider === 'paypal'
         ? (payment.provider as PaymentProvider)
         : null,
-    paymentMethod: payment?.method ?? null,
+    paymentMethod:
+      payment?.method === 'credit' || payment?.method === 'paypal'
+        ? payment.method
+        : null,
     deliveryMethod: 'library',
     deliveryStatus:
       order.status === 'paid' ? 'available' : order.status === 'refunded' ? 'revoked' : 'pending',

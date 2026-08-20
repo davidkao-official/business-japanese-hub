@@ -326,6 +326,13 @@ async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerRes
     const paymentRow = created.payment;
     orderId = orderRow.id;
     paymentId = paymentRow.id;
+    if (!created.created) {
+      return jsonResult(409, {
+        error: 'checkout is already in progress for this book',
+        reason: 'checkout_in_progress',
+        orderId,
+      });
+    }
     const snapshotAmountMinor = Number(orderRow.amount_minor);
     const snapshotCurrency = String(orderRow.currency);
     const snapshotItemName = String(orderRow.item_name_snapshot);
@@ -459,6 +466,7 @@ export async function readJapanTaxStatus(db: DbClient): Promise<JapanConsumption
 }
 
 interface AtomicCheckoutIntent {
+  created: boolean;
   order: {
     id: string;
     item_name_snapshot: string;
@@ -503,22 +511,38 @@ async function createAtomicCheckoutIntent(
     if (!error && data) {
       const order = data.order;
       const payment = data.payment;
+      const orderRecord = order as Record<string, unknown> | null;
+      const paymentRecord = payment as Record<string, unknown> | null;
+      const amountMinor = Number(orderRecord?.amount_minor);
       if (
+        typeof data.created !== 'boolean' ||
         !order ||
         typeof order !== 'object' ||
         !payment ||
         typeof payment !== 'object' ||
-        typeof (order as Record<string, unknown>).id !== 'string' ||
-        typeof (payment as Record<string, unknown>).id !== 'string'
+        typeof orderRecord?.id !== 'string' ||
+        typeof orderRecord.item_name_snapshot !== 'string' ||
+        !orderRecord.item_name_snapshot.trim() ||
+        !Number.isSafeInteger(amountMinor) ||
+        amountMinor <= 0 ||
+        typeof orderRecord.currency !== 'string' ||
+        !/^[A-Z]{3}$/.test(orderRecord.currency) ||
+        typeof paymentRecord?.id !== 'string' ||
+        typeof paymentRecord.provider_merchant_ref !== 'string' ||
+        !paymentRecord.provider_merchant_ref.trim()
       ) {
         throw new Error('create_checkout_intent returned invalid rows');
       }
       return {
+        created: data.created,
         order: order as unknown as AtomicCheckoutIntent['order'],
         payment: payment as unknown as PaymentRow,
       };
     }
-    if (error && !isMerchantRefCollision(error.message)) {
+    if (!error) {
+      throw new Error('create_checkout_intent returned no rows');
+    }
+    if (!isMerchantRefCollision(error.message)) {
       throw new Error(`create_checkout_intent failed: ${error.message}`);
     }
     deps.log.warn({ merchantReference: merchantRef }, 'merchant reference collision; regenerating');

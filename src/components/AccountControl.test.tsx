@@ -1,5 +1,5 @@
 import { fireEvent, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { renderWithAppProviders } from '../test/appProviders'
 import { AccountControl } from './AccountControl'
 
@@ -21,5 +21,17 @@ describe('AccountControl', () => {
 
     expect(await screen.findByText('reader@example.com')).toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'ログイン' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the account visible and reports a generic error when sign-out fails', async () => {
+    const { authClient } = renderWithAppProviders(<AccountControl />, {
+      session: { id: 'u-1', email: 'reader@example.com' },
+    })
+    authClient.signOut = vi.fn().mockRejectedValue(new Error('provider details must stay hidden'))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ログアウト' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('認証できませんでした')
+    expect(screen.getByText('reader@example.com')).toBeInTheDocument()
   })
 })

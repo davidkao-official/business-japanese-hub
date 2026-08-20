@@ -93,4 +93,34 @@ describe('order confirmation email', () => {
       reply_to: 'support@example.com',
     });
   });
+
+  it.each([
+    ['ja', 'ECPay / クレジットカード'],
+    ['zh-TW', 'ECPay / 信用卡'],
+  ])('localizes the credit-card method in %s', (locale, expected) => {
+    const message = buildOrderConfirmationEmail(
+      { ...FACTS, locale, provider: 'ecpay', paymentMethod: 'credit' },
+      testEnv(),
+    );
+    expect(message.text).toContain(expected);
+  });
+
+  it('aborts a stalled Resend request at the bounded deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetcher = vi.fn((_input: string, init?: { signal?: AbortSignal }) =>
+        new Promise<never>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        }));
+      const env = testEnv();
+      const send = createResendEmailSender(env, fetcher).send(buildOrderConfirmationEmail(FACTS, env));
+
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      await expect(send).resolves.toEqual({ ok: false, errorCode: 'request_timeout', retryable: true });
+      expect(fetcher.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

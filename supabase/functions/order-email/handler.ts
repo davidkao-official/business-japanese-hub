@@ -27,11 +27,13 @@ export const ORDER_EMAIL_CLAIM_LIMIT = 20;
 export const ORDER_EMAIL_IDEMPOTENCY_WINDOW_MS = 24 * 60 * 60 * 1000;
 export const ORDER_EMAIL_SEND_CUTOFF_MARGIN_MS = 60 * 1000;
 
-export interface ClaimedOrderEmailJob extends OrderConfirmationFacts {
+export interface ClaimedOrderEmailJob extends Omit<OrderConfirmationFacts, 'provider' | 'paymentMethod'> {
   jobId: string;
   templateKey: string;
   createdAt: string;
   attemptCount: number;
+  provider: string | null;
+  paymentMethod: string | null;
 }
 
 export interface OrderEmailHandlerDeps {
@@ -107,6 +109,13 @@ async function processJob(
     });
   }
 
+  if (!job.provider || !job.paymentMethod) {
+    return transition(deps, job, 'dead', {
+      last_error_code: 'missing_payment_snapshot',
+      next_attempt_at: null,
+    });
+  }
+
   const { data: sendReady, error: sendReadyError } = await deps.db.rpc(
     'prepare_order_email_send',
     { p_job_id: job.jobId },
@@ -128,7 +137,10 @@ async function processJob(
 
   let result: EmailSendResult;
   try {
-    const message = buildOrderConfirmationEmail(job, deps.env);
+    const message = buildOrderConfirmationEmail(
+      { ...job, provider: job.provider, paymentMethod: job.paymentMethod },
+      deps.env,
+    );
     result = await deps.sender.send(message);
   } catch {
     result = { ok: false, errorCode: 'render_error', retryable: false };
@@ -140,7 +152,7 @@ async function processJob(
       sent_at: now.toISOString(),
       last_error_code: null,
       next_attempt_at: null,
-    });
+    }, 'sending');
   }
 
   const errorCode = normalizeErrorCode(result.errorCode);
@@ -150,12 +162,12 @@ async function processJob(
     return transition(deps, job, 'dead', {
       last_error_code: errorCode,
       next_attempt_at: null,
-    });
+    }, 'sending');
   }
   return transition(deps, job, 'retry', {
     last_error_code: errorCode,
     next_attempt_at: nextAttempt.toISOString(),
-  });
+  }, 'sending');
 }
 
 async function transition(
@@ -163,13 +175,16 @@ async function transition(
   job: ClaimedOrderEmailJob,
   state: 'sent' | 'retry' | 'dead',
   fields: Record<string, unknown>,
+  expectedStatus: 'processing' | 'sending' = 'processing',
 ): Promise<{ ok: true; state: typeof state } | { ok: false }> {
-  const { error } = await deps.db
+  const { data, error } = await deps.db
     .from('order_email_outbox')
     .update({ status: state, locked_at: null, ...fields })
     .eq('id', job.jobId)
-    .eq('status', 'processing');
-  if (error) {
+    .eq('status', expectedStatus)
+    .select('id')
+    .maybeSingle();
+  if (error || !data) {
     deps.log.error({ jobId: job.jobId, orderId: job.orderId, state, errorCode: 'transition_failed' }, 'order-email transition failed');
     return { ok: false };
   }

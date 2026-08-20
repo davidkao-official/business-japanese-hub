@@ -1,11 +1,12 @@
 begin;
 
-select plan(61);
+select plan(77);
 
 select has_column('public', 'catalog', 'item_name', 'catalog has an authoritative sellable item name');
 select col_not_null('public', 'catalog', 'item_name', 'catalog item name is required');
 select has_column('public', 'orders', 'customer_email_snapshot', 'orders freeze the delivery email');
 select has_column('public', 'orders', 'customer_locale_snapshot', 'orders freeze the buyer-facing locale');
+select ok(to_regclass('public.orders_one_open_checkout_uidx') is not null, 'one open checkout intent is enforced per user and Book');
 select has_table('public', 'order_email_outbox', 'server-only order-email outbox exists');
 select ok(not has_table_privilege('anon', 'public.order_email_outbox', 'select'), 'anon cannot read email jobs');
 select ok(not has_table_privilege('authenticated', 'public.order_email_outbox', 'select'), 'authenticated cannot read email jobs');
@@ -83,6 +84,7 @@ insert into public.catalog (
   book_id, slug, item_name, currency, amount_minor, published_revision, released_at
 ) values
   ('book-usd', 'book-usd', 'Business Meetings', 'USD', 1200, 'book-usd@r1', '2020-01-01T00:00:00Z'),
+  ('book-usd-2', 'book-usd-2', 'Business Meetings II', 'USD', 1500, 'book-usd-2@r1', '2020-01-01T00:00:00Z'),
   ('book-twd', 'book-twd', '商務日語', 'TWD', 79000, 'book-twd@r1', '2020-01-01T00:00:00Z'),
   ('book-future', 'book-future', 'Future Book', 'USD', 1200, 'book-future@r1', '2099-01-01T00:00:00Z');
 
@@ -94,7 +96,7 @@ select public.create_checkout_intent(
   '2026-08-20T10:00:00Z', 'paypal', 'ORDER-US-1', 'paypal'
 ) as result;
 
-select ok((select result->'order'->>'id' is not null from checkout_result), 'atomic RPC returns the created order');
+select ok((select (result->>'created')::boolean and result->'order'->>'id' is not null from checkout_result), 'atomic RPC returns the created order');
 select results_eq(
   $$ select item_name_snapshot, customer_email_snapshot, customer_locale_snapshot, amount_minor, currency
        from public.orders where book_id = 'book-usd' $$,
@@ -139,9 +141,28 @@ select throws_ok(
   'currency/provider mismatch is rejected inside the transaction'
 );
 select is((select count(*) from public.payments where provider_merchant_ref = 'BAD-US-1'), 0::bigint, 'rejected mapping writes no payment');
+select is(
+  (public.create_checkout_intent(
+    '50000000-0000-0000-0000-000000000001', 'book-usd', 'reader@example.com', 'en',
+    'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
+    now(), 'paypal', 'ORDER-US-1', 'paypal'
+  )->>'created')::boolean,
+  false,
+  'a concurrent checkout reuses the one open intent without a second provider handoff'
+);
+select is(
+  (select count(*) from public.orders where book_id = 'book-usd'),
+  1::bigint,
+  'a repeated checkout creates no second Order'
+);
+select is(
+  (select count(*) from public.payments where order_id = (select id from public.orders where book_id = 'book-usd')),
+  1::bigint,
+  'a repeated checkout creates no second Payment'
+);
 select throws_like(
   $$ select public.create_checkout_intent(
-    '50000000-0000-0000-0000-000000000001', 'book-usd', 'reader@example.com', 'en',
+    '50000000-0000-0000-0000-000000000001', 'book-usd-2', 'reader@example.com', 'en',
     'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
     now(), 'paypal', 'ORDER-US-1', 'paypal'
   ) $$,
@@ -149,9 +170,18 @@ select throws_like(
   'a late Payment constraint failure aborts the atomic checkout RPC'
 );
 select is(
-  (select count(*) from public.orders where book_id = 'book-usd'),
-  1::bigint,
+  (select count(*) from public.orders where book_id = 'book-usd-2'),
+  0::bigint,
   'a Payment insert failure rolls back its Order and compliance rows'
+);
+select throws_ok(
+  $$ select public.create_checkout_intent(
+    '50000000-0000-0000-0000-000000000001', 'book-usd-2', 'reader@example.com', null,
+    'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
+    now(), 'paypal', 'ORDER-US-NULL-LOCALE', 'paypal'
+  ) $$,
+  'P0001', 'supported customer locale is required',
+  'new checkout cannot bypass the presentation-locale contract with SQL NULL'
 );
 select throws_ok(
   $$ select public.create_checkout_intent(
@@ -166,10 +196,18 @@ select is((select count(*) from public.payments where provider_merchant_ref = 'F
 select ok(
   (public.create_checkout_intent(
     '50000000-0000-0000-0000-000000000001', 'book-twd', 'reader@example.com', 'zh-TW',
-    'TW', 'unresolved', 'zh-TW', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
+    'JP', 'taxable', 'ja', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
     now(), 'ecpay', 'ORDER-TW-1', 'credit'
   )->'payment'->>'id') is not null,
   'TWD catalog price maps to ECPay'
+);
+select results_eq(
+  $$ select orders.customer_locale_snapshot, compliance.locale
+       from public.orders orders
+       join public.order_compliance compliance on compliance.order_id = orders.id
+      where orders.book_id = 'book-twd' $$,
+  $$ values ('zh-TW'::text, 'ja'::text) $$,
+  'buyer-facing and fixed legal-copy locales remain distinct in the atomic RPC'
 );
 
 select is(
@@ -181,6 +219,11 @@ select is(
   'first verified payment success grants access'
 );
 select is((select count(*) from public.order_email_outbox where order_id = (select id from public.orders where book_id = 'book-usd')), 1::bigint, 'first fulfillment enqueues exactly one receipt');
+select is(
+  (select locale from public.order_email_outbox where order_id = (select id from public.orders where book_id = 'book-usd')),
+  'en'::text,
+  'outbox snapshots the buyer-facing locale'
+);
 select is(
   (public.finalize_payment_success(
     (select id from public.payments where provider_merchant_ref = 'ORDER-US-1'),
@@ -251,17 +294,37 @@ select is(
   true,
   'a second order is fulfilled before the refund-race claim test'
 );
+select is(
+  (select locale from public.order_email_outbox where order_id = (select id from public.orders where book_id = 'book-twd')),
+  'zh-TW'::text,
+  'outbox keeps the buyer-facing locale rather than the JP legal-copy locale'
+);
+create temporary table due_claim as
+select public.claim_order_email_jobs(20, '2026-08-20T12:00:00Z') as result;
+select is(jsonb_array_length((select result from due_claim)), 2, 'both due email jobs are claimed once');
+select is(
+  (select claimed->>'locale'
+     from due_claim, jsonb_array_elements(result) claimed
+    where claimed->>'orderId' = (select id::text from public.orders where book_id = 'book-twd')),
+  'zh-TW'::text,
+  'the claimed email keeps the buyer-facing locale rather than the JP legal-copy locale'
+);
 update public.payments set status = 'refunded'
  where provider_merchant_ref = 'ORDER-TW-1';
 update public.orders set status = 'refunded', refunded_at = '2026-08-20T11:57:00Z'
  where book_id = 'book-twd';
-
-select is(jsonb_array_length(public.claim_order_email_jobs(20, '2026-08-20T12:00:00Z')), 1, 'due email job is claimed once');
+select is(
+  public.prepare_order_email_send(
+    (select id from public.order_email_outbox where order_id = (select id from public.orders where book_id = 'book-twd'))
+  ),
+  false,
+  'a refund completed after claim but before the send fence suppresses delivery'
+);
 select results_eq(
   $$ select status, last_error_code from public.order_email_outbox
       where order_id = (select id from public.orders where book_id = 'book-twd') $$,
   $$ values ('dead'::text, 'order_no_longer_paid'::text) $$,
-  'a refund completed before claim suppresses stale access-confirmation email'
+  'the pre-fence refund suppression is durable'
 );
 select results_eq(
   $$ select status, attempt_count from public.order_email_outbox
@@ -275,22 +338,77 @@ where order_id = (select id from public.orders where book_id = 'book-usd');
 select is(jsonb_array_length(public.claim_order_email_jobs(20, '2026-08-20T12:01:00Z')), 1, 'stale claim is recovered');
 select is((select attempt_count from public.order_email_outbox where order_id = (select id from public.orders where book_id = 'book-usd')), 2, 'stale recovery increments the attempt count exactly once');
 
+select is(
+  public.prepare_order_email_send(
+    (select id from public.order_email_outbox where order_id = (select id from public.orders where book_id = 'book-usd'))
+  ),
+  true,
+  'a paid Order establishes the immediate durable send fence'
+);
+
 update public.payments set status = 'refunded'
  where provider_merchant_ref = 'ORDER-US-1';
 update public.orders set status = 'refunded', refunded_at = '2026-08-20T12:01:30Z'
  where book_id = 'book-usd';
 select is(
+  jsonb_array_length(public.claim_order_email_jobs(20, '2026-08-20T12:02:00Z')),
+  0,
+  'a concurrent cron does not sweep an active fenced send after refund'
+);
+select is(
+  (select status from public.order_email_outbox where order_id = (select id from public.orders where book_id = 'book-usd')),
+  'sending'::text,
+  'the durable sending fence survives a refund that loses the ordering race'
+);
+update public.order_email_outbox set locked_at = '2026-08-20T11:40:00Z'
+where order_id = (select id from public.orders where book_id = 'book-usd');
+select is(
+  jsonb_array_length(public.claim_order_email_jobs(20, '2026-08-20T12:02:00Z')),
+  1,
+  'a stale fenced send is safely recovered under the provider idempotency key'
+);
+select is(
   public.prepare_order_email_send(
     (select id from public.order_email_outbox where order_id = (select id from public.orders where book_id = 'book-usd'))
   ),
   false,
-  'a refund committed after claim fails the immediate pre-send reservation'
+  'recovered fenced work rechecks the refund before another external send'
 );
 select results_eq(
   $$ select status, last_error_code from public.order_email_outbox
       where order_id = (select id from public.orders where book_id = 'book-usd') $$,
   $$ values ('dead'::text, 'order_no_longer_paid'::text) $$,
   'the pre-send refund race is durably suppressed'
+);
+
+insert into public.orders (
+  id, user_id, book_id, item_name_snapshot, published_revision, amount_minor,
+  currency, status, jurisdiction, japan_tax_status_snapshot,
+  customer_email_snapshot, customer_locale_snapshot, paid_at
+) values (
+  '60000000-0000-0000-0000-000000000002',
+  '50000000-0000-0000-0000-000000000001',
+  'missing-payment-book', 'Missing Payment Book', 'missing-payment-book@r1', 1200,
+  'USD', 'paid', 'TW', 'unresolved', 'reader@example.com', 'en', '2026-08-20T11:58:00Z'
+);
+insert into public.payments (
+  order_id, provider, provider_merchant_ref, amount_minor, currency, method, status
+) values (
+  '60000000-0000-0000-0000-000000000002',
+  'paypal', 'ORDER-MISSING-PAYMENT', 1200, 'USD', 'paypal', 'failed'
+);
+insert into public.order_email_outbox (
+  order_id, recipient_email, locale, template_key, status, next_attempt_at
+) values (
+  '60000000-0000-0000-0000-000000000002',
+  'reader@example.com', 'en', 'order-confirmation-v1', 'pending', '2026-08-20T11:59:00Z'
+);
+create temporary table missing_payment_claim as
+select public.claim_order_email_jobs(20, '2026-08-20T12:03:00Z') as result;
+select is(jsonb_array_length((select result from missing_payment_claim)), 1, 'a claimed job is never dropped by a missing succeeded payment join');
+select ok(
+  (select result->0->'provider' = 'null'::jsonb and result->0->'paymentMethod' = 'null'::jsonb from missing_payment_claim),
+  'missing payment facts are returned as null for fail-closed worker handling'
 );
 
 select * from finish();

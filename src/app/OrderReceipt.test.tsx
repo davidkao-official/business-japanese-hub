@@ -153,4 +153,13 @@ describe('OrderReceipt — renders from the server snapshot', () => {
     expect(screen.queryByText('決済確認後、ライブラリへ即時配信')).not.toBeInTheDocument();
     expect(screen.queryByText('完了')).not.toBeInTheDocument();
   });
+
+  it.each(['pending', 'cancelled'] as const)('does not render a fulfilled receipt for a %s order', (status) => {
+    const { container } = render(
+      <OrderReceipt
+        order={order({ status, paymentStatus: status === 'pending' ? 'pending' : 'failed', deliveryStatus: 'pending' })}
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
 });

@@ -48,6 +48,7 @@ export function isJapanTaxInclusive(order: OrderStatusResponse): boolean {
 export function OrderReceipt({ order }: { order: OrderStatusResponse }) {
   const strings = useStrings();
   const isRefunded = order.status === 'refunded' || order.deliveryStatus === 'revoked';
+  if (order.status !== 'paid' && !isRefunded) return null;
   const paymentMethod = order.paymentProvider?.toLowerCase() === 'paypal'
     ? 'PayPal'
     : [order.paymentProvider === 'ecpay' ? 'ECPay' : order.paymentProvider, order.paymentMethod]
