@@ -34,7 +34,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 2.75rem; /* 44px touch target (research §4.5 house target) */
+  min-height: var(--control-min-h);
   padding: var(--space-2) var(--space-5);
   border-radius: var(--radius-sm);
   border: var(--stroke-thin) solid transparent;
@@ -154,7 +154,7 @@
 
 .auth-panel__field input {
   width: 100%;
-  min-height: 2.75rem; /* 44px touch target (research §4.5 house target) */
+  min-height: var(--control-min-h);
   padding: var(--space-2) var(--space-3);
   border: var(--stroke-thin) solid var(--color-border-strong);
   border-radius: var(--radius-sm);
