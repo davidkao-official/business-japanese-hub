@@ -60,6 +60,7 @@ function createAppServices(): {
  */
 export default function App() {
   const services = useMemo(() => createAppServices(), [])
+  const routerBasename = import.meta.env.BASE_URL.replace(/\/+$/, '') || '/'
   // The real #9 checkout executor, wired behind the provider-neutral purchase
   // seam. Jurisdiction is an explicit consumer self-declaration (never locale-
   // derived); the executor's fail-closed gate requires it. Without a configured
@@ -72,7 +73,7 @@ export default function App() {
       <AuthProvider authClient={services.authClient}>
         <UserStateProvider repository={services.repository}>
           <PurchaseProvider executor={purchaseExecutor}>
-            <BrowserRouter>
+            <BrowserRouter basename={routerBasename}>
               <Routes>
                 <Route element={<Layout />}>
                   <Route index element={<HomePage />} />

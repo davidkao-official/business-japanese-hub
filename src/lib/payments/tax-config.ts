@@ -6,7 +6,7 @@
  * resolved `taxable` status adds 10%. The authoritative status is a server-side
  * config; clients must not override it.
  */
-import type { JapanConsumptionTaxStatus } from './contract';
+import type { JapanConsumptionTaxStatus } from './contract.ts';
 
 /** Tax rate applied for a resolved Japan taxable status (electronic books: 10%). */
 export const JAPAN_CONSUMPTION_TAX_RATE = 0.1;

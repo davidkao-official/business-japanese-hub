@@ -35,11 +35,11 @@ import {
   type ReconciliationRange,
   type RefundInput,
   type VerifiedProviderEvent,
-} from '../contract';
-import { isSafeMoney, minorUnitFor } from '../money';
-import { ecpayCheckMac, sha256Hex, verifyCheckMac } from './checkmac';
-import { resolveEcpayEnv, type EcpayEnv, type EcpayUrls } from './urls';
-import type { EcpayCallbackForm, EcpayCheckoutParams, EcpayLanguage } from './types';
+} from '../contract.ts';
+import { isSafeMoney, minorUnitFor } from '../money.ts';
+import { ecpayCheckMac, sha256Hex, verifyCheckMac } from './checkmac.ts';
+import { resolveEcpayEnv, type EcpayEnv, type EcpayUrls } from './urls.ts';
+import type { EcpayCallbackForm, EcpayCheckoutParams, EcpayLanguage } from './types.ts';
 
 /* ------------------------------------------------------------------------- *
  * Constants / errors

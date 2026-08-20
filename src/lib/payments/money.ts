@@ -7,10 +7,10 @@
  * code (see `src/content/iso4217.ts`).
  */
 
-import { isCurrentIso4217Code } from '../../content/iso4217';
-import type { Money } from './contract';
+import { isCurrentIso4217Code } from '../../content/iso4217.ts';
+import type { Money } from './contract.ts';
 
-export { isSafeMoney } from './contract';
+export { isSafeMoney } from './contract.ts';
 
 const MINOR_UNITS: Record<string, number> = {
   JPY: 1, // zero-decimal currency

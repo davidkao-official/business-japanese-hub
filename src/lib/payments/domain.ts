@@ -6,8 +6,8 @@
  * to the ECPay adapter (A3) — not here.
  */
 
-import { moneyEquals } from './money';
-import type { Order, PaymentAttempt, PaymentProvider, ProviderPaymentSnapshot, Refund } from './contract';
+import { moneyEquals } from './money.ts';
+import type { Order, PaymentAttempt, PaymentProvider, ProviderPaymentSnapshot, Refund } from './contract.ts';
 
 /**
  * Thrown when a currency has no approved payment provider (e.g. JPY before #20).

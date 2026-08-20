@@ -12,7 +12,7 @@
  * these shared contracts on their own.
  */
 
-import type { Locale } from '../../i18n/locales';
+import type { Locale } from '../../i18n/locales.ts';
 
 /* ------------------------------------------------------------------------- *
  * Money (§8.1)

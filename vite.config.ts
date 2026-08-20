@@ -38,18 +38,36 @@ function themeColorPlugin(): Plugin {
   }
 }
 
+/**
+ * Resolve the public deployment path. Local builds default to `/`; production
+ * project sites such as GitHub Pages provide an absolute path-only base.
+ */
+export function resolveDeploymentBase(raw: string | undefined): string {
+  const candidate = raw?.trim() || '/'
+  if (!candidate.startsWith('/') || candidate.includes('?') || candidate.includes('#')) {
+    throw new Error('DEPLOY_BASE_PATH must be an absolute path such as /business-japanese-hub/')
+  }
+  const segments = candidate.split('/').filter(Boolean)
+  if (
+    segments.some(
+      (segment) =>
+        segment === '.' ||
+        segment === '..' ||
+        !/^[A-Za-z0-9._~-]+$/.test(segment),
+    )
+  ) {
+    throw new Error('DEPLOY_BASE_PATH contains an unsafe path segment')
+  }
+  return segments.length === 0 ? '/' : `/${segments.join('/')}/`
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), themeColorPlugin()],
-  // Deployment base contract: the app is deployed at the site root, so assets
-  // use an absolute base (`/assets/...`). `BrowserRouter` in src/App.tsx has no
-  // basename, matching this root base. A nested-route direct load or refresh
-  // (e.g. `/books/:slug`) therefore resolves assets from the root instead of
-  // beneath the current document path. The host must still serve index.html as
-  // the SPA fallback for unknown routes. If the app is ever hosted under a
-  // sub-path, `base` here and the `<BrowserRouter basename>` must both change
-  // together. See src/deploy-base.test.ts for the regression guard.
-  base: '/',
+  // `BASE_URL` is derived from this value and is also used as BrowserRouter's
+  // basename. GitHub Pages sets the repository project path; local and custom-
+  // domain builds keep the root default. See src/deploy-base.test.ts.
+  base: resolveDeploymentBase(process.env.DEPLOY_BASE_PATH),
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
