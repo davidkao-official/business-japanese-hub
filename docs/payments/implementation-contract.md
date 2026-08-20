@@ -88,10 +88,13 @@ for authoritative verification instead of risking a second provider Order.
 ECPay does not provide a replay contract: the handler may claim and reconstruct
 an unissued `created` form, but returns `checkout_verification_pending` once the
 attempt is `pending`/`verification_pending` rather than reusing
-`MerchantTradeNo`. That structured conflict sends the authenticated buyer to
-the existing server-authoritative order-status page. Once this RPC has returned
-commercial rows, the Edge handler never compensates by deleting them: another
-request may already have claimed the handoff, and provider/transport failures
+`MerchantTradeNo`. If pure local form generation throws before any form is
+issued, the exclusive claim is marked `failed`; the next checkout creates a
+fresh PaymentAttempt and MerchantTradeNo. That structured conflict sends the
+authenticated buyer to the existing server-authoritative order-status page. Once
+this RPC has returned commercial rows, the Edge handler never compensates by
+deleting them: another request may already have claimed the handoff, and
+provider/transport failures
 are ambiguous. The durable attempt remains available to status polling and
 repair instead of risking an orphaned real provider payment.
 `retry_created` is emitted only after the prior Payment is authoritatively

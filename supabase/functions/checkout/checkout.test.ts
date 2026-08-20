@@ -673,7 +673,7 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     expect(adapter.createCheckout).not.toHaveBeenCalled();
   });
 
-  it('provider failure after retry_created preserves the durable Order and Payment for verification', async () => {
+  it('a local ECPay form failure marks the unissued attempt failed so the next retry can use a new reference', async () => {
     const outcome = 'retry_created' as const;
     const payment = {
       ...PAYMENT_ROW,
@@ -707,11 +707,15 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       deps,
     );
 
-    expect(result.status).toBe(409);
+    expect(result.status).toBe(502);
     expect(JSON.parse(result.body)).toMatchObject({
-      reason: 'checkout_verification_pending',
+      reason: 'provider_handoff_unavailable',
       orderId: 'ord-1',
     });
+    expect(mock.callsFor('payments', 'update').some((call) =>
+      call.args[0]?.status === 'failed' &&
+      call.args[0]?.provider_status_code === 'LOCAL_HANDOFF_FAILED'
+    )).toBe(true);
     expect(mock.callsFor('payments', 'delete')).toHaveLength(0);
     expect(mock.callsFor('order_compliance', 'delete')).toHaveLength(0);
     expect(mock.callsFor('orders', 'delete')).toHaveLength(0);

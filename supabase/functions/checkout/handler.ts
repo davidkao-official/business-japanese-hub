@@ -381,6 +381,21 @@ async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerRes
       if (intent.outcome === 'resumed' && error instanceof CheckoutVerificationPendingError) {
         return checkoutVerificationPending(orderId);
       }
+      if (provider === 'ecpay' && claimedCreatedHandoff) {
+        // ECPay form creation is pure/local: if it throws, no provider request
+        // was made and no form reached the browser. This exclusively claimed
+        // attempt can therefore fail safely, allowing the next checkout RPC to
+        // create a new PaymentAttempt + MerchantTradeNo.
+        const released = await failUnissuedEcpayHandoff(deps, paymentId);
+        if (released) {
+          deps.log.warn({ orderId, paymentId }, 'unissued ECPay handoff marked failed');
+          return jsonResult(502, {
+            error: 'provider handoff could not be created',
+            reason: 'provider_handoff_unavailable',
+            orderId,
+          });
+        }
+      }
       throw error;
     }
 
@@ -440,6 +455,26 @@ async function claimCreatedPaymentHandoff(
     .select('id')
     .maybeSingle();
   if (error) throw new Error(`payment initiation CAS failed: ${error.message}`);
+  return data?.id === paymentId;
+}
+
+async function failUnissuedEcpayHandoff(
+  deps: CheckoutHandlerDeps,
+  paymentId: string,
+): Promise<boolean> {
+  const { data, error } = await deps.db
+    .from('payments')
+    .update({
+      status: 'failed',
+      provider_status_code: 'LOCAL_HANDOFF_FAILED',
+      provider_status_message: 'provider handoff was not issued',
+    })
+    .eq('id', paymentId)
+    .eq('provider', 'ecpay')
+    .eq('status', 'pending')
+    .select('id')
+    .maybeSingle();
+  if (error) throw new Error(`unissued ECPay handoff release failed: ${error.message}`);
   return data?.id === paymentId;
 }
 
