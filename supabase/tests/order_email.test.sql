@@ -1,6 +1,6 @@
 begin;
 
-select plan(84);
+select plan(86);
 
 select has_column('public', 'catalog', 'item_name', 'catalog has an authoritative sellable item name');
 select col_not_null('public', 'catalog', 'item_name', 'catalog item name is required');
@@ -85,6 +85,7 @@ insert into public.catalog (
 ) values
   ('book-usd', 'book-usd', 'Business Meetings', 'USD', 1200, 'book-usd@r1', '2020-01-01T00:00:00Z'),
   ('book-usd-2', 'book-usd-2', 'Business Meetings II', 'USD', 1500, 'book-usd-2@r1', '2020-01-01T00:00:00Z'),
+  ('book-legacy-pending', 'book-legacy-pending', 'Legacy Pending Book', 'USD', 1800, 'book-legacy-pending@r1', '2020-01-01T00:00:00Z'),
   ('book-twd', 'book-twd', '商務日語', 'TWD', 79000, 'book-twd@r1', '2020-01-01T00:00:00Z'),
   ('book-future', 'book-future', 'Future Book', 'USD', 1200, 'book-future@r1', '2099-01-01T00:00:00Z');
 
@@ -134,7 +135,7 @@ select throws_ok(
 select throws_ok(
   $$ select public.create_checkout_intent(
     '50000000-0000-0000-0000-000000000001', 'book-usd', 'reader@example.com', 'en',
-    'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
+    'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Canonical notice', 'Canonical consent',
     now(), 'ecpay', 'BAD-US-1', 'credit'
   ) $$,
   'P0001', 'currency USD requires provider paypal',
@@ -144,7 +145,7 @@ select is((select count(*) from public.payments where provider_merchant_ref = 'B
 select is(
   (public.create_checkout_intent(
     '50000000-0000-0000-0000-000000000001', 'book-usd', 'reader@example.com', 'en',
-    'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
+    'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Canonical notice', 'Canonical consent',
     now(), 'paypal', 'ORDER-US-1', 'paypal'
   )->>'outcome'),
   'resumed'::text,
@@ -213,6 +214,48 @@ select is(
   (select count(*) from public.payments where order_id = (select id from public.orders where book_id = 'book-usd-2')),
   2::bigint,
   'serialized retries leave exactly one live PaymentAttempt'
+);
+select throws_ok(
+  $$ select public.create_checkout_intent(
+    '50000000-0000-0000-0000-000000000001', 'book-usd-2', 'reader@example.com', 'en',
+    'JP', 'taxable', 'ja', 'notice-v1', 'consent-v1', true, 'Different notice', 'Different consent',
+    now(), 'paypal', 'ORDER-US-2D', 'paypal'
+  ) $$,
+  'P0001', 'existing checkout immutable evidence does not match the current authenticated checkout',
+  'a retry cannot silently reuse a different jurisdiction or consent snapshot'
+);
+insert into public.orders (
+  id, user_id, book_id, item_name_snapshot, published_revision, amount_minor,
+  currency, status, jurisdiction, japan_tax_status_snapshot,
+  customer_email_snapshot, customer_locale_snapshot
+) values (
+  '60000000-0000-0000-0000-000000000010',
+  '50000000-0000-0000-0000-000000000001',
+  'book-legacy-pending', 'Legacy Pending Book', 'book-legacy-pending@r1', 1800,
+  'USD', 'pending', 'TW', 'unresolved', 'reader@example.com', null
+);
+insert into public.order_compliance (
+  order_id, jurisdiction, locale, notice_version, consent_version,
+  consent_granted, notice_text_snapshot, consent_text_snapshot, consent_timestamp
+) values (
+  '60000000-0000-0000-0000-000000000010', 'TW', 'en', 'notice-v1', 'consent-v1',
+  true, 'Canonical notice', 'Canonical consent', now()
+);
+insert into public.payments (
+  id, order_id, provider, provider_merchant_ref, amount_minor, currency, method, status
+) values (
+  '70000000-0000-0000-0000-000000000010',
+  '60000000-0000-0000-0000-000000000010',
+  'paypal', 'ORDER-LEGACY-PENDING', 1800, 'USD', 'paypal', 'pending'
+);
+select throws_ok(
+  $$ select public.create_checkout_intent(
+    '50000000-0000-0000-0000-000000000001', 'book-legacy-pending', 'reader@example.com', 'en',
+    'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Canonical notice', 'Canonical consent',
+    now(), 'paypal', 'ORDER-LEGACY-PENDING-RETRY', 'paypal'
+  ) $$,
+  'P0001', 'existing checkout immutable evidence does not match the current authenticated checkout',
+  'a legacy pending Order without a receipt locale cannot reach provider handoff'
 );
 select throws_ok(
   $$ select public.create_checkout_intent(

@@ -707,7 +707,7 @@
 
 .receipt__row {
   display: grid;
-  grid-template-columns: minmax(7rem, 1fr) minmax(0, 2fr);
+  grid-template-columns: minmax(var(--receipt-label-min), 1fr) minmax(0, 2fr);
   gap: var(--space-3);
   padding-block: var(--space-3);
   border-bottom: var(--stroke-thin) solid var(--color-border);
@@ -736,7 +736,8 @@
   font-size: var(--text-sm);
 }
 
-@media (max-width: 35rem) {
+/* Exclusive upper edge of the documented --bp-sm (36rem) breakpoint. */
+@media (max-width: 35.99rem) {
   .receipt__row {
     grid-template-columns: 1fr;
     gap: var(--space-1);

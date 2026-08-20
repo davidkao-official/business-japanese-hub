@@ -38,7 +38,7 @@
 4. Callback receipt: `UNIQUE(provider, event_fingerprint)`; receipt uses conflict-ignoring upsert, then re-applies the idempotent transaction on replay.
 5. Ownership: `UNIQUE(user_id, book_id)` on `book_entitlement`.
 6. Open checkout: partial `UNIQUE(user_id, book_id) WHERE status='pending'` on `orders`, plus a transaction advisory lock keyed by user + Book for retry decisions. A PayPal attempt with a persisted Order id resumes by read-only GET of that exact Order after immutable-fact validation; when the id was not persisted after an ambiguous create call, POST replay is bounded to five hours (below PayPal Orders' default six-hour Request-Id retention) and older attempts are held for verification. An ECPay `created` attempt is exclusively claimed before reconstructing its not-yet-issued local form; `pending`/`verification_pending` attempts are held so a submitted `MerchantTradeNo` is never reused. An authoritatively `failed` Payment gets a new PaymentAttempt and merchant reference on the same immutable Order. Active entitlement or a paid Order returns `owned` before handoff. The migration deliberately stops with a reconciliation hint if legacy data contains duplicate pending Orders; operators must verify provider state rather than silently discard an attempt.
-7. Receipt delivery: `UNIQUE(order_id, template_key)` in `order_email_outbox`, plus Resend key `order-confirmation/<orderId>`. Automatic send/retry stops before the provider's 24-hour idempotency boundary; aged rows become `dead` for manual handling. `prepare_order_email_send` rechecks that the Order is still paid and atomically fences `processing → sending` immediately before the external call. A refund that wins before the fence suppresses delivery; a fenced historical confirmation may finish, and its copy points to current Library state. Active `sending` rows are never swept by another cron, stale rows recover through the same provider idempotency key, and every worker transition verifies its expected-state compare-and-set matched.
+7. Receipt delivery: `UNIQUE(order_id, template_key)` in `order_email_outbox`, plus Resend key `order-confirmation/<orderId>`. Automatic send/retry stops before the provider's 24-hour idempotency boundary; aged rows become `dead` for manual handling. `prepare_order_email_send` rechecks that the Order is still paid and atomically fences `processing → sending` immediately before the external call. A refund that wins before the fence suppresses delivery; a fenced historical confirmation may finish, and its copy points to current Library state. Active `sending` rows are never swept by another cron, stale rows recover through the same provider idempotency key, and every worker transition verifies its expected-state compare-and-set matched. Any 2xx response without a usable provider message id is treated as ambiguous and retried with that same key rather than dead-lettered.
 
 ## Transactional financial finalizers
 
@@ -96,6 +96,11 @@ are ambiguous. The durable attempt remains available to status polling and
 repair instead of risking an orphaned real provider payment.
 `retry_created` is emitted only after the prior Payment is authoritatively
 `failed`; it preserves the Order snapshots and creates a new PaymentAttempt.
+Every resume/retry first compares the authenticated email, presentation locale,
+jurisdiction, tax status, and complete canonical compliance evidence against
+the immutable Order. A changed declaration or legacy pending Order with missing
+receipt/compliance facts is rejected before provider handoff and requires
+operator reconciliation.
 `owned` contains no commercial rows and the Edge handler returns an
 `already_owned` conflict before provider handoff.
 The payment-method snapshot is likewise exact: PayPal records `paypal` (the

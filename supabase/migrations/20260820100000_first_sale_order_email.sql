@@ -129,6 +129,7 @@ declare
   v_catalog public.catalog%rowtype;
   v_order public.orders%rowtype;
   v_payment public.payments%rowtype;
+  v_compliance public.order_compliance%rowtype;
   v_expected_provider text;
   v_email text := lower(btrim(p_customer_email_snapshot));
 begin
@@ -267,6 +268,27 @@ begin
     end if;
     if v_order.status <> 'pending' then
       raise exception 'existing checkout Order has non-resumable status %', v_order.status;
+    end if;
+    select * into v_compliance
+      from public.order_compliance
+     where order_id = v_order.id
+       for share;
+    -- A retry may resume only the exact authenticated checkout the buyer
+    -- previously created. Never charge against a legacy/incomplete receipt
+    -- snapshot or silently reuse a different jurisdiction/consent declaration.
+    if v_order.customer_email_snapshot is distinct from v_email
+       or v_order.customer_locale_snapshot is distinct from p_customer_locale_snapshot
+       or v_order.jurisdiction is distinct from p_jurisdiction
+       or v_order.japan_tax_status_snapshot is distinct from p_japan_tax_status_snapshot
+       or v_compliance.order_id is null
+       or v_compliance.jurisdiction is distinct from p_jurisdiction
+       or v_compliance.locale is distinct from btrim(p_locale)
+       or v_compliance.notice_version is distinct from btrim(p_notice_version)
+       or v_compliance.consent_version is distinct from btrim(p_consent_version)
+       or v_compliance.consent_granted is distinct from true
+       or v_compliance.notice_text_snapshot is distinct from p_notice_text_snapshot
+       or v_compliance.consent_text_snapshot is distinct from p_consent_text_snapshot then
+      raise exception 'existing checkout immutable evidence does not match the current authenticated checkout';
     end if;
     if v_payment.provider <> v_expected_provider then
       raise exception 'existing checkout intent provider no longer matches the released catalog';

@@ -177,6 +177,7 @@
   --container-max-width: 72rem; /* 1152px */
   --container-padding: 1.25rem; /* 20px, mobile-first */
   --measure-reading: 60ch; /* comfortable line measure for long-form prose */
+  --receipt-label-min: 7rem;
   --z-header: 100;
   --z-skip-link: 1000;
 

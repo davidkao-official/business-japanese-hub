@@ -274,9 +274,16 @@ export function createResendEmailSender(env: Env, fetcher: Fetcher = fetch): Ema
       } finally {
         clearTimeout(timeout);
       }
-      if (response.ok && payload && typeof payload === 'object') {
-        const id = (payload as Record<string, unknown>).id;
-        if (typeof id === 'string' && id) return { ok: true, providerMessageId: id };
+      if (response.ok) {
+        if (payload && typeof payload === 'object') {
+          const id = (payload as Record<string, unknown>).id;
+          if (typeof id === 'string' && id.trim()) {
+            return { ok: true, providerMessageId: id.trim() };
+          }
+        }
+        // Any 2xx without a durable provider id is ambiguous: delivery may have
+        // succeeded. The stable idempotency key makes an automatic retry safe.
+        return { ok: false, errorCode: 'malformed_success_response', retryable: true };
       }
 
       const code = sanitizedErrorCode(payload, `http_${response.status}`);

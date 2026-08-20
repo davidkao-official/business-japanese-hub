@@ -59,7 +59,7 @@ describe('order confirmation email', () => {
     const fetcher = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ id: 'email-1' }),
+      json: async () => ({ id: ' email-1 ' }),
     });
     const env = testEnv({
       orderEmailProvider: 'resend',
@@ -162,6 +162,40 @@ describe('order confirmation email', () => {
     });
     expect(fetcher.mock.calls[0]?.[1]?.headers).toMatchObject({
       'Idempotency-Key': 'order-confirmation/ord-1',
+    });
+  });
+
+  it('retries valid success JSON that omits a usable provider message id', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ id: null }),
+    });
+    const env = testEnv();
+
+    await expect(
+      createResendEmailSender(env, fetcher).send(buildOrderConfirmationEmail(FACTS, env)),
+    ).resolves.toEqual({
+      ok: false,
+      errorCode: 'malformed_success_response',
+      retryable: true,
+    });
+  });
+
+  it('retries a whitespace-only provider message id instead of marking the job sent', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: vi.fn().mockResolvedValue({ id: '   ' }),
+    });
+    const env = testEnv();
+
+    await expect(
+      createResendEmailSender(env, fetcher).send(buildOrderConfirmationEmail(FACTS, env)),
+    ).resolves.toEqual({
+      ok: false,
+      errorCode: 'malformed_success_response',
+      retryable: true,
     });
   });
 });
