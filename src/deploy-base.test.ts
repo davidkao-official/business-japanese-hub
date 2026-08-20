@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { build } from 'vite';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { preparePagesOutput } from '../scripts/lib/pages';
+import { preparePagesOutput, publishedReleaseSlugs } from '../scripts/lib/pages';
 import { verifyPagesDeployment } from '../scripts/lib/pages-smoke';
 import { resolveDeploymentBase } from '../vite.config';
 
@@ -83,6 +83,19 @@ describe('deployment base contract', () => {
       expect(() => preparePagesOutput(outDir, ['released-book'])).toThrow('index.html');
     } finally {
       rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it('fails deployment on a malformed committed release instead of silently excluding it', () => {
+    const contentDir = mkdtempSync(join(tmpdir(), 'bjh-pages-catalog-'));
+    try {
+      const releaseDir = join(contentDir, 'books', 'broken-release');
+      mkdirSync(releaseDir, { recursive: true });
+      writeFileSync(join(releaseDir, 'current.json'), '{ not valid JSON', 'utf8');
+
+      expect(() => publishedReleaseSlugs(contentDir)).toThrow();
+    } finally {
+      rmSync(contentDir, { recursive: true, force: true });
     }
   });
 

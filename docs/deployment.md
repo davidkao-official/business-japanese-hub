@@ -47,7 +47,8 @@ provided by the owner. Never use `supabase db reset --linked` on production.
    deno check supabase/functions/*/index.ts
    pnpm lint
    pnpm test
-   pnpm build
+   DEPLOY_BASE_PATH=/business-japanese-hub/ pnpm build:pages
+   supabase db start
    supabase db reset --local
    supabase test db --local supabase/tests
    supabase db lint --local --schema public --level warning --fail-on error
@@ -74,7 +75,9 @@ provided by the owner. Never use `supabase db reset --linked` on production.
      `PAYPAL_WEBHOOK_ID`
    - `ORDER_EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, verified
      `ORDER_EMAIL_FROM`
-   - `PUBLIC_SITE_URL=https://davidkao-official.github.io/business-japanese-hub/`
+   - `PUBLIC_SITE_URL=<canonical public site URL for this deployment>` (default:
+     `https://davidkao-official.github.io/business-japanese-hub/`; use the exact
+     custom-domain URL when applicable)
    - `SUPPORT_EMAIL`, `LEGAL_SELLER_NAME`, and a generated
      `SCHEDULED_JOB_SECRET`
 
@@ -102,12 +105,13 @@ provided by the owner. Never use `supabase db reset --linked` on production.
    URL and confirm production email delivery. Configure the exact PayPal webhook
    URL and events from `docs/payments/implementation-contract.md`.
 
-7. Before enabling checkout, confirm the server-only scheduler readiness RPC,
-   legal/seller readiness, released catalog price, PayPal live webhook, and
-   Resend sender. Then execute one low-value paid golden path and verify Order,
-   Payment, compliance snapshots, entitlement, Library delivery, confirmation
-   email, refund/revocation, and financial reconciliation. Do not record a gate
-   as passed without live evidence.
+7. Before checkout can become available, confirm the server-only scheduler
+   readiness RPC, legal/seller readiness, released catalog price, PayPal live
+   webhook, and Resend sender. Activate the remaining fail-closed launch
+   conditions in a controlled window, execute one low-value paid golden path,
+   then verify Order, Payment, compliance snapshots, entitlement, Library
+   delivery, confirmation email, refund/revocation, and financial
+   reconciliation. Do not record a gate as passed without live evidence.
 
 ## 3. Rollback and observability
 
