@@ -47,6 +47,8 @@ function renderShellRoutes(initialEntries: string[]) {
 describe('application shell', () => {
   afterEach(() => {
     vi.restoreAllMocks()
+    vi.unstubAllEnvs()
+    window.history.replaceState(null, '', '/')
   })
   it('renders the semantic landmarks', () => {
     render(<App />)
@@ -85,6 +87,15 @@ describe('application shell', () => {
     expect(
       await screen.findByText('ログインすると、購入した書籍と読書の進捗がここに表示されます。'),
     ).toBeInTheDocument()
+  })
+
+  it('renders a direct nested route beneath the production deployment basename', async () => {
+    vi.stubEnv('BASE_URL', '/business-japanese-hub/')
+    window.history.replaceState(null, '', '/business-japanese-hub/library')
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'マイライブラリ' })).toBeInTheDocument()
   })
 
   it('surfaces the slug param on the book route', () => {

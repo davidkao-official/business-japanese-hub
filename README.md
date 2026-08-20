@@ -30,9 +30,12 @@ Business Japanese Hub 是 premium、web-first 的數位出版與學習平台，�
 
 ## 部署
 
-- **Production build**：`pnpm build` → 輸出 `dist/`（`vite.config.ts` 使用絕對 base `/`）。
-- **靜態 host 要求**：`BrowserRouter` 使用 root base，host 必須把未匹配的 route 都 serve `index.html`（SPA fallback），否則 nested route（如 `/books/:slug`）直接載入或重整會 404。
-- **CI**：`.github/workflows/ci.yml` 在每次 push 到 `main` 與每個 PR 執行 typecheck / lint / test / build。目前沒有自動部署，build 產物由 host 部署。
+- **Production build**：`pnpm build` → 輸出 `dist/`。`DEPLOY_BASE_PATH` 未設定時使用 root `/`；GitHub Pages project site 使用 `/business-japanese-hub/`。
+- **GitHub Pages artifact**：`DEPLOY_BASE_PATH=/business-japanese-hub/ pnpm build:pages` 同時產生 `dist/404.html`，讓 `BrowserRouter` nested route 直接載入／重整時仍能啟動 SPA。Router basename 與 Vite asset base 都由同一個 `BASE_URL` 驅動。
+- **自動部署**：`.github/workflows/deploy-pages.yml` 在 `main` push 後重新執行 typecheck / lint / test / build，再以 GitHub Pages 官方 artifact workflow 部署。Repository 管理者需在 Settings → Pages 將 Source 設為 **GitHub Actions** 一次；project site 預設 URL 為 `https://davidkao-official.github.io/business-japanese-hub/`。
+- **Frontend production variables**：Pages repository variables 可設定 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`、可選的 `VITE_EDGE_FUNCTIONS_BASE_URL`，以及未來 custom domain 使用的 `DEPLOY_BASE_PATH=/`。後端 `PUBLIC_SITE_URL` 必須包含相同 canonical path（目前為 `https://davidkao-official.github.io/business-japanese-hub/`）。
+- **CI**：`.github/workflows/ci.yml` 在每次 push 到 `main` 與每個 PR 執行 typecheck / lint / test / build。
 - **Public catalog 模式**：未設定 Supabase 環境變數時，平台只提供 free/public books 的匿名閱讀（Storefront → Book Detail → Universal Reader），paid purchase fail closed。Paid Launch production 必須設定 Supabase 與 server-only payment/compliance integrations，才會啟用 account／persistence／purchase 功能。
+- **Production runbook**：Pages、Supabase、secrets、migration/function 順序、live smoke、rollback 與 observability 見 [`docs/deployment.md`](docs/deployment.md)。
 
 更多細節請見 [product contract](docs/product-contract.md)。
