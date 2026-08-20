@@ -15,12 +15,14 @@ import type { Env } from '../_shared/env.ts';
 import type { DbClient } from '../_shared/db.ts';
 import type { Logger } from '../_shared/log.ts';
 import {
+  jsonResult,
   methodNotAllowed,
   redirectResult,
   type HandlerRequest,
   type HandlerResult,
 } from '../_shared/http.ts';
 import { loadPaymentByProviderCheckoutRef } from '../_shared/flow.ts';
+import { publicSiteRoute } from '../_shared/public-site.ts';
 
 export interface PaypalBrowserReturnHandlerDeps {
   env: Env;
@@ -54,6 +56,15 @@ export async function handlePaypalBrowserReturn(
     }
   }
 
-  const target = `/purchase/result${orderId ? `?order=${encodeURIComponent(orderId)}` : ''}`;
+  const target = publicSiteRoute(
+    deps.env,
+    `purchase/result${orderId ? `?order=${encodeURIComponent(orderId)}` : ''}`,
+  );
+  if (!target) {
+    return jsonResult(503, {
+      error: 'public site URL is not configured',
+      reason: 'public_site_configuration_unavailable',
+    });
+  }
   return redirectResult(target, 303);
 }

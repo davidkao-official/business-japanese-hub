@@ -19,6 +19,7 @@ import type {
   Order,
   OrderStatus,
   PaymentAttempt,
+  PaymentMethod,
   PaymentStatus,
   Refund,
 } from '../../../src/lib/payments/contract.ts';
@@ -35,6 +36,7 @@ export interface OrderRow {
   user_id: string;
   book_id: string;
   item_name_snapshot: string;
+  customer_email_snapshot?: string;
   published_revision: string;
   amount_minor: number;
   currency: string;
@@ -88,6 +90,10 @@ export function orderFromRow(row: OrderRow): Order {
 }
 
 export function paymentFromRow(row: PaymentRow): PaymentAttempt {
+  if (row.method !== 'credit' && row.method !== 'paypal') {
+    throw new Error(`unsupported persisted payment method: ${row.method}`);
+  }
+  const method: PaymentMethod = row.method;
   return {
     id: row.id,
     orderId: row.order_id,
@@ -95,7 +101,7 @@ export function paymentFromRow(row: PaymentRow): PaymentAttempt {
     providerMerchantRef: row.provider_merchant_ref,
     providerPaymentRef: row.provider_payment_ref,
     amount: moneyOf(row.amount_minor, row.currency),
-    method: row.method as 'credit',
+    method,
     status: row.status,
     providerStatusCode: row.provider_status_code,
     providerStatusMessage: row.provider_status_message,

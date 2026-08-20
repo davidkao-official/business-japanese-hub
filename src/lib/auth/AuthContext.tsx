@@ -1,18 +1,17 @@
 /**
  * Minimal auth context for the reading surface.
  *
- * Provides session restore on mount, sign-in, sign-out, and reactive user
+ * Provides session restore on mount, sign-in, sign-up, sign-out, and reactive user
  * state. It renders children immediately (loading never hides content), so it
  * can be mounted high in the tree without blocking public surfaces — public
  * previews must not require sign-in (docs/ui-ux-research.md §4.2).
  *
- * Mounting/wiring into the app shell and any login/logout UI is an integration
- * step owned by the Library/Reader lanes (#6/#5); this module defines and tests
- * the primitive.
+ * The app shell, reader, and paid-purchase surfaces consume this same primitive;
+ * auth remains a gate rather than a separate account-center architecture.
  */
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { AuthClient, SessionUser } from './types';
+import type { AuthClient, SessionUser, SignUpResult } from './types';
 
 export interface AuthContextValue {
   /** Current authenticated user, or null when signed out. */
@@ -21,6 +20,7 @@ export interface AuthContextValue {
   loading: boolean;
   /** Sign in with email/password. Throws on invalid credentials. */
   signIn(email: string, password: string): Promise<void>;
+  signUp(email: string, password: string): Promise<SignUpResult>;
   signOut(): Promise<void>;
 }
 
@@ -84,6 +84,14 @@ export function AuthProvider({ authClient, children }: AuthProviderProps) {
         // must not clobber this fresher user.
         authEventSeenRef.current = true;
         setUser(nextUser);
+      },
+      signUp: async (email: string, password: string) => {
+        const result = await authClient.signUpWithPassword({ email, password });
+        if (result.signedIn) {
+          authEventSeenRef.current = true;
+          setUser(result.user);
+        }
+        return result;
       },
       signOut: async () => {
         await authClient.signOut();

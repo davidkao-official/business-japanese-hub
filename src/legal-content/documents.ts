@@ -8,7 +8,7 @@
  * legal text — the actual text is gated on professional legal review (§8).
  */
 
-import type { LegalDocument } from './model'
+import { SELLER_DISCLOSURE, type LegalDocument } from './model'
 
 export const TERMS_DOCUMENT: LegalDocument = {
   id: 'terms',
@@ -62,10 +62,11 @@ export const TERMS_DOCUMENT: LegalDocument = {
       {
         heading: 'お問い合わせ窓口',
         paragraphs: [
-          '本規約に関するお問い合わせは、以下の窓口までご連絡ください。お問い合わせ窓口（メールアドレス）は準備中です。',
+          `本規約に関するお問い合わせは ${SELLER_DISCLOSURE.supportEmail} までご連絡ください。`,
         ],
       },
       {
+        id: 'legal-review-pending',
         heading: 'ドラフト注記・法律審査前',
         paragraphs: [
           '本ページはドラフトです。法律専門家による審査前であり、内容は変更される可能性があります。',
@@ -112,10 +113,11 @@ export const TERMS_DOCUMENT: LegalDocument = {
       {
         heading: 'Contact',
         paragraphs: [
-          'For questions about these terms, contact us through the support window below. The support email address is pending.',
+          `For questions about these terms, contact ${SELLER_DISCLOSURE.supportEmail}.`,
         ],
       },
       {
+        id: 'legal-review-pending',
         heading: 'Draft note — before legal review',
         paragraphs: [
           'This page is a draft and has not yet been reviewed by legal counsel; content may change.',
@@ -162,10 +164,11 @@ export const TERMS_DOCUMENT: LegalDocument = {
       {
         heading: '聯絡窗口',
         paragraphs: [
-          '如對本條款有任何疑問，請透過下列窗口與我們聯絡。客服信箱尚待確認。',
+          `如對本條款有任何疑問，請聯絡 ${SELLER_DISCLOSURE.supportEmail}。`,
         ],
       },
       {
+        id: 'legal-review-pending',
         heading: '草稿註記・法律審閱前',
         paragraphs: [
           '本頁內容為草稿，尚未經法律專業審閱，內容可能變更。',
@@ -215,10 +218,11 @@ export const PRIVACY_DOCUMENT: LegalDocument = {
       {
         heading: 'お問い合わせ・苦情窓口',
         paragraphs: [
-          '個人情報の取扱いに関するお問い合わせ・苦情は、以下の窓口までご連絡ください。お問い合わせ窓口（メールアドレス）は準備中です。',
+          `個人情報の取扱いに関するお問い合わせ・苦情は ${SELLER_DISCLOSURE.supportEmail} までご連絡ください。`,
         ],
       },
       {
+        id: 'legal-review-pending',
         heading: 'ドラフト注記・法律審査前',
         paragraphs: [
           '本ページはドラフトです。法律専門家による審査前であり、内容は変更される可能性があります。',
@@ -253,10 +257,11 @@ export const PRIVACY_DOCUMENT: LegalDocument = {
       {
         heading: 'Contact and complaints',
         paragraphs: [
-          'For questions or complaints about the handling of personal information, contact us through the support window below. The support email address is pending.',
+          `For questions or complaints about personal information, contact ${SELLER_DISCLOSURE.supportEmail}.`,
         ],
       },
       {
+        id: 'legal-review-pending',
         heading: 'Draft note — before legal review',
         paragraphs: [
           'This page is a draft and has not yet been reviewed by legal counsel; content may change.',
@@ -291,10 +296,11 @@ export const PRIVACY_DOCUMENT: LegalDocument = {
       {
         heading: '聯絡與申訴窗口',
         paragraphs: [
-          '如對個人資料之處理有任何疑問或申訴，請透過下列窗口與我們聯絡。客服信箱尚待確認。',
+          `如對個人資料之處理有任何疑問或申訴，請聯絡 ${SELLER_DISCLOSURE.supportEmail}。`,
         ],
       },
       {
+        id: 'legal-review-pending',
         heading: '草稿註記・法律審閱前',
         paragraphs: [
           '本頁內容為草稿，尚未經法律專業審閱，內容可能變更。',
@@ -321,7 +327,7 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
         id: 'jp-tokushoho-seller-disclosure',
         heading: '販売者',
         paragraphs: [
-          '販売者名：販売者名確認中（登録名は確定次第表示します）。住所・電話番号・通信販売業務責任者名は確認中です。',
+          `販売者名：${SELLER_DISCLOSURE.name}。所在地：${SELLER_DISCLOSURE.address}。電話番号：${SELLER_DISCLOSURE.phone}。通信販売業務責任者：${SELLER_DISCLOSURE.responsiblePerson}。お問い合わせ：${SELLER_DISCLOSURE.supportEmail}。`,
         ],
       },
       {
@@ -351,10 +357,11 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
       {
         heading: 'お問い合わせ窓口',
         paragraphs: [
-          '商品・注文・返品に関するお問い合わせは、以下の窓口までご連絡ください。お問い合わせ窓口（メールアドレス）は準備中です。',
+          `商品・注文・返品に関するお問い合わせは ${SELLER_DISCLOSURE.supportEmail} までご連絡ください。`,
         ],
       },
       {
+        id: 'legal-review-pending',
         heading: 'ドラフト注記・法律審査前',
         paragraphs: [
           '本ページはドラフトです。法律専門家による審査前であり、販売者情報・内容は変更される可能性があります。',
@@ -363,9 +370,10 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
     ],
     en: [
       {
+        id: 'jp-tokushoho-seller-disclosure',
         heading: 'Seller',
         paragraphs: [
-          'Seller name: pending confirmation (the registered name will be displayed once confirmed). Address, phone number, and the person responsible for mail-order business are pending.',
+          `Seller: ${SELLER_DISCLOSURE.name}. Address: ${SELLER_DISCLOSURE.address}. Phone: ${SELLER_DISCLOSURE.phone}. Responsible person: ${SELLER_DISCLOSURE.responsiblePerson}. Support: ${SELLER_DISCLOSURE.supportEmail}.`,
         ],
       },
       {
@@ -395,10 +403,11 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
       {
         heading: 'Contact',
         paragraphs: [
-          'For questions about products, orders, or returns, contact us through the support window below. The support email address is pending.',
+          `For questions about products, orders, or returns, contact ${SELLER_DISCLOSURE.supportEmail}.`,
         ],
       },
       {
+        id: 'legal-review-pending',
         heading: 'Draft note — before legal review',
         paragraphs: [
           'This page is a draft and has not yet been reviewed by legal counsel; seller information and content may change.',
@@ -407,9 +416,10 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
     ],
     'zh-TW': [
       {
+        id: 'jp-tokushoho-seller-disclosure',
         heading: '販售者',
         paragraphs: [
-          '販售者名稱：待確認（註冊名稱確定後顯示）。地址、電話號碼與通信販賣業務負責人尚待確認。',
+          `販售者：${SELLER_DISCLOSURE.name}。地址：${SELLER_DISCLOSURE.address}。電話：${SELLER_DISCLOSURE.phone}。通信販賣業務負責人：${SELLER_DISCLOSURE.responsiblePerson}。客服：${SELLER_DISCLOSURE.supportEmail}。`,
         ],
       },
       {
@@ -439,10 +449,11 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
       {
         heading: '聯絡窗口',
         paragraphs: [
-          '如對商品、訂單或退貨有任何疑問，請透過下列窗口與我們聯絡。客服信箱尚待確認。',
+          `如對商品、訂單或退貨有任何疑問，請聯絡 ${SELLER_DISCLOSURE.supportEmail}。`,
         ],
       },
       {
+        id: 'legal-review-pending',
         heading: '草稿註記・法律審閱前',
         paragraphs: [
           '本頁內容為草稿，尚未經法律專業審閱，販售者資訊與內容可能變更。',
@@ -493,10 +504,11 @@ export const REFUNDS_DOCUMENT: LegalDocument = {
       {
         heading: 'お問い合わせ窓口',
         paragraphs: [
-          '返品・返金に関するお問い合わせは、以下の窓口までご連絡ください。お問い合わせ窓口（メールアドレス）は準備中です。',
+          `返品・返金に関するお問い合わせは ${SELLER_DISCLOSURE.supportEmail} までご連絡ください。`,
         ],
       },
       {
+        id: 'legal-review-pending',
         heading: 'ドラフト注記・法律審査前',
         paragraphs: [
           '本ページはドラフトです。法律専門家による審査前であり、内容は変更される可能性があります。',
@@ -531,10 +543,11 @@ export const REFUNDS_DOCUMENT: LegalDocument = {
       {
         heading: 'Contact',
         paragraphs: [
-          'For questions about returns and refunds, contact us through the support window below. The support email address is pending.',
+          `For questions about returns and refunds, contact ${SELLER_DISCLOSURE.supportEmail}.`,
         ],
       },
       {
+        id: 'legal-review-pending',
         heading: 'Draft note — before legal review',
         paragraphs: [
           'This page is a draft and has not yet been reviewed by legal counsel; content may change.',
@@ -575,10 +588,11 @@ export const REFUNDS_DOCUMENT: LegalDocument = {
       {
         heading: '聯絡窗口',
         paragraphs: [
-          '如對退貨退款有任何疑問，請透過下列窗口與我們聯絡。客服信箱尚待確認。',
+          `如對退貨退款有任何疑問，請聯絡 ${SELLER_DISCLOSURE.supportEmail}。`,
         ],
       },
       {
+        id: 'legal-review-pending',
         heading: '草稿註記・法律審閱前',
         paragraphs: [
           '本頁內容為草稿，尚未經法律專業審閱，內容可能變更。',

@@ -25,26 +25,35 @@ values
 
 insert into public.orders (
   id, user_id, book_id, item_name_snapshot, published_revision,
-  amount_minor, currency, status, jurisdiction, japan_tax_status_snapshot
+  amount_minor, currency, status, jurisdiction, japan_tax_status_snapshot,
+  customer_email_snapshot
 ) values
   (
     '20000000-0000-0000-0000-000000000001',
     '10000000-0000-0000-0000-000000000001',
     'book-primary', 'Primary Book', 'book-primary@r1',
-    1999, 'USD', 'pending', 'TW', 'unresolved'
+    1999, 'USD', 'pending', 'TW', 'unresolved', 'primary@example.com'
   ),
   (
     '20000000-0000-0000-0000-000000000002',
     '10000000-0000-0000-0000-000000000002',
     'book-duplicate', 'Duplicate Book', 'book-duplicate@r1',
-    1999, 'USD', 'pending', 'TW', 'unresolved'
+    1999, 'USD', 'pending', 'TW', 'unresolved', 'duplicate@example.com'
   ),
   (
     '20000000-0000-0000-0000-000000000003',
     '10000000-0000-0000-0000-000000000003',
     'book-repair', 'Repair Book', 'book-repair@r1',
-    1999, 'USD', 'pending', 'TW', 'unresolved'
+    1999, 'USD', 'pending', 'TW', 'unresolved', 'repair@example.com'
   );
+
+insert into public.order_compliance (
+  order_id, jurisdiction, locale, notice_version, consent_version,
+  consent_granted, notice_text_snapshot, consent_text_snapshot, consent_timestamp
+) values
+  ('20000000-0000-0000-0000-000000000001', 'TW', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent', now()),
+  ('20000000-0000-0000-0000-000000000002', 'TW', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent', now()),
+  ('20000000-0000-0000-0000-000000000003', 'TW', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent', now());
 
 insert into public.payments (
   id, order_id, provider, provider_merchant_ref, amount_minor, currency, status

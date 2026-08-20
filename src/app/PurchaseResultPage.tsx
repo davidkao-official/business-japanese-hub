@@ -130,6 +130,21 @@ export function PurchaseResultPage() {
     )
   }
 
+  if (view === 'refunded' && order) {
+    return (
+      <section className="page" aria-labelledby={headingId}>
+        <h1 className="page__title" id={headingId}>
+          {strings.purchaseResult.refundedTitle}
+        </h1>
+        <p className="page__lead">{strings.purchaseResult.refundedMessage}</p>
+        <OrderReceipt order={order} />
+        <Link className="page__action" to="/library">
+          {strings.purchaseResult.goToLibrary}
+        </Link>
+      </section>
+    )
+  }
+
   if (view === 'cancelled') {
     return (
       <section className="page" aria-labelledby={headingId}>

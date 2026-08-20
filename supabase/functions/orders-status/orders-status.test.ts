@@ -36,7 +36,13 @@ describe('orders-status handler', () => {
       status: 'pending',
       paymentStatus: 'pending',
       bookId: 'book-a',
+      itemName: '敬語エッセンシャル',
       amount: { amount: 79000, currency: 'TWD' },
+      paidAt: null,
+      paymentProvider: 'ecpay',
+      paymentMethod: 'credit',
+      deliveryMethod: 'library',
+      deliveryStatus: 'pending',
       compliance: { jurisdiction: 'TW', japanConsumptionTaxStatus: 'unresolved' },
     });
   });
@@ -136,5 +142,15 @@ describe('orders-status handler', () => {
     );
     expect(result.status).toBe(200);
     expect(JSON.parse(result.body)).toMatchObject({ paymentStatus: null });
+  });
+
+  it('fails closed on an unsupported persisted payment method', async () => {
+    const { deps } = setup({ payments: { data: { ...PAYMENT_ROW, method: 'wire-transfer' } } });
+    const result = await handleOrderStatus(
+      handlerRequest('GET', 'https://test.supabase.co/functions/v1/orders-status/ord-1/status', '', bearerHeaders('jwt-1')),
+      deps,
+    );
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.body)).toMatchObject({ paymentMethod: null });
   });
 });

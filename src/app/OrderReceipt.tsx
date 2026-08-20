@@ -14,9 +14,9 @@
  * reflects the authoritative total).
  */
 import { useStrings } from '../i18n/strings';
-import { listBooks } from '../reader/catalog';
 import type { OrderStatusResponse } from '../lib/payments/contract';
 import { isJapanTaxResolved, japanTaxRateFor } from '../lib/payments/tax-config';
+import { SELLER_DISCLOSURE } from '../legal-content';
 
 /** Canonical Money → localized display (JPY is zero-decimal; others minor/100). */
 export function formatOrderAmount(money: OrderStatusResponse['amount']): string {
@@ -45,14 +45,16 @@ export function isJapanTaxInclusive(order: OrderStatusResponse): boolean {
   );
 }
 
-/** Resolve the book title from the client catalog by bookId (falls back to id). */
-export function bookTitleFor(bookId: string): string | undefined {
-  return listBooks().find((book) => book.id === bookId)?.title;
-}
-
 export function OrderReceipt({ order }: { order: OrderStatusResponse }) {
   const strings = useStrings();
-  const title = bookTitleFor(order.bookId) ?? order.bookId;
+  const isRefunded = order.status === 'refunded' || order.deliveryStatus === 'revoked';
+  if (order.status !== 'paid' && !isRefunded) return null;
+  const paymentMethod = order.paymentProvider?.toLowerCase() === 'paypal'
+    ? 'PayPal'
+    : [order.paymentProvider === 'ecpay' ? 'ECPay' : order.paymentProvider, order.paymentMethod]
+        .filter(Boolean)
+        .join(' / ');
+  const refundPolicyUrl = `${import.meta.env.BASE_URL}legal/refunds`;
   return (
     <section className="receipt" aria-labelledby="receipt-title">
       <h2 id="receipt-title" className="receipt__title">
@@ -65,7 +67,7 @@ export function OrderReceipt({ order }: { order: OrderStatusResponse }) {
         </div>
         <div className="receipt__row">
           <dt>{strings.purchaseResult.bookTitleLabel}</dt>
-          <dd>{title}</dd>
+          <dd data-testid="receipt-item-name">{order.itemName}</dd>
         </div>
         <div className="receipt__row">
           <dt>{strings.purchaseResult.amountLabel}</dt>
@@ -77,10 +79,39 @@ export function OrderReceipt({ order }: { order: OrderStatusResponse }) {
           </dd>
         </div>
         <div className="receipt__row">
+          <dt>{strings.purchaseResult.paymentMethodLabel}</dt>
+          <dd>{paymentMethod || strings.purchaseResult.notAvailable}</dd>
+        </div>
+        <div className="receipt__row">
+          <dt>{strings.purchaseResult.deliveryMethodLabel}</dt>
+          <dd>
+            {isRefunded
+              ? strings.purchaseResult.deliveryRevoked
+              : strings.purchaseResult.deliveryLibrary}
+          </dd>
+        </div>
+        <div className="receipt__row">
           <dt>{strings.purchaseResult.statusLabel}</dt>
-          <dd>{strings.purchaseResult.statusSucceeded}</dd>
+          <dd>
+            {isRefunded
+              ? strings.purchaseResult.statusRefunded
+              : strings.purchaseResult.statusSucceeded}
+          </dd>
         </div>
       </dl>
+      <div className="receipt__aftercare">
+        <p>
+          <strong>{strings.purchaseResult.refundPolicyLabel}</strong>{' '}
+          {strings.purchaseResult.refundPolicySummary}{' '}
+          <a href={refundPolicyUrl}>{strings.purchaseResult.refundPolicyLink}</a>
+        </p>
+        <p>
+          <strong>{strings.purchaseResult.supportLabel}</strong>{' '}
+          <a href={`mailto:${SELLER_DISCLOSURE.supportEmail}`}>
+            {SELLER_DISCLOSURE.supportEmail}
+          </a>
+        </p>
+      </div>
     </section>
   );
 }

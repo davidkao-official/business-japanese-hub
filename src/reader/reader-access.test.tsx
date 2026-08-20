@@ -10,8 +10,8 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { screen } from '@testing-library/react'
+import { Route, Routes } from 'react-router-dom'
 import { createMockRepository, renderWithAppProviders } from '../test/appProviders'
 import { paidKeigoBook } from '../content/fixtures/paid-test-books'
 import { ReaderGate } from './ReaderGate'
@@ -102,14 +102,12 @@ describe('reader entitlement gate', () => {
 
 describe('block-level preview boundary', () => {
   it('hides blocks beyond the boundary and marks the cut (incl. the marginalia rail)', () => {
-    const { container } = render(
-      <MemoryRouter>
-        <ReaderShell
-          book={paidKeigoBook}
-          chapter={paidKeigoBook.chapters[0]}
-          previewBoundary={{ chapterId: 'ch-1', blockId: 'ch1-blk-03' }}
-        />
-      </MemoryRouter>,
+    const { container } = renderWithAppProviders(
+      <ReaderShell
+        book={paidKeigoBook}
+        chapter={paidKeigoBook.chapters[0]}
+        previewBoundary={{ chapterId: 'ch-1', blockId: 'ch1-blk-03' }}
+      />,
     )
 
     // Blocks up to ch1-blk-03 are readable…
@@ -124,14 +122,12 @@ describe('block-level preview boundary', () => {
   })
 
   it('denies everything for a malformed boundary (unknown block id)', () => {
-    render(
-      <MemoryRouter>
-        <ReaderShell
-          book={paidKeigoBook}
-          chapter={paidKeigoBook.chapters[0]}
-          previewBoundary={{ chapterId: 'ch-1', blockId: 'does-not-exist' }}
-        />
-      </MemoryRouter>,
+    renderWithAppProviders(
+      <ReaderShell
+        book={paidKeigoBook}
+        chapter={paidKeigoBook.chapters[0]}
+        previewBoundary={{ chapterId: 'ch-1', blockId: 'does-not-exist' }}
+      />,
     )
 
     // Deny-by-default: a boundary that does not resolve hides all content.
@@ -142,11 +138,7 @@ describe('block-level preview boundary', () => {
 
 describe('reader gate surface', () => {
   it('shows the locked message when a paid book offers no preview', () => {
-    render(
-      <MemoryRouter>
-        <ReaderGate book={paidKeigoBook} hasPreview={false} />
-      </MemoryRouter>,
-    )
+    renderWithAppProviders(<ReaderGate book={paidKeigoBook} hasPreview={false} />)
 
     expect(screen.getByText('この書籍は購入後に読むことができます。')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: '試し読み' })).not.toBeInTheDocument()

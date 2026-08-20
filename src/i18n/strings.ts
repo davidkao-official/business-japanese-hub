@@ -12,12 +12,9 @@
  */
 
 import { useMemo, useSyncExternalStore } from 'react'
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from './locales'
 
-export const SUPPORTED_LOCALES = ['ja', 'en', 'zh-TW'] as const
-
-export type Locale = (typeof SUPPORTED_LOCALES)[number]
-
-export const DEFAULT_LOCALE: Locale = 'ja'
+export { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from './locales'
 
 export interface AppStrings {
   app: {
@@ -177,6 +174,23 @@ export interface AppStrings {
     jurisdictionTW: string
     jurisdictionJP: string
   }
+  auth: {
+    account: string
+    signIn: string
+    createAccount: string
+    signOut: string
+    email: string
+    password: string
+    submitSignIn: string
+    submitSignUp: string
+    cancel: string
+    switchToSignIn: string
+    switchToSignUp: string
+    failure: string
+    confirmationSent: string
+    authRequired: string
+    loading: string
+  }
   purchaseResult: {
     title: string
     missingOrder: string
@@ -184,6 +198,8 @@ export interface AppStrings {
     stillProcessing: string
     succeededTitle: string
     succeededMessage: string
+    refundedTitle: string
+    refundedMessage: string
     failedTitle: string
     failedMessage: string
     cancelledTitle: string
@@ -192,8 +208,18 @@ export interface AppStrings {
     orderNumber: string
     bookTitleLabel: string
     amountLabel: string
+    paymentMethodLabel: string
+    deliveryMethodLabel: string
+    deliveryLibrary: string
+    deliveryRevoked: string
+    refundPolicyLabel: string
+    refundPolicySummary: string
+    refundPolicyLink: string
+    supportLabel: string
+    notAvailable: string
     statusLabel: string
     statusSucceeded: string
+    statusRefunded: string
     taxInclusive: string
     goToLibrary: string
     backToBook: string
@@ -359,6 +385,23 @@ const ja: AppStrings = {
     jurisdictionTW: '台湾の消費者',
     jurisdictionJP: '日本の消費者',
   },
+  auth: {
+    account: 'アカウント',
+    signIn: 'ログイン',
+    createAccount: 'アカウント作成',
+    signOut: 'ログアウト',
+    email: 'メールアドレス',
+    password: 'パスワード',
+    submitSignIn: 'ログインして続ける',
+    submitSignUp: 'アカウントを作成して続ける',
+    cancel: '閉じる',
+    switchToSignIn: 'すでにアカウントをお持ちの方',
+    switchToSignUp: '初めての方はこちら',
+    failure: '認証できませんでした。入力内容をご確認ください。',
+    confirmationSent: '確認メールを送信しました。メール内のリンクを開いてから、もう一度ログインしてください。',
+    authRequired: '購入を続けるにはログインまたはアカウント作成が必要です。',
+    loading: '確認中…',
+  },
   purchaseResult: {
     title: '購入結果',
     missingOrder: '注文番号がありません。',
@@ -367,6 +410,8 @@ const ja: AppStrings = {
       '決済の確認がまだ完了していません。しばらくしてから再度ご確認いただくか、ライブラリで最新の状態をご確認ください。',
     succeededTitle: '購入が完了しました',
     succeededMessage: 'ご購入ありがとうございます。本書はライブラリに追加されました。',
+    refundedTitle: '返金が完了しました',
+    refundedMessage: 'この注文は返金済みです。書籍へのアクセスは終了しました。',
     failedTitle: '決済に失敗しました',
     failedMessage: '決済が完了しませんでした。もう一度お試しください。',
     cancelledTitle: '購入はキャンセルされました',
@@ -375,8 +420,18 @@ const ja: AppStrings = {
     orderNumber: '注文番号',
     bookTitleLabel: '書籍',
     amountLabel: '金額',
+    paymentMethodLabel: '支払方法',
+    deliveryMethodLabel: '引渡方法',
+    deliveryLibrary: '決済確認後、ライブラリへ即時配信',
+    deliveryRevoked: 'アクセス終了',
+    refundPolicyLabel: 'キャンセル・返金：',
+    refundPolicySummary: 'デジタルコンテンツのため、決済後のキャンセルは原則として受け付けません。不具合がある場合はお問い合わせください。',
+    refundPolicyLink: '返品・返金ポリシー',
+    supportLabel: 'お問い合わせ：',
+    notAvailable: '未確定',
     statusLabel: 'ステータス',
     statusSucceeded: '完了',
+    statusRefunded: '返金済み',
     taxInclusive: '（税込）',
     goToLibrary: 'ライブラリへ',
     backToBook: '書籍へ戻る',
@@ -542,6 +597,23 @@ const en: AppStrings = {
     jurisdictionTW: 'Taiwan consumer',
     jurisdictionJP: 'Japan consumer',
   },
+  auth: {
+    account: 'Account',
+    signIn: 'Sign in',
+    createAccount: 'Create account',
+    signOut: 'Sign out',
+    email: 'Email',
+    password: 'Password',
+    submitSignIn: 'Sign in and continue',
+    submitSignUp: 'Create account and continue',
+    cancel: 'Close',
+    switchToSignIn: 'Already have an account?',
+    switchToSignUp: 'New here? Create an account',
+    failure: 'We could not authenticate you. Check your details and try again.',
+    confirmationSent: 'Check your email and confirm your account, then return here to sign in.',
+    authRequired: 'Sign in or create an account to continue this purchase.',
+    loading: 'Checking…',
+  },
   purchaseResult: {
     title: 'Purchase Result',
     missingOrder: 'No order reference was provided.',
@@ -550,6 +622,8 @@ const en: AppStrings = {
       'We are still confirming your payment. Please check again shortly, or view the latest status in your library.',
     succeededTitle: 'Purchase complete',
     succeededMessage: 'Thank you for your purchase. The book has been added to your library.',
+    refundedTitle: 'Refund complete',
+    refundedMessage: 'This order has been refunded and access to the book has ended.',
     failedTitle: 'Payment failed',
     failedMessage: 'Your payment could not be completed. Please try again.',
     cancelledTitle: 'Purchase cancelled',
@@ -558,8 +632,18 @@ const en: AppStrings = {
     orderNumber: 'Order number',
     bookTitleLabel: 'Book',
     amountLabel: 'Amount',
+    paymentMethodLabel: 'Payment method',
+    deliveryMethodLabel: 'Delivery',
+    deliveryLibrary: 'Immediate digital delivery to your Library after payment confirmation',
+    deliveryRevoked: 'Access ended',
+    refundPolicyLabel: 'Cancellation and refunds:',
+    refundPolicySummary: 'Completed digital purchases are generally non-cancellable. Contact support if the content is defective.',
+    refundPolicyLink: 'Returns & Refunds Policy',
+    supportLabel: 'Support:',
+    notAvailable: 'Unavailable',
     statusLabel: 'Status',
     statusSucceeded: 'Completed',
+    statusRefunded: 'Refunded',
     taxInclusive: '(tax included)',
     goToLibrary: 'Go to Library',
     backToBook: 'Back to book',
@@ -724,6 +808,23 @@ const zhTW: AppStrings = {
     jurisdictionTW: '台灣消費者',
     jurisdictionJP: '日本消費者',
   },
+  auth: {
+    account: '帳戶',
+    signIn: '登入',
+    createAccount: '建立帳戶',
+    signOut: '登出',
+    email: '電子郵件',
+    password: '密碼',
+    submitSignIn: '登入並繼續',
+    submitSignUp: '建立帳戶並繼續',
+    cancel: '關閉',
+    switchToSignIn: '已有帳戶？',
+    switchToSignUp: '第一次來？建立帳戶',
+    failure: '無法完成身分驗證，請檢查資料後再試一次。',
+    confirmationSent: '確認信已寄出。請先點選信中連結，再回到這裡登入。',
+    authRequired: '請先登入或建立帳戶，再繼續購買。',
+    loading: '確認中…',
+  },
   purchaseResult: {
     title: '購買結果',
     missingOrder: '缺少訂單編號。',
@@ -731,6 +832,8 @@ const zhTW: AppStrings = {
     stillProcessing: '付款仍在確認中。請稍後再查看，或至書庫查看最新狀態。',
     succeededTitle: '購買完成',
     succeededMessage: '感謝您的購買。本書已加入您的書庫。',
+    refundedTitle: '退款完成',
+    refundedMessage: '此訂單已退款，書籍存取權已終止。',
     failedTitle: '付款失敗',
     failedMessage: '付款未能完成，請再試一次。',
     cancelledTitle: '購買已取消',
@@ -739,8 +842,18 @@ const zhTW: AppStrings = {
     orderNumber: '訂單編號',
     bookTitleLabel: '書籍',
     amountLabel: '金額',
+    paymentMethodLabel: '付款方式',
+    deliveryMethodLabel: '交付方式',
+    deliveryLibrary: '付款確認後立即交付至書庫',
+    deliveryRevoked: '存取權已終止',
+    refundPolicyLabel: '取消與退款：',
+    refundPolicySummary: '數位內容完成付款後原則上無法取消。如內容有瑕疵，請聯絡客服。',
+    refundPolicyLink: '退款政策',
+    supportLabel: '客服：',
+    notAvailable: '尚未確定',
     statusLabel: '狀態',
     statusSucceeded: '已完成',
+    statusRefunded: '已退款',
     taxInclusive: '（含稅）',
     goToLibrary: '前往書庫',
     backToBook: '返回書籍',

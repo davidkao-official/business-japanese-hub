@@ -7,7 +7,12 @@
  * authorization. The JWT is verified server-side via `auth.getUser`; the
  * platform `verify_jwt` gate is defense in depth, not the only check.
  */
-import type { JapanConsumptionTaxStatus, Jurisdiction, OrderStatusResponse } from '../../../src/lib/payments/contract.ts';
+import type {
+  JapanConsumptionTaxStatus,
+  Jurisdiction,
+  OrderStatusResponse,
+  PaymentProvider,
+} from '../../../src/lib/payments/contract.ts';
 import type { DbClient } from '../_shared/db.ts';
 import type { Logger } from '../_shared/log.ts';
 import {
@@ -79,7 +84,20 @@ export async function handleOrderStatus(
     status: order.status,
     paymentStatus: payment?.status ?? null,
     bookId: order.book_id,
+    itemName: order.item_name_snapshot,
     amount: { amount: Number(order.amount_minor), currency: order.currency },
+    paidAt: order.paid_at,
+    paymentProvider:
+      payment?.provider === 'ecpay' || payment?.provider === 'paypal'
+        ? (payment.provider as PaymentProvider)
+        : null,
+    paymentMethod:
+      payment?.method === 'credit' || payment?.method === 'paypal'
+        ? payment.method
+        : null,
+    deliveryMethod: 'library',
+    deliveryStatus:
+      order.status === 'paid' ? 'available' : order.status === 'refunded' ? 'revoked' : 'pending',
     compliance: { jurisdiction, japanConsumptionTaxStatus },
   };
   return jsonResult(200, response);

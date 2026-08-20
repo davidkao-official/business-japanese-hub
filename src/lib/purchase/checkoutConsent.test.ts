@@ -82,6 +82,7 @@ describe('checkoutConsent — ConsentSubmission building (explicit jurisdiction)
 
     expect(submission.jurisdiction).toBe('TW')
     expect(submission.locale).toBe('zh-TW')
+    expect(submission.presentationLocale).toBe('zh-TW')
     expect(submission.consentGranted).toBe(true)
     expect(submission.noticeVersion).toBe(TW_NOTICE_VERSION_ID)
     expect(submission.consentVersion).toBe(TW_CONSENT_VERSION_ID)
@@ -106,6 +107,7 @@ describe('checkoutConsent — ConsentSubmission building (explicit jurisdiction)
     expect(submission.jurisdiction).toBe('TW')
     // The TW evidence text is pinned to zh-TW regardless of the UI locale.
     expect(submission.locale).toBe('zh-TW')
+    expect(submission.presentationLocale).toBe('ja')
     expect(submission.consentTextSnapshot).toBe(consentSection.paragraphs.join('\n'))
   })
 
@@ -117,8 +119,9 @@ describe('checkoutConsent — ConsentSubmission building (explicit jurisdiction)
     )
 
     expect(submission.jurisdiction).toBe('JP')
-    // A JP declaration never switches to TW evidence even from a zh-TW UI.
-    expect(submission.locale).toBe('zh-TW')
+    // Locale identifies the exact Japanese evidence copy, not the surrounding UI.
+    expect(submission.locale).toBe('ja')
+    expect(submission.presentationLocale).toBe('zh-TW')
     expect(submission.consentTextSnapshot).toBe(jpConsentSection.paragraphs.join('\n'))
   })
 })

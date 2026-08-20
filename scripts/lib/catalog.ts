@@ -12,6 +12,7 @@ export interface SnapshotDescriptor {
 export interface SnapshotBook {
   id?: string
   slug?: string
+  title?: string
   price?: { tier?: string; amount?: number; currency?: string }
   publication?: { status?: string; releasedAt?: string }
 }
@@ -25,6 +26,7 @@ export interface SnapshotFile {
 export interface CatalogRow {
   book_id: string
   slug: string
+  item_name: string
   currency: string
   amount_minor: number
   published_revision: string
@@ -123,6 +125,9 @@ export function buildCatalogRow(
     return { kind: 'retire', bookId, reason: `tier=${String(tier)} (not sold via the price seam)` }
   }
 
+  const itemName = book.title?.trim()
+  if (!itemName) return { kind: 'error', reason: 'paid book is missing its authoritative title' }
+
   const amountMinor = toAmountMinor(book.price ?? {})
   const currency = book.price?.currency
   if (amountMinor === null || !currency) {
@@ -137,6 +142,7 @@ export function buildCatalogRow(
     row: {
       book_id: bookId,
       slug,
+      item_name: itemName,
       currency,
       amount_minor: amountMinor,
       published_revision: publishedRevision,

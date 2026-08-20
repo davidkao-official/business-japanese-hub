@@ -14,6 +14,7 @@ function consent(overrides: Partial<ConsentSubmission> = {}): ConsentSubmission 
   return {
     jurisdiction: 'TW',
     locale: 'zh-TW',
+    presentationLocale: 'zh-TW',
     noticeVersion: 'tw-7day-removal-notice-v1',
     consentVersion: 'tw-digital-content-consent-v1',
     consentGranted: true,
@@ -62,6 +63,7 @@ describe('checkout executor (#9)', () => {
       functionsBaseUrl: BASE,
       fetchClient,
       submitForm,
+      authToken: 'tok-123',
     })
 
     const result = await executor({ bookId: 'book-1' }, consent())
@@ -83,6 +85,7 @@ describe('checkout executor (#9)', () => {
       functionsBaseUrl: BASE,
       fetchClient,
       submitForm,
+      authToken: 'tok-123',
     })
 
     await executor({ bookId: 'book-1' }, consent())
@@ -118,6 +121,7 @@ describe('checkout executor (#9)', () => {
     const executor = createCheckoutPurchaseExecutor({
       functionsBaseUrl: BASE,
       fetchClient,
+      authToken: 'tok-123',
       submitForm,
     })
 
@@ -136,6 +140,7 @@ describe('checkout executor (#9)', () => {
     const executor = createCheckoutPurchaseExecutor({
       functionsBaseUrl: BASE,
       fetchClient,
+      authToken: 'tok-123',
       submitForm,
     })
 
@@ -163,10 +168,30 @@ describe('checkout executor (#9)', () => {
     const executor = createCheckoutPurchaseExecutor({
       functionsBaseUrl: BASE,
       fetchClient,
+      authToken: 'tok-123',
     })
     const result = await executor({ bookId: 'book-1' }, consent({ jurisdiction: 'JP', locale: 'ja' }))
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('failed')
+  })
+
+  it('routes a verification-pending conflict to the server-authoritative order-status page', async () => {
+    const fetchClient = vi.fn().mockResolvedValue(jsonResponse({
+      reason: 'checkout_verification_pending',
+      orderId: 'order-pending-1',
+    }, false, 409))
+    const navigate = vi.fn()
+    const executor = createCheckoutPurchaseExecutor({
+      functionsBaseUrl: BASE,
+      fetchClient,
+      navigate,
+      authToken: 'tok-123',
+    })
+
+    const result = await executor({ bookId: 'book-1' }, consent())
+
+    expect(navigate).toHaveBeenCalledWith('/purchase/result?order=order-pending-1')
+    expect(result).toEqual({ ok: true, orderId: 'order-pending-1', status: 'pending' })
   })
 
   it('returns failed on an invalid checkout response shape', async () => {
@@ -174,6 +199,7 @@ describe('checkout executor (#9)', () => {
     const executor = createCheckoutPurchaseExecutor({
       functionsBaseUrl: BASE,
       fetchClient,
+      authToken: 'tok-123',
     })
     const result = await executor({ bookId: 'book-1' }, consent({ jurisdiction: 'JP', locale: 'ja' }))
     expect(result.ok).toBe(false)
@@ -187,6 +213,7 @@ describe('checkout executor (#9)', () => {
     const executor = createCheckoutPurchaseExecutor({
       functionsBaseUrl: BASE,
       fetchClient,
+      authToken: 'tok-123',
     })
     const result = await executor({ bookId: 'book-1' }, consent({ jurisdiction: 'JP', locale: 'ja' }))
     expect(result.ok).toBe(false)
@@ -212,6 +239,7 @@ describe('checkout executor (#9)', () => {
       functionsBaseUrl: BASE,
       fetchClient,
       navigate,
+      authToken: 'tok-123',
     })
 
     const result = await executor({ bookId: 'book-1' }, consent())
@@ -236,6 +264,37 @@ describe('checkout executor (#9)', () => {
     const [, init] = fetchClient.mock.calls[0] as [string, { headers: Record<string, string> }]
     expect(init.headers.Authorization).toBe('Bearer tok-123')
   })
+
+  it('fails closed as signed out before HTTP when no session token exists', async () => {
+    const fetchClient = vi.fn()
+    const executor = createCheckoutPurchaseExecutor({ functionsBaseUrl: BASE, fetchClient })
+
+    const result = await executor({ bookId: 'book-1' }, consent())
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'signed_out',
+      message: 'authentication is required before checkout',
+    })
+    expect(fetchClient).not.toHaveBeenCalled()
+  })
+
+  it('maps a rejected or expired bearer token to signed out', async () => {
+    const fetchClient = vi.fn().mockResolvedValue(jsonResponse({}, false, 401))
+    const executor = createCheckoutPurchaseExecutor({
+      functionsBaseUrl: BASE,
+      fetchClient,
+      authToken: 'expired-token',
+    })
+
+    const result = await executor({ bookId: 'book-1' }, consent())
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'signed_out',
+      message: 'authentication is required before checkout',
+    })
+  })
 })
 
 function order(overrides: Partial<OrderStatusResponse> = {}): OrderStatusResponse {
@@ -244,7 +303,13 @@ function order(overrides: Partial<OrderStatusResponse> = {}): OrderStatusRespons
     status: 'pending',
     paymentStatus: null,
     bookId: 'book-1',
+    itemName: 'Business Japanese Book',
     amount: { amount: 880, currency: 'JPY' },
+    paidAt: null,
+    paymentProvider: null,
+    paymentMethod: null,
+    deliveryMethod: 'library',
+    deliveryStatus: 'pending',
     compliance: { jurisdiction: 'JP', japanConsumptionTaxStatus: 'unresolved' },
     ...overrides,
   }
@@ -253,7 +318,7 @@ function order(overrides: Partial<OrderStatusResponse> = {}): OrderStatusRespons
 describe('resultStateFor / terminality', () => {
   it('maps server order status to the view state', () => {
     expect(resultStateFor(order({ status: 'paid' }))).toBe('succeeded')
-    expect(resultStateFor(order({ status: 'refunded' }))).toBe('succeeded')
+    expect(resultStateFor(order({ status: 'refunded' }))).toBe('refunded')
     expect(resultStateFor(order({ status: 'cancelled' }))).toBe('cancelled')
     expect(resultStateFor(order({ status: 'pending', paymentStatus: 'failed' }))).toBe('failed')
     expect(resultStateFor(order({ status: 'pending' }))).toBe('pending')
@@ -261,6 +326,7 @@ describe('resultStateFor / terminality', () => {
 
   it('treats only non-pending views as terminal', () => {
     expect(isTerminalResultView('succeeded')).toBe(true)
+    expect(isTerminalResultView('refunded')).toBe(true)
     expect(isTerminalResultView('failed')).toBe(true)
     expect(isTerminalResultView('cancelled')).toBe(true)
     expect(isTerminalResultView('pending')).toBe(false)

@@ -24,6 +24,7 @@ function paidSnapshot(overrides: Partial<SnapshotFile> = {}): SnapshotFile {
     book: {
       id: 'book-meeting-japanese',
       slug: 'meeting-japanese',
+      title: '会議の日本語',
       price: { tier: 'paid', amount: 12, currency: 'USD' },
       publication: { status: 'published', releasedAt: '2026-08-20' },
     },
@@ -38,6 +39,7 @@ describe('authoritative catalog pricing', () => {
       row: {
         book_id: 'book-meeting-japanese',
         slug: 'meeting-japanese',
+        item_name: '会議の日本語',
         currency: 'USD',
         amount_minor: 1200,
         published_revision: 'meeting-japanese@e1-r1-aaaaaaaaaaaa',
@@ -63,6 +65,7 @@ describe('authoritative catalog pricing', () => {
       book: {
         id: 'book-free',
         slug: 'free-book',
+        title: 'Free Book',
         price: { tier: 'free' },
         publication: { status: 'published', releasedAt: '2026-08-20' },
       },
@@ -89,11 +92,21 @@ describe('authoritative catalog pricing', () => {
       book: {
         id: 'book-meeting-japanese',
         slug: 'meeting-japanese',
+        title: '会議の日本語',
         price: { tier: 'paid', amount: 12, currency: 'USD' },
         publication: { status: 'published', releasedAt: '2026-09-01' },
       },
     })
     expect(releaseTimestamp(future)).toBe('2026-09-01T00:00:00.000Z')
+  })
+
+  it('refuses a paid row without an authoritative title snapshot', () => {
+    const snapshot = paidSnapshot()
+    if (snapshot.book) snapshot.book.title = '   '
+    expect(buildCatalogRow('meeting-japanese', snapshot)).toEqual({
+      kind: 'error',
+      reason: 'paid book is missing its authoritative title',
+    })
   })
 
   it('retires free, unpublished, and removed Books without deleting desired paid rows', () => {

@@ -10,10 +10,17 @@
  */
 import type { DbClient } from './db.ts';
 
-export async function authenticateBearer(
+export interface AuthenticatedUser {
+  id: string;
+  email: string | null;
+  emailConfirmed: boolean;
+}
+
+/** Return the verified server identity and email facts; never trust client fields. */
+export async function authenticateBearerUser(
   db: DbClient,
   authorization: string | undefined | null,
-): Promise<string | null> {
+): Promise<AuthenticatedUser | null> {
   if (!authorization) return null;
   const match = /^Bearer\s+(.+)$/i.exec(authorization);
   if (!match) return null;
@@ -21,5 +28,19 @@ export async function authenticateBearer(
   if (!token) return null;
   const { data, error } = await db.auth.getUser(token);
   if (error || !data?.user) return null;
-  return data.user.id;
+  const email = typeof data.user.email === 'string' && data.user.email.trim()
+    ? data.user.email.trim().toLowerCase()
+    : null;
+  return {
+    id: data.user.id,
+    email,
+    emailConfirmed: Boolean(data.user.email_confirmed_at),
+  };
+}
+
+export async function authenticateBearer(
+  db: DbClient,
+  authorization: string | undefined | null,
+): Promise<string | null> {
+  return (await authenticateBearerUser(db, authorization))?.id ?? null;
 }

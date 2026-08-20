@@ -12,6 +12,8 @@
  * these shared contracts on their own.
  */
 
+import type { Locale } from '../../i18n/locales';
+
 /* ------------------------------------------------------------------------- *
  * Money (§8.1)
  * ------------------------------------------------------------------------- */
@@ -70,6 +72,8 @@ export interface Order {
  * PaymentAttempt (§12)
  * ------------------------------------------------------------------------- */
 
+export type PaymentMethod = 'credit' | 'paypal';
+
 export interface PaymentAttempt {
   id: string;
   orderId: string;
@@ -80,7 +84,8 @@ export interface PaymentAttempt {
   providerPaymentRef: string | null;
   /** Immutable amount. */
   amount: Money;
-  method: 'credit';
+  /** Provider-authoritative checkout channel; never an inferred card funding source. */
+  method: PaymentMethod;
   status: PaymentStatus;
   providerStatusCode: string | null;
   /** Sanitized provider status message (log redaction; never raw secrets / card data). */
@@ -200,6 +205,12 @@ export interface CreateCheckoutInput {
   cancelUrl?: string;
   /** Provider display language (ECPay Language CHT/JPN/ENG); PayPal ignores. */
   locale?: string;
+  /**
+   * Previously persisted provider checkout/session id. When present, an adapter
+   * may recover that exact provider resource but must never create a replacement
+   * under the same local PaymentAttempt.
+   */
+  existingCheckoutReference?: string;
 }
 
 /**
@@ -298,6 +309,14 @@ export interface PaymentProviderAdapter {
 /* ------------------------------------------------------------------------- *
  * Errors
  * ------------------------------------------------------------------------- */
+
+/** Existing provider state needs authoritative repair/status polling, not a new handoff. */
+export class CheckoutVerificationPendingError extends Error {
+  constructor(message = 'checkout requires authoritative provider verification') {
+    super(message);
+    this.name = 'CheckoutVerificationPendingError';
+  }
+}
 
 /** ECPay only accepts integer TWD; a non-TWD amount is a hard refusal. */
 export class UnsupportedCurrencyForProvider extends Error {
@@ -410,6 +429,8 @@ export interface ConsentSubmission {
   /** The declared consumer jurisdiction — always resolved; `unresolved` is the ABSENCE of a submission. */
   jurisdiction: ResolvedJurisdiction;
   locale: string;
+  /** Buyer-facing UI/email locale, separate from the fixed legal-copy locale above. */
+  presentationLocale: Locale;
   noticeVersion: string;
   consentVersion: string;
   consentGranted: boolean;
@@ -453,7 +474,14 @@ export interface OrderStatusResponse {
   status: OrderStatus;
   paymentStatus: PaymentStatus | null;
   bookId: string;
+  /** Immutable title snapshot from the authoritative server catalog at checkout. */
+  itemName: string;
   amount: Money;
+  paidAt: string | null;
+  paymentProvider: PaymentProvider | null;
+  paymentMethod: string | null;
+  deliveryMethod: 'library';
+  deliveryStatus: 'pending' | 'available' | 'revoked';
   /** Immutable server snapshot required by the receipt (jurisdiction + tax treatment). */
   compliance: OrderComplianceSnapshot;
 }

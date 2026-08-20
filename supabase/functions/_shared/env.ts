@@ -42,6 +42,18 @@ export interface Env {
   paypalWebhookId?: string;
   /** Secret shared with the pg_cron / pg_net scheduled-job callers. */
   scheduledJobSecret: string | undefined;
+  /** Transactional-email adapter selection. Undefined disables email delivery. */
+  orderEmailProvider: string | undefined;
+  /** Resend API key. Server-only and optional until the Resend adapter is selected. */
+  resendApiKey: string | undefined;
+  /** RFC 5322 From identity configured for transactional order email. */
+  orderEmailFrom: string | undefined;
+  /** Canonical public origin used to build Library and policy links. */
+  publicSiteUrl: string | undefined;
+  /** Public support address shown in transactional email and used as Reply-To. */
+  supportEmail: string | undefined;
+  /** Legal seller display name shown on the receipt; never inferred in code. */
+  legalSellerName: string | undefined;
   /**
    * Optional production FundingReconDetail CSV source for Layer C reconciliation
    * (decision-record §6). Not configured → Layer C logs and skips.
@@ -92,6 +104,12 @@ export function readEnvFrom(reader: EnvReader): Env {
     paypalEnv: parsePaypalEnv(reader.get('PAYPAL_ENV')),
     paypalWebhookId: reader.get('PAYPAL_WEBHOOK_ID'),
     scheduledJobSecret: reader.get('SCHEDULED_JOB_SECRET'),
+    orderEmailProvider: reader.get('ORDER_EMAIL_PROVIDER'),
+    resendApiKey: reader.get('RESEND_API_KEY'),
+    orderEmailFrom: reader.get('ORDER_EMAIL_FROM'),
+    publicSiteUrl: reader.get('PUBLIC_SITE_URL'),
+    supportEmail: reader.get('SUPPORT_EMAIL'),
+    legalSellerName: reader.get('LEGAL_SELLER_NAME'),
     fundingReconCsv: reader.get('FUNDING_RECON_CSV'),
   };
 }

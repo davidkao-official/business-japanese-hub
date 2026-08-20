@@ -6,7 +6,7 @@
  * once (e.g. at app startup) and reuse so the session/subscription is stable.
  */
 import type { SupabaseClient, User } from '@supabase/supabase-js';
-import type { AuthClient, SessionUser, SignInResult } from './types';
+import type { AuthClient, SessionUser, SignInResult, SignUpResult } from './types';
 
 function mapUser(user: User | null): SessionUser | null {
   if (!user) return null;
@@ -29,7 +29,14 @@ export class SupabaseAuthClient implements AuthClient {
     if (!data.user) {
       throw new Error('signInWithPassword: sign-in succeeded without a user');
     }
-    return { user: data.user };
+    return { user: mapUser(data.user)! };
+  }
+
+  async signUpWithPassword(input: { email: string; password: string }): Promise<SignUpResult> {
+    const { data, error } = await this.client.auth.signUp(input);
+    if (error) throw new Error(`signUpWithPassword: ${error.message}`);
+    if (!data.user) throw new Error('signUpWithPassword: sign-up succeeded without a user');
+    return { user: mapUser(data.user)!, signedIn: data.session !== null };
   }
 
   async signOut(): Promise<void> {

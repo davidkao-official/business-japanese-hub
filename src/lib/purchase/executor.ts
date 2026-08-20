@@ -100,6 +100,13 @@ const defaultNavigate: Navigate = (url) => {
   window.location.assign(url);
 };
 
+/** Base-path-aware route into the server-authoritative order-status page. */
+export function purchaseResultPath(orderId: string): string {
+  const configuredBase = (import.meta.env.BASE_URL as string | undefined) ?? '/';
+  const base = configuredBase.endsWith('/') ? configuredBase : `${configuredBase}/`;
+  return `${base}purchase/result?order=${encodeURIComponent(orderId)}`;
+}
+
 /* ------------------------------------------------------------------------- *
  * Edge Functions base URL + auth seam
  * ------------------------------------------------------------------------- */
@@ -206,6 +213,16 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
 
     const body = buildCheckoutRequest(intent, consent);
     const token = await resolveAuthToken(deps.authToken);
+    // Checkout is authenticated and entitlement attribution is tied to the
+    // server-verified session. Never send an anonymous request and never let
+    // the client infer a buyer identity.
+    if (!token) {
+      return {
+        ok: false,
+        reason: 'signed_out',
+        message: 'authentication is required before checkout',
+      };
+    }
     let response: FetchClientResponse;
     try {
       response = await fetchClient(
@@ -214,7 +231,7 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(body),
         },
@@ -224,6 +241,28 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
     }
 
     if (!response.ok) {
+      if (response.status === 401) {
+        return {
+          ok: false,
+          reason: 'signed_out',
+          message: 'authentication is required before checkout',
+        };
+      }
+      if (response.status === 409) {
+        try {
+          const conflict = await response.json() as { reason?: unknown; orderId?: unknown };
+          if (
+            conflict.reason === 'checkout_verification_pending' &&
+            typeof conflict.orderId === 'string' &&
+            conflict.orderId.length > 0
+          ) {
+            navigate(purchaseResultPath(conflict.orderId));
+            return { ok: true, orderId: conflict.orderId, status: 'pending' };
+          }
+        } catch {
+          // Malformed conflicts remain a generic fail-closed checkout failure.
+        }
+      }
       return { ok: false, reason: 'failed', message: `checkout request failed (${response.status})` };
     }
 
@@ -274,11 +313,12 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
 export const ORDER_STATUS_POLL_INTERVAL_MS = 2000;
 export const ORDER_STATUS_MAX_ATTEMPTS = 10;
 
-export type PurchaseResultView = 'pending' | 'succeeded' | 'failed' | 'cancelled';
+export type PurchaseResultView = 'pending' | 'succeeded' | 'refunded' | 'failed' | 'cancelled';
 
 /** Map a server order-status payload to the view state (server-driven only). */
 export function resultStateFor(order: OrderStatusResponse): PurchaseResultView {
-  if (order.status === 'paid' || order.status === 'refunded') return 'succeeded';
+  if (order.status === 'refunded') return 'refunded';
+  if (order.status === 'paid') return 'succeeded';
   if (order.status === 'cancelled') return 'cancelled';
   if (order.paymentStatus === 'failed') return 'failed';
   return 'pending';

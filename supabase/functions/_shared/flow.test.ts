@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { applyVerifiedSuccess, confirmRefund, type PaymentRow, type RefundRow } from './flow.ts';
+import {
+  applyVerifiedSuccess,
+  confirmRefund,
+  paymentFromRow,
+  type PaymentRow,
+  type RefundRow,
+} from './flow.ts';
 import { createMockDb, fakeLogger, ORDER_ROW, PAYMENT_ROW } from './testing.ts';
 
 const SUCCESS_RESULT = {
@@ -33,6 +39,15 @@ const REFUND_ROW: RefundRow = {
 };
 
 describe('payment flow atomic persistence', () => {
+  it('maps PayPal as a provider payment method and rejects unknown persisted methods', () => {
+    expect(paymentFromRow({ ...PAYMENT_ROW, provider: 'paypal', method: 'paypal' }).method).toBe(
+      'paypal',
+    );
+    expect(() => paymentFromRow({ ...PAYMENT_ROW, method: 'wire-transfer' })).toThrow(
+      'unsupported persisted payment method',
+    );
+  });
+
   it('finalizes verified success through one database transaction RPC', async () => {
     const mock = createMockDb({
       'rpc:finalize_payment_success': { data: SUCCESS_RESULT },

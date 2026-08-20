@@ -177,6 +177,7 @@
   --container-max-width: 72rem; /* 1152px */
   --container-padding: 1.25rem; /* 20px, mobile-first */
   --measure-reading: 60ch; /* comfortable line measure for long-form prose */
+  --receipt-label-min: 7rem;
   --z-header: 100;
   --z-skip-link: 1000;
 
@@ -199,6 +200,7 @@
   --reader-gutter-mobile: 1.125rem; /* 18px */
   --reader-gutter-desktop: 2rem; /* 32px */
   --reader-topbar-h: 3.25rem; /* 52px touch-safe reader chrome */
+  --control-min-h: 2.75rem; /* 44px house touch target */
 }
 
 @media (min-width: 48rem) {

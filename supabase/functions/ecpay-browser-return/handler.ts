@@ -22,6 +22,7 @@ import {
 } from '../_shared/http.ts';
 import { isEcpayConfigured } from '../_shared/ecpay.ts';
 import { loadPaymentByMerchantRef } from '../_shared/flow.ts';
+import { publicSiteRoute } from '../_shared/public-site.ts';
 
 export interface BrowserReturnHandlerDeps {
   env: Env;
@@ -71,6 +72,15 @@ export async function handleBrowserReturn(
     }
   }
 
-  const target = `/purchase/result${orderId ? `?order=${encodeURIComponent(orderId)}` : ''}`;
+  const target = publicSiteRoute(
+    deps.env,
+    `purchase/result${orderId ? `?order=${encodeURIComponent(orderId)}` : ''}`,
+  );
+  if (!target) {
+    return jsonResult(503, {
+      error: 'public site URL is not configured',
+      reason: 'public_site_configuration_unavailable',
+    });
+  }
   return redirectResult(target, 303);
 }

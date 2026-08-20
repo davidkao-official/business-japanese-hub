@@ -53,7 +53,7 @@ describe('paypal-browser-return handler', () => {
       deps,
     );
     expect(result.status).toBe(303);
-    expect(result.headers?.Location).toBe('/purchase/result?order=ord-1');
+    expect(result.headers?.Location).toBe('https://business-japanese.example/purchase/result?order=ord-1');
     expect(mock.callsFor('payments', 'eq')).toContainEqual({
       table: 'payments',
       method: 'eq',
@@ -72,7 +72,7 @@ describe('paypal-browser-return handler', () => {
       deps,
     );
     expect(result.status).toBe(303);
-    expect(result.headers?.Location).toBe('/purchase/result');
+    expect(result.headers?.Location).toBe('https://business-japanese.example/purchase/result');
     expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
   });
 
@@ -83,7 +83,25 @@ describe('paypal-browser-return handler', () => {
       deps,
     );
     expect(result.status).toBe(303);
-    expect(result.headers?.Location).toBe('/purchase/result');
+    expect(result.headers?.Location).toBe('https://business-japanese.example/purchase/result');
+  });
+
+  it('preserves a public deployment sub-path and fails closed without a valid URL', async () => {
+    const { deps } = setup();
+    const nested = await handlePaypalBrowserReturn(
+      handlerRequest('GET', 'https://test.supabase.co/functions/v1/paypal-browser-return?token=ORDER-1'),
+      { ...deps, env: testEnv({ publicSiteUrl: 'https://example.com/business-japanese-hub/' }) },
+    );
+    expect(nested.headers?.Location).toBe(
+      'https://example.com/business-japanese-hub/purchase/result?order=ord-1',
+    );
+
+    const missing = await handlePaypalBrowserReturn(
+      handlerRequest('GET', 'https://test.supabase.co/functions/v1/paypal-browser-return'),
+      { ...deps, env: testEnv({ publicSiteUrl: undefined }) },
+    );
+    expect(missing.status).toBe(503);
+    expect(JSON.parse(missing.body)).toMatchObject({ reason: 'public_site_configuration_unavailable' });
   });
 
   it('method not GET/POST → 405', async () => {

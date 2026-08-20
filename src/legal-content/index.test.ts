@@ -5,6 +5,7 @@ import {
   listLegalDocuments,
   requireLegalDocumentBySlug,
   SELLER_DISCLOSURE,
+  isPaidLaunchLegalReady,
 } from './index'
 import { LEGAL_DOCUMENTS } from './documents'
 
@@ -84,5 +85,70 @@ describe('legal content', () => {
   it('exports the pending seller disclosure placeholder (pre-sale gate)', () => {
     expect(SELLER_DISCLOSURE.pending).toBe(true)
     expect(SELLER_DISCLOSURE.name.trim()).not.toBe('')
+    expect(SELLER_DISCLOSURE.address.trim()).not.toBe('')
+    expect(SELLER_DISCLOSURE.phone.trim()).not.toBe('')
+    expect(SELLER_DISCLOSURE.responsiblePerson.trim()).not.toBe('')
+    expect(SELLER_DISCLOSURE.supportEmail.trim()).not.toBe('')
+    expect(isPaidLaunchLegalReady()).toBe(false)
+  })
+
+  it('renders the canonical seller disclosure in every Tokushoho locale', () => {
+    const document = requireLegalDocumentBySlug('tokushoho')
+    for (const locale of SUPPORTED_LOCALES) {
+      const sellerSection = document.bodies[locale].find(
+        (section) => section.id === 'jp-tokushoho-seller-disclosure',
+      )
+      const disclosure = sellerSection?.paragraphs.join('\n') ?? ''
+      expect(disclosure).toContain(SELLER_DISCLOSURE.name)
+      expect(disclosure).toContain(SELLER_DISCLOSURE.address)
+      expect(disclosure).toContain(SELLER_DISCLOSURE.phone)
+      expect(disclosure).toContain(SELLER_DISCLOSURE.responsiblePerson)
+      expect(disclosure).toContain(SELLER_DISCLOSURE.supportEmail)
+    }
+  })
+
+  it('cannot become launch-ready while reviewed-document placeholder notes remain', () => {
+    const liveDocuments = LEGAL_DOCUMENTS.map((document) => ({
+      ...document,
+      status: 'live' as const,
+    }))
+    const completeSeller = {
+      name: 'Example Seller LLC',
+      address: '1 Example Street',
+      phone: '+1-555-0100',
+      responsiblePerson: 'Example Person',
+      supportEmail: 'support@example.com',
+      pending: false,
+    }
+
+    expect(isPaidLaunchLegalReady(liveDocuments, completeSeller)).toBe(false)
+
+    const replacements = [
+      [SELLER_DISCLOSURE.name, completeSeller.name],
+      [SELLER_DISCLOSURE.address, completeSeller.address],
+      [SELLER_DISCLOSURE.phone, completeSeller.phone],
+      [SELLER_DISCLOSURE.responsiblePerson, completeSeller.responsiblePerson],
+      [SELLER_DISCLOSURE.supportEmail, completeSeller.supportEmail],
+    ] as const
+    const reviewedDocuments = liveDocuments.map((document) => ({
+      ...document,
+      bodies: Object.fromEntries(
+        SUPPORTED_LOCALES.map((locale) => [
+          locale,
+          document.bodies[locale]
+            .filter((section) => section.id !== 'legal-review-pending')
+            .map((section) => ({
+              ...section,
+              paragraphs: section.paragraphs.map((paragraph) =>
+                replacements.reduce(
+                  (result, [before, after]) => result.replaceAll(before, after),
+                  paragraph,
+                ),
+              ),
+            })),
+        ]),
+      ) as typeof document.bodies,
+    }))
+    expect(isPaidLaunchLegalReady(reviewedDocuments, completeSeller)).toBe(true)
   })
 })
