@@ -163,6 +163,7 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     expect(createIntent.args[0]).toMatchObject({
       p_user_id: 'user-1',
       p_customer_email_snapshot: 'buyer@example.com',
+      p_customer_locale_snapshot: 'zh-TW',
       p_book_id: 'book-a',
       p_provider: 'ecpay',
       p_payment_method: 'credit',
@@ -208,6 +209,22 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     expect(result.status).toBe(422);
     expect(JSON.parse(result.body)).toMatchObject({ reason: 'legal_evidence_invalid' });
     expect(mock.callsFor('orders', 'insert')).toHaveLength(0);
+  });
+
+  it('rejects an unsupported presentation locale before any insert', async () => {
+    const { mock, deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: { ...TW_CONSENT, presentationLocale: 'xx' } }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'legal_evidence_invalid' });
+    expect(mock.rpcCalls('create_checkout_intent')).toHaveLength(0);
   });
 
   it.each([

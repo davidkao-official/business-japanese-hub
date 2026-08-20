@@ -1,10 +1,11 @@
 begin;
 
-select plan(53);
+select plan(61);
 
 select has_column('public', 'catalog', 'item_name', 'catalog has an authoritative sellable item name');
 select col_not_null('public', 'catalog', 'item_name', 'catalog item name is required');
 select has_column('public', 'orders', 'customer_email_snapshot', 'orders freeze the delivery email');
+select has_column('public', 'orders', 'customer_locale_snapshot', 'orders freeze the buyer-facing locale');
 select has_table('public', 'order_email_outbox', 'server-only order-email outbox exists');
 select ok(not has_table_privilege('anon', 'public.order_email_outbox', 'select'), 'anon cannot read email jobs');
 select ok(not has_table_privilege('authenticated', 'public.order_email_outbox', 'select'), 'authenticated cannot read email jobs');
@@ -12,19 +13,19 @@ select ok(has_table_privilege('service_role', 'public.order_email_outbox', 'sele
 
 select has_function(
   'public', 'create_checkout_intent',
-  array['uuid','text','text','text','text','text','text','text','boolean','text','text','timestamp with time zone','text','text','text'],
+  array['uuid','text','text','text','text','text','text','text','text','boolean','text','text','timestamp with time zone','text','text','text'],
   'atomic checkout-intent RPC exists'
 );
 select ok(
-  not has_function_privilege('anon', 'public.create_checkout_intent(uuid,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text)', 'execute'),
+  not has_function_privilege('anon', 'public.create_checkout_intent(uuid,text,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text)', 'execute'),
   'anon cannot create checkout intents directly'
 );
 select ok(
-  not has_function_privilege('authenticated', 'public.create_checkout_intent(uuid,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text)', 'execute'),
+  not has_function_privilege('authenticated', 'public.create_checkout_intent(uuid,text,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text)', 'execute'),
   'authenticated cannot create checkout intents directly'
 );
 select ok(
-  has_function_privilege('service_role', 'public.create_checkout_intent(uuid,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text)', 'execute'),
+  has_function_privilege('service_role', 'public.create_checkout_intent(uuid,text,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text)', 'execute'),
   'service_role can create checkout intents'
 );
 
@@ -32,6 +33,10 @@ select has_function('public', 'claim_order_email_jobs', array['integer','timesta
 select ok(not has_function_privilege('anon', 'public.claim_order_email_jobs(integer,timestamptz)', 'execute'), 'anon cannot claim email jobs');
 select ok(not has_function_privilege('authenticated', 'public.claim_order_email_jobs(integer,timestamptz)', 'execute'), 'authenticated cannot claim email jobs');
 select ok(has_function_privilege('service_role', 'public.claim_order_email_jobs(integer,timestamptz)', 'execute'), 'service_role can claim email jobs');
+select has_function('public', 'prepare_order_email_send', array['uuid'], 'pre-send paid-state recheck RPC exists');
+select ok(not has_function_privilege('anon', 'public.prepare_order_email_send(uuid)', 'execute'), 'anon cannot reserve an email send');
+select ok(not has_function_privilege('authenticated', 'public.prepare_order_email_send(uuid)', 'execute'), 'authenticated cannot reserve an email send');
+select ok(has_function_privilege('service_role', 'public.prepare_order_email_send(uuid)', 'execute'), 'service_role can reserve an email send');
 select has_function('public', 'is_order_email_scheduler_ready', array['text','text'], 'email scheduler activation RPC exists');
 select ok(not has_function_privilege('anon', 'public.is_order_email_scheduler_ready(text,text)', 'execute'), 'anon cannot inspect email scheduler activation');
 select ok(not has_function_privilege('authenticated', 'public.is_order_email_scheduler_ready(text,text)', 'execute'), 'authenticated cannot inspect email scheduler activation');
@@ -84,16 +89,16 @@ insert into public.catalog (
 create temporary table checkout_result as
 select public.create_checkout_intent(
   '50000000-0000-0000-0000-000000000001',
-  'book-usd', 'reader@example.com', 'TW', 'unresolved', 'en',
+  'book-usd', 'reader@example.com', 'en', 'TW', 'unresolved', 'en',
   'notice-v1', 'consent-v1', true, 'Canonical notice', 'Canonical consent',
   '2026-08-20T10:00:00Z', 'paypal', 'ORDER-US-1', 'paypal'
 ) as result;
 
 select ok((select result->'order'->>'id' is not null from checkout_result), 'atomic RPC returns the created order');
 select results_eq(
-  $$ select item_name_snapshot, customer_email_snapshot, amount_minor, currency
+  $$ select item_name_snapshot, customer_email_snapshot, customer_locale_snapshot, amount_minor, currency
        from public.orders where book_id = 'book-usd' $$,
-  $$ values ('Business Meetings'::text, 'reader@example.com'::text, 1200::bigint, 'USD'::text) $$,
+  $$ values ('Business Meetings'::text, 'reader@example.com'::text, 'en'::text, 1200::bigint, 'USD'::text) $$,
   'order snapshots authoritative catalog and delivery facts'
 );
 select results_eq(
@@ -119,8 +124,14 @@ select throws_ok(
   'customer delivery email cannot be rewritten'
 );
 select throws_ok(
+  $$ update public.orders set customer_locale_snapshot = 'ja' where book_id = 'book-usd' $$,
+  'P0001',
+  'orders: commercial and compliance snapshots are immutable after creation',
+  'customer communication locale cannot be rewritten'
+);
+select throws_ok(
   $$ select public.create_checkout_intent(
-    '50000000-0000-0000-0000-000000000001', 'book-usd', 'reader@example.com',
+    '50000000-0000-0000-0000-000000000001', 'book-usd', 'reader@example.com', 'en',
     'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
     now(), 'ecpay', 'BAD-US-1', 'credit'
   ) $$,
@@ -130,7 +141,7 @@ select throws_ok(
 select is((select count(*) from public.payments where provider_merchant_ref = 'BAD-US-1'), 0::bigint, 'rejected mapping writes no payment');
 select throws_like(
   $$ select public.create_checkout_intent(
-    '50000000-0000-0000-0000-000000000001', 'book-usd', 'reader@example.com',
+    '50000000-0000-0000-0000-000000000001', 'book-usd', 'reader@example.com', 'en',
     'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
     now(), 'paypal', 'ORDER-US-1', 'paypal'
   ) $$,
@@ -144,7 +155,7 @@ select is(
 );
 select throws_ok(
   $$ select public.create_checkout_intent(
-    '50000000-0000-0000-0000-000000000001', 'book-future', 'reader@example.com',
+    '50000000-0000-0000-0000-000000000001', 'book-future', 'reader@example.com', 'en',
     'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
     now(), 'paypal', 'FUTURE-1', 'paypal'
   ) $$,
@@ -154,7 +165,7 @@ select throws_ok(
 select is((select count(*) from public.payments where provider_merchant_ref = 'FUTURE-1'), 0::bigint, 'unreleased attempt writes nothing');
 select ok(
   (public.create_checkout_intent(
-    '50000000-0000-0000-0000-000000000001', 'book-twd', 'reader@example.com',
+    '50000000-0000-0000-0000-000000000001', 'book-twd', 'reader@example.com', 'zh-TW',
     'TW', 'unresolved', 'zh-TW', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
     now(), 'ecpay', 'ORDER-TW-1', 'credit'
   )->'payment'->>'id') is not null,
@@ -263,6 +274,24 @@ update public.order_email_outbox set locked_at = '2026-08-20T11:40:00Z'
 where order_id = (select id from public.orders where book_id = 'book-usd');
 select is(jsonb_array_length(public.claim_order_email_jobs(20, '2026-08-20T12:01:00Z')), 1, 'stale claim is recovered');
 select is((select attempt_count from public.order_email_outbox where order_id = (select id from public.orders where book_id = 'book-usd')), 2, 'stale recovery increments the attempt count exactly once');
+
+update public.payments set status = 'refunded'
+ where provider_merchant_ref = 'ORDER-US-1';
+update public.orders set status = 'refunded', refunded_at = '2026-08-20T12:01:30Z'
+ where book_id = 'book-usd';
+select is(
+  public.prepare_order_email_send(
+    (select id from public.order_email_outbox where order_id = (select id from public.orders where book_id = 'book-usd'))
+  ),
+  false,
+  'a refund committed after claim fails the immediate pre-send reservation'
+);
+select results_eq(
+  $$ select status, last_error_code from public.order_email_outbox
+      where order_id = (select id from public.orders where book_id = 'book-usd') $$,
+  $$ values ('dead'::text, 'order_no_longer_paid'::text) $$,
+  'the pre-send refund race is durably suppressed'
+);
 
 select * from finish();
 rollback;

@@ -83,12 +83,22 @@ export function parseConsent(value: unknown): ConsentSubmission | null {
   if (obj.jurisdiction !== 'TW' && obj.jurisdiction !== 'JP') return null;
   const jurisdiction = obj.jurisdiction as ResolvedJurisdiction;
   const locale = typeof obj.locale === 'string' ? obj.locale : '';
+  const presentationLocale = typeof obj.presentationLocale === 'string'
+    ? obj.presentationLocale
+    : '';
   const noticeVersion = typeof obj.noticeVersion === 'string' ? obj.noticeVersion : '';
   const consentVersion = typeof obj.consentVersion === 'string' ? obj.consentVersion : '';
   const consentGranted = obj.consentGranted === true;
   const noticeTextSnapshot = typeof obj.noticeTextSnapshot === 'string' ? obj.noticeTextSnapshot : '';
   const consentTextSnapshot = typeof obj.consentTextSnapshot === 'string' ? obj.consentTextSnapshot : '';
-  if (!locale || !noticeVersion || !consentVersion || !noticeTextSnapshot || !consentTextSnapshot) {
+  if (
+    !locale ||
+    !['ja', 'en', 'zh-TW'].includes(presentationLocale) ||
+    !noticeVersion ||
+    !consentVersion ||
+    !noticeTextSnapshot ||
+    !consentTextSnapshot
+  ) {
     return null;
   }
   const canonical = canonicalCheckoutEvidence(jurisdiction);
@@ -104,6 +114,7 @@ export function parseConsent(value: unknown): ConsentSubmission | null {
   return {
     jurisdiction,
     locale: canonical.locale,
+    presentationLocale: presentationLocale as ConsentSubmission['presentationLocale'],
     noticeVersion: canonical.noticeVersion,
     consentVersion: canonical.consentVersion,
     consentGranted,
@@ -475,6 +486,7 @@ async function createAtomicCheckoutIntent(
       p_user_id: userId,
       p_book_id: bookId,
       p_customer_email_snapshot: customerEmail,
+      p_customer_locale_snapshot: consent.presentationLocale,
       p_jurisdiction: jurisdiction,
       p_japan_tax_status_snapshot: japanTaxStatus,
       p_locale: consent.locale,

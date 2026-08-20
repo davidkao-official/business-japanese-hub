@@ -14,6 +14,7 @@ function consent(overrides: Partial<ConsentSubmission> = {}): ConsentSubmission 
   return {
     jurisdiction: 'TW',
     locale: 'zh-TW',
+    presentationLocale: 'zh-TW',
     noticeVersion: 'tw-7day-removal-notice-v1',
     consentVersion: 'tw-digital-content-consent-v1',
     consentGranted: true,

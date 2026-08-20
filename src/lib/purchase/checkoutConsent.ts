@@ -123,6 +123,7 @@ export function buildConsentSubmission(input: BuildConsentSubmissionInput): Cons
   return {
     jurisdiction,
     locale: evidence.locale,
+    presentationLocale: input.locale,
     noticeVersion: evidence.noticeVersion,
     consentVersion: evidence.consentVersion,
     consentGranted: input.consentGranted,

@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EmailSender } from '../_shared/email.ts';
-import { createMockDb, fakeLogger, handlerRequest, testEnv } from '../_shared/testing.ts';
+import {
+  createMockDb,
+  fakeLogger,
+  handlerRequest,
+  testEnv,
+  type MockRoute,
+} from '../_shared/testing.ts';
 import { handleOrderEmail, type ClaimedOrderEmailJob } from './handler.ts';
 
 const NOW = new Date('2026-08-20T12:00:00.000Z');
@@ -30,9 +36,13 @@ function sender(result: Awaited<ReturnType<EmailSender['send']>>): EmailSender {
   return { send: vi.fn().mockResolvedValue(result) };
 }
 
+function workerDb(routes: Record<string, MockRoute> = {}) {
+  return createMockDb({ 'rpc:prepare_order_email_send': { data: true }, ...routes });
+}
+
 describe('order-email scheduled worker', () => {
   it('rejects non-POST requests and incorrect scheduled secrets before claiming', async () => {
-    const mock = createMockDb();
+    const mock = workerDb();
     const emailSender = sender({ ok: true, providerMessageId: 'msg-1' });
 
     const wrongMethod = await handleOrderEmail(request('test-scheduled-secret', 'GET'), {
@@ -49,7 +59,7 @@ describe('order-email scheduled worker', () => {
   });
 
   it('fails closed before claiming when transactional email is not configured', async () => {
-    const mock = createMockDb();
+    const mock = workerDb();
     const emailSender = sender({ ok: true, providerMessageId: 'msg-1' });
     const result = await handleOrderEmail(request(), {
       env: testEnv({ resendApiKey: undefined }),
@@ -64,7 +74,7 @@ describe('order-email scheduled worker', () => {
   });
 
   it('claims authoritative receipt facts, sends once, and marks the row sent', async () => {
-    const mock = createMockDb({ 'rpc:claim_order_email_jobs': { data: [JOB] } });
+    const mock = workerDb({ 'rpc:claim_order_email_jobs': { data: [JOB] } });
     const emailSender = sender({ ok: true, providerMessageId: 'msg-1' });
     const result = await handleOrderEmail(request(), {
       env: testEnv(), db: mock.db, sender: emailSender, log: fakeLogger(), now: () => NOW,
@@ -76,6 +86,7 @@ describe('order-email scheduled worker', () => {
       p_limit: 20,
       p_now: NOW.toISOString(),
     });
+    expect(mock.rpcCalls('prepare_order_email_send')[0]?.args[0]).toEqual({ p_job_id: 'job-1' });
     expect(emailSender.send).toHaveBeenCalledWith(expect.objectContaining({
       to: 'reader@example.com',
       idempotencyKey: 'order-confirmation/ord-1',
@@ -90,8 +101,23 @@ describe('order-email scheduled worker', () => {
     });
   });
 
+  it('suppresses a claimed confirmation when a refund wins the pre-send recheck', async () => {
+    const mock = workerDb({
+      'rpc:claim_order_email_jobs': { data: [JOB] },
+      'rpc:prepare_order_email_send': { data: false },
+    });
+    const emailSender = sender({ ok: true, providerMessageId: 'msg-1' });
+    const result = await handleOrderEmail(request(), {
+      env: testEnv(), db: mock.db, sender: emailSender, log: fakeLogger(), now: () => NOW,
+    });
+
+    expect(JSON.parse(result.body)).toMatchObject({ processed: 1, sent: 0, dead: 1 });
+    expect(emailSender.send).not.toHaveBeenCalled();
+    expect(mock.callsFor('order_email_outbox', 'update')).toHaveLength(0);
+  });
+
   it('releases a retryable failure with a bounded backoff inside the 24-hour window', async () => {
-    const mock = createMockDb({ 'rpc:claim_order_email_jobs': { data: [{ ...JOB, attemptCount: 3 }] } });
+    const mock = workerDb({ 'rpc:claim_order_email_jobs': { data: [{ ...JOB, attemptCount: 3 }] } });
     const emailSender = sender({ ok: false, errorCode: 'rate_limit_exceeded', retryable: true });
     const result = await handleOrderEmail(request(), {
       env: testEnv(), db: mock.db, sender: emailSender, log: fakeLogger(), now: () => NOW,
@@ -107,7 +133,7 @@ describe('order-email scheduled worker', () => {
   });
 
   it('marks non-retryable failures dead for manual handling', async () => {
-    const mock = createMockDb({ 'rpc:claim_order_email_jobs': { data: [JOB] } });
+    const mock = workerDb({ 'rpc:claim_order_email_jobs': { data: [JOB] } });
     const emailSender = sender({ ok: false, errorCode: 'validation_error', retryable: false });
     const result = await handleOrderEmail(request(), {
       env: testEnv(), db: mock.db, sender: emailSender, log: fakeLogger(), now: () => NOW,
@@ -123,7 +149,7 @@ describe('order-email scheduled worker', () => {
 
   it('never sends a job at or beyond Resend’s 24-hour idempotency window', async () => {
     const expired = { ...JOB, createdAt: '2026-08-19T12:00:00.000Z' };
-    const mock = createMockDb({ 'rpc:claim_order_email_jobs': { data: [expired] } });
+    const mock = workerDb({ 'rpc:claim_order_email_jobs': { data: [expired] } });
     const emailSender = sender({ ok: true, providerMessageId: 'msg-1' });
     const result = await handleOrderEmail(request(), {
       env: testEnv(), db: mock.db, sender: emailSender, log: fakeLogger(), now: () => NOW,
@@ -141,7 +167,7 @@ describe('order-email scheduled worker', () => {
   it('re-reads time for each claimed job so a queued job cannot age past the window', async () => {
     const first = { ...JOB, jobId: 'job-1', createdAt: '2026-08-19T13:00:00.000Z' };
     const expiring = { ...JOB, jobId: 'job-2', orderId: 'ord-2', createdAt: '2026-08-19T12:01:00.000Z' };
-    const mock = createMockDb({ 'rpc:claim_order_email_jobs': { data: [first, expiring] } });
+    const mock = workerDb({ 'rpc:claim_order_email_jobs': { data: [first, expiring] } });
     const emailSender = sender({ ok: true, providerMessageId: 'msg-1' });
     const clock = vi
       .fn<() => Date>()
@@ -159,7 +185,7 @@ describe('order-email scheduled worker', () => {
   });
 
   it('returns 500 if a claimed row cannot be durably transitioned', async () => {
-    const mock = createMockDb({
+    const mock = workerDb({
       'rpc:claim_order_email_jobs': { data: [JOB] },
       order_email_outbox: { error: 'database unavailable' },
     });

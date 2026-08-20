@@ -13,7 +13,7 @@
 | Table | Migration | Purpose | Security |
 | --- | --- | --- | --- |
 | `catalog` | 0002 + 20260820100000 | Authoritative server-side price and customer-facing `item_name` seam (§8.3). Checkout reads `released_at <= now()`; client display uses the static bundle `Price`. | **No-read boundary**: RLS on, zero client policies, `revoke` from anon/authenticated/PUBLIC, `grant select` to `service_role` only. service_role keeps its Supabase-default INSERT/UPDATE (used by `scripts/update-catalog.ts`). |
-| `orders` | 0002 + 20260820100000 | One purchase intent. Catalog/price/compliance fields and `customer_email_snapshot` are **immutable** (trigger `orders_immutable_fields_check`); orchestration updates only `status/paid_at/refunded_at`. | Server-only. |
+| `orders` | 0002 + 20260820100000 | One purchase intent. Catalog/price/compliance fields plus `customer_email_snapshot` and buyer-facing `customer_locale_snapshot` are **immutable** (trigger `orders_immutable_fields_check`); orchestration updates only `status/paid_at/refunded_at`. | Server-only. |
 | `payments` | 0002 + 0006 + 20260819212459 | Payment attempts. `provider_merchant_ref` is the local/provider correlation key; `provider_checkout_ref` preserves a checkout/session id such as a PayPal Order ID; `provider_payment_ref` holds the final capture/transaction id. Each reference is unique per provider once known. | Server-only. |
 | `refunds` | 0002 | **Source of truth for refunds** (§7). MVP full refund only; provider-confirmed refund → `status='succeeded'`. | Server-only. |
 | `payment_events` | 0002 | Reliability ledger; `UNIQUE(provider, event_fingerprint)` makes duplicate callbacks a no-op. `sanitized_payload_json` holds allowlisted financial/status fields only. | Server-only. |
@@ -37,7 +37,7 @@
 3. Provider checkout/session: partial unique index `payments_provider_checkout_ref_uidx` on `(provider, provider_checkout_ref) WHERE provider_checkout_ref IS NOT NULL`.
 4. Callback receipt: `UNIQUE(provider, event_fingerprint)`; receipt uses conflict-ignoring upsert, then re-applies the idempotent transaction on replay.
 5. Ownership: `UNIQUE(user_id, book_id)` on `book_entitlement`.
-6. Receipt delivery: `UNIQUE(order_id, template_key)` in `order_email_outbox`, plus Resend key `order-confirmation/<orderId>`. Automatic send/retry stops at the provider's 24-hour idempotency boundary; aged rows become `dead` for manual handling.
+6. Receipt delivery: `UNIQUE(order_id, template_key)` in `order_email_outbox`, plus Resend key `order-confirmation/<orderId>`. Automatic send/retry stops before the provider's 24-hour idempotency boundary; aged rows become `dead` for manual handling. `prepare_order_email_send` rechecks that the Order is still paid immediately before the external send and suppresses a refund that wins after claim.
 
 ## Transactional financial finalizers
 
@@ -59,6 +59,7 @@ create_checkout_intent(
   p_user_id uuid,
   p_book_id text,
   p_customer_email_snapshot text,
+  p_customer_locale_snapshot text,
   p_jurisdiction text,
   p_japan_tax_status_snapshot text,
   p_locale text,
@@ -80,9 +81,11 @@ in one transaction. Launch mappings are exact: USD → PayPal and TWD → ECPay.
 The payment-method snapshot is likewise exact: PayPal records `paypal` (the
 hosted provider channel, never an inferred funding source) and ECPay records
 `credit` for its fixed credit-card checkout.
-The trusted Edge handler supplies the authenticated user/email and canonical
-notice/consent evidence; no browser-supplied amount, currency, title, legal copy,
-or seller fact is authoritative.
+The trusted Edge handler supplies the authenticated user/email, an allowlisted
+buyer-facing locale, and canonical notice/consent evidence. The customer locale
+is deliberately separate from `order_compliance.locale`, which identifies the
+fixed jurisdiction-specific legal copy. No browser-supplied amount, currency,
+title, legal copy, or seller fact is authoritative.
 
 ## `grant_entitlement` (recreated in 0003, 8-arg)
 

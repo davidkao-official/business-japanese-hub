@@ -36,6 +36,13 @@ alter table public.orders add constraint orders_customer_email_snapshot_check
 comment on column public.orders.customer_email_snapshot is
   'Immutable purchase-time email used for the order confirmation. Nullable only for legacy pre-migration rows; create_checkout_intent always requires it.';
 
+alter table public.orders add column if not exists customer_locale_snapshot text;
+alter table public.orders drop constraint if exists orders_customer_locale_snapshot_check;
+alter table public.orders add constraint orders_customer_locale_snapshot_check
+  check (customer_locale_snapshot is null or customer_locale_snapshot in ('ja', 'en', 'zh-TW'));
+comment on column public.orders.customer_locale_snapshot is
+  'Immutable buyer-facing locale for customer communication. Separate from the fixed legal-evidence locale and nullable only for legacy rows.';
+
 create or replace function public.orders_immutable_fields_check()
 returns trigger
 language plpgsql
@@ -49,7 +56,8 @@ begin
      or new.item_name_snapshot is distinct from old.item_name_snapshot
      or new.jurisdiction is distinct from old.jurisdiction
      or new.japan_tax_status_snapshot is distinct from old.japan_tax_status_snapshot
-     or new.customer_email_snapshot is distinct from old.customer_email_snapshot then
+     or new.customer_email_snapshot is distinct from old.customer_email_snapshot
+     or new.customer_locale_snapshot is distinct from old.customer_locale_snapshot then
     raise exception 'orders: commercial and compliance snapshots are immutable after creation';
   end if;
   return new;
@@ -62,7 +70,7 @@ revoke all on function public.orders_immutable_fields_check() from authenticated
 grant execute on function public.orders_immutable_fields_check() to service_role;
 
 comment on table public.orders is
-  'Purchase intent ledger. Catalog, price, compliance, and customer-email snapshots are immutable after creation; orchestration only updates status/paid_at/refunded_at.';
+  'Purchase intent ledger. Catalog, price, compliance, customer-email, and customer-locale snapshots are immutable after creation; orchestration only updates status/paid_at/refunded_at.';
 
 -- ---------------------------------------------------------------------------
 -- 2. Atomic service-role-only checkout intent creation.
@@ -74,6 +82,7 @@ create or replace function public.create_checkout_intent(
   p_user_id                    uuid,
   p_book_id                    text,
   p_customer_email_snapshot    text,
+  p_customer_locale_snapshot   text,
   p_jurisdiction               text,
   p_japan_tax_status_snapshot  text,
   p_locale                     text,
@@ -105,6 +114,9 @@ begin
      or length(v_email) not between 3 and 320
      or v_email !~ '^[^[:space:]@]+@[^[:space:]@]+$' then
     raise exception 'valid customer email is required';
+  end if;
+  if p_customer_locale_snapshot not in ('ja', 'en', 'zh-TW') then
+    raise exception 'supported customer locale is required';
   end if;
   if p_jurisdiction not in ('TW', 'JP') then
     raise exception 'resolved jurisdiction is required';
@@ -162,11 +174,11 @@ begin
   insert into public.orders (
     user_id, book_id, item_name_snapshot, published_revision,
     amount_minor, currency, status, jurisdiction,
-    japan_tax_status_snapshot, customer_email_snapshot
+    japan_tax_status_snapshot, customer_email_snapshot, customer_locale_snapshot
   ) values (
     p_user_id, v_catalog.book_id, v_catalog.item_name, v_catalog.published_revision,
     v_catalog.amount_minor, v_catalog.currency, 'pending', p_jurisdiction,
-    p_japan_tax_status_snapshot, v_email
+    p_japan_tax_status_snapshot, v_email, p_customer_locale_snapshot
   ) returning * into v_order;
 
   insert into public.order_compliance (
@@ -190,10 +202,10 @@ begin
 end;
 $$;
 
-revoke all on function public.create_checkout_intent(uuid,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text) from public;
-revoke all on function public.create_checkout_intent(uuid,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text) from anon;
-revoke all on function public.create_checkout_intent(uuid,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text) from authenticated;
-grant execute on function public.create_checkout_intent(uuid,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text) to service_role;
+revoke all on function public.create_checkout_intent(uuid,text,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text) from public;
+revoke all on function public.create_checkout_intent(uuid,text,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text) from anon;
+revoke all on function public.create_checkout_intent(uuid,text,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text) from authenticated;
+grant execute on function public.create_checkout_intent(uuid,text,text,text,text,text,text,text,text,boolean,text,text,timestamptz,text,text,text) to service_role;
 
 -- ---------------------------------------------------------------------------
 -- 3. Server-only transactional-email outbox.
@@ -278,9 +290,7 @@ begin
   end if;
 
   if v_order.status = 'pending' then
-    select locale into v_email_locale
-      from public.order_compliance
-     where order_id = v_order.id;
+    v_email_locale := v_order.customer_locale_snapshot;
 
     update public.payments
        set status = 'succeeded',
@@ -318,7 +328,7 @@ begin
         then now() else null end,
       case
         when v_order.customer_email_snapshot is null then 'missing_customer_email_snapshot'
-        when v_email_locale is null then 'missing_compliance_locale_snapshot'
+        when v_email_locale is null then 'missing_customer_locale_snapshot'
         else null
       end
     ) on conflict (order_id, template_key) do nothing;
@@ -448,6 +458,46 @@ revoke all on function public.claim_order_email_jobs(integer,timestamptz) from p
 revoke all on function public.claim_order_email_jobs(integer,timestamptz) from anon;
 revoke all on function public.claim_order_email_jobs(integer,timestamptz) from authenticated;
 grant execute on function public.claim_order_email_jobs(integer,timestamptz) to service_role;
+
+-- Recheck the authoritative Order immediately before the external send. The
+-- RPC also closes a claimed job as dead when a refund won the race after claim.
+create or replace function public.prepare_order_email_send(p_job_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_order_id uuid;
+  v_outbox_status text;
+  v_order_status text;
+begin
+  select order_id, status into v_order_id, v_outbox_status
+    from public.order_email_outbox
+   where id = p_job_id
+   for update;
+  if not found or v_outbox_status <> 'processing' then return false; end if;
+
+  select status into v_order_status
+    from public.orders
+   where id = v_order_id
+   for key share;
+  if v_order_status = 'paid' then return true; end if;
+
+  update public.order_email_outbox
+     set status = 'dead',
+         locked_at = null,
+         next_attempt_at = null,
+         last_error_code = 'order_no_longer_paid'
+   where id = p_job_id and status = 'processing';
+  return false;
+end;
+$$;
+
+revoke all on function public.prepare_order_email_send(uuid) from public;
+revoke all on function public.prepare_order_email_send(uuid) from anon;
+revoke all on function public.prepare_order_email_send(uuid) from authenticated;
+grant execute on function public.prepare_order_email_send(uuid) to service_role;
 
 -- ---------------------------------------------------------------------------
 -- 6. Extend the shared secret-protected pg_net caller with an email mode.

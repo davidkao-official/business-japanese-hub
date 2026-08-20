@@ -107,6 +107,25 @@ async function processJob(
     });
   }
 
+  const { data: sendReady, error: sendReadyError } = await deps.db.rpc(
+    'prepare_order_email_send',
+    { p_job_id: job.jobId },
+  );
+  if (sendReadyError) {
+    deps.log.error(
+      { jobId: job.jobId, orderId: job.orderId, errorCode: 'send_recheck_failed' },
+      'order-email authoritative send recheck failed',
+    );
+    return { ok: false };
+  }
+  if ((sendReady as unknown) !== true) {
+    deps.log.warn(
+      { jobId: job.jobId, orderId: job.orderId, state: 'dead' },
+      'order-email suppressed because order is no longer paid',
+    );
+    return { ok: true, state: 'dead' };
+  }
+
   let result: EmailSendResult;
   try {
     const message = buildOrderConfirmationEmail(job, deps.env);

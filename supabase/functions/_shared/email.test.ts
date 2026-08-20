@@ -43,7 +43,10 @@ describe('order confirmation email', () => {
     expect(message.text).toContain('Meetings <script>alert("x")</script>');
     expect(message.text).toContain('Payment: PayPal');
     expect(message.text).not.toContain('PayPal / credit card');
-    expect(message.text).toContain('Delivery: Immediate access in your Library');
+    expect(message.text).toContain(
+      'Delivery: Delivered to your Library after payment confirmation; check your Library for current access',
+    );
+    expect(message.text).not.toContain('Immediate access');
     expect(message.text).toContain('support@example.com');
   });
 

@@ -12,6 +12,8 @@
  * these shared contracts on their own.
  */
 
+import type { Locale } from '../../i18n/locales';
+
 /* ------------------------------------------------------------------------- *
  * Money (§8.1)
  * ------------------------------------------------------------------------- */
@@ -413,6 +415,8 @@ export interface ConsentSubmission {
   /** The declared consumer jurisdiction — always resolved; `unresolved` is the ABSENCE of a submission. */
   jurisdiction: ResolvedJurisdiction;
   locale: string;
+  /** Buyer-facing UI/email locale, separate from the fixed legal-copy locale above. */
+  presentationLocale: Locale;
   noticeVersion: string;
   consentVersion: string;
   consentGranted: boolean;
