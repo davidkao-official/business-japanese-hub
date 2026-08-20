@@ -72,8 +72,26 @@ grant execute on function public.orders_immutable_fields_check() to service_role
 comment on table public.orders is
   'Purchase intent ledger. Catalog, price, compliance, customer-email, and customer-locale snapshots are immutable after creation; orchestration only updates status/paid_at/refunded_at.';
 
--- A browser retry or concurrent tab must not create two provider handoffs for
--- the same Book. Terminal Orders leave the predicate and permit a fresh intent.
+-- Older schemas permitted more than one pending Order. Never guess which
+-- PaymentAttempt is authoritative during upgrade: stop with an operator-facing
+-- reconciliation gate before adding the invariant.
+do $$
+begin
+  if exists (
+    select 1 from public.orders
+     where status = 'pending'
+     group by user_id, book_id
+    having count(*) > 1
+  ) then
+    raise exception 'first-sale migration blocked: duplicate pending Orders require provider reconciliation'
+      using hint = 'Verify every affected provider attempt, then cancel only Orders proven inactive before rerunning this migration.';
+  end if;
+end;
+$$;
+
+-- A browser retry or concurrent tab shares one pending Order. Failed attempts
+-- receive a new PaymentAttempt; live attempts resume with their stable provider
+-- idempotency key. Terminal Orders leave the predicate.
 create unique index if not exists orders_one_open_checkout_uidx
   on public.orders (user_id, book_id)
   where status = 'pending';
@@ -161,6 +179,20 @@ begin
     raise exception 'catalog item % is not a paid checkout item', p_book_id;
   end if;
 
+  if exists (
+    select 1 from public.book_entitlement entitlement
+     where entitlement.user_id = p_user_id
+       and entitlement.book_id = p_book_id
+       and entitlement.status = 'active'
+  ) or exists (
+    select 1 from public.orders owned_order
+     where owned_order.user_id = p_user_id
+       and owned_order.book_id = p_book_id
+       and owned_order.status = 'paid'
+  ) then
+    return jsonb_build_object('outcome', 'owned');
+  end if;
+
   v_expected_provider := case v_catalog.currency
     when 'USD' then 'paypal'
     when 'TWD' then 'ecpay'
@@ -199,16 +231,55 @@ begin
     select * into v_payment
       from public.payments
      where order_id = v_order.id
-     order by created_at, id
+     order by created_at desc, id desc
      limit 1;
     if v_order.id is null or v_payment.id is null then
       raise exception 'existing checkout intent is incomplete';
     end if;
+    if v_payment.provider <> v_expected_provider then
+      raise exception 'existing checkout intent provider no longer matches the released catalog';
+    end if;
+    if v_payment.status = 'failed' then
+      insert into public.payments (
+        order_id, provider, provider_merchant_ref, amount_minor,
+        currency, method, status
+      ) values (
+        v_order.id, v_payment.provider, btrim(p_provider_merchant_ref),
+        v_order.amount_minor, v_order.currency, v_payment.method, 'created'
+      ) returning * into v_payment;
+      return jsonb_build_object(
+        'outcome', 'retry_created',
+        'order', to_jsonb(v_order),
+        'payment', to_jsonb(v_payment)
+      );
+    end if;
+    if v_payment.status not in ('created', 'pending', 'verification_pending') then
+      raise exception 'existing checkout intent has non-resumable payment status %', v_payment.status;
+    end if;
     return jsonb_build_object(
-      'created', false,
+      'outcome', 'resumed',
       'order', to_jsonb(v_order),
       'payment', to_jsonb(v_payment)
     );
+  end if;
+
+  -- The insert may have waited on a concurrently-finalizing pending Order. If
+  -- that Order became paid while the unique-index conflict was rechecked, the
+  -- insert can now succeed; close this race before any PaymentAttempt exists.
+  if exists (
+    select 1 from public.book_entitlement entitlement
+     where entitlement.user_id = p_user_id
+       and entitlement.book_id = p_book_id
+       and entitlement.status = 'active'
+  ) or exists (
+    select 1 from public.orders owned_order
+     where owned_order.user_id = p_user_id
+       and owned_order.book_id = p_book_id
+       and owned_order.status = 'paid'
+       and owned_order.id <> v_order.id
+  ) then
+    delete from public.orders where id = v_order.id;
+    return jsonb_build_object('outcome', 'owned');
   end if;
 
   insert into public.order_compliance (
@@ -229,7 +300,7 @@ begin
   ) returning * into v_payment;
 
   return jsonb_build_object(
-    'created', true,
+    'outcome', 'created',
     'order', to_jsonb(v_order),
     'payment', to_jsonb(v_payment)
   );

@@ -123,4 +123,25 @@ describe('order confirmation email', () => {
       vi.useRealTimers();
     }
   });
+
+  it('keeps the deadline active while reading a stalled Resend response body', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetcher = vi.fn((_input: string, init?: { signal?: AbortSignal }) => Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => new Promise<never>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        }),
+      }));
+      const env = testEnv();
+      const send = createResendEmailSender(env, fetcher).send(buildOrderConfirmationEmail(FACTS, env));
+
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      await expect(send).resolves.toEqual({ ok: false, errorCode: 'request_timeout', retryable: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

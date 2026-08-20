@@ -231,6 +231,7 @@ export function createResendEmailSender(env: Env, fetcher: Fetcher = fetch): Ema
   return {
     async send(message): Promise<EmailSendResult> {
       let response: Awaited<ReturnType<Fetcher>>;
+      let payload: unknown;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10_000);
       try {
@@ -251,6 +252,14 @@ export function createResendEmailSender(env: Env, fetcher: Fetcher = fetch): Ema
           }),
           signal: controller.signal,
         });
+        try {
+          payload = await response.json();
+        } catch {
+          if (controller.signal.aborted) {
+            return { ok: false, errorCode: 'request_timeout', retryable: true };
+          }
+          payload = undefined;
+        }
       } catch {
         return {
           ok: false,
@@ -259,13 +268,6 @@ export function createResendEmailSender(env: Env, fetcher: Fetcher = fetch): Ema
         };
       } finally {
         clearTimeout(timeout);
-      }
-
-      let payload: unknown;
-      try {
-        payload = await response.json();
-      } catch {
-        payload = undefined;
       }
       if (response.ok && payload && typeof payload === 'object') {
         const id = (payload as Record<string, unknown>).id;

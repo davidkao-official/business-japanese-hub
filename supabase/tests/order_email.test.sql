@@ -1,6 +1,6 @@
 begin;
 
-select plan(77);
+select plan(82);
 
 select has_column('public', 'catalog', 'item_name', 'catalog has an authoritative sellable item name');
 select col_not_null('public', 'catalog', 'item_name', 'catalog item name is required');
@@ -96,7 +96,7 @@ select public.create_checkout_intent(
   '2026-08-20T10:00:00Z', 'paypal', 'ORDER-US-1', 'paypal'
 ) as result;
 
-select ok((select (result->>'created')::boolean and result->'order'->>'id' is not null from checkout_result), 'atomic RPC returns the created order');
+select ok((select result->>'outcome' = 'created' and result->'order'->>'id' is not null from checkout_result), 'atomic RPC returns the created order');
 select results_eq(
   $$ select item_name_snapshot, customer_email_snapshot, customer_locale_snapshot, amount_minor, currency
        from public.orders where book_id = 'book-usd' $$,
@@ -146,9 +146,9 @@ select is(
     '50000000-0000-0000-0000-000000000001', 'book-usd', 'reader@example.com', 'en',
     'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
     now(), 'paypal', 'ORDER-US-1', 'paypal'
-  )->>'created')::boolean,
-  false,
-  'a concurrent checkout reuses the one open intent without a second provider handoff'
+  )->>'outcome'),
+  'resumed'::text,
+  'a concurrent checkout resumes the one live PaymentAttempt'
 );
 select is(
   (select count(*) from public.orders where book_id = 'book-usd'),
@@ -183,6 +183,23 @@ select throws_ok(
   'P0001', 'supported customer locale is required',
   'new checkout cannot bypass the presentation-locale contract with SQL NULL'
 );
+create temporary table retry_first as
+select public.create_checkout_intent(
+  '50000000-0000-0000-0000-000000000001', 'book-usd-2', 'reader@example.com', 'en',
+  'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
+  now(), 'paypal', 'ORDER-US-2A', 'paypal'
+) as result;
+select is((select result->>'outcome' from retry_first), 'created'::text, 'first checkout creates its Order and PaymentAttempt');
+update public.payments set status = 'failed' where provider_merchant_ref = 'ORDER-US-2A';
+create temporary table retry_second as
+select public.create_checkout_intent(
+  '50000000-0000-0000-0000-000000000001', 'book-usd-2', 'reader@example.com', 'en',
+  'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
+  now(), 'paypal', 'ORDER-US-2B', 'paypal'
+) as result;
+select is((select result->>'outcome' from retry_second), 'retry_created'::text, 'authoritatively failed checkout gets a fresh PaymentAttempt');
+select is((select count(*) from public.orders where book_id = 'book-usd-2'), 1::bigint, 'failed retry preserves the original immutable Order');
+select is((select count(*) from public.payments where order_id = (select id from public.orders where book_id = 'book-usd-2')), 2::bigint, 'failed retry creates exactly one new PaymentAttempt');
 select throws_ok(
   $$ select public.create_checkout_intent(
     '50000000-0000-0000-0000-000000000001', 'book-future', 'reader@example.com', 'en',
@@ -217,6 +234,15 @@ select is(
   )->>'granted')::boolean,
   true,
   'first verified payment success grants access'
+);
+select is(
+  (public.create_checkout_intent(
+    '50000000-0000-0000-0000-000000000001', 'book-usd', 'reader@example.com', 'en',
+    'TW', 'unresolved', 'en', 'notice-v1', 'consent-v1', true, 'Notice', 'Consent',
+    now(), 'paypal', 'ORDER-US-OWNED', 'paypal'
+  )->>'outcome'),
+  'owned'::text,
+  'server-authoritative ownership refuses a second paid Order'
 );
 select is((select count(*) from public.order_email_outbox where order_id = (select id from public.orders where book_id = 'book-usd')), 1::bigint, 'first fulfillment enqueues exactly one receipt');
 select is(

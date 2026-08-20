@@ -65,7 +65,7 @@ function setup(initial: Record<string, unknown> = {}, routes: Record<string, Moc
     payments: { data: PAYMENT_ROW },
     'rpc:create_checkout_intent': {
       data: {
-        created: true,
+        outcome: 'created',
         order: {
           ...ORDER_ROW,
           item_name_snapshot: CATALOG_TWD.item_name,
@@ -514,11 +514,11 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     expect(String(createIntent.args[0]).indexOf('HACKED-REF')).toBe(-1);
   });
 
-  it('returns a conflict without provider handoff for an existing open intent', async () => {
+  it('resumes an existing live attempt through the same idempotent provider handoff', async () => {
     const { mock, adapter, deps } = setup({}, {
       'rpc:create_checkout_intent': {
         data: {
-          created: false,
+          outcome: 'resumed',
           order: {
             ...ORDER_ROW,
             item_name_snapshot: CATALOG_TWD.item_name,
@@ -539,16 +539,109 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       deps,
     );
 
-    expect(result.status).toBe(409);
-    expect(JSON.parse(result.body)).toMatchObject({ reason: 'checkout_in_progress', orderId: 'ord-1' });
-    expect(adapter.createCheckout).not.toHaveBeenCalled();
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.body)).toMatchObject({ orderId: 'ord-1' });
+    expect(adapter.createCheckout).toHaveBeenCalledTimes(1);
     expect(mock.callsFor('payments', 'delete')).toHaveLength(0);
+    expect(mock.callsFor('orders', 'delete')).toHaveLength(0);
+  });
+
+  it('creates a fresh provider handoff for a server-authoritatively failed attempt', async () => {
+    const retryPayment = { ...PAYMENT_ROW, id: 'pay-2', provider_merchant_ref: 'BJH-RETRY-2', status: 'created' };
+    const { adapter, deps } = setup({}, {
+      'rpc:create_checkout_intent': {
+        data: {
+          outcome: 'retry_created',
+          order: {
+            ...ORDER_ROW,
+            item_name_snapshot: CATALOG_TWD.item_name,
+            amount_minor: CATALOG_TWD.amount_minor,
+            currency: CATALOG_TWD.currency,
+          },
+          payment: retryPayment,
+        },
+      },
+    });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
+    expect(result.status).toBe(200);
+    expect(JSON.parse(result.body)).toMatchObject({ orderId: 'ord-1', paymentId: 'pay-2' });
+    expect(adapter.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
+      merchantReference: 'BJH-RETRY-2',
+    }));
+  });
+
+  it('refuses an already-owned Book before any provider handoff', async () => {
+    const { adapter, deps } = setup({}, {
+      'rpc:create_checkout_intent': { data: { outcome: 'owned' } },
+    });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
+    expect(result.status).toBe(409);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'already_owned' });
+    expect(adapter.createCheckout).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['resumed', 0],
+    ['retry_created', 1],
+  ] as const)('provider failure after %s preserves the existing Order and compensates only new rows', async (outcome, paymentDeletes) => {
+    const payment = {
+      ...PAYMENT_ROW,
+      id: outcome === 'retry_created' ? 'pay-2' : PAYMENT_ROW.id,
+      provider_merchant_ref: outcome === 'retry_created' ? 'BJH-RETRY-2' : PAYMENT_ROW.provider_merchant_ref,
+    };
+    const { mock, adapter, deps } = setup({}, {
+      'rpc:create_checkout_intent': {
+        data: {
+          outcome,
+          order: {
+            ...ORDER_ROW,
+            item_name_snapshot: CATALOG_TWD.item_name,
+            amount_minor: CATALOG_TWD.amount_minor,
+            currency: CATALOG_TWD.currency,
+          },
+          payment,
+        },
+      },
+    });
+    adapter.createCheckout.mockRejectedValue(new Error('provider unavailable'));
+
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
+    expect(result.status).toBe(502);
+    expect(mock.callsFor('payments', 'delete')).toHaveLength(paymentDeletes);
+    expect(mock.callsFor('order_compliance', 'delete')).toHaveLength(0);
     expect(mock.callsFor('orders', 'delete')).toHaveLength(0);
   });
 
   it.each([
     ['no rows', null],
-    ['missing money', { created: true, order: { id: 'ord-1' }, payment: PAYMENT_ROW }],
+    ['missing money', { outcome: 'created', order: { id: 'ord-1' }, payment: PAYMENT_ROW }],
   ])('fails closed when create_checkout_intent returns %s', async (_label, data) => {
     const { adapter, deps } = setup({}, { 'rpc:create_checkout_intent': { data } });
     const result = await handleCheckout(
@@ -576,7 +669,7 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       payments: { data: PAYMENT_ROW },
       'rpc:create_checkout_intent': {
         data: {
-          created: true,
+          outcome: 'created',
           order: { ...ORDER_ROW, item_name_snapshot: CATALOG_TWD.item_name },
           payment: PAYMENT_ROW,
         },
@@ -654,7 +747,7 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       payments: { data: PAYMENT_ROW },
       'rpc:create_checkout_intent': {
         data: {
-          created: true,
+          outcome: 'created',
           order: { ...ORDER_ROW, item_name_snapshot: CATALOG_TWD.item_name },
           payment: PAYMENT_ROW,
         },
@@ -702,7 +795,7 @@ describe('checkout handler — currency → provider routing (§21)', () => {
       payments: { data: { ...PAYMENT_ROW, provider: 'paypal', currency: 'USD', amount_minor: 1999 } },
       'rpc:create_checkout_intent': {
         data: {
-          created: true,
+          outcome: 'created',
           order: {
             ...ORDER_ROW,
             book_id: CATALOG_USD.book_id,

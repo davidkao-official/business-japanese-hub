@@ -305,12 +305,14 @@ async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerRes
 
   let orderId: string | null = null;
   let paymentId: string | null = null;
+  let orderCreatedHere = false;
+  let paymentCreatedHere = false;
 
   try {
     // One service-role-only Postgres transaction re-reads the released catalog
     // and commits Order + canonical compliance + Payment together. The handler
     // retries only a generated merchant-reference collision.
-    const created = await createAtomicCheckoutIntent(
+    const intent = await createAtomicCheckoutIntent(
       deps,
       uid,
       customerEmail,
@@ -322,17 +324,18 @@ async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerRes
       now,
       random,
     );
-    const orderRow = created.order;
-    const paymentRow = created.payment;
-    orderId = orderRow.id;
-    paymentId = paymentRow.id;
-    if (!created.created) {
+    if (intent.outcome === 'owned') {
       return jsonResult(409, {
-        error: 'checkout is already in progress for this book',
-        reason: 'checkout_in_progress',
-        orderId,
+        error: 'this Book is already owned',
+        reason: 'already_owned',
       });
     }
+    orderCreatedHere = intent.outcome === 'created';
+    paymentCreatedHere = intent.outcome === 'created' || intent.outcome === 'retry_created';
+    const orderRow = intent.order;
+    const paymentRow = intent.payment;
+    orderId = orderRow.id;
+    paymentId = paymentRow.id;
     const snapshotAmountMinor = Number(orderRow.amount_minor);
     const snapshotCurrency = String(orderRow.currency);
     const snapshotItemName = String(orderRow.item_name_snapshot);
@@ -380,13 +383,20 @@ async function createCheckoutOrder(input: CheckoutFlowInput): Promise<HandlerRes
         merchantReference: paymentRow.provider_merchant_ref,
         amountMinor: snapshotAmountMinor,
         currency: snapshotCurrency,
+        checkoutOutcome: intent.outcome,
       },
       'checkout created',
     );
     return jsonResult(200, response);
   } catch (err) {
-    // All-or-nothing at the handler level: roll back rows created by this call.
-    await compensateCreatedRows(deps, orderId, paymentId);
+    // Roll back only rows created by THIS call. A resumed provider handoff must
+    // never delete the existing intent, and a failed-attempt retry reuses its
+    // Order while compensating only the new PaymentAttempt.
+    await compensateCreatedRows(
+      deps,
+      orderCreatedHere ? orderId : null,
+      paymentCreatedHere ? paymentId : null,
+    );
     throw err;
   }
 }
@@ -465,8 +475,7 @@ export async function readJapanTaxStatus(db: DbClient): Promise<JapanConsumption
   }
 }
 
-interface AtomicCheckoutIntent {
-  created: boolean;
+interface AtomicCheckoutRows {
   order: {
     id: string;
     item_name_snapshot: string;
@@ -475,6 +484,10 @@ interface AtomicCheckoutIntent {
   };
   payment: PaymentRow;
 }
+
+type AtomicCheckoutIntent =
+  | { outcome: 'owned' }
+  | ({ outcome: 'created' | 'resumed' | 'retry_created' } & AtomicCheckoutRows);
 
 async function createAtomicCheckoutIntent(
   deps: CheckoutHandlerDeps,
@@ -509,13 +522,14 @@ async function createAtomicCheckoutIntent(
       p_payment_method: provider === 'paypal' ? 'paypal' : 'credit',
     });
     if (!error && data) {
+      if (data.outcome === 'owned') return { outcome: 'owned' };
       const order = data.order;
       const payment = data.payment;
       const orderRecord = order as Record<string, unknown> | null;
       const paymentRecord = payment as Record<string, unknown> | null;
       const amountMinor = Number(orderRecord?.amount_minor);
       if (
-        typeof data.created !== 'boolean' ||
+        !['created', 'resumed', 'retry_created'].includes(String(data.outcome)) ||
         !order ||
         typeof order !== 'object' ||
         !payment ||
@@ -534,8 +548,8 @@ async function createAtomicCheckoutIntent(
         throw new Error('create_checkout_intent returned invalid rows');
       }
       return {
-        created: data.created,
-        order: order as unknown as AtomicCheckoutIntent['order'],
+        outcome: data.outcome as 'created' | 'resumed' | 'retry_created',
+        order: order as unknown as AtomicCheckoutRows['order'],
         payment: payment as unknown as PaymentRow,
       };
     }
