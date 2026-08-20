@@ -9,7 +9,7 @@
  * can render real document structure instead of a wall of text.
  */
 
-import type { Locale } from '../i18n/locales'
+import type { Locale } from '../i18n/locales.ts'
 
 /** Review lifecycle: draft → review → live. All documents are pre-launch drafts today. */
 export type LegalDocumentStatus = 'draft' | 'review' | 'live'

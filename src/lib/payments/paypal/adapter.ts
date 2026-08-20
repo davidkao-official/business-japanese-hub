@@ -44,17 +44,17 @@ import {
   type ReconciliationRange,
   type RefundInput,
   type VerifiedProviderEvent,
-} from '../contract';
-import { isSafeMoney, minorUnitFor } from '../money';
-import { sha256Hex } from '../crypto';
-import { resolvePaypalEnv, type PaypalEnv, type PaypalUrls } from './urls';
+} from '../contract.ts';
+import { isSafeMoney, minorUnitFor } from '../money.ts';
+import { sha256Hex } from '../crypto.ts';
+import { resolvePaypalEnv, type PaypalEnv, type PaypalUrls } from './urls.ts';
 import {
   PAYPAL_CAPTURE_EVENT_STATUS,
   type PaypalCapture,
   type PaypalOrder,
   type PaypalReconciliationEntry,
   type PaypalWebhookEvent,
-} from './types';
+} from './types.ts';
 
 /* ------------------------------------------------------------------------- *
  * Constants / errors

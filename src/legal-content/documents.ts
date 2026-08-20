@@ -8,7 +8,7 @@
  * legal text — the actual text is gated on professional legal review (§8).
  */
 
-import { SELLER_DISCLOSURE, type LegalDocument } from './model'
+import { SELLER_DISCLOSURE, type LegalDocument } from './model.ts'
 
 export const TERMS_DOCUMENT: LegalDocument = {
   id: 'terms',

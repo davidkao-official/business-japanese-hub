@@ -26,7 +26,7 @@
  * (Supabase Edge Functions) and Node (vitest).
  */
 
-import { sha256Hex } from '../crypto';
+import { sha256Hex } from '../crypto.ts';
 
 export { sha256Hex };
 

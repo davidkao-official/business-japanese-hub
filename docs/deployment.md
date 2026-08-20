@@ -23,6 +23,11 @@ Repository variables:
 Without the Supabase variables, the live site intentionally serves only the
 free/public catalog and paid purchase remains unavailable.
 
+The authenticated checkout and order-status functions accept browser CORS only
+from the exact origin derived from server-only `PUBLIC_SITE_URL`; keep it aligned
+with the canonical Pages/custom-domain URL. The deploy job holds only Pages/OIDC
+permissions. Post-deploy route smoke runs afterward in a separate read-only job.
+
 The current product contract also explicitly accepts that static web Book
 content can be inspected in the browser bundle (`docs/accounts-and-entitlement.md`
 §7). Server-authoritative ownership and in-product access gates are enforced,

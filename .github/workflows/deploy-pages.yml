@@ -86,8 +86,9 @@ jobs:
     name: Deploy public site
     needs: build
     runs-on: ubuntu-latest
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     permissions:
-      contents: read
       pages: write
       id-token: write
     environment:
@@ -101,6 +102,13 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
+  smoke:
+    name: Smoke deployed public routes
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
       - name: Checkout smoke-test script
         uses: actions/checkout@v6
         with:
@@ -119,4 +127,4 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Smoke deployed public routes
-        run: pnpm exec tsx scripts/smoke-pages.ts "${{ steps.deployment.outputs.page_url }}"
+        run: pnpm exec tsx scripts/smoke-pages.ts "${{ needs.deploy.outputs.page_url }}"

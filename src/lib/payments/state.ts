@@ -8,7 +8,7 @@
  * orchestration layer must treat as an anomaly).
  */
 
-import type { OrderStatus, PaymentStatus } from './contract';
+import type { OrderStatus, PaymentStatus } from './contract.ts';
 
 /**
  * Minimal event vocabulary the orchestration layer feeds in, normalized from

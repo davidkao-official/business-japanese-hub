@@ -5,26 +5,26 @@
  * (seller) disclosure placeholder to the rest of the app.
  */
 
-export { SELLER_DISCLOSURE } from './model'
+export { SELLER_DISCLOSURE } from './model.ts'
 export type {
   LegalDocument,
   LegalDocumentStatus,
   LegalSection,
   SellerDisclosure,
-} from './model'
-export { LEGAL_DOCUMENTS } from './documents'
+} from './model.ts'
+export { LEGAL_DOCUMENTS } from './documents.ts'
 export {
   canonicalCheckoutEvidence,
   JP_CONSENT_VERSION_ID,
   JP_NOTICE_VERSION_ID,
   TW_CONSENT_VERSION_ID,
   TW_NOTICE_VERSION_ID,
-} from './checkout-evidence'
-export type { CanonicalCheckoutEvidence } from './checkout-evidence'
+} from './checkout-evidence.ts'
+export type { CanonicalCheckoutEvidence } from './checkout-evidence.ts'
 
-import { LEGAL_DOCUMENTS } from './documents'
-import { SELLER_DISCLOSURE } from './model'
-import type { LegalDocument, SellerDisclosure } from './model'
+import { LEGAL_DOCUMENTS } from './documents.ts'
+import { SELLER_DISCLOSURE } from './model.ts'
+import type { LegalDocument, SellerDisclosure } from './model.ts'
 
 /** All legal documents, in display order. */
 export function listLegalDocuments(): LegalDocument[] {

@@ -3,10 +3,10 @@
  * Function. The client may transport this snapshot, but it never defines it:
  * the server compares every field to this module before persisting anything.
  */
-import type { Locale } from '../i18n/locales'
-import type { ResolvedJurisdiction } from '../lib/payments/contract'
-import { LEGAL_DOCUMENTS } from './documents'
-import type { LegalDocument, LegalSection } from './model'
+import type { Locale } from '../i18n/locales.ts'
+import type { ResolvedJurisdiction } from '../lib/payments/contract.ts'
+import { LEGAL_DOCUMENTS } from './documents.ts'
+import type { LegalDocument, LegalSection } from './model.ts'
 
 const TW_WITHDRAWAL_NOTICE_SECTION_ID = 'tw-withdrawal-notice'
 const TW_IMMEDIATE_DELIVERY_CONSENT_SECTION_ID = 'tw-immediate-delivery-consent'
