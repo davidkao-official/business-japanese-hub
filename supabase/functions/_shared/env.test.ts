@@ -58,4 +58,28 @@ describe('readEnvFrom — provider-scoped config seam (#21)', () => {
   it('still fails closed on a missing required Supabase variable', () => {
     expect(() => readEnvFrom(readerFrom({ ...BASE, SUPABASE_URL: '' }))).toThrow(/SUPABASE_URL/);
   });
+
+  it('reads optional transactional-email configuration without making it a boot-time gate', () => {
+    const absent = readEnvFrom(readerFrom(BASE));
+    expect(absent.orderEmailProvider).toBeUndefined();
+    expect(absent.resendApiKey).toBeUndefined();
+
+    const configured = readEnvFrom(readerFrom({
+      ...BASE,
+      ORDER_EMAIL_PROVIDER: 'resend',
+      RESEND_API_KEY: 're_secret',
+      ORDER_EMAIL_FROM: 'Receipts <receipts@example.com>',
+      PUBLIC_SITE_URL: 'https://example.com',
+      SUPPORT_EMAIL: 'support@example.com',
+      LEGAL_SELLER_NAME: 'Example Seller',
+    }));
+    expect(configured).toMatchObject({
+      orderEmailProvider: 'resend',
+      resendApiKey: 're_secret',
+      orderEmailFrom: 'Receipts <receipts@example.com>',
+      publicSiteUrl: 'https://example.com',
+      supportEmail: 'support@example.com',
+      legalSellerName: 'Example Seller',
+    });
+  });
 });

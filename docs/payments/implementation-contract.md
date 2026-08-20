@@ -12,8 +12,8 @@
 
 | Table | Migration | Purpose | Security |
 | --- | --- | --- | --- |
-| `catalog` | 0002 | Authoritative server-side price seam (§8.3). Checkout reads `released_at <= now()`; client display uses the static bundle `Price`. | **No-read boundary**: RLS on, zero client policies, `revoke` from anon/authenticated/PUBLIC, `grant select` to `service_role` only. service_role keeps its Supabase-default INSERT/UPDATE (used by `scripts/update-catalog.ts`). |
-| `orders` | 0002 | One purchase intent. `amount_minor/currency/published_revision/item_name_snapshot` are **immutable** (trigger `orders_immutable_fields_check`); orchestration updates only `status/paid_at/refunded_at`. | Server-only. |
+| `catalog` | 0002 + 20260820100000 | Authoritative server-side price and customer-facing `item_name` seam (§8.3). Checkout reads `released_at <= now()`; client display uses the static bundle `Price`. | **No-read boundary**: RLS on, zero client policies, `revoke` from anon/authenticated/PUBLIC, `grant select` to `service_role` only. service_role keeps its Supabase-default INSERT/UPDATE (used by `scripts/update-catalog.ts`). |
+| `orders` | 0002 + 20260820100000 | One purchase intent. Catalog/price/compliance fields and `customer_email_snapshot` are **immutable** (trigger `orders_immutable_fields_check`); orchestration updates only `status/paid_at/refunded_at`. | Server-only. |
 | `payments` | 0002 + 0006 + 20260819212459 | Payment attempts. `provider_merchant_ref` is the local/provider correlation key; `provider_checkout_ref` preserves a checkout/session id such as a PayPal Order ID; `provider_payment_ref` holds the final capture/transaction id. Each reference is unique per provider once known. | Server-only. |
 | `refunds` | 0002 | **Source of truth for refunds** (§7). MVP full refund only; provider-confirmed refund → `status='succeeded'`. | Server-only. |
 | `payment_events` | 0002 | Reliability ledger; `UNIQUE(provider, event_fingerprint)` makes duplicate callbacks a no-op. `sanitized_payload_json` holds allowlisted financial/status fields only. | Server-only. |
@@ -22,6 +22,7 @@
 | `finance_roles` | 0003 | Server-enforced `finance_viewer` / `finance_admin`. Source for the finance Edge Function authorization — never trust a client-claimed role. | Server-only (`grant select` to service_role). |
 | `admin_audit_log` | 0003 | Audit trail for finance/operator actions (refund requests, reconciliation overrides) with before/after state. | Server-only. |
 | `platform_tax_config` | 0003 | Japan consumption-tax status boundary (#25). Seeded `('japan_consumption_tax_status','unresolved')` — fail-closed: never apply 10% tax / claim tax-inclusive pricing until explicitly `taxable` or `exempt`. | Server-only (clients must not override). |
+| `order_email_outbox` | 20260820100000 | Durable order-confirmation delivery. First fulfillment enqueues one `order-confirmation-v1` row; the worker owns `pending → processing → sent/retry/dead`. | Server-only; no client policy or privilege. |
 
 ## Security posture
 
@@ -36,15 +37,52 @@
 3. Provider checkout/session: partial unique index `payments_provider_checkout_ref_uidx` on `(provider, provider_checkout_ref) WHERE provider_checkout_ref IS NOT NULL`.
 4. Callback receipt: `UNIQUE(provider, event_fingerprint)`; receipt uses conflict-ignoring upsert, then re-applies the idempotent transaction on replay.
 5. Ownership: `UNIQUE(user_id, book_id)` on `book_entitlement`.
+6. Receipt delivery: `UNIQUE(order_id, template_key)` in `order_email_outbox`, plus Resend key `order-confirmation/<orderId>`. Automatic send/retry stops at the provider's 24-hour idempotency boundary; aged rows become `dead` for manual handling.
 
 ## Transactional financial finalizers
 
-Migration `20260819212459_payment_atomicity_and_paypal_correlation.sql` defines two `security definer` RPCs whose EXECUTE privilege is revoked from `PUBLIC`, `anon`, and `authenticated` and granted only to `service_role`:
+Migration `20260819212459_payment_atomicity_and_paypal_correlation.sql` defines the two `security definer` finalizers; `20260820100000_first_sale_order_email.sql` replaces the payment-success finalizer to add the atomic outbox insert. EXECUTE privilege is revoked from `PUBLIC`, `anon`, and `authenticated` and granted only to `service_role`:
 
-- `finalize_payment_success(...)` locks the Payment and Order rows and commits the verified Payment state, Order state, and provider-neutral Entitlement grant in one transaction. A replay is a no-op; a second real successful attempt becomes `duplicate_success` and never re-grants.
+- `finalize_payment_success(...)` locks the Payment and Order rows and commits the verified Payment state, Order state, provider-neutral Entitlement grant, and first order-confirmation outbox row in one transaction. A replay is a no-op; a second real successful attempt becomes `duplicate_success` and never re-grants or re-enqueues.
 - `finalize_refund_success(...)` takes locks in one global `Payment → Refund → Order` order and commits the provider-confirmed refund fact plus all derived Payment/Order/Entitlement transitions in one transaction. Before mutation it enforces the MVP full-refund invariant: refund provider, amount, and currency must exactly match the locked payment. It repairs legacy half-applied refund facts on replay; a duplicate-payment refund preserves the paid Order and active Entitlement.
 
 Provider transaction/capture IDs remain in `payments.provider_*` and `refunds.provider_*`; `book_entitlement.provider_ref` never receives them. Paid entitlement provenance uses `source_order_id`.
+
+## Atomic checkout intent
+
+Migration `20260820100000_first_sale_order_email.sql` adds the only supported
+first-sale creation RPC. It is `security definer`, with EXECUTE revoked from
+PUBLIC/anon/authenticated and granted only to `service_role`:
+
+```sql
+create_checkout_intent(
+  p_user_id uuid,
+  p_book_id text,
+  p_customer_email_snapshot text,
+  p_jurisdiction text,
+  p_japan_tax_status_snapshot text,
+  p_locale text,
+  p_notice_version text,
+  p_consent_version text,
+  p_consent_granted boolean,
+  p_notice_text_snapshot text,
+  p_consent_text_snapshot text,
+  p_consent_timestamp timestamptz,
+  p_provider text,
+  p_provider_merchant_ref text,
+  p_payment_method text DEFAULT 'credit'
+) → jsonb  -- { "order": <row>, "payment": <row> }
+```
+
+The RPC re-reads and locks a released positive-price catalog row, snapshots its
+name/revision/amount/currency, and inserts Order + `order_compliance` + Payment
+in one transaction. Launch mappings are exact: USD → PayPal and TWD → ECPay.
+The payment-method snapshot is likewise exact: PayPal records `paypal` (the
+hosted provider channel, never an inferred funding source) and ECPay records
+`credit` for its fixed credit-card checkout.
+The trusted Edge handler supplies the authenticated user/email and canonical
+notice/consent evidence; no browser-supplied amount, currency, title, legal copy,
+or seller fact is authoritative.
 
 ## `grant_entitlement` (recreated in 0003, 8-arg)
 
@@ -105,4 +143,22 @@ and its unauthenticated callback/webhook endpoints return 503 without acking.
 The secret-authenticated scheduled endpoint accepts `mode=repair` (10-minute
 provider confirmation/refund recovery) and `mode=reconcile` (daily ECPay/PayPal
 financial reporting); migration `20260820090000_scheduled_reconciliation_modes.sql`
-wires the two cron jobs to those modes.
+wires the two cron jobs to those modes. Migration `20260820100000_first_sale_order_email.sql`
+adds `mode=email` and a one-minute `order-email-outbox` job targeting the
+`order-email` Edge Function. Configure `scheduled_job_config.order_email_function_url`
+to the deployed URL and keep the same Vault/Edge `SCHEDULED_JOB_SECRET` pair.
+Checkout stays fail-closed until the exact URL, hashed secret match, and active
+one-minute cron schedule pass the server-only scheduler activation RPC.
+
+Transactional order email is separately provider-scoped. The worker refuses to
+claim jobs unless all seven variables are configured; values remain server-only
+and are never logged:
+
+- `ORDER_EMAIL_PROVIDER=resend`
+- `RESEND_API_KEY`
+- `ORDER_EMAIL_FROM` (verified sender identity)
+- `PUBLIC_SITE_URL` (canonical origin for `/library` and `/legal/refunds`)
+- `SUPPORT_EMAIL` (public Reply-To/support identity)
+- `LEGAL_SELLER_NAME` (verified seller display name; never inferred by code)
+- `SCHEDULED_JOB_SECRET` (same value stored in Vault; only its SHA-256 digest
+  crosses the checkout RPC boundary)

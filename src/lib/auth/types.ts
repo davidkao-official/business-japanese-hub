@@ -19,12 +19,21 @@ export interface SignInResult {
   user: SessionUser;
 }
 
+/** Sign-up can require email confirmation before Supabase creates a session. */
+export interface SignUpResult {
+  user: SessionUser;
+  signedIn: boolean;
+}
+
 export interface AuthClient {
   /** Restore the persisted session, or null when signed out. */
   getSession(): Promise<SessionUser | null>;
 
   /** Sign in with email/password. Throws on invalid credentials. */
   signInWithPassword(input: { email: string; password: string }): Promise<SignInResult>;
+
+  /** Create an email/password account; `signedIn=false` means confirmation is pending. */
+  signUpWithPassword(input: { email: string; password: string }): Promise<SignUpResult>;
 
   /** Sign out the current session. */
   signOut(): Promise<void>;

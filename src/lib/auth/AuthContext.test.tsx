@@ -1,7 +1,7 @@
 import { act, render, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthProvider, useAuth } from './AuthContext';
-import type { AuthClient, SessionUser } from './types';
+import type { AuthClient, SessionUser, SignUpResult } from './types';
 
 function createMockAuthClient(initialSession: SessionUser | null) {
   const listeners: Array<(user: SessionUser | null) => void> = [];
@@ -9,6 +9,10 @@ function createMockAuthClient(initialSession: SessionUser | null) {
     getSession: vi.fn().mockResolvedValue(initialSession),
     signInWithPassword: vi.fn().mockResolvedValue({
       user: { id: 'u-1', email: 'reader@example.com' },
+    }),
+    signUpWithPassword: vi.fn().mockResolvedValue({
+      user: { id: 'u-1', email: 'reader@example.com' },
+      signedIn: true,
     }),
     signOut: vi.fn().mockResolvedValue(undefined),
     onAuthStateChange: vi.fn((listener) => {
@@ -38,6 +42,10 @@ function createDeferredAuthClient() {
     ),
     signInWithPassword: vi.fn().mockResolvedValue({
       user: { id: 'u-1', email: 'reader@example.com' },
+    }),
+    signUpWithPassword: vi.fn().mockResolvedValue({
+      user: { id: 'u-1', email: 'reader@example.com' },
+      signedIn: true,
     }),
     signOut: vi.fn(),
     onAuthStateChange: vi.fn((listener) => {
@@ -87,6 +95,39 @@ describe('AuthProvider', () => {
       password: 'secret',
     });
     expect(result.current.user).toEqual({ id: 'u-1', email: 'reader@example.com' });
+  });
+
+  it('exposes a newly created account only when sign-up established a session', async () => {
+    const { authClient } = createMockAuthClient(null);
+    const { result } = renderAuth(authClient);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.signUp('new@example.com', 'new-password');
+    });
+
+    expect(result.current.user).toEqual({ id: 'u-1', email: 'reader@example.com' });
+  });
+
+  it('does not claim authentication while email confirmation is pending', async () => {
+    const { authClient } = createMockAuthClient(null);
+    vi.mocked(authClient.signUpWithPassword).mockResolvedValue({
+      user: { id: 'u-new', email: 'new@example.com' },
+      signedIn: false,
+    });
+    const { result } = renderAuth(authClient);
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let signUpResult: SignUpResult | undefined;
+    await act(async () => {
+      signUpResult = await result.current.signUp('new@example.com', 'new-password');
+    });
+
+    expect(signUpResult).toEqual({
+      user: { id: 'u-new', email: 'new@example.com' },
+      signedIn: false,
+    });
+    expect(result.current.user).toBeNull();
   });
 
   it('signs out and clears the user', async () => {
@@ -180,6 +221,7 @@ describe('AuthProvider', () => {
     const authClient: AuthClient = {
       getSession: vi.fn().mockRejectedValue(new Error('network down')),
       signInWithPassword: vi.fn(),
+      signUpWithPassword: vi.fn(),
       signOut: vi.fn(),
       onAuthStateChange: vi.fn(() => () => {}),
     };

@@ -55,7 +55,15 @@ export interface DbBuilder {
 
 /** Auth verification seam: `auth.getUser(token)` verifies a session against GoTrue. */
 export interface DbAuth {
-  getUser(token: string): Promise<DbResult<{ user: { id: string } | null }>>;
+  getUser(token: string): Promise<
+    DbResult<{
+      user: {
+        id: string;
+        email?: string | null;
+        email_confirmed_at?: string | null;
+      } | null;
+    }>
+  >;
 }
 
 export interface DbClient {

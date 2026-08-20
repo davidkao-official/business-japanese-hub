@@ -9,6 +9,8 @@
 #   - repair-reconcile → gate OFF; the ONLY authorization is the shared
 #     scheduled-job secret header checked inside the handler (internal pg_cron
 #     callers carry that secret, not a user JWT — see 0004_scheduled_jobs.sql).
+#   - order-email → gate OFF for the same internal pg_cron caller contract; the
+#     handler checks X-Scheduled-Job-Secret before claiming any outbox rows.
 project_id = "business-japanese-hub"
 
 [api]
@@ -32,6 +34,9 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.repair-reconcile]
+verify_jwt = false
+
+[functions.order-email]
 verify_jwt = false
 
 [functions.ecpay-callback]

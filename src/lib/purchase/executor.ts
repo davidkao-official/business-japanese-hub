@@ -206,6 +206,16 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
 
     const body = buildCheckoutRequest(intent, consent);
     const token = await resolveAuthToken(deps.authToken);
+    // Checkout is authenticated and entitlement attribution is tied to the
+    // server-verified session. Never send an anonymous request and never let
+    // the client infer a buyer identity.
+    if (!token) {
+      return {
+        ok: false,
+        reason: 'signed_out',
+        message: 'authentication is required before checkout',
+      };
+    }
     let response: FetchClientResponse;
     try {
       response = await fetchClient(
@@ -214,7 +224,7 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(body),
         },
@@ -224,6 +234,13 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
     }
 
     if (!response.ok) {
+      if (response.status === 401) {
+        return {
+          ok: false,
+          reason: 'signed_out',
+          message: 'authentication is required before checkout',
+        };
+      }
       return { ok: false, reason: 'failed', message: `checkout request failed (${response.status})` };
     }
 
@@ -274,11 +291,12 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
 export const ORDER_STATUS_POLL_INTERVAL_MS = 2000;
 export const ORDER_STATUS_MAX_ATTEMPTS = 10;
 
-export type PurchaseResultView = 'pending' | 'succeeded' | 'failed' | 'cancelled';
+export type PurchaseResultView = 'pending' | 'succeeded' | 'refunded' | 'failed' | 'cancelled';
 
 /** Map a server order-status payload to the view state (server-driven only). */
 export function resultStateFor(order: OrderStatusResponse): PurchaseResultView {
-  if (order.status === 'paid' || order.status === 'refunded') return 'succeeded';
+  if (order.status === 'refunded') return 'refunded';
+  if (order.status === 'paid') return 'succeeded';
   if (order.status === 'cancelled') return 'cancelled';
   if (order.paymentStatus === 'failed') return 'failed';
   return 'pending';

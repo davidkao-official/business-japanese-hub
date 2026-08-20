@@ -10,6 +10,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { JapanConsumptionTaxStatus, Jurisdiction, OrderStatusResponse } from '../lib/payments/contract';
 import { isJapanTaxInclusive, OrderReceipt } from './OrderReceipt';
+import { SELLER_DISCLOSURE } from '../legal-content';
 
 function order(
   overrides: {
@@ -17,14 +18,23 @@ function order(
     japanConsumptionTaxStatus?: JapanConsumptionTaxStatus;
     currency?: string;
     amountMinor?: number;
+    status?: OrderStatusResponse['status'];
+    paymentStatus?: OrderStatusResponse['paymentStatus'];
+    deliveryStatus?: OrderStatusResponse['deliveryStatus'];
   } = {},
 ): OrderStatusResponse {
   return {
     orderId: 'order-1',
-    status: 'paid',
-    paymentStatus: 'succeeded',
+    status: overrides.status ?? 'paid',
+    paymentStatus: overrides.paymentStatus ?? 'succeeded',
     bookId: 'book-sample-bj-keigo',
+    itemName: '敬語エッセンシャル',
     amount: { amount: overrides.amountMinor ?? 880, currency: overrides.currency ?? 'JPY' },
+    paidAt: '2026-08-20T08:00:00Z',
+    paymentProvider: 'paypal',
+    paymentMethod: 'credit',
+    deliveryMethod: 'library',
+    deliveryStatus: overrides.deliveryStatus ?? 'available',
     compliance: {
       jurisdiction: overrides.jurisdiction ?? 'unresolved',
       japanConsumptionTaxStatus: overrides.japanConsumptionTaxStatus ?? 'unresolved',
@@ -114,5 +124,33 @@ describe('OrderReceipt — renders from the server snapshot', () => {
   it('renders the server-authoritative amount in minor units', () => {
     render(<OrderReceipt order={order({ jurisdiction: 'JP', japanConsumptionTaxStatus: 'exempt', amountMinor: 1580 })} />);
     expect(screen.getByTestId('receipt-amount')).toHaveTextContent('¥1,580');
+  });
+
+  it('renders immutable sold-title, payment, delivery, policy, and support facts', () => {
+    render(<OrderReceipt order={order()} />);
+    expect(screen.getByTestId('receipt-item-name')).toHaveTextContent('敬語エッセンシャル');
+    expect(screen.getByText('PayPal')).toBeInTheDocument();
+    expect(screen.queryByText(/PayPal \/ credit/i)).not.toBeInTheDocument();
+    expect(screen.getByText('決済確認後、ライブラリへ即時配信')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '返品・返金ポリシー' })).toHaveAttribute(
+      'href',
+      '/legal/refunds',
+    );
+    expect(screen.getByRole('link', { name: SELLER_DISCLOSURE.supportEmail })).toHaveAttribute(
+      'href',
+      `mailto:${SELLER_DISCLOSURE.supportEmail}`,
+    );
+  });
+
+  it('renders refunded and revoked delivery instead of completed access', () => {
+    render(
+      <OrderReceipt
+        order={order({ status: 'refunded', paymentStatus: 'refunded', deliveryStatus: 'revoked' })}
+      />,
+    );
+    expect(screen.getByText('アクセス終了')).toBeInTheDocument();
+    expect(screen.getByText('返金済み')).toBeInTheDocument();
+    expect(screen.queryByText('決済確認後、ライブラリへ即時配信')).not.toBeInTheDocument();
+    expect(screen.queryByText('完了')).not.toBeInTheDocument();
   });
 });

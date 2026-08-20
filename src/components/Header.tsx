@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useStrings } from '../i18n/strings'
 import { AppearanceControl } from './AppearanceControl'
+import { AccountControl } from './AccountControl'
 import { Navigation } from './Navigation'
 
 export function Header() {
@@ -14,6 +15,7 @@ export function Header() {
         </Link>
         <div className="site-header__tools">
           <Navigation />
+          <AccountControl />
           <AppearanceControl />
         </div>
       </div>

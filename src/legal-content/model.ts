@@ -9,7 +9,7 @@
  * can render real document structure instead of a wall of text.
  */
 
-import type { Locale } from '../i18n/strings'
+import type { Locale } from '../i18n/locales'
 
 /** Review lifecycle: draft → review → live. All documents are pre-launch drafts today. */
 export type LegalDocumentStatus = 'draft' | 'review' | 'live'
@@ -40,6 +40,10 @@ export interface LegalDocument {
 export interface SellerDisclosure {
   /** Registered merchant-of-record (legal seller) name. */
   name: string
+  address: string
+  phone: string
+  responsiblePerson: string
+  supportEmail: string
   /** True while the registered name is not yet confirmed. */
   pending: boolean
 }
@@ -48,12 +52,16 @@ export interface SellerDisclosure {
  * Placeholder merchant-of-record disclosure.
  *
  * The registered seller name is an EXTERNAL pre-sale gate (docs/legal-tax-launch-brief.md
- * §4.1) that is not yet known, so this constant is the single swap point: set
- * `name` to the confirmed registered name and `pending` to false before the
- * first sale. The footer and tokushoho page reference this — no other code
- * change is needed to swap in the real name.
+ * §4.1) that is not yet known, so this constant is the single source for the
+ * public disclosure and receipt surfaces. Replace every field and set
+ * `pending` false as part of the reviewed legal-content release; checkout also
+ * requires every document live and every explicit review-pending note removed.
  */
 export const SELLER_DISCLOSURE: SellerDisclosure = {
   name: 'Seller name pending confirmation',
+  address: 'Seller address pending confirmation',
+  phone: 'Seller phone pending confirmation',
+  responsiblePerson: 'Responsible person pending confirmation',
+  supportEmail: 'Support email pending confirmation',
   pending: true,
 }

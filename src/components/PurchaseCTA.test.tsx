@@ -1,18 +1,74 @@
-import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { renderWithAppProviders } from '../test/appProviders'
 import { PurchaseCTA } from './PurchaseCTA'
 import { paidKeigoBook } from '../content/fixtures/paid-test-books'
 import { jpConsentInfo, twConsentInfo } from '../lib/purchase/checkoutConsent'
 
+const { legalReadyMock } = vi.hoisted(() => ({ legalReadyMock: vi.fn(() => true) }))
+vi.mock('../legal-content', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../legal-content')>()
+  return { ...actual, isPaidLaunchLegalReady: legalReadyMock }
+})
+
+const signedInUser = { id: 'u-1', email: 'reader@example.com' }
+
+async function clickPurchase() {
+  const button = await screen.findByRole('button', { name: /購入する/ })
+  expect(button).toBeEnabled()
+  fireEvent.click(button)
+}
+
 describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)', () => {
-  it('asks for a consumer-jurisdiction declaration before checkout (unresolved fails closed)', async () => {
+  beforeEach(() => legalReadyMock.mockReturnValue(true))
+
+  it('fails closed before auth or compliance while committed legal data is not launch-ready', async () => {
+    legalReadyMock.mockReturnValue(false)
     const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
     renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} />, {
       purchaseExecutor: executor,
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
+    await clickPurchase()
+
+    expect(screen.getByText('決済は準備中です。')).toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'ログイン' })).not.toBeInTheDocument()
+    expect(screen.queryByText('お住まいの国・地域を選択してください')).not.toBeInTheDocument()
+    expect(executor).not.toHaveBeenCalled()
+  })
+
+  it('requires authentication before collecting checkout compliance evidence', async () => {
+    const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
+    renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} />, {
+      purchaseExecutor: executor,
+    })
+
+    await clickPurchase()
+
+    expect(screen.getByText('購入を続けるにはログインまたはアカウント作成が必要です。')).toBeInTheDocument()
+    expect(screen.queryByText('お住まいの国・地域を選択してください')).not.toBeInTheDocument()
+    expect(executor).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('メールアドレス'), {
+      target: { value: 'reader@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('パスワード'), {
+      target: { value: 'correct-password' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'ログインして続ける' }))
+
+    expect(await screen.findByText('お住まいの国・地域を選択してください')).toBeInTheDocument()
+    expect(executor).not.toHaveBeenCalled()
+  })
+
+  it('asks for a consumer-jurisdiction declaration before checkout (unresolved fails closed)', async () => {
+    const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
+    renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} />, {
+      purchaseExecutor: executor,
+      session: signedInUser,
+    })
+
+    await clickPurchase()
 
     // The declaration step appears; no executor call yet.
     expect(screen.getByText('お住まいの国・地域を選択してください')).toBeInTheDocument()
@@ -24,9 +80,10 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     const evidence = jpConsentInfo()
     renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} />, {
       purchaseExecutor: executor,
+      session: signedInUser,
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
+    await clickPurchase()
     fireEvent.click(screen.getByRole('button', { name: '日本の消費者' }))
 
     // Selecting JP must not hand off to payment before the evidence is visible.
@@ -56,9 +113,10 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     const evidence = twConsentInfo()
     renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} />, {
       purchaseExecutor: executor,
+      session: signedInUser,
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
+    await clickPurchase()
     fireEvent.click(screen.getByRole('button', { name: '台湾の消費者' }))
 
     // The TW pre-delivery notice + consent statement are the versioned evidence shown.
@@ -93,9 +151,10 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
     renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} jurisdiction="TW" />, {
       purchaseExecutor: executor,
+      session: signedInUser,
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
+    await clickPurchase()
 
     // No declaration step; the TW consent step is shown directly.
     expect(screen.queryByText('お住まいの国・地域を選択してください')).not.toBeInTheDocument()
@@ -114,9 +173,10 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     const evidence = jpConsentInfo()
     renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} jurisdiction="JP" />, {
       purchaseExecutor: executor,
+      session: signedInUser,
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
+    await clickPurchase()
 
     expect(screen.queryByText('お住まいの国・地域を選択してください')).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
@@ -141,9 +201,10 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     )
     renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} jurisdiction="TW" />, {
       purchaseExecutor: executor,
+      session: signedInUser,
     })
 
-    fireEvent.click(screen.getByRole('button', { name: /購入する/ }))
+    await clickPurchase()
     fireEvent.click(screen.getByRole('checkbox'))
     const confirm = screen.getByRole('button', { name: '同意して購入する' })
     fireEvent.click(confirm)
@@ -152,5 +213,34 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
 
     expect(executor).toHaveBeenCalledTimes(1)
     resolveExec({ ok: true, orderId: 'order-1', status: 'pending' })
+  })
+
+  it('retries the exact consent snapshot after an expired session is reauthenticated', async () => {
+    const executor = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, reason: 'signed_out' } as const)
+      .mockResolvedValueOnce({ ok: true, orderId: 'order-1', status: 'pending' } as const)
+    renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} jurisdiction="JP" />, {
+      purchaseExecutor: executor,
+      session: signedInUser,
+    })
+
+    await clickPurchase()
+    fireEvent.click(screen.getByRole('button', { name: '同意して購入する' }))
+
+    expect(await screen.findByText('購入を続けるにはログインまたはアカウント作成が必要です。')).toBeInTheDocument()
+    expect(executor).toHaveBeenCalledTimes(1)
+    const originalConsent = executor.mock.calls[0]?.[1]
+
+    fireEvent.change(screen.getByLabelText('メールアドレス'), {
+      target: { value: 'reader@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('パスワード'), {
+      target: { value: 'correct-password' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'ログインして続ける' }))
+
+    await waitFor(() => expect(executor).toHaveBeenCalledTimes(2))
+    expect(executor.mock.calls[1]?.[1]).toBe(originalConsent)
   })
 })

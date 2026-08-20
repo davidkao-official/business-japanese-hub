@@ -119,12 +119,13 @@ canRead({ tier, owned, position, chapters, previewBoundary }): boolean
 
 Preview boundary 依 `docs/ui-ux-research.md` §4.2：有序章節前綴（可細到 block 前綴），以 book-level generic metadata 表達；確切 `Book` 欄位形狀由 content-model lane（#3 follow-up）定稿——因此本 gate 以顯式參數接受 boundary 形狀，不依賴該欄位。與 Universal Reader 的實際整合留給 #5 的 bounded follow-up；本檔只定義並測試 primitive。
 
-## 6. Auth（從屬於 reading）
+## 6. Auth（從屬於 reading 與 purchase）
 
-- `src/lib/auth/types.ts` — 最小 `AuthClient` interface（session restore、password sign-in、sign-out、state-change 訂閱）。
-- `src/lib/auth/supabaseAuthClient.ts` — `SupabaseAuthClient`，薄薄映射 `supabase.auth`。
-- `src/lib/auth/AuthContext.tsx` — `AuthProvider` / `useAuth`：mount 時 session restore、sign-in、sign-out、reactive user state。`loading` 不隱藏 children（public surface 不需登入）。登入失敗／restore 失敗降級為 signed-out，不崩潰。
-- UI **不新增「帳號中心」page**；login/logout 只作為進入 Library/Reader gate 的前置。#7 不建 login/logout UI（見 §7）；`AuthProvider` 的 mount 與 UI 接線由 Library/Reader lane（#6/#5）完成。
+- `src/lib/auth/types.ts` — 最小 `AuthClient` interface（session restore、email/password sign-in、sign-up、sign-out、state-change 訂閱）。
+- `src/lib/auth/supabaseAuthClient.ts` — `SupabaseAuthClient`，薄薄映射 `supabase.auth`。sign-up 明確區分「已建立 session」與「等待 email confirmation」；後者維持 signed-out，絕不提前宣稱已驗證。
+- `src/lib/auth/AuthContext.tsx` — `AuthProvider` / `useAuth`：mount 時 session restore、sign-in、sign-up、sign-out、reactive user state。`loading` 不隱藏 children（public surface 不需登入）。登入失敗／restore 失敗降級為 signed-out，不崩潰。
+- `src/components/AuthPanel.tsx` 是 Header 與 paid checkout 共用的 inline email/password UI；`AccountControl` 提供最小 login/logout 入口，**不新增帳號中心 page**。Provider 的 raw error 不直接顯示，避免暴露帳號枚舉細節。
+- paid CTA 在蒐集 consumer jurisdiction / compliance evidence **之前**要求登入。若 checkout 以 missing/expired bearer token 或 HTTP 401 回傳 `signed_out`，UI 會要求重新驗證，成功後以同一個既有 `ConsentSubmission` object 重試；不得以新的 locale／文案重建 evidence，也不得把 signed-out 當一般付款失敗。
 - Supabase client 建構：`src/lib/supabase.ts` 的 `createSupabaseClientFromEnv()`（讀 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`；未設定回傳 `null`，app 以 signed-out / no-sync 運作）。
 
 ## 7. Non-goals 與已接受限制
@@ -147,7 +148,8 @@ Preview boundary 依 `docs/ui-ux-research.md` §4.2：有序章節前綴（可�
 1. Provision Supabase project（或 `supabase start` local）。
 2. `supabase db reset` 套用 `supabase/migrations/0001_accounts.sql`。
 3. 設定 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`（build 時 bake）。
-4. 建立測試 user；以 service-role 呼叫 `grant_entitlement(...)`（operator）授予一本 paid book。
-5. 驗證：另一 session/device 登入後，`getEntitlement`／`getReadingState` 回傳一致；未授予的 paid book 即使手動修改 client state 也無法解鎖；`grant_entitlement` 以 anon key 呼叫被拒（`permission denied`）。
+4. 在 Supabase Auth 明確設定允許的 Site URL / redirect URLs、email confirmation policy 與 production mail delivery；這些 external settings 未有 live evidence 前不得宣稱 sign-up E2E 已驗證。
+5. 建立測試 user；以 service-role 呼叫 `grant_entitlement(...)`（operator）授予一本 paid book。
+6. 驗證：sign-in 與 sign-up confirmation round trip、另一 session/device 登入後的 `getEntitlement`／`getReadingState` 一致性、未授予的 paid book 無法靠修改 client state 解鎖，以及 anon key 呼叫 `grant_entitlement` 被拒（`permission denied`）。
 
 未 provision instance 前，這些是文件化的環境 dependency，不是 code 缺陷。

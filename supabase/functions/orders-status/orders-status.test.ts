@@ -36,7 +36,13 @@ describe('orders-status handler', () => {
       status: 'pending',
       paymentStatus: 'pending',
       bookId: 'book-a',
+      itemName: '敬語エッセンシャル',
       amount: { amount: 79000, currency: 'TWD' },
+      paidAt: null,
+      paymentProvider: 'ecpay',
+      paymentMethod: 'credit',
+      deliveryMethod: 'library',
+      deliveryStatus: 'pending',
       compliance: { jurisdiction: 'TW', japanConsumptionTaxStatus: 'unresolved' },
     });
   });

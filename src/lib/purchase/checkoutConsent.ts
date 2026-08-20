@@ -21,79 +21,22 @@
  * references the exact text that was displayed.
  */
 import type { Locale } from '../../i18n/strings';
-import { requireLegalDocumentBySlug } from '../../legal-content';
-import type { LegalDocument, LegalSection } from '../../legal-content';
+import {
+  canonicalCheckoutEvidence,
+  JP_CONSENT_VERSION_ID,
+  JP_NOTICE_VERSION_ID,
+  TW_CONSENT_VERSION_ID,
+  TW_NOTICE_VERSION_ID,
+} from '../../legal-content';
 import type { ConsentSubmission, Jurisdiction, ResolvedJurisdiction } from '../payments/contract';
 import { isResolvedJurisdiction } from '../payments/contract';
 
-/** The UI locale a TW buyer sees — the consent texts are fixed to zh-TW. */
-const TW_LOCALE: Locale = 'zh-TW';
-
-/** Stable machine ids on the versioned legal sections used as checkout evidence. */
-const TW_WITHDRAWAL_NOTICE_SECTION_ID = 'tw-withdrawal-notice';
-const TW_IMMEDIATE_DELIVERY_CONSENT_SECTION_ID = 'tw-immediate-delivery-consent';
-const JP_TOKUSHOHO_NOTICE_SECTION_ID = 'jp-tokushoho-seller-disclosure';
-const JP_REFUNDS_ACK_SECTION_ID = 'jp-refunds-acknowledgement';
-
-function requireEvidenceSection(
-  document: LegalDocument,
-  locale: Locale,
-  sectionId: string,
-  evidenceName: string,
-): LegalSection {
-  const matches = document.bodies[locale]?.filter((candidate) => candidate.id === sectionId) ?? [];
-  const section = matches.length === 1 ? matches[0] : undefined;
-  const paragraphs = section?.paragraphs;
-  if (
-    !section ||
-    !section.heading.trim() ||
-    !paragraphs ||
-    paragraphs.length === 0 ||
-    paragraphs.some((paragraph) => !paragraph.trim())
-  ) {
-    throw new Error(
-      `Required legal evidence is unavailable or malformed: ${document.slug}/${locale}/${evidenceName}`,
-    );
-  }
-  return section;
-}
-
-/** Versioned legal documents carrying the jurisdiction-specific disclosures. */
-const TW_NOTICE_DOCUMENT = requireLegalDocumentBySlug('refunds');
-const JP_NOTICE_DOCUMENT = requireLegalDocumentBySlug('tokushoho');
-const JP_CONSENT_DOCUMENT = requireLegalDocumentBySlug('refunds');
-
-/** Required sections are selected by stable ids and validated. No text/index fallback exists. */
-const TW_NOTICE_SECTION = requireEvidenceSection(
-  TW_NOTICE_DOCUMENT,
-  TW_LOCALE,
-  TW_WITHDRAWAL_NOTICE_SECTION_ID,
-  'tw-withdrawal-notice',
-);
-const TW_CONSENT_SECTION = requireEvidenceSection(
-  TW_NOTICE_DOCUMENT,
-  TW_LOCALE,
-  TW_IMMEDIATE_DELIVERY_CONSENT_SECTION_ID,
-  'tw-immediate-delivery-consent',
-);
-const JP_NOTICE_SECTION = requireEvidenceSection(
-  JP_NOTICE_DOCUMENT,
-  'ja',
-  JP_TOKUSHOHO_NOTICE_SECTION_ID,
-  'jp-tokushoho-notice',
-);
-const JP_CONSENT_SECTION = requireEvidenceSection(
-  JP_CONSENT_DOCUMENT,
-  'ja',
-  JP_REFUNDS_ACK_SECTION_ID,
-  'jp-refunds-acknowledgement',
-);
-
-/** Stable version ids persisted as `order_compliance` evidence (contract shape: "<jur>-...-vN"). */
-export const TW_NOTICE_VERSION_ID = `tw-7day-removal-notice-${TW_NOTICE_DOCUMENT.version}`;
-export const TW_CONSENT_VERSION_ID = `tw-digital-content-consent-${TW_NOTICE_DOCUMENT.version}`;
-export const JP_NOTICE_VERSION_ID = `jp-tokushoho-disclosure-${JP_NOTICE_DOCUMENT.version}`;
-export const JP_CONSENT_VERSION_ID = `jp-refunds-consent-${JP_CONSENT_DOCUMENT.version}`;
+export {
+  JP_CONSENT_VERSION_ID,
+  JP_NOTICE_VERSION_ID,
+  TW_CONSENT_VERSION_ID,
+  TW_NOTICE_VERSION_ID,
+};
 
 /**
  * Jurisdiction is NEVER derived from the UI locale (presentation-only) — it is
@@ -121,11 +64,12 @@ export interface TwConsentInfo {
  * stored version ids and text snapshots have one authoritative source.
  */
 export function twConsentInfo(): TwConsentInfo {
+  const evidence = canonicalCheckoutEvidence('TW');
   return {
-    noticeVersion: TW_NOTICE_VERSION_ID,
-    consentVersion: TW_CONSENT_VERSION_ID,
-    noticeText: TW_NOTICE_SECTION.paragraphs.join('\n'),
-    consentText: TW_CONSENT_SECTION.paragraphs.join('\n'),
+    noticeVersion: evidence.noticeVersion,
+    consentVersion: evidence.consentVersion,
+    noticeText: evidence.noticeTextSnapshot,
+    consentText: evidence.consentTextSnapshot,
   };
 }
 
@@ -145,13 +89,14 @@ export interface JpConsentInfo {
 }
 
 export function jpConsentInfo(): JpConsentInfo {
+  const evidence = canonicalCheckoutEvidence('JP');
   return {
-    noticeVersion: JP_NOTICE_VERSION_ID,
-    consentVersion: JP_CONSENT_VERSION_ID,
-    noticeHeading: JP_NOTICE_SECTION.heading,
-    consentHeading: JP_CONSENT_SECTION.heading,
-    noticeText: JP_NOTICE_SECTION.paragraphs.join('\n'),
-    consentText: JP_CONSENT_SECTION.paragraphs.join('\n'),
+    noticeVersion: evidence.noticeVersion,
+    consentVersion: evidence.consentVersion,
+    noticeHeading: evidence.noticeHeading,
+    consentHeading: evidence.consentHeading,
+    noticeText: evidence.noticeTextSnapshot,
+    consentText: evidence.consentTextSnapshot,
   };
 }
 
@@ -174,17 +119,15 @@ export interface BuildConsentSubmissionInput {
  */
 export function buildConsentSubmission(input: BuildConsentSubmissionInput): ConsentSubmission {
   const { jurisdiction } = input;
-  // A TW submission always corresponds to the zh-TW interface text.
-  const submissionLocale: Locale = jurisdiction === 'TW' ? TW_LOCALE : input.locale;
-  const info = jurisdiction === 'TW' ? twConsentInfo() : jpConsentInfo();
+  const evidence = canonicalCheckoutEvidence(jurisdiction);
   return {
     jurisdiction,
-    locale: submissionLocale,
-    noticeVersion: info.noticeVersion,
-    consentVersion: info.consentVersion,
+    locale: evidence.locale,
+    noticeVersion: evidence.noticeVersion,
+    consentVersion: evidence.consentVersion,
     consentGranted: input.consentGranted,
-    noticeTextSnapshot: info.noticeText,
-    consentTextSnapshot: info.consentText,
+    noticeTextSnapshot: evidence.noticeTextSnapshot,
+    consentTextSnapshot: evidence.consentTextSnapshot,
   };
 }
 
@@ -194,14 +137,5 @@ export function buildConsentSubmission(input: BuildConsentSubmissionInput): Cons
  * jurisdiction so the checkout evidence is always persisted (order_compliance).
  */
 export function buildJpConsentSubmission(locale: Locale): ConsentSubmission {
-  const info = jpConsentInfo();
-  return {
-    jurisdiction: 'JP',
-    locale,
-    noticeVersion: info.noticeVersion,
-    consentVersion: info.consentVersion,
-    consentGranted: true,
-    noticeTextSnapshot: info.noticeText,
-    consentTextSnapshot: info.consentText,
-  };
+  return buildConsentSubmission({ jurisdiction: 'JP', locale, consentGranted: true });
 }

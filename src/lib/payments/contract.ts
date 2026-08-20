@@ -70,6 +70,8 @@ export interface Order {
  * PaymentAttempt (§12)
  * ------------------------------------------------------------------------- */
 
+export type PaymentMethod = 'credit' | 'paypal';
+
 export interface PaymentAttempt {
   id: string;
   orderId: string;
@@ -80,7 +82,8 @@ export interface PaymentAttempt {
   providerPaymentRef: string | null;
   /** Immutable amount. */
   amount: Money;
-  method: 'credit';
+  /** Provider-authoritative checkout channel; never an inferred card funding source. */
+  method: PaymentMethod;
   status: PaymentStatus;
   providerStatusCode: string | null;
   /** Sanitized provider status message (log redaction; never raw secrets / card data). */
@@ -453,7 +456,14 @@ export interface OrderStatusResponse {
   status: OrderStatus;
   paymentStatus: PaymentStatus | null;
   bookId: string;
+  /** Immutable title snapshot from the authoritative server catalog at checkout. */
+  itemName: string;
   amount: Money;
+  paidAt: string | null;
+  paymentProvider: PaymentProvider | null;
+  paymentMethod: string | null;
+  deliveryMethod: 'library';
+  deliveryStatus: 'pending' | 'available' | 'revoked';
   /** Immutable server snapshot required by the receipt (jurisdiction + tax treatment). */
   compliance: OrderComplianceSnapshot;
 }

@@ -1,9 +1,15 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
 import { renderWithAppProviders, createMockRepository } from '../test/appProviders'
 import type { PurchaseExecutor } from '../lib/purchase/types'
 import { BookPage } from './BookPage'
+
+const { legalReadyMock } = vi.hoisted(() => ({ legalReadyMock: vi.fn(() => true) }))
+vi.mock('../legal-content', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../legal-content')>()
+  return { ...actual, isPaidLaunchLegalReady: legalReadyMock }
+})
 
 /**
  * These unit tests isolate the §8.3 CTA matrix with the compact synthetic paid
@@ -29,6 +35,8 @@ vi.mock('../reader/catalog', async () => {
 
 const user = { id: 'u-1', email: 'reader@example.com' }
 const paidKeigoId = 'book-test-paid-keigo'
+
+beforeEach(() => legalReadyMock.mockReturnValue(true))
 
 function granted(bookId: string) {
   return { bookId, provider: 'manual' as const, grantedAt: '2026-08-01T00:00:00.000Z' }
@@ -144,7 +152,7 @@ describe('book detail — not-found + purchase seam', () => {
   })
 
   it('the paid 購入する CTA reports that payment is not available yet (#9 swaps the executor)', async () => {
-    renderBook('keigo-essentials')
+    renderBook('keigo-essentials', { session: user })
 
     const buy = await screen.findByRole('button', { name: /購入する/ })
     fireEvent.click(buy)
@@ -158,6 +166,7 @@ describe('book detail — not-found + purchase seam', () => {
 
   it('degrades to the unavailable note when the purchase executor rejects (never stuck pending)', async () => {
     renderBook('keigo-essentials', {
+      session: user,
       purchaseExecutor: async () => {
         throw new Error('checkout offline')
       },

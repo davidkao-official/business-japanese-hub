@@ -117,8 +117,8 @@ describe('checkoutConsent — ConsentSubmission building (explicit jurisdiction)
     )
 
     expect(submission.jurisdiction).toBe('JP')
-    // A JP declaration never switches to TW evidence even from a zh-TW UI.
-    expect(submission.locale).toBe('zh-TW')
+    // Locale identifies the exact Japanese evidence copy, not the surrounding UI.
+    expect(submission.locale).toBe('ja')
     expect(submission.consentTextSnapshot).toBe(jpConsentSection.paragraphs.join('\n'))
   })
 })

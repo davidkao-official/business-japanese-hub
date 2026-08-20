@@ -22,7 +22,13 @@ function order(overrides: Partial<OrderStatusResponse> = {}): OrderStatusRespons
     status: 'pending',
     paymentStatus: null,
     bookId: 'book-sample-bj-keigo',
+    itemName: '敬語エッセンシャル',
     amount: { amount: 880, currency: 'JPY' },
+    paidAt: null,
+    paymentProvider: null,
+    paymentMethod: null,
+    deliveryMethod: 'library',
+    deliveryStatus: 'pending',
     compliance: { jurisdiction: 'JP', japanConsumptionTaxStatus: 'unresolved' },
     ...overrides,
   }
@@ -111,6 +117,30 @@ describe('PurchaseResultPage — browser-return result (server-driven only)', ()
     poll.resolve(order({ status: 'cancelled' }))
     await waitFor(() => expect(screen.getByText('購入はキャンセルされました')).toBeInTheDocument())
     expect(screen.getByText('注文はキャンセルされました。')).toBeInTheDocument()
+  })
+
+  it('renders a refunded receipt without claiming Library access', async () => {
+    const poll = deferred<OrderStatusResponse>()
+    pollOrderStatusMock.mockReturnValueOnce(poll.promise)
+
+    renderResult(['/purchase/result?order=order-1'])
+
+    poll.resolve(
+      order({
+        status: 'refunded',
+        paymentStatus: 'refunded',
+        deliveryStatus: 'revoked',
+        paidAt: '2026-08-20T08:00:00Z',
+        paymentProvider: 'paypal',
+        paymentMethod: 'paypal',
+      }),
+    )
+    await waitFor(() => expect(screen.getByText('返金が完了しました')).toBeInTheDocument())
+    expect(screen.getByText('この注文は返金済みです。書籍へのアクセスは終了しました。')).toBeInTheDocument()
+    expect(screen.getByText('アクセス終了')).toBeInTheDocument()
+    expect(screen.getByText('返金済み')).toBeInTheDocument()
+    expect(screen.queryByText('購入が完了しました')).not.toBeInTheDocument()
+    expect(screen.queryByText('決済確認後、ライブラリへ即時配信')).not.toBeInTheDocument()
   })
 
   it('renders failed when the server reports a failed payment', async () => {

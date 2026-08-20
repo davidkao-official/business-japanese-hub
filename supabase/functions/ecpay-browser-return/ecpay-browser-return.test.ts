@@ -49,7 +49,7 @@ describe('ecpay-browser-return handler', () => {
       deps,
     );
     expect(result.status).toBe(303);
-    expect(result.headers?.Location).toBe('/purchase/result?order=ord-1');
+    expect(result.headers?.Location).toBe('https://business-japanese.example/purchase/result?order=ord-1');
   });
 
   it('never mutates Order / Payment / Entitlement', async () => {
@@ -72,7 +72,7 @@ describe('ecpay-browser-return handler', () => {
       deps,
     );
     expect(result.status).toBe(303);
-    expect(result.headers?.Location).toBe('/purchase/result');
+    expect(result.headers?.Location).toBe('https://business-japanese.example/purchase/result');
   });
 
   it('a forged CheckMac does not fail the redirect (diagnostics only)', async () => {
@@ -82,7 +82,17 @@ describe('ecpay-browser-return handler', () => {
       deps,
     );
     expect(result.status).toBe(303);
-    expect(result.headers?.Location).toBe('/purchase/result?order=ord-1');
+    expect(result.headers?.Location).toBe('https://business-japanese.example/purchase/result?order=ord-1');
+  });
+
+  it('fails closed when the public frontend URL is unavailable', async () => {
+    const { deps } = setup();
+    const result = await handleBrowserReturn(
+      handlerRequest('POST', 'https://test.supabase.co/functions/v1/ecpay-browser-return', browserForm()),
+      { ...deps, env: testEnv({ publicSiteUrl: 'http://insecure.example' }) },
+    );
+    expect(result.status).toBe(503);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'public_site_configuration_unavailable' });
   });
 
   it('method not POST → 405', async () => {

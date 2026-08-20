@@ -28,6 +28,10 @@ export function createMockAuthClient(session: SessionUser | null): AuthClient {
     signInWithPassword: vi.fn().mockResolvedValue({
       user: { id: 'u-1', email: 'reader@example.com' },
     }),
+    signUpWithPassword: vi.fn().mockResolvedValue({
+      user: { id: 'u-1', email: 'reader@example.com' },
+      signedIn: true,
+    }),
     signOut: vi.fn().mockResolvedValue(undefined),
     onAuthStateChange: vi.fn((listener) => {
       listeners.push(listener)

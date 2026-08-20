@@ -19,6 +19,8 @@
 import { useRef, useState } from 'react'
 import type { Book } from '../content/types'
 import { useLocale, useStrings } from '../i18n/strings'
+import { isPaidLaunchLegalReady } from '../legal-content'
+import { useAuth } from '../lib/auth/AuthContext'
 import { formatPrice } from '../lib/price'
 import { usePurchase } from '../lib/purchase/PurchaseContext'
 import type { ConsentSubmission, ResolvedJurisdiction } from '../lib/payments/contract'
@@ -30,6 +32,7 @@ import {
   twConsentInfo,
 } from '../lib/purchase/checkoutConsent'
 import type { CheckoutExecutor } from '../lib/purchase/executor'
+import { AuthPanel } from './AuthPanel'
 
 export interface PurchaseCTAProps {
   book: Book
@@ -42,7 +45,7 @@ export interface PurchaseCTAProps {
   jurisdiction?: ResolvedJurisdiction
 }
 
-type Phase = 'idle' | 'jurisdiction' | 'consent' | 'jp-disclosure' | 'pending' | 'unavailable'
+type Phase = 'idle' | 'auth' | 'jurisdiction' | 'consent' | 'jp-disclosure' | 'pending' | 'unavailable'
 
 export function PurchaseCTA({
   book,
@@ -51,6 +54,7 @@ export function PurchaseCTA({
 }: PurchaseCTAProps) {
   const strings = useStrings()
   const locale = useLocale()
+  const { user, loading: authLoading } = useAuth()
   const { execute } = usePurchase()
   const [declared, setDeclared] = useState<ResolvedJurisdiction | 'unresolved'>('unresolved')
   const jurisdiction = jurisdictionProp ?? declared
@@ -64,6 +68,12 @@ export function PurchaseCTA({
   // In-flight latch: React batches state updates, so a `phase` guard can observe
   // a stale value and double-submit a checkout (two orders for one purchase).
   const inFlight = useRef(false)
+  // If the Edge Function rejects an expired/missing session after the buyer has
+  // already viewed the disclosures, retain the exact evidence object. A
+  // successful inline reauthentication retries that same immutable snapshot;
+  // it never silently rebuilds compliance evidence from potentially changed
+  // copy or locale state.
+  const pendingConsent = useRef<ConsentSubmission | null>(null)
 
   const beginPurchase = async (consent: ConsentSubmission | null) => {
     if (inFlight.current) return
@@ -76,6 +86,12 @@ export function PurchaseCTA({
       // bookId + consent — amount/currency are never client-supplied.
       const submit: CheckoutExecutor = execute
       const result = await submit({ bookId: book.id }, consent)
+      if (!result.ok && result.reason === 'signed_out') {
+        pendingConsent.current = consent
+        setPhase('auth')
+        return
+      }
+      if (result.ok) pendingConsent.current = null
       setPhase(result.ok ? 'idle' : 'unavailable')
     } catch {
       // A future executor is allowed to reject; it must degrade to
@@ -86,7 +102,7 @@ export function PurchaseCTA({
     }
   }
 
-  const onPrimaryClick = () => {
+  const advanceToCompliance = () => {
     // Fail closed: until the buyer declares TW or JP, jurisdiction is
     // `unresolved` and checkout is blocked (no payment handoff).
     if (jurisdiction === 'unresolved') {
@@ -100,6 +116,43 @@ export function PurchaseCTA({
     }
     // JP also gates payment handoff: show the exact evidence before proceeding.
     setPhase('jp-disclosure')
+  }
+
+  const onPrimaryClick = () => {
+    if (authLoading) return
+    // The committed legal documents and seller disclosure are a launch gate,
+    // not optional presentation. Block before auth, jurisdiction collection,
+    // or checkout whenever that static bundle is still draft/incomplete; the
+    // server applies the same independent gate at the authoritative boundary.
+    if (!isPaidLaunchLegalReady()) {
+      setPhase('unavailable')
+      return
+    }
+    if (!user) {
+      pendingConsent.current = null
+      setPhase('auth')
+      return
+    }
+    advanceToCompliance()
+  }
+
+  const onAuthenticated = () => {
+    const consent = pendingConsent.current
+    pendingConsent.current = null
+    if (consent) {
+      void beginPurchase(consent)
+      return
+    }
+    // A buyer who authenticated before seeing compliance disclosures resumes
+    // at the declaration/disclosure step, never directly at payment handoff.
+    advanceToCompliance()
+  }
+
+  const onCancelAuth = () => {
+    pendingConsent.current = null
+    setConsentChecked(false)
+    setAttempted(false)
+    setPhase('idle')
   }
 
   const onDeclare = (declaredJurisdiction: ResolvedJurisdiction) => {
@@ -150,10 +203,18 @@ export function PurchaseCTA({
   const priceLabel = book.price ? formatPrice(book.price) : null
   const label = priceLabel ? `${strings.book.purchase}（${priceLabel}）` : strings.book.purchase
   const showPrimaryButton =
-    phase !== 'jurisdiction' && phase !== 'consent' && phase !== 'jp-disclosure'
+    phase !== 'auth' && phase !== 'jurisdiction' && phase !== 'consent' && phase !== 'jp-disclosure'
 
   return (
-    <span className={`purchase-cta${className ? ` ${className}` : ''}`}>
+    <div className={`purchase-cta${className ? ` ${className}` : ''}`}>
+      {phase === 'auth' && (
+        <AuthPanel
+          onAuthenticated={onAuthenticated}
+          onCancel={onCancelAuth}
+          showPurchaseIntro
+        />
+      )}
+
       {phase === 'jurisdiction' && (
         <span
           className="purchase-cta__jurisdiction"
@@ -242,9 +303,9 @@ export function PurchaseCTA({
           type="button"
           className="btn btn--primary"
           onClick={onPrimaryClick}
-          disabled={phase === 'pending'}
+          disabled={phase === 'pending' || authLoading}
         >
-          {phase === 'pending' ? strings.book.pending : label}
+          {phase === 'pending' || authLoading ? strings.book.pending : label}
         </button>
       )}
 
@@ -253,6 +314,6 @@ export function PurchaseCTA({
           {strings.book.purchaseUnavailable}
         </span>
       )}
-    </span>
+    </div>
   )
 }

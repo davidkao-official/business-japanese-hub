@@ -18,30 +18,29 @@ import {
   handlerRequest,
   bearerHeaders,
   PAYMENT_ROW,
+  ORDER_ROW,
   type MockRoute,
 } from '../_shared/testing.ts';
 import { handleCheckout } from './handler.ts';
 import type { ConsentSubmission } from '../../../src/lib/payments/contract.ts';
+import { buildConsentSubmission } from '../../../src/lib/purchase/checkoutConsent.ts';
 
-const TW_CONSENT: ConsentSubmission = {
+const TW_CONSENT: ConsentSubmission = buildConsentSubmission({
   jurisdiction: 'TW',
   locale: 'zh-TW',
-  noticeVersion: 'tw-7day-removal-notice-v1',
-  consentVersion: 'tw-digital-content-consent-v1',
   consentGranted: true,
-  noticeTextSnapshot: 'notice text',
-  consentTextSnapshot: 'consent text',
-};
+});
 
-const JP_CONSENT: ConsentSubmission = {
-  ...TW_CONSENT,
+const JP_CONSENT: ConsentSubmission = buildConsentSubmission({
   jurisdiction: 'JP',
   locale: 'ja',
-};
+  consentGranted: true,
+});
 
 const CATALOG_TWD = {
   book_id: 'book-a',
   slug: 'keigo-essentials',
+  item_name: '敬語エッセンシャル',
   currency: 'TWD',
   amount_minor: 79000,
   published_revision: 'keigo-essentials@e1-r1',
@@ -57,11 +56,25 @@ function jpTax(value: string): { platform_tax_config: MockRoute } {
 
 function setup(initial: Record<string, unknown> = {}, routes: Record<string, MockRoute> = {}) {
   const mock = createMockDb({
-    'auth:getUser': { data: { id: 'user-1' } },
+    'auth:getUser': {
+      data: { id: 'user-1', email: 'buyer@example.com', email_confirmed_at: '2026-08-16T00:00:00Z' },
+    },
     catalog: { data: CATALOG_TWD },
     orders: { data: { id: 'ord-1' } },
     order_compliance: { data: null },
     payments: { data: PAYMENT_ROW },
+    'rpc:create_checkout_intent': {
+      data: {
+        order: {
+          ...ORDER_ROW,
+          item_name_snapshot: CATALOG_TWD.item_name,
+          amount_minor: CATALOG_TWD.amount_minor,
+          currency: CATALOG_TWD.currency,
+        },
+        payment: PAYMENT_ROW,
+      },
+    },
+    'rpc:is_order_email_scheduler_ready': { data: true },
     ...jpTax('taxable'),
     ...routes,
   });
@@ -84,6 +97,7 @@ function setup(initial: Record<string, unknown> = {}, routes: Record<string, Moc
       log: fakeLogger(),
       now: () => new Date('2026-08-16T12:00:00Z'),
       random: () => 0.5,
+      legalReady: () => true,
       ...initial,
     },
   };
@@ -119,7 +133,7 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       deps,
     );
     expect(result.status).toBe(422);
-    expect(JSON.parse(result.body)).toMatchObject({ reason: 'jurisdiction_required' });
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'legal_evidence_invalid' });
     expect(mock.callsFor('orders', 'insert').length).toBe(0);
   });
 
@@ -136,39 +150,40 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     );
 
     expect(result.status).toBe(200);
+    expect(mock.rpcCalls('is_order_email_scheduler_ready')[0]?.args[0]).toEqual({
+      p_function_url: 'https://test.supabase.co/functions/v1/order-email',
+      p_secret_sha256: '788ce709321f4667893eb59c1613e3f3e1a24e6f872ec47bda1355f5ce1a0642',
+    });
     const body = JSON.parse(result.body) as { orderId: string; paymentId: string; instruction: { action: string } };
     expect(body.orderId).toBe('ord-1');
     expect(body.paymentId).toBe('pay-1');
     expect(body.instruction.action).toBe(CHECKOUT_URL);
 
-    const orderInsert = mock.callsFor('orders', 'insert')[0];
-    expect(orderInsert.args[0]).toMatchObject({
-      user_id: 'user-1',
-      book_id: 'book-a',
-      amount_minor: 79000,
-      currency: 'TWD',
-      status: 'pending',
-      jurisdiction: 'TW',
-      japan_tax_status_snapshot: 'unresolved',
+    const createIntent = mock.rpcCalls('create_checkout_intent')[0];
+    expect(createIntent.args[0]).toMatchObject({
+      p_user_id: 'user-1',
+      p_customer_email_snapshot: 'buyer@example.com',
+      p_book_id: 'book-a',
+      p_provider: 'ecpay',
+      p_payment_method: 'credit',
+      p_jurisdiction: 'TW',
+      p_japan_tax_status_snapshot: 'unresolved',
+      p_locale: TW_CONSENT.locale,
+      p_notice_version: TW_CONSENT.noticeVersion,
+      p_consent_version: TW_CONSENT.consentVersion,
+      p_consent_granted: true,
+      p_notice_text_snapshot: TW_CONSENT.noticeTextSnapshot,
+      p_consent_text_snapshot: TW_CONSENT.consentTextSnapshot,
     });
-    expect(mock.callsFor('order_compliance', 'insert').length).toBe(1);
-    const complianceInsert = mock.callsFor('order_compliance', 'insert')[0];
-    expect(complianceInsert.args[0]).toMatchObject({ order_id: 'ord-1', jurisdiction: 'TW', consent_granted: true });
-
-    const paymentInsert = mock.callsFor('payments', 'insert')[0];
-    expect(paymentInsert.args[0]).toMatchObject({
-      order_id: 'ord-1',
-      provider: 'ecpay',
-      amount_minor: 79000,
-      currency: 'TWD',
-      method: 'credit',
-      status: 'created',
-    });
+    expect(mock.callsFor('orders', 'insert')).toHaveLength(0);
+    expect(mock.callsFor('order_compliance', 'insert')).toHaveLength(0);
+    expect(mock.callsFor('payments', 'insert')).toHaveLength(0);
     expect(adapter.createCheckout).toHaveBeenCalledWith(
       expect.objectContaining({
         orderId: 'ord-1',
         paymentId: 'pay-1',
         amount: { amount: 79000, currency: 'TWD' },
+        itemNameSnapshot: '敬語エッセンシャル',
         locale: 'CHT',
         returnUrl: 'https://test.supabase.co/functions/v1/ecpay-callback',
         orderResultUrl: 'https://test.supabase.co/functions/v1/ecpay-browser-return',
@@ -179,7 +194,7 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     expect(paymentUpdate.args[0]).toMatchObject({ status: 'pending' });
   });
 
-  it('ja UI locale + TW declaration is still TW (locale never determines jurisdiction)', async () => {
+  it('rejects relabeled evidence locale before any insert', async () => {
     const { mock, deps } = setup();
     const result = await handleCheckout(
       handlerRequest(
@@ -190,11 +205,99 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       ),
       deps,
     );
-    expect(result.status).toBe(200);
-    const orderInsert = mock.callsFor('orders', 'insert')[0];
-    expect(orderInsert.args[0]).toMatchObject({ jurisdiction: 'TW' });
-    const complianceInsert = mock.callsFor('order_compliance', 'insert')[0];
-    expect(complianceInsert.args[0]).toMatchObject({ jurisdiction: 'TW', locale: 'ja' });
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'legal_evidence_invalid' });
+    expect(mock.callsFor('orders', 'insert')).toHaveLength(0);
+  });
+
+  it.each([
+    ['notice version', { noticeVersion: 'attacker-v99' }],
+    ['consent version', { consentVersion: 'attacker-v99' }],
+    ['notice text', { noticeTextSnapshot: 'different notice' }],
+    ['consent text', { consentTextSnapshot: 'different consent' }],
+  ])('rejects altered canonical %s before any insert', async (_label, override) => {
+    const { mock, deps } = setup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: { ...TW_CONSENT, ...override } }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'legal_evidence_invalid' });
+    expect(mock.callsFor('orders', 'insert')).toHaveLength(0);
+    expect(mock.callsFor('payments', 'insert')).toHaveLength(0);
+  });
+
+  it('blocks checkout while committed legal/seller configuration is unresolved', async () => {
+    const { mock, deps } = setup({ legalReady: () => false });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(503);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'launch_readiness_unresolved' });
+    expect(mock.callsFor('orders', 'insert')).toHaveLength(0);
+    expect(mock.callsFor('payments', 'insert')).toHaveLength(0);
+  });
+
+  it('blocks checkout when the email scheduler activation check fails', async () => {
+    const { mock, deps } = setup({}, { 'rpc:is_order_email_scheduler_ready': { data: false } });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(503);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'launch_readiness_unresolved' });
+    expect(mock.rpcCalls('create_checkout_intent')).toHaveLength(0);
+  });
+
+  it('blocks checkout when the scheduled worker secret is absent', async () => {
+    const { mock, deps } = setup({ env: testEnv({ scheduledJobSecret: undefined }) });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(503);
+    expect(mock.rpcCalls('is_order_email_scheduler_ready')).toHaveLength(0);
+    expect(mock.rpcCalls('create_checkout_intent')).toHaveLength(0);
+  });
+
+  it.each([
+    ['missing', { id: 'user-1', email: null, email_confirmed_at: null }],
+    ['unconfirmed', { id: 'user-1', email: 'buyer@example.com', email_confirmed_at: null }],
+  ])('blocks a %s verified account email before any insert', async (_label, user) => {
+    const { mock, deps } = setup({}, { 'auth:getUser': { data: user } });
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'verified_email_required' });
+    expect(mock.callsFor('orders', 'insert')).toHaveLength(0);
   });
 
   it('TW without consent → refused (fail closed)', async () => {
@@ -265,14 +368,12 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       'key',
       'japan_consumption_tax_status',
     ]);
-    const orderInsert = mock.callsFor('orders', 'insert')[0];
-    expect(orderInsert.args[0]).toMatchObject({
-      jurisdiction: 'JP',
-      japan_tax_status_snapshot: 'taxable',
-      currency: 'TWD',
+    const createIntent = mock.rpcCalls('create_checkout_intent')[0];
+    expect(createIntent.args[0]).toMatchObject({
+      p_jurisdiction: 'JP',
+      p_japan_tax_status_snapshot: 'taxable',
+      p_consent_granted: true,
     });
-    const complianceInsert = mock.callsFor('order_compliance', 'insert')[0];
-    expect(complianceInsert.args[0]).toMatchObject({ jurisdiction: 'JP', consent_granted: true });
   });
 
   it('JP + exempt → proceeds and persists the exempt snapshot', async () => {
@@ -287,8 +388,10 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       deps,
     );
     expect(result.status).toBe(200);
-    const orderInsert = mock.callsFor('orders', 'insert')[0];
-    expect(orderInsert.args[0]).toMatchObject({ jurisdiction: 'JP', japan_tax_status_snapshot: 'exempt' });
+    expect(mock.rpcCalls('create_checkout_intent')[0].args[0]).toMatchObject({
+      p_jurisdiction: 'JP',
+      p_japan_tax_status_snapshot: 'exempt',
+    });
   });
 
   it('client cannot override the tax status (server reads platform_tax_config only)', async () => {
@@ -327,8 +430,9 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       exemptSetup.deps,
     );
     expect(exemptResult.status).toBe(200);
-    const orderInsert = exemptSetup.mock.callsFor('orders', 'insert')[0];
-    expect(orderInsert.args[0]).toMatchObject({ japan_tax_status_snapshot: 'exempt' });
+    expect(exemptSetup.mock.rpcCalls('create_checkout_intent')[0].args[0]).toMatchObject({
+      p_japan_tax_status_snapshot: 'exempt',
+    });
   });
 
   it('JP tax gate fails closed when the config query rejects (transport → unresolved)', async () => {
@@ -384,22 +488,31 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       deps,
     );
     expect(result.status).toBe(200);
-    const orderInsert = mock.callsFor('orders', 'insert')[0];
-    expect(orderInsert.args[0]).toMatchObject({ amount_minor: 79000, currency: 'TWD', status: 'pending' });
-    const paymentInsert = mock.callsFor('payments', 'insert')[0];
-    expect(paymentInsert.args[0]).toMatchObject({ amount_minor: 79000, currency: 'TWD' });
+    const createIntent = mock.rpcCalls('create_checkout_intent')[0];
+    expect(createIntent.args[0]).not.toHaveProperty('amount');
+    expect(createIntent.args[0]).not.toHaveProperty('currency');
+    expect(createIntent.args[0]).not.toHaveProperty('status');
     // The server-generated merchant ref must be used, never a client value.
-    expect(String(paymentInsert.args[0]).indexOf('HACKED-REF')).toBe(-1);
+    expect(String(createIntent.args[0]).indexOf('HACKED-REF')).toBe(-1);
   });
 
   it('non-TWD catalog amount → UnsupportedCurrencyForProvider surfaces as refusal', async () => {
     const { deps } = setup({});
     const mock = createMockDb({
-      'auth:getUser': { data: { id: 'user-1' } },
+      'auth:getUser': {
+        data: { id: 'user-1', email: 'buyer@example.com', email_confirmed_at: '2026-08-16T00:00:00Z' },
+      },
       catalog: { data: { ...CATALOG_TWD, currency: 'JPY', amount_minor: 880 } },
       orders: { data: { id: 'ord-1' } },
       order_compliance: { data: null },
       payments: { data: PAYMENT_ROW },
+      'rpc:create_checkout_intent': {
+        data: {
+          order: { ...ORDER_ROW, item_name_snapshot: CATALOG_TWD.item_name },
+          payment: PAYMENT_ROW,
+        },
+      },
+      'rpc:is_order_email_scheduler_ready': { data: true },
     });
     const result = await handleCheckout(
       handlerRequest(
@@ -420,8 +533,11 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
   it('unknown book (no released catalog row) → 404', async () => {
     const { deps } = setup({});
     const mock = createMockDb({
-      'auth:getUser': { data: { id: 'user-1' } },
+      'auth:getUser': {
+        data: { id: 'user-1', email: 'buyer@example.com', email_confirmed_at: '2026-08-16T00:00:00Z' },
+      },
       catalog: { data: null },
+      'rpc:is_order_email_scheduler_ready': { data: true },
     });
     const result = await handleCheckout(
       handlerRequest(
@@ -460,11 +576,20 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
   it('re-uses the generated adapter for a locale mapping check (ja → JPN)', async () => {
     const { adapter, deps } = setup({});
     const mock = createMockDb({
-      'auth:getUser': { data: { id: 'user-1' } },
+      'auth:getUser': {
+        data: { id: 'user-1', email: 'buyer@example.com', email_confirmed_at: '2026-08-16T00:00:00Z' },
+      },
       catalog: { data: CATALOG_TWD },
       orders: { data: { id: 'ord-1' } },
       order_compliance: { data: null },
       payments: { data: PAYMENT_ROW },
+      'rpc:create_checkout_intent': {
+        data: {
+          order: { ...ORDER_ROW, item_name_snapshot: CATALOG_TWD.item_name },
+          payment: PAYMENT_ROW,
+        },
+      },
+      'rpc:is_order_email_scheduler_ready': { data: true },
       ...jpTax('taxable'),
     });
     const result = await handleCheckout(
@@ -489,6 +614,7 @@ describe('checkout handler — currency → provider routing (§21)', () => {
   const CATALOG_USD = {
     book_id: 'book-usd',
     slug: 'usd-book',
+    item_name: 'Meeting Japanese',
     currency: 'USD',
     amount_minor: 1999,
     published_revision: 'usd-book@e1-r1',
@@ -497,11 +623,27 @@ describe('checkout handler — currency → provider routing (§21)', () => {
 
   function usdSetup(routes: Record<string, unknown> = {}) {
     const mock = createMockDb({
-      'auth:getUser': { data: { id: 'user-1' } },
+      'auth:getUser': {
+        data: { id: 'user-1', email: 'buyer@example.com', email_confirmed_at: '2026-08-16T00:00:00Z' },
+      },
       catalog: { data: CATALOG_USD },
       orders: { data: { id: 'ord-1' } },
       order_compliance: { data: null },
       payments: { data: { ...PAYMENT_ROW, provider: 'paypal', currency: 'USD', amount_minor: 1999 } },
+      'rpc:create_checkout_intent': {
+        data: {
+          order: {
+            ...ORDER_ROW,
+            book_id: CATALOG_USD.book_id,
+            item_name_snapshot: CATALOG_USD.item_name,
+            published_revision: CATALOG_USD.published_revision,
+            amount_minor: CATALOG_USD.amount_minor,
+            currency: CATALOG_USD.currency,
+          },
+          payment: { ...PAYMENT_ROW, provider: 'paypal', currency: 'USD', amount_minor: 1999 },
+        },
+      },
+      'rpc:is_order_email_scheduler_ready': { data: true },
       ...jpTax('taxable'),
       ...routes,
     });
@@ -521,6 +663,7 @@ describe('checkout handler — currency → provider routing (§21)', () => {
       log: fakeLogger(),
       now: () => new Date('2026-08-16T12:00:00Z'),
       random: () => 0.5,
+      legalReady: () => true,
     };
     return { mock, ecpayAdapter, paypalAdapter, deps };
   }
@@ -549,18 +692,17 @@ describe('checkout handler — currency → provider routing (§21)', () => {
       expect.objectContaining({
         orderId: 'ord-1',
         amount: { amount: 1999, currency: 'USD' },
+        itemNameSnapshot: 'Meeting Japanese',
         orderResultUrl: 'https://test.supabase.co/functions/v1/paypal-browser-return',
       }),
     );
 
     // Payment insert uses the routed provider and USD; the PayPal order id is
     // persisted separately from the later capture/transaction id.
-    const paymentInsert = mock.callsFor('payments', 'insert')[0];
-    expect(paymentInsert.args[0]).toMatchObject({
-      provider: 'paypal',
-      amount_minor: 1999,
-      currency: 'USD',
-      status: 'created',
+    expect(mock.rpcCalls('create_checkout_intent')[0].args[0]).toMatchObject({
+      p_provider: 'paypal',
+      p_book_id: 'book-usd',
+      p_payment_method: 'paypal',
     });
     const refUpdate = mock.callsFor('payments', 'update').find((c) => c.args[0]?.provider_checkout_ref === 'ORDER-1');
     expect(refUpdate).toBeDefined();
@@ -570,11 +712,14 @@ describe('checkout handler — currency → provider routing (§21)', () => {
   it('JPY catalog → refused as unsupported_currency before any insert (#20 untouched)', async () => {
     const { deps } = usdSetup();
     const mock = createMockDb({
-      'auth:getUser': { data: { id: 'user-1' } },
+      'auth:getUser': {
+        data: { id: 'user-1', email: 'buyer@example.com', email_confirmed_at: '2026-08-16T00:00:00Z' },
+      },
       catalog: { data: { ...CATALOG_USD, currency: 'JPY', amount_minor: 880 } },
       orders: { data: { id: 'ord-1' } },
       order_compliance: { data: null },
       payments: { data: PAYMENT_ROW },
+      'rpc:is_order_email_scheduler_ready': { data: true },
       ...jpTax('taxable'),
     });
     const result = await handleCheckout(
@@ -608,21 +753,23 @@ describe('checkout handler — currency → provider routing (§21)', () => {
     expect(result.status).toBe(200);
     // The ECPay adapter is used and the payment is created as TWD/ecpay.
     expect(adapter.createCheckout).toHaveBeenCalledTimes(1);
-    expect(mock.callsFor('payments', 'insert')[0].args[0]).toMatchObject({
-      provider: 'ecpay',
-      currency: 'TWD',
-      amount_minor: 79000,
+    expect(mock.rpcCalls('create_checkout_intent')[0].args[0]).toMatchObject({
+      p_provider: 'ecpay',
+      p_book_id: 'book-a',
     });
   });
 
   it('USD checkout with PayPal NOT configured → refused BEFORE any insert (no silent fallback)', async () => {
     const { deps } = usdSetup();
     const mock = createMockDb({
-      'auth:getUser': { data: { id: 'user-1' } },
+      'auth:getUser': {
+        data: { id: 'user-1', email: 'buyer@example.com', email_confirmed_at: '2026-08-16T00:00:00Z' },
+      },
       catalog: { data: CATALOG_USD },
       orders: { data: { id: 'ord-1' } },
       order_compliance: { data: null },
       payments: { data: PAYMENT_ROW },
+      'rpc:is_order_email_scheduler_ready': { data: true },
       ...jpTax('taxable'),
     });
     const result = await handleCheckout(
