@@ -237,7 +237,9 @@ all three exact active schedules (ten-minute repair, daily reconciliation,
 one-minute email), and fresh durable worker success heartbeats pass
 `is_paid_launch_scheduler_ready(...)`. Repair, reconciliation, and email expire
 after 20 minutes, 36 hours, and 5 minutes respectively; a failure or a newer
-unfinished run closes checkout.
+unfinished run closes checkout. Item-level provider, finalizer, or persistence
+errors are accumulated while the scan continues and make that worker heartbeat
+fail, so partial progress cannot be reported as healthy recovery.
 
 Transactional order email is separately provider-scoped. The worker refuses to
 claim jobs unless all seven variables are configured; values remain server-only

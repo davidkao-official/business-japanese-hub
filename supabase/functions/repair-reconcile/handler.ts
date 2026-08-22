@@ -76,6 +76,7 @@ export interface LayerBResult {
   repaired: number;
   granted: number;
   stillUnknown: number;
+  failures: number;
 }
 
 export interface LayerCResult {
@@ -84,6 +85,7 @@ export interface LayerCResult {
   entries: number;
   matched: number;
   mismatched: number;
+  failures: number;
 }
 
 /** Result of resuming ambiguous PayPal refunds (§21/B3). */
@@ -91,6 +93,7 @@ export interface RefundResumeResult {
   scanned: number;
   resumed: number;
   confirmed: number;
+  failures: number;
 }
 
 export async function handleRepairReconcile(
@@ -146,7 +149,7 @@ export async function handleRepairReconcile(
   }
 
   const runResult = await (async (): Promise<HandlerResult> => {
-  let layerB: LayerBResult = { scanned: 0, repaired: 0, granted: 0, stillUnknown: 0 };
+  let layerB: LayerBResult = { scanned: 0, repaired: 0, granted: 0, stillUnknown: 0, failures: 0 };
   if (shouldRepair) {
     try {
       layerB = await runLayerB(deps, now);
@@ -180,6 +183,7 @@ export async function handleRepairReconcile(
         entries: reconciliationRuns.reduce((sum, result) => sum + result.entries, 0),
         matched: reconciliationRuns.reduce((sum, result) => sum + result.matched, 0),
         mismatched: reconciliationRuns.reduce((sum, result) => sum + result.mismatched, 0),
+        failures: reconciliationRuns.reduce((sum, result) => sum + result.failures, 0),
         ...(reconciliationFailed ? { reason: 'one or more reconciliation sources failed' } : {}),
       }
     : {
@@ -187,12 +191,13 @@ export async function handleRepairReconcile(
         entries: 0,
         matched: 0,
         mismatched: 0,
+        failures: 0,
         reason: reconciliationFailed ? 'reconciliation failed' : 'no reconciliation source configured',
       };
 
   // Resume ambiguous PayPal refunds (requested/processing) with the same stable
   // PayPal-Request-Id so provider idempotency returns the current result (§21/B3).
-  let refundResume: RefundResumeResult = { scanned: 0, resumed: 0, confirmed: 0 };
+  let refundResume: RefundResumeResult = { scanned: 0, resumed: 0, confirmed: 0, failures: 0 };
   let refundResumeFailed = false;
   if (shouldRepair) {
     try {
@@ -204,15 +209,20 @@ export async function handleRepairReconcile(
   }
 
   deps.log.info({ layerB, layerC, refundResume }, 'repair-reconcile run');
-  const workerFailed = refundResumeFailed ||
+  const workerFailed = layerB.failures > 0 ||
+    refundResume.failures > 0 ||
+    layerC.failures > 0 ||
+    refundResumeFailed ||
     (shouldReconcile && (reconciliationFailed || layerC.skipped));
   return jsonResult(workerFailed ? 500 : 200, {
     repaired: layerB.repaired,
     granted: layerB.granted,
     stillUnknown: layerB.stillUnknown,
+    repair_failures: layerB.failures,
     scanned: layerB.scanned,
     refunds_resumed: refundResume.resumed,
     refunds_confirmed: refundResume.confirmed,
+    refund_failures: refundResume.failures,
     reconciliation: layerC,
     ...(workerFailed ? { error: 'scheduled work incomplete' } : {}),
   });
@@ -312,6 +322,7 @@ async function runRefundResume(
 
   let resumed = 0;
   let confirmed = 0;
+  let failures = 0;
   for (const refundRow of rows) {
     // §21/B7: never auto-resume a refund outside PayPal's `PayPal-Request-Id`
     // retention window (45 days). Re-POSTing with a new key could create a
@@ -330,12 +341,17 @@ async function runRefundResume(
         .in('status', ['requested', 'processing']);
       if (agedError) {
         deps.log.error({ error: agedError.message }, 'refund aged marker update failed');
+        failures += 1;
       }
       continue;
     }
 
     const payment = await loadPaymentById(deps.db, refundRow.payment_id);
-    if (!payment || !payment.provider_payment_ref) continue;
+    if (!payment || !payment.provider_payment_ref) {
+      deps.log.error({ refundId: refundRow.id }, 'refund resume: payment correlation missing');
+      failures += 1;
+      continue;
+    }
 
     let refundResult: ProviderRefundResult;
     try {
@@ -350,6 +366,7 @@ async function runRefundResume(
         { refundId: refundRow.id, error: err instanceof Error ? err.message : String(err) },
         'refund resume: provider call failed',
       );
+      failures += 1;
       continue;
     }
 
@@ -369,6 +386,7 @@ async function runRefundResume(
           { refundId: refundRow.id, error: err instanceof Error ? err.message : String(err) },
           'refund resume: confirm failed',
         );
+        failures += 1;
       }
     } else {
       // Persist ambiguous/non-success provider facts for the next repair pass.
@@ -388,13 +406,14 @@ async function runRefundResume(
           { error: err instanceof Error ? err.message : String(err) },
           'refund resume: ref persist failed',
         );
+        failures += 1;
         continue;
       }
       if (persistedRefund.status === 'succeeded') confirmed += 1;
     }
     resumed += 1;
   }
-  return { scanned: rows.length, resumed, confirmed };
+  return { scanned: rows.length, resumed, confirmed, failures };
 }
 
 async function runLayerB(
@@ -424,6 +443,7 @@ async function runLayerB(
   let repaired = 0;
   let granted = 0;
   let stillUnknown = 0;
+  let failures = 0;
   for (const paymentRow of candidates) {
     const provider = paymentRow.provider as 'ecpay' | 'paypal';
     const event: VerifiedProviderEvent = {
@@ -442,8 +462,13 @@ async function runLayerB(
     let snapshot: ProviderPaymentSnapshot;
     try {
       snapshot = await deps.adapters[provider].confirmPayment(event);
-    } catch {
+    } catch (err) {
+      deps.log.error(
+        { paymentId: paymentRow.id, error: err instanceof Error ? err.message : String(err) },
+        'repair provider confirmation failed',
+      );
       stillUnknown += 1;
+      failures += 1;
       continue;
     }
     if (!isRepairSnapshotVerified(paymentRow, snapshot)) {
@@ -469,9 +494,10 @@ async function runLayerB(
         { paymentId: paymentRow.id, error: err instanceof Error ? err.message : String(err) },
         'repair apply failed',
       );
+      failures += 1;
     }
   }
-  return { scanned: candidates.length, repaired, granted, stillUnknown };
+  return { scanned: candidates.length, repaired, granted, stillUnknown, failures };
 }
 
 /**
@@ -507,11 +533,17 @@ async function runLayerC(deps: RepairReconcileHandlerDeps, csv: string): Promise
   const entries = parseFundingReconDetailCsv(csv);
   let matched = 0;
   let mismatched = 0;
+  let failures = 0;
   for (const entry of entries) {
     let payment: PaymentRow | null;
     try {
       payment = await loadPaymentByMerchantRef(deps.db, 'ecpay', entry.merchantTradeNo);
-    } catch {
+    } catch (err) {
+      deps.log.error(
+        { merchantReference: entry.merchantTradeNo, error: err instanceof Error ? err.message : String(err) },
+        'reconciliation payment lookup failed',
+      );
+      failures += 1;
       continue;
     }
     if (!payment) continue;
@@ -582,6 +614,7 @@ async function runLayerC(deps: RepairReconcileHandlerDeps, csv: string): Promise
           { paymentId: payment.id, error: err instanceof Error ? err.message : String(err) },
           'reconciliation refund confirm failed',
         );
+        failures += 1;
       }
       continue;
     }
@@ -601,13 +634,14 @@ async function runLayerC(deps: RepairReconcileHandlerDeps, csv: string): Promise
         { paymentId: payment.id, error: updateError.message },
         'reconciliation status update failed',
       );
+      failures += 1;
       continue;
     }
     if (isMatch) matched += 1;
     else mismatched += 1;
   }
   deps.log.info({ entries: entries.length, matched, mismatched }, 'reconciliation (Layer C) applied');
-  return { skipped: false, entries: entries.length, matched, mismatched };
+  return { skipped: false, entries: entries.length, matched, mismatched, failures };
 }
 
 /** Daily PayPal Transaction Search matcher over a trailing three-day window. */
@@ -617,7 +651,14 @@ async function runPaypalLayerC(
 ): Promise<LayerCResult> {
   const reconcile = deps.adapters.paypal.reconcile;
   if (!reconcile) {
-    return { skipped: true, entries: 0, matched: 0, mismatched: 0, reason: 'paypal reconciliation unavailable' };
+    return {
+      skipped: true,
+      entries: 0,
+      matched: 0,
+      mismatched: 0,
+      failures: 0,
+      reason: 'paypal reconciliation unavailable',
+    };
   }
   const toDate = now();
   const fromDate = new Date(toDate.getTime() - 2 * 24 * 60 * 60 * 1000);
@@ -665,7 +706,7 @@ async function runPaypalLayerC(
     matched += 1;
   }
   deps.log.info({ entries: data.entries.length, matched, mismatched }, 'PayPal reconciliation (Layer C) applied');
-  return { skipped: false, entries: data.entries.length, matched, mismatched };
+  return { skipped: false, entries: data.entries.length, matched, mismatched, failures: 0 };
 }
 
 function isPaypalReconciliationEntry(value: unknown): value is PaypalReconciliationEntry {

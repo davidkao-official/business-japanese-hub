@@ -279,6 +279,23 @@ describe('repair-reconcile handler', () => {
     expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
   });
 
+  it('records a failed repair heartbeat when verified payment finalization fails', async () => {
+    const { mock, deps } = setup({
+      payments: { data: [{ ...PAYMENT_ROW, status: 'verification_pending' }] },
+      'rpc:finalize_payment_success': { error: 'injected finalizer failure' },
+    });
+
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+
+    expect(result.status).toBe(500);
+    expect(JSON.parse(result.body)).toMatchObject({ error: 'scheduled work incomplete' });
+    expect(mock.rpcCalls('record_scheduled_job_result')[0]?.args[0]).toMatchObject({
+      p_job_name: 'repair',
+      p_succeeded: false,
+      p_error_code: 'worker_http_500',
+    });
+  });
+
   it('scans verification_pending after 10 minutes but leaves ordinary pending until 30 minutes', async () => {
     const { mock, deps } = setup({
       payments: {
@@ -439,6 +456,42 @@ describe('repair-reconcile handler', () => {
     expect(mock.callsFor('refunds', 'update')).toHaveLength(0);
     expect(mock.callsFor('orders', 'update')).toHaveLength(0);
     expect(mock.callsFor('book_entitlement', 'update')).toHaveLength(0);
+  });
+
+  it('records a failed reconciliation heartbeat when a confirmed refund cannot finalize', async () => {
+    const { mock, deps } = setup({
+      payments: {
+        data: [{
+          ...PAYMENT_ROW,
+          status: 'succeeded',
+          provider_payment_ref: 'ECPAY-TRADE-1',
+          created_at: '2026-08-16T11:55:00Z',
+        }],
+      },
+      refunds: {
+        data: [{
+          id: 'ref-1', payment_id: 'pay-1', provider: 'ecpay', provider_refund_ref: null,
+          amount_minor: 79000, currency: 'TWD', status: 'requested', reason_code: null,
+          requested_by: 'user-1', provider_status_code: null,
+          requested_at: '2026-08-16T11:00:00Z', completed_at: null,
+        }],
+      },
+      'rpc:finalize_refund_success': { error: 'injected refund finalizer failure' },
+    });
+    const csv =
+      '特店編號,撥款日期,撥款金額,特店訂單編號,交易序號,交易日期,交易時間,交易金額,手續費,交易狀態,退款金額,退款狀態,交易類別\n' +
+      '2000132,20260815,0,BJH123456789,ECPAY-TRADE-1,20260815,120000,790,1,1,-790,1,1\n';
+
+    const result = await runReconcile(
+      { ...deps, env: testEnv({ fundingReconCsv: csv }) },
+      { 'x-scheduled-job-secret': 'test-scheduled-secret' },
+    );
+
+    expect(result.status).toBe(500);
+    expect(mock.rpcCalls('record_scheduled_job_result')[0]?.args[0]).toMatchObject({
+      p_job_name: 'reconcile',
+      p_succeeded: false,
+    });
   });
 
   it('Layer C treats zero refundAmount as a normal matched settlement', async () => {
@@ -746,6 +799,44 @@ describe('repair-reconcile handler', () => {
       p_refund_id: 'ref-1',
     });
     expect(mock.callsFor('book_entitlement', 'update')).toHaveLength(0);
+  });
+
+  it('records a failed repair heartbeat when a resumed refund cannot finalize', async () => {
+    const paypalPayment = {
+      ...PAYMENT_ROW,
+      provider: 'paypal',
+      provider_payment_ref: 'CAPTURE-1',
+      amount_minor: 1999,
+      currency: 'USD',
+      status: 'succeeded',
+      created_at: '2026-08-16T11:55:00Z',
+    };
+    const { mock, deps } = setup({
+      payments: { data: [paypalPayment] },
+      refunds: {
+        data: [{
+          id: 'ref-1', payment_id: 'pay-1', provider: 'paypal', provider_refund_ref: null,
+          amount_minor: 1999, currency: 'USD', status: 'processing', reason_code: null,
+          requested_by: 'user-1', provider_status_code: 'PENDING',
+          requested_at: '2026-08-16T11:00:00Z', completed_at: null,
+        }],
+      },
+      'rpc:finalize_refund_success': { error: 'injected refund finalizer failure' },
+    });
+    deps.adapters.paypal.refund.mockResolvedValue({
+      ok: true,
+      status: 'succeeded',
+      providerRefundRef: 'REFUND-1',
+      rawStatusCode: 'COMPLETED',
+    });
+
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+
+    expect(result.status).toBe(500);
+    expect(mock.rpcCalls('record_scheduled_job_result')[0]?.args[0]).toMatchObject({
+      p_job_name: 'repair',
+      p_succeeded: false,
+    });
   });
 
   it('persists a still-pending refund result and processing state in one write', async () => {

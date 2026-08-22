@@ -250,8 +250,9 @@ provided by the owner. Never use `supabase db reset --linked` on production.
    authenticated worker invocation records `scheduled_job_health`; checkout
    closes when repair (20 minutes), reconciliation (36 hours), or email (5
    minutes) lacks a fresh success, when the latest run failed, or while a newer
-   run has no result. A cron row alone proves scheduling, not successful HTTP
-   execution.
+   run has no result. Per-item provider, finalizer, and persistence failures make
+   the whole worker heartbeat fail even when the remaining scan continues. A
+   cron row alone proves scheduling, not successful HTTP execution.
 
 10. Confirm the server-only scheduler
    readiness RPC, legal/seller readiness, released catalog price, PayPal live
