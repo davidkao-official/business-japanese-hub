@@ -221,48 +221,80 @@ export interface FlowContext {
   now: () => Date;
 }
 
-/** Apply a `PaymentDomainEvent` to a payment row (pure state.ts + one UPDATE). */
+/**
+ * Apply a non-finalizing `PaymentDomainEvent` with an optimistic status CAS.
+ *
+ * Callback verification and the transactional success/refund finalizers can run
+ * concurrently. A row loaded before a finalizer commits must therefore never
+ * overwrite the newer terminal state. Re-read and recompute on a lost CAS;
+ * after a bounded number of conflicts, fail without acknowledging so the
+ * provider/scheduler can retry safely.
+ */
 export async function applyPaymentEvent(
   ctx: FlowContext,
   paymentRow: PaymentRow,
   event: PaymentDomainEvent,
 ): Promise<PaymentStatus> {
   const nowIso = ctx.now().toISOString();
-  const next = nextPaymentStatus(paymentRow.status, event);
-  const patch: Record<string, unknown> = { status: next };
+  let current = paymentRow;
 
-  switch (event.type) {
-    case 'payment_verified':
-      patch.provider_payment_ref = event.providerPaymentReference ?? paymentRow.provider_payment_ref;
-      patch.last_verified_at = nowIso;
-      // Provider-neutral: the confirmed status code comes from the snapshot
-      // (ECPay '1', PayPal 'COMPLETED'); the message never names a provider.
-      patch.provider_status_code = event.rawStatusCode ?? paymentRow.provider_status_code ?? '1';
-      patch.provider_status_message = 'payment confirmed';
-      if (next === 'succeeded') patch.paid_at = event.paidAt ?? nowIso;
-      break;
-    case 'payment_failed':
-      patch.last_verified_at = nowIso;
-      patch.provider_status_code = event.rawStatusCode ?? paymentRow.provider_status_code;
-      patch.provider_status_message = 'payment failed';
-      break;
-    case 'verification_pending':
-      patch.last_verified_at = nowIso;
-      break;
-    case 'payment_initiated':
-    case 'payment_cancelled':
-    case 'refund_confirmed':
-    case 'duplicate_success_detected':
-      break;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const next = nextPaymentStatus(current.status, event);
+    const patch: Record<string, unknown> = { status: next };
+
+    switch (event.type) {
+      case 'payment_verified':
+        if (next === 'succeeded') {
+          patch.provider_payment_ref = event.providerPaymentReference ?? current.provider_payment_ref;
+          patch.last_verified_at = nowIso;
+          // Provider-neutral: the confirmed status code comes from the snapshot
+          // (ECPay '1', PayPal 'COMPLETED'); the message never names a provider.
+          patch.provider_status_code = event.rawStatusCode ?? current.provider_status_code ?? '1';
+          patch.provider_status_message = 'payment confirmed';
+          patch.paid_at = event.paidAt ?? current.paid_at ?? nowIso;
+        }
+        break;
+      case 'payment_failed':
+        // A late failed event is a state-machine no-op after success/refund. Do
+        // not replace the successful transaction diagnostics with failure copy.
+        if (next === 'failed') {
+          patch.last_verified_at = nowIso;
+          patch.provider_status_code = event.rawStatusCode ?? current.provider_status_code;
+          patch.provider_status_message = 'payment failed';
+        }
+        break;
+      case 'verification_pending':
+        if (next === 'verification_pending') patch.last_verified_at = nowIso;
+        break;
+      case 'payment_initiated':
+      case 'payment_cancelled':
+      case 'refund_confirmed':
+      case 'duplicate_success_detected':
+        break;
+    }
+
+    const { data, error } = await ctx.db
+      .from('payments')
+      .update(patch)
+      .eq('id', current.id)
+      .eq('status', current.status)
+      .select('*')
+      .maybeSingle();
+    if (error) throw new Error(`payment update failed: ${error.message}`);
+    if (data) {
+      ctx.log.info(
+        { paymentId: current.id, merchantReference: event.merchantReference, status: next, event: event.type },
+        'payment status transition applied',
+      );
+      return next;
+    }
+
+    const refreshed = await loadPaymentById(ctx.db, current.id);
+    if (!refreshed) throw new Error(`payment ${current.id} disappeared during status transition`);
+    current = refreshed;
   }
 
-  const { error } = await ctx.db.from('payments').update(patch).eq('id', paymentRow.id);
-  if (error) throw new Error(`payment update failed: ${error.message}`);
-  ctx.log.info(
-    { paymentId: paymentRow.id, merchantReference: event.merchantReference, status: next, event: event.type },
-    'payment status transition applied',
-  );
-  return next;
+  throw new Error(`payment ${paymentRow.id} status changed repeatedly during transition`);
 }
 
 /** Apply a `PaymentDomainEvent` to an order row (pure state.ts + one UPDATE). */
@@ -387,6 +419,45 @@ export async function loadRefundById(db: DbClient, id: string): Promise<RefundRo
   return (data as unknown as RefundRow | null) ?? null;
 }
 
+/**
+ * Persist a non-success provider observation only while the Refund is open.
+ * A webhook/finalizer may win after the caller performs the provider request;
+ * in that case the terminal row is returned and can never be downgraded by the
+ * stale caller.
+ */
+export async function persistOpenRefundObservation(
+  db: DbClient,
+  id: string,
+  patch: Record<string, unknown>,
+): Promise<RefundRow> {
+  const transition = await db
+    .from('refunds')
+    .update(patch)
+    .eq('id', id)
+    .in('status', ['requested', 'processing'])
+    .select('*')
+    .maybeSingle();
+  if (transition.error) {
+    throw new Error(`refund provider observation persist failed: ${transition.error.message}`);
+  }
+  if (transition.data) return transition.data as unknown as RefundRow;
+
+  const winner = await loadRefundById(db, id);
+  if (winner?.status === 'succeeded' || winner?.status === 'failed') return winner;
+  throw new Error(`refund ${id} changed concurrently without a terminal winner`);
+}
+
+/** Load the one full-refund lifecycle row for a Payment, including terminal rows. */
+export async function loadRefundForPayment(db: DbClient, paymentId: string): Promise<RefundRow | null> {
+  const { data, error } = await db
+    .from('refunds')
+    .select('*')
+    .eq('payment_id', paymentId)
+    .maybeSingle();
+  if (error) throw new Error(`refund lookup failed: ${error.message}`);
+  return (data as unknown as RefundRow | null) ?? null;
+}
+
 export async function loadRequestedRefundForPayment(
   db: DbClient,
   paymentId: string,
@@ -430,14 +501,15 @@ interface FinalizeRefundInput {
 async function finalizeRefundSuccess(
   ctx: ConfirmRefundFlowInput,
   input: FinalizeRefundInput,
-  beforeStatus: Refund['status'] | null,
 ): Promise<ConfirmRefundResult> {
-  const { data, error } = await ctx.db.rpc('finalize_refund_success', {
+  const rpcName = ctx.actor ? 'finalize_refund_success_audited' : 'finalize_refund_success';
+  const { data, error } = await ctx.db.rpc(rpcName, {
     p_refund_id: input.refundId ?? null,
     p_payment_id: input.paymentId ?? null,
     p_provider_refund_ref: input.providerRefundRef ?? null,
     p_provider_status_code: input.providerStatusCode ?? null,
     p_completed_at: ctx.now().toISOString(),
+    ...(ctx.actor ? { p_actor: ctx.actor } : {}),
   });
   if (error || !data) {
     throw new Error(`refund transaction failed: ${error?.message ?? 'no result returned'}`);
@@ -458,25 +530,6 @@ async function finalizeRefundSuccess(
     entitlementRevoked: data.entitlement_revoked === true,
     alreadyConfirmed: data.already_confirmed === true,
   };
-
-  if (ctx.actor) {
-    const { error: auditError } = await ctx.db.from('admin_audit_log').insert({
-      actor: ctx.actor,
-      action: 'refund.confirmed',
-      entity_type: 'refund',
-      entity_id: result.refundId,
-      before_state: { status: beforeStatus },
-      after_state: {
-        status: result.refundStatus,
-        payment_status: result.paymentStatus,
-        order_status: result.orderStatus,
-        entitlement_revoked: result.entitlementRevoked,
-      },
-    });
-    if (auditError) {
-      ctx.log.error({ error: auditError.message }, 'admin_audit_log insert failed');
-    }
-  }
 
   ctx.log.info(
     {
@@ -507,7 +560,6 @@ export async function confirmRefund(
       providerRefundRef: providerResult.providerRefundRef,
       providerStatusCode: providerResult.providerStatusCode,
     },
-    refundRow.status,
   );
 }
 
@@ -521,6 +573,5 @@ export async function confirmProviderRefund(
   return finalizeRefundSuccess(
     ctx,
     { paymentId, providerRefundRef, providerStatusCode },
-    null,
   );
 }

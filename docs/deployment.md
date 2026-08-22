@@ -73,6 +73,10 @@ provided by the owner. Never use `supabase db reset --linked` on production.
 
    - `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV=prod`,
      `PAYPAL_WEBHOOK_ID`
+   - `DEPLOYMENT_ENV=production` — required. Missing, misspelled, or any value
+     other than `production` disables live providers. A production deployment
+     paired with `PAYPAL_ENV=sandbox` or `ECPAY_ENV=stage` is rejected before
+     creating a checkout.
    - `ORDER_EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, verified
      `ORDER_EMAIL_FROM`
    - `PUBLIC_SITE_URL=<canonical public site URL for this deployment>` (default:
@@ -93,19 +97,110 @@ provided by the owner. Never use `supabase db reset --linked` on production.
    supabase functions deploy --project-ref <production-project-ref>
    ```
 
-5. In server-only SQL/operator context, replace the placeholder
-   `scheduled_job_config` URLs with this project's deployed `repair-reconcile`
-   and `order-email` URLs. Create Vault secret `scheduled_job_secret` with the
-   exact same value as `SCHEDULED_JOB_SECRET`. Keep the one-minute
-   `order-email-outbox`, ten-minute repair, and daily reconciliation cron jobs
-   active. Seed the released catalog with `scripts/update-catalog.ts` only after
-   reviewing its dry run.
+5. In server-only SQL/operator context, replace both placeholder rows in
+   `scheduled_job_config` with this project's deployed `repair-reconcile` and
+   `order-email` URLs. Create Vault secret `scheduled_job_secret` with the exact
+   same value as `SCHEDULED_JOB_SECRET`. Keep these exact active jobs:
+
+   | Job | Schedule | Command |
+   | --- | --- | --- |
+   | `payments-repair-layer-b` | `*/10 * * * *` | `select public.scheduled_repair_call();` |
+   | `payments-recon-layer-c` | `0 3 * * *` | `select public.scheduled_reconciliation_call();` |
+   | `order-email-outbox` | `* * * * *` | `select public.scheduled_order_email_call();` |
+
+   Verify the complete gate from server-only SQL before attempting checkout;
+   do not substitute only the legacy email-readiness RPC:
+
+   ```sql
+   select public.is_paid_launch_scheduler_ready(
+     'https://<project-ref>.supabase.co/functions/v1/repair-reconcile',
+     'https://<project-ref>.supabase.co/functions/v1/order-email',
+     encode(extensions.digest('<same SCHEDULED_JOB_SECRET>', 'sha256'), 'hex')
+   );
+   ```
+
+   It stays `false` until the deployed workers have produced fresh durable
+   success heartbeats (step 8), and must then return `true`. Seed the released catalog with
+   `scripts/update-catalog.ts` only after reviewing its dry run.
+
+   For the first-revenue profile, keep ECPay credentials absent and do not
+   release a TWD catalog row. `FUNDING_RECON_CSV` is an operator-supplied parser
+   seam, not an automated fresh report feed; ECPay/TWD requires a separate
+   evidenced dated-upload or download workflow before it can be activated.
 
 6. Configure Supabase Auth Site URL/redirect allow-list for the canonical Pages
-   URL and confirm production email delivery. Configure the exact PayPal webhook
-   URL and events from `docs/payments/implementation-contract.md`.
+   URL and confirm production email delivery. Configure the production PayPal
+   webhook as
+   `https://<project-ref>.supabase.co/functions/v1/paypal-webhook` and subscribe
+   the complete capture/refund event list in
+   `docs/payments/implementation-contract.md`; the browser return cannot replace
+   these authoritative events.
 
-7. Before checkout can become available, confirm the server-only scheduler
+7. Provision named finance access only for verified operator user IDs; never
+   accept a role in a request body or share a buyer JWT:
+
+   ```sql
+   insert into public.finance_roles (user_id, role)
+   values ('<verified auth.users id>'::uuid, 'finance_admin')
+   on conflict do nothing;
+   ```
+
+   `GET /functions/v1/finance` with that user's bearer JWT returns the bounded
+   Order/Payment/Refund/Entitlement read model plus callback ledger, email
+   outbox, audit log, durable scheduler health, reconciliation counts, and
+   actionable failure counts.
+   `finance_viewer` is read-only; only `finance_admin` can request a refund.
+   There is no operator action that can declare a refund successful without
+   provider evidence.
+
+   The first-launch operator surface is the authenticated finance API/CLI (no
+   browser admin route). In a trusted shell, obtain a short-lived token for the
+   named finance user and inspect it with these exact requests; do not paste the
+   password, token, service-role key, or scheduled-job secret into Issues/logs:
+
+   ```bash
+   export BJH_SUPABASE_URL='https://<project-ref>.supabase.co'
+   export BJH_SUPABASE_ANON_KEY='<production publishable/anon key>'
+   read -r -s -p 'Finance user password: ' BJH_FINANCE_PASSWORD
+   BJH_FINANCE_JWT="$(/usr/bin/curl --fail-with-body --silent --show-error \
+     "$BJH_SUPABASE_URL/auth/v1/token?grant_type=password" \
+     -H "apikey: $BJH_SUPABASE_ANON_KEY" \
+     -H 'Content-Type: application/json' \
+     --data "$(jq -nc --arg email '<named-finance-user@example.com>' \
+       --arg password "$BJH_FINANCE_PASSWORD" '{email:$email,password:$password}')" \
+     | jq -er '.access_token')"
+   unset BJH_FINANCE_PASSWORD
+
+   /usr/bin/curl --fail-with-body --silent --show-error \
+     "$BJH_SUPABASE_URL/functions/v1/finance" \
+     -H "Authorization: Bearer $BJH_FINANCE_JWT" | jq .
+   ```
+
+   For a reviewed PayPal full-refund request, copy the immutable local Payment
+   UUID from that read model, confirm its amount/currency/provider, then run:
+
+   ```bash
+   /usr/bin/curl --fail-with-body --silent --show-error \
+     "$BJH_SUPABASE_URL/functions/v1/finance" \
+     -H "Authorization: Bearer $BJH_FINANCE_JWT" \
+     -H 'Content-Type: application/json' \
+     --data "$(jq -nc --arg paymentId '<payment-uuid>' \
+       --arg reasonCode 'buyer_request' \
+       '{action:"request_refund",paymentId:$paymentId,reasonCode:$reasonCode}')" | jq .
+   unset BJH_FINANCE_JWT
+   ```
+
+8. Before checkout can become available, invoke `repair-reconcile` once with
+   `{"mode":"repair"}`, once with `{"mode":"reconcile"}`, and invoke
+   `order-email` with the configured `X-Scheduled-Job-Secret`. Confirm 2xx
+   responses in Edge Function logs and retain the resulting counts. Each
+   authenticated worker invocation records `scheduled_job_health`; checkout
+   closes when repair (20 minutes), reconciliation (36 hours), or email (5
+   minutes) lacks a fresh success, when the latest run failed, or while a newer
+   run has no result. A cron row alone proves scheduling, not successful HTTP
+   execution.
+
+9. Confirm the server-only scheduler
    readiness RPC, legal/seller readiness, released catalog price, PayPal live
    webhook, and Resend sender. Activate the remaining fail-closed launch
    conditions in a controlled window, execute one low-value paid golden path,
@@ -121,12 +216,17 @@ provided by the owner. Never use `supabase db reset --linked` on production.
 - **Edge Functions:** inspect Supabase Edge Function invocation/log views. A
   function-only rollback may redeploy a known-good Git SHA only after confirming
   it remains compatible with the current forward-only database schema.
-- **Database:** inspect Postgres logs, migration history, cron jobs,
-  `payments`, `orders`, and `order_email_outbox` from server-only/operator
-  access. Never undo a production migration with `db reset` or by deleting
+- **Database:** inspect Postgres logs, migration history, `cron.job`,
+  `payment_events`, `payments`, `orders`, `refunds`, `book_entitlement`,
+  `order_email_outbox`, `scheduled_job_health`, and `admin_audit_log` from
+  server-only/operator access.
+  Never undo a production migration with `db reset` or by deleting
   financial rows. Use a reviewed forward repair migration; use the provider and
   database backup/PITR procedures for a genuine data incident.
-- **Payments/email:** correlate provider event IDs and local Payment/order IDs;
+- **Payments/email:** use the finance read model to correlate provider event IDs
+  and local Payment/Order/Refund IDs. Treat `processingErrors`, unprocessed
+  events, `duplicatePayments`, requested/processing/failed refunds, `emailDead`,
+  reconciliation mismatches, and verification-pending attempts as actionable;
   never log secrets or customer email bodies. Dead/manual outbox jobs and
   verification-pending attempts require operator review rather than blind
   replay.

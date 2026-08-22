@@ -48,6 +48,8 @@ const REFUND_TRANSACTION = {
 
 function setup(overrides: Record<string, unknown> = {}) {
   const mock = createMockDb({
+    'rpc:record_scheduled_job_started': { data: '81000000-0000-0000-0000-000000000001' },
+    'rpc:record_scheduled_job_result': { data: true },
     payments: { data: [] },
     orders: { data: ORDER_ROW },
     'rpc:finalize_payment_success': { data: SUCCESS_TRANSACTION },
@@ -73,12 +75,19 @@ function setup(overrides: Record<string, unknown> = {}) {
 function run(
   deps: ReturnType<typeof setup>['deps'],
   headers: Record<string, string> = {},
-  body = '{}',
+  body = JSON.stringify({ mode: 'repair' }),
 ) {
   return handleRepairReconcile(
     handlerRequest('POST', 'https://test.supabase.co/functions/v1/repair-reconcile', body, headers),
     deps,
   );
+}
+
+function runReconcile(
+  deps: ReturnType<typeof setup>['deps'],
+  headers: Record<string, string> = {},
+) {
+  return run(deps, headers, JSON.stringify({ mode: 'reconcile' }));
 }
 
 describe('repair-reconcile handler', () => {
@@ -95,14 +104,50 @@ describe('repair-reconcile handler', () => {
   });
 
   it('repair schedule does not run provider reporting', async () => {
-    const { deps } = setup({ payments: { data: [] } });
+    const { mock, deps } = setup({ payments: { data: [] } });
     deps.env = testEnv();
-    await run(
+    const result = await run(
       deps,
       { 'x-scheduled-job-secret': 'test-scheduled-secret' },
       JSON.stringify({ mode: 'repair' }),
     );
+    expect(result.status).toBe(200);
     expect(deps.adapters.paypal.reconcile).not.toHaveBeenCalled();
+    expect(mock.rpcCalls('record_scheduled_job_started')[0]?.args[0]).toEqual({
+      p_job_name: 'repair',
+    });
+    expect(mock.rpcCalls('record_scheduled_job_result')[0]?.args[0]).toEqual({
+      p_job_name: 'repair',
+      p_run_id: '81000000-0000-0000-0000-000000000001',
+      p_succeeded: true,
+      p_error_code: null,
+    });
+  });
+
+  it('fails closed before financial work when its start heartbeat cannot be stored', async () => {
+    const { mock, deps } = setup({
+      'rpc:record_scheduled_job_started': { error: 'database unavailable' },
+    });
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+
+    expect(result.status).toBe(500);
+    expect(mock.callsFor('payments', 'select')).toHaveLength(0);
+    expect(mock.rpcCalls('record_scheduled_job_result')).toHaveLength(0);
+  });
+
+  it('records an unsuccessful reconciliation heartbeat when no source is configured', async () => {
+    const { mock, deps } = setup();
+    const result = await runReconcile(deps, {
+      'x-scheduled-job-secret': 'test-scheduled-secret',
+    });
+
+    expect(result.status).toBe(500);
+    expect(mock.rpcCalls('record_scheduled_job_result')[0]?.args[0]).toEqual({
+      p_job_name: 'reconcile',
+      p_run_id: '81000000-0000-0000-0000-000000000001',
+      p_succeeded: false,
+      p_error_code: 'worker_http_500',
+    });
   });
 
   it('reconcile schedule does not run Layer B provider confirmation', async () => {
@@ -256,13 +301,13 @@ describe('repair-reconcile handler', () => {
       '特店編號,撥款日期,撥款金額,特店訂單編號,交易序號,交易日期,交易時間,交易金額,手續費,交易狀態,退款金額,退款狀態,交易類別\n' +
       '2000132,20260815,790,20260815,BJH123456789,ECPAY-TRADE-1,20260815,120000,790,1,,,1\n';
     const withCsv = { ...deps, env: testEnv({ fundingReconCsv: csv }) };
-    const result = await run(withCsv, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+    const result = await runReconcile(withCsv, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
     expect(result.status).toBe(200);
     const body = JSON.parse(result.body);
     expect(body.reconciliation).toMatchObject({ skipped: false, entries: 1 });
   });
 
-  it('Layer C discovers a confirmed refund (negative amount) → refund succeeded + payment/order refunded + entitlement revoked', async () => {
+  it('Layer C discovers a confirmed full refund from negative refundAmount and revokes entitlement', async () => {
     const { mock, deps } = setup({
       // A recent created_at keeps this payment OUT of the Layer B stale scan so
       // only Layer C's refund discovery acts on it. Array-shaped routes so both
@@ -284,9 +329,9 @@ describe('repair-reconcile handler', () => {
     });
     const csv =
       '特店編號,撥款日期,撥款金額,特店訂單編號,交易序號,交易日期,交易時間,交易金額,手續費,交易狀態,退款金額,退款狀態,交易類別\n' +
-      '2000132,20260815,790,BJH123456789,ECPAY-TRADE-1,20260815,120000,-790,1,1,790,1,1\n';
+      '2000132,20260815,0,BJH123456789,ECPAY-TRADE-1,20260815,120000,790,1,1,-790,1,1\n';
     const withCsv = { ...deps, env: testEnv({ fundingReconCsv: csv }) };
-    const result = await run(withCsv, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+    const result = await runReconcile(withCsv, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
     expect(result.status).toBe(200);
     const body = JSON.parse(result.body);
     expect(body.reconciliation).toMatchObject({ skipped: false, entries: 1 });
@@ -300,6 +345,127 @@ describe('repair-reconcile handler', () => {
     expect(mock.callsFor('refunds', 'update')).toHaveLength(0);
     expect(mock.callsFor('orders', 'update')).toHaveLength(0);
     expect(mock.callsFor('book_entitlement', 'update')).toHaveLength(0);
+  });
+
+  it('Layer C treats zero refundAmount as a normal matched settlement', async () => {
+    const { mock, deps } = setup({
+      payments: {
+        data: [{
+          ...PAYMENT_ROW,
+          status: 'succeeded',
+          provider_payment_ref: 'ECPAY-TRADE-1',
+          created_at: '2026-08-16T11:55:00Z',
+        }],
+      },
+    });
+    const csv =
+      '特店編號,撥款日期,撥款金額,特店訂單編號,交易序號,交易日期,交易時間,交易金額,手續費,交易狀態,退款金額,退款狀態,交易類別\n' +
+      '2000132,20260815,790,BJH123456789,ECPAY-TRADE-1,20260815,120000,790,1,1,0,0,1\n';
+
+    await runReconcile(
+      { ...deps, env: testEnv({ fundingReconCsv: csv }) },
+      { 'x-scheduled-job-secret': 'test-scheduled-secret' },
+    );
+
+    expect(mock.callsFor('payments', 'update')[0].args[0]).toMatchObject({
+      reconciliation_status: 'matched',
+    });
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(0);
+  });
+
+  it.each([
+    ['wrong merchant', 'WRONG', 'ECPAY-TRADE-1', '1'],
+    ['wrong transaction reference', '2000132', 'OTHER-TRADE', '1'],
+    ['nonterminal refund status', '2000132', 'ECPAY-TRADE-1', '0'],
+  ])('Layer C refuses a full-refund row with %s', async (_label, merchantId, tradeNo, refundStatus) => {
+    const { mock, deps } = setup({
+      payments: {
+        data: [{
+          ...PAYMENT_ROW,
+          status: 'succeeded',
+          provider_payment_ref: 'ECPAY-TRADE-1',
+          created_at: '2026-08-16T11:55:00Z',
+        }],
+      },
+      'rpc:finalize_refund_success': { data: REFUND_TRANSACTION },
+    });
+    const csv =
+      '特店編號,撥款日期,撥款金額,特店訂單編號,交易序號,交易日期,交易時間,交易金額,手續費,交易狀態,退款金額,退款狀態,交易類別\n' +
+      `${merchantId},20260815,0,BJH123456789,${tradeNo},20260815,120000,790,1,1,-790,${refundStatus},1\n`;
+
+    await runReconcile(
+      { ...deps, env: testEnv({ fundingReconCsv: csv }) },
+      { 'x-scheduled-job-secret': 'test-scheduled-secret' },
+    );
+
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(0);
+    expect(mock.callsFor('payments', 'update')[0].args[0]).toMatchObject({
+      reconciliation_status: 'mismatch',
+    });
+  });
+
+  it('Layer C flags a partial ECPay refund mismatch without revoking entitlement', async () => {
+    const { mock, deps } = setup({
+      payments: {
+        data: [{
+          ...PAYMENT_ROW,
+          status: 'succeeded',
+          provider_payment_ref: 'ECPAY-TRADE-1',
+          created_at: '2026-08-16T11:55:00Z',
+        }],
+      },
+      refunds: {
+        data: [{
+          id: 'ref-1', payment_id: 'pay-1', provider: 'ecpay', provider_refund_ref: null,
+          amount_minor: 79000, currency: 'TWD', status: 'requested', reason_code: null,
+          requested_by: 'user-1', provider_status_code: null, requested_at: '2026-08-16T11:00:00Z', completed_at: null,
+        }],
+      },
+      'rpc:finalize_refund_success': { data: REFUND_TRANSACTION },
+    });
+    const csv =
+      '特店編號,撥款日期,撥款金額,特店訂單編號,交易序號,交易日期,交易時間,交易金額,手續費,交易狀態,退款金額,退款狀態,交易類別\n' +
+      '2000132,20260815,690,BJH123456789,ECPAY-TRADE-1,20260815,120000,790,1,1,-100,1,1\n';
+
+    const result = await runReconcile(
+      { ...deps, env: testEnv({ fundingReconCsv: csv }) },
+      { 'x-scheduled-job-secret': 'test-scheduled-secret' },
+    );
+
+    expect(result.status).toBe(200);
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(0);
+    expect(mock.callsFor('payments', 'update')[0].args[0]).toMatchObject({
+      reconciliation_status: 'mismatch',
+    });
+  });
+
+  it('Layer C records an out-of-band full ECPay refund even without a local request row', async () => {
+    const { mock, deps } = setup({
+      payments: {
+        data: [{
+          ...PAYMENT_ROW,
+          status: 'succeeded',
+          provider_payment_ref: 'ECPAY-TRADE-1',
+          created_at: '2026-08-16T11:55:00Z',
+        }],
+      },
+      refunds: { data: null },
+      'rpc:finalize_refund_success': { data: REFUND_TRANSACTION },
+    });
+    const csv =
+      '特店編號,撥款日期,撥款金額,特店訂單編號,交易序號,交易日期,交易時間,交易金額,手續費,交易狀態,退款金額,退款狀態,交易類別\n' +
+      '2000132,20260815,0,BJH123456789,ECPAY-TRADE-1,20260815,120000,790,1,1,-790,1,1\n';
+
+    await runReconcile(
+      { ...deps, env: testEnv({ fundingReconCsv: csv }) },
+      { 'x-scheduled-job-secret': 'test-scheduled-secret' },
+    );
+
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(1);
+    expect(mock.rpcCalls('finalize_refund_success')[0].args[0]).toMatchObject({
+      p_refund_id: null,
+      p_payment_id: 'pay-1',
+    });
   });
 
   it('PayPal Layer C is scheduled and marks a matching captured payment', async () => {
@@ -327,7 +493,7 @@ describe('repair-reconcile handler', () => {
       }],
     });
 
-    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+    const result = await runReconcile(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
 
     expect(result.status).toBe(200);
     expect(deps.adapters.paypal.reconcile).toHaveBeenCalledWith({ from: '2026-08-14', to: '2026-08-16' });
@@ -363,7 +529,7 @@ describe('repair-reconcile handler', () => {
       }],
     });
 
-    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+    const result = await runReconcile(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
 
     expect(result.status).toBe(200);
     expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(1);
@@ -398,7 +564,7 @@ describe('repair-reconcile handler', () => {
       }],
     });
 
-    await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+    await runReconcile(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
 
     expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(0);
     expect(mock.callsFor('payments', 'update')[0].args[0]).toMatchObject({ reconciliation_status: 'mismatch' });
@@ -487,6 +653,171 @@ describe('repair-reconcile handler', () => {
     });
     expect(mock.callsFor('book_entitlement', 'update')).toHaveLength(0);
   });
+
+  it('persists a still-pending refund result and processing state in one write', async () => {
+    const paypalPayment = {
+      ...PAYMENT_ROW,
+      provider: 'paypal',
+      provider_merchant_ref: 'PAYPAL-ORDER-1',
+      provider_checkout_ref: 'PAYPAL-ORDER-1',
+      provider_payment_ref: 'CAPTURE-1',
+      amount_minor: 1999,
+      currency: 'USD',
+      method: 'paypal',
+      status: 'succeeded',
+      created_at: '2026-08-16T11:55:00Z',
+    };
+    const refund = {
+      id: 'ref-pending',
+      payment_id: 'pay-1',
+      provider: 'paypal',
+      provider_refund_ref: null,
+      amount_minor: 1999,
+      currency: 'USD',
+      status: 'requested',
+      reason_code: null,
+      requested_by: 'user-1',
+      provider_status_code: null,
+      requested_at: '2026-08-16T11:50:00Z',
+      completed_at: null,
+    };
+    const mock = createMockDb({ payments: { data: [paypalPayment] }, refunds: { data: [refund] } });
+    const paypalAdapter = createFakeAdapter('paypal');
+    paypalAdapter.refund.mockResolvedValue({
+      ok: true,
+      status: 'pending',
+      providerRefundRef: 'REFUND-PENDING-1',
+      rawStatusCode: 'PENDING',
+    });
+    const deps = {
+      env: testEnv(),
+      db: mock.db,
+      adapters: { ecpay: createFakeAdapter(), paypal: paypalAdapter },
+      log: fakeLogger(),
+      now: () => new Date('2026-08-16T12:00:00Z'),
+    };
+
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' }, '{"mode":"repair"}');
+    expect(result.status).toBe(200);
+    expect(mock.callsFor('refunds', 'update')).toHaveLength(1);
+    expect(mock.callsFor('refunds', 'update')[0].args[0]).toMatchObject({
+      provider_refund_ref: 'REFUND-PENDING-1',
+      provider_status_code: 'PENDING',
+      status: 'processing',
+    });
+  });
+
+  it('marks a definitive refund rejection failed so later repair scans cannot re-dispatch it', async () => {
+    const paypalPayment = {
+      ...PAYMENT_ROW,
+      provider: 'paypal',
+      provider_merchant_ref: 'PAYPAL-ORDER-1',
+      provider_checkout_ref: 'PAYPAL-ORDER-1',
+      provider_payment_ref: 'CAPTURE-1',
+      amount_minor: 1999,
+      currency: 'USD',
+      method: 'paypal',
+      status: 'succeeded',
+      created_at: '2026-08-16T11:55:00Z',
+    };
+    const mock = createMockDb({
+      payments: { data: [paypalPayment] },
+      refunds: { data: [{
+        id: 'ref-rejected', payment_id: 'pay-1', provider: 'paypal', provider_refund_ref: null,
+        amount_minor: 1999, currency: 'USD', status: 'processing', reason_code: null,
+        requested_by: 'user-1', provider_status_code: 'PENDING',
+        requested_at: '2026-08-16T11:50:00Z', completed_at: null,
+      }] },
+    });
+    const paypalAdapter = createFakeAdapter('paypal');
+    paypalAdapter.refund.mockResolvedValue({
+      ok: false,
+      status: 'failed',
+      rawStatusCode: 'UNPROCESSABLE_ENTITY',
+    });
+    const deps = {
+      env: testEnv(), db: mock.db,
+      adapters: { ecpay: createFakeAdapter(), paypal: paypalAdapter },
+      log: fakeLogger(), now: () => new Date('2026-08-16T12:00:00Z'),
+    };
+
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' }, '{"mode":"repair"}');
+    expect(result.status).toBe(200);
+    expect(mock.callsFor('refunds', 'update')).toHaveLength(1);
+    expect(mock.callsFor('refunds', 'update')[0].args[0]).toMatchObject({
+      status: 'failed',
+      provider_status_code: 'UNPROCESSABLE_ENTITY',
+    });
+  });
+
+  it.each([
+    { providerResult: { ok: true, status: 'pending', rawStatusCode: 'PENDING' } },
+    { providerResult: { ok: false, status: 'failed', rawStatusCode: 'UNPROCESSABLE_ENTITY' } },
+  ] as const)(
+    'does not let repair persist a stale $providerResult.status result over concurrent refund success',
+    async ({ providerResult }) => {
+      const paypalPayment = {
+        ...PAYMENT_ROW,
+        provider: 'paypal',
+        provider_merchant_ref: 'PAYPAL-ORDER-1',
+        provider_checkout_ref: 'PAYPAL-ORDER-1',
+        provider_payment_ref: 'CAPTURE-1',
+        amount_minor: 1999,
+        currency: 'USD',
+        method: 'paypal',
+        status: 'succeeded',
+        created_at: '2026-08-16T11:55:00Z',
+      };
+      const scannedRefund = {
+        id: 'ref-race',
+        payment_id: 'pay-1',
+        provider: 'paypal',
+        provider_refund_ref: null,
+        amount_minor: 1999,
+        currency: 'USD',
+        status: 'processing',
+        reason_code: null,
+        requested_by: 'user-1',
+        provider_status_code: 'PENDING',
+        requested_at: '2026-08-16T11:50:00Z',
+        completed_at: null,
+      };
+      const finalRefund = {
+        ...scannedRefund,
+        status: 'succeeded',
+        provider_refund_ref: 'REFUND-FINAL',
+        provider_status_code: 'COMPLETED',
+        completed_at: '2026-08-16T12:00:00Z',
+      };
+      const mock = createMockDb({
+        payments: { data: [paypalPayment] },
+        refunds: { data: [scannedRefund], singleData: [null, finalRefund] },
+      });
+      const paypalAdapter = createFakeAdapter('paypal');
+      paypalAdapter.refund.mockResolvedValue(providerResult);
+
+      const result = await run(
+        {
+          env: testEnv(),
+          db: mock.db,
+          adapters: { ecpay: createFakeAdapter(), paypal: paypalAdapter },
+          log: fakeLogger(),
+          now: () => new Date('2026-08-16T12:00:00Z'),
+        },
+        { 'x-scheduled-job-secret': 'test-scheduled-secret' },
+        '{"mode":"repair"}',
+      );
+
+      expect(result.status).toBe(200);
+      expect(JSON.parse(result.body)).toMatchObject({ refunds_resumed: 1, refunds_confirmed: 1 });
+      expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(0);
+      expect(mock.callsFor('refunds', 'in')).toContainEqual({
+        table: 'refunds',
+        method: 'in',
+        args: ['status', ['requested', 'processing']],
+      });
+    },
+  );
 
   it('B7: does NOT auto-resume an aged PayPal refund outside the Request-Id retention window (no refund POST)', async () => {
     const paypalPayment = {

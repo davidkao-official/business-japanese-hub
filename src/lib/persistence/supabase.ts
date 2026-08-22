@@ -30,6 +30,10 @@ interface EntitlementRow {
   provider: string;
   provider_ref: string | null;
   granted_at: string;
+  status: Entitlement['status'];
+  source_order_id: string | null;
+  revoked_at: string | null;
+  revocation_reason: string | null;
 }
 
 interface ReadingStateRow {
@@ -59,6 +63,10 @@ function mapEntitlementRow(row: EntitlementRow): Entitlement {
     provider: row.provider as Entitlement['provider'],
     providerRef: row.provider_ref,
     grantedAt: row.granted_at,
+    status: row.status,
+    sourceOrderId: row.source_order_id,
+    revokedAt: row.revoked_at,
+    revocationReason: row.revocation_reason,
   };
 }
 
@@ -94,15 +102,22 @@ export class SupabaseUserStateRepository implements UserStateRepository {
   async getEntitlement(bookId: string): Promise<Entitlement | null> {
     const { data, error } = await this.client
       .from('book_entitlement')
-      .select('book_id, provider, provider_ref, granted_at')
+      .select(
+        'book_id, provider, provider_ref, granted_at, status, source_order_id, revoked_at, revocation_reason',
+      )
       .eq('book_id', bookId)
+      .eq('status', 'active')
       .maybeSingle();
 
     if (error) {
       throw toRepositoryError('getEntitlement', error.message);
     }
     if (!data) return null;
-    return mapEntitlementRow(data as EntitlementRow);
+    const row = data as EntitlementRow;
+    // Defense in depth if a mock, cache, or future backend ignores the query
+    // filter. A revoked lifecycle row is historical evidence, not ownership.
+    if (row.status !== 'active') return null;
+    return mapEntitlementRow(row);
   }
 
   async getReadingState(bookId: string): Promise<ReadingState | null> {

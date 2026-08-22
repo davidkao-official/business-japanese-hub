@@ -187,7 +187,7 @@ export async function handleCheckout(
   const launchReady = legalConfigurationReady &&
     isOrderEmailConfigured(deps.env) &&
     publicSiteRoute(deps.env, '') !== null &&
-    await isEmailSchedulerReady(deps);
+    await isPaidLaunchSchedulerReady(deps);
   if (!launchReady) {
     return jsonResult(503, {
       error: 'paid launch legal configuration is not ready',
@@ -250,10 +250,11 @@ export async function handleCheckout(
   }
 }
 
-async function isEmailSchedulerReady(deps: CheckoutHandlerDeps): Promise<boolean> {
+async function isPaidLaunchSchedulerReady(deps: CheckoutHandlerDeps): Promise<boolean> {
   if (!deps.env.scheduledJobSecret) return false;
-  const { data, error } = await deps.db.rpc('is_order_email_scheduler_ready', {
-    p_function_url: edgeFunctionUrl(deps.env, 'order-email'),
+  const { data, error } = await deps.db.rpc('is_paid_launch_scheduler_ready', {
+    p_repair_function_url: edgeFunctionUrl(deps.env, 'repair-reconcile'),
+    p_email_function_url: edgeFunctionUrl(deps.env, 'order-email'),
     p_secret_sha256: await sha256Hex(deps.env.scheduledJobSecret),
   });
   return !error && (data as unknown) === true;

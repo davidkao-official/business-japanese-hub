@@ -38,12 +38,6 @@ const PRIMARY_REFUND_TRANSACTION = {
   already_confirmed: false,
 };
 
-const DUPLICATE_REFUND_TRANSACTION = {
-  ...PRIMARY_REFUND_TRANSACTION,
-  order_status: 'paid',
-  entitlement_revoked: false,
-};
-
 function setup(overrides: Record<string, unknown> = {}) {
   const mock = createMockDb({
     'auth:getUser': { data: { id: 'user-1' } },
@@ -52,6 +46,10 @@ function setup(overrides: Record<string, unknown> = {}) {
     payments: { data: [] },
     refunds: { data: [] },
     book_entitlement: { data: [] },
+    payment_events: { data: [] },
+    order_email_outbox: { data: [] },
+    admin_audit_log: { data: [] },
+    scheduled_job_health: { data: [] },
     ...overrides,
   });
   return {
@@ -69,7 +67,24 @@ describe('finance handler', () => {
   it('finance_viewer can read the read model', async () => {
     const { deps } = setup({
       orders: { data: [{ id: 'ord-1', status: 'paid', amount_minor: 79000, currency: 'TWD' }] },
-      payments: { data: [{ id: 'pay-1', status: 'succeeded', reconciliation_status: 'matched' }] },
+      payments: {
+        data: [
+          { id: 'pay-1', status: 'succeeded', reconciliation_status: 'matched' },
+          { id: 'pay-2', status: 'duplicate_success', reconciliation_status: 'mismatch' },
+        ],
+      },
+      refunds: { data: [{ id: 'ref-1', status: 'processing' }, { id: 'ref-2', status: 'failed' }] },
+      payment_events: {
+        data: [
+          { id: 'evt-1', processing_result: null },
+          { id: 'evt-2', processing_result: 'processing_error' },
+        ],
+      },
+      order_email_outbox: { data: [{ id: 'mail-1', status: 'pending' }, { id: 'mail-2', status: 'dead' }] },
+      admin_audit_log: { data: [{ id: 1, action: 'refund.requested' }] },
+      scheduled_job_health: {
+        data: [{ job_name: 'repair', last_succeeded_at: '2026-08-16T11:59:00Z' }],
+      },
     });
     const result = await handleFinance(
       handlerRequest('GET', 'https://test.supabase.co/functions/v1/finance', '', bearerHeaders('jwt-1')),
@@ -78,8 +93,24 @@ describe('finance handler', () => {
     expect(result.status).toBe(200);
     const body = JSON.parse(result.body);
     expect(body.orders).toHaveLength(1);
-    expect(body.payments).toHaveLength(1);
-    expect(body.reconciliation).toMatchObject({ matched: 1, succeeded: 1 });
+    expect(body.payments).toHaveLength(2);
+    expect(body.paymentEvents).toHaveLength(2);
+    expect(body.emailOutbox).toHaveLength(2);
+    expect(body.auditLog).toHaveLength(1);
+    expect(body.scheduledJobHealth).toEqual([
+      { job_name: 'repair', last_succeeded_at: '2026-08-16T11:59:00Z' },
+    ]);
+    expect(body.reconciliation).toMatchObject({ matched: 1, mismatched: 1, succeeded: 1 });
+    expect(body.operations).toEqual({
+      unprocessedEvents: 1,
+      processingErrors: 1,
+      duplicatePayments: 1,
+      refundRequested: 0,
+      refundProcessing: 1,
+      refundFailed: 1,
+      emailPending: 1,
+      emailDead: 1,
+    });
     expect(typeof body.generatedAt).toBe('string');
   });
 
@@ -126,12 +157,12 @@ describe('finance handler', () => {
     expect(result.status).toBe(403);
   });
 
-  it('finance_admin request_refund → refunds row + admin_audit_log entry', async () => {
+  it('finance_admin request_refund uses the atomic refund + audit transaction', async () => {
     const { mock, deps } = setup({
       finance_roles: { data: [{ role: 'finance_admin' }] },
-      payments: { data: PAYMENT_ROW },
-      refunds: { data: { id: 'ref-1' } },
-      admin_audit_log: { data: null },
+      'rpc:request_full_refund': {
+        data: { outcome: 'created', refund: REFUND_ROW, payment: PAYMENT_ROW },
+      },
     });
     const result = await handleFinance(
       handlerRequest(
@@ -143,23 +174,62 @@ describe('finance handler', () => {
       deps,
     );
     expect(result.status).toBe(201);
-    const refundInsert = mock.callsFor('refunds', 'insert')[0];
-    expect(refundInsert.args[0]).toMatchObject({
-      payment_id: 'pay-1',
-      provider: 'ecpay',
-      amount_minor: 79000,
-      currency: 'TWD',
-      status: 'requested',
-      reason_code: 'duplicate_charge',
-      requested_by: 'user-1',
+    expect(mock.rpcCalls('request_full_refund')).toHaveLength(1);
+    expect(mock.rpcCalls('request_full_refund')[0].args[0]).toEqual({
+      p_payment_id: 'pay-1',
+      p_actor: 'user-1',
+      p_reason_code: 'duplicate_charge',
     });
-    const auditInsert = mock.callsFor('admin_audit_log', 'insert')[0];
-    expect(auditInsert.args[0]).toMatchObject({
-      actor: 'user-1',
-      action: 'refund.requested',
-      entity_type: 'refund',
-      entity_id: 'pay-1',
+    expect(mock.callsFor('refunds', 'insert')).toHaveLength(0);
+    expect(mock.callsFor('admin_audit_log', 'insert')).toHaveLength(0);
+  });
+
+  it('rejects a refund request for a non-refundable Payment without provider side effects', async () => {
+    const { mock, deps } = setup({
+      finance_roles: { data: [{ role: 'finance_admin' }] },
+      'rpc:request_full_refund': {
+        data: { outcome: 'not_refundable', payment_status: 'failed' },
+      },
     });
+
+    const result = await handleFinance(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/finance',
+        JSON.stringify({ action: 'request_refund', paymentId: 'pay-1' }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
+    expect(result.status).toBe(409);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'payment_not_refundable' });
+    expect(mock.callsFor('refunds', 'insert')).toHaveLength(0);
+    expect(deps.adapters.paypal.refund).not.toHaveBeenCalled();
+  });
+
+  it('replays an existing refund request without creating or dispatching another refund', async () => {
+    const { mock, deps } = setup({
+      finance_roles: { data: [{ role: 'finance_admin' }] },
+      'rpc:request_full_refund': {
+        data: { outcome: 'existing', refund: { ...REFUND_ROW, status: 'processing' }, payment: PAYMENT_ROW },
+      },
+    });
+
+    const result = await handleFinance(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/finance',
+        JSON.stringify({ action: 'request_refund', paymentId: 'pay-1' }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
+    expect(result.status).toBe(202);
+    expect(JSON.parse(result.body)).toMatchObject({ status: 'processing' });
+    expect(mock.rpcCalls('request_full_refund')).toHaveLength(1);
+    expect(deps.adapters.paypal.refund).not.toHaveBeenCalled();
   });
 
   it('finance_admin request_refund on a PayPal payment → executes the provider refund and confirms it (entitlement revoked)', async () => {
@@ -184,12 +254,17 @@ describe('finance handler', () => {
     const mock = createMockDb({
       'auth:getUser': { data: { id: 'user-1' } },
       finance_roles: { data: [{ role: 'finance_admin' }] },
-      payments: { data: paypalPayment },
       orders: { data: { ...ORDER_ROW, status: 'paid', currency: 'USD', amount_minor: 1999 } },
-      refunds: { data: { id: 'ref-1' } },
+      refunds: { data: { ...REFUND_ROW, provider: 'paypal', amount_minor: 1999, currency: 'USD' } },
       book_entitlement: { data: null },
-      admin_audit_log: { data: null },
-      'rpc:finalize_refund_success': { data: PRIMARY_REFUND_TRANSACTION },
+      'rpc:request_full_refund': {
+        data: {
+          outcome: 'created',
+          refund: { ...REFUND_ROW, provider: 'paypal', amount_minor: 1999, currency: 'USD' },
+          payment: paypalPayment,
+        },
+      },
+      'rpc:finalize_refund_success_audited': { data: PRIMARY_REFUND_TRANSACTION },
     });
     const paypalAdapter = createFakeAdapter('paypal');
     paypalAdapter.refund.mockResolvedValue({
@@ -227,11 +302,12 @@ describe('finance handler', () => {
     );
     // Provider reference, refund fact, payment/order state, and entitlement
     // revocation are committed in one locked database transaction.
-    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(1);
-    expect(mock.rpcCalls('finalize_refund_success')[0].args[0]).toMatchObject({
+    expect(mock.rpcCalls('finalize_refund_success_audited')).toHaveLength(1);
+    expect(mock.rpcCalls('finalize_refund_success_audited')[0].args[0]).toMatchObject({
       p_refund_id: 'ref-1',
       p_provider_refund_ref: 'REFUND-1',
       p_provider_status_code: 'COMPLETED',
+      p_actor: 'user-1',
     });
     expect(mock.callsFor('refunds', 'update')).toHaveLength(0);
     expect(mock.callsFor('book_entitlement', 'update')).toHaveLength(0);
@@ -259,11 +335,26 @@ describe('finance handler', () => {
     const mock = createMockDb({
       'auth:getUser': { data: { id: 'user-1' } },
       finance_roles: { data: [{ role: 'finance_admin' }] },
-      payments: { data: paypalPayment },
       orders: { data: { ...ORDER_ROW, status: 'paid', currency: 'USD', amount_minor: 1999 } },
-      refunds: { data: { id: 'ref-1' } },
+      refunds: {
+        data: { ...REFUND_ROW, provider: 'paypal', amount_minor: 1999, currency: 'USD' },
+        singleData: [{
+          ...REFUND_ROW,
+          provider: 'paypal',
+          amount_minor: 1999,
+          currency: 'USD',
+          status: 'processing',
+          provider_status_code: 'TRANSPORT_UNAVAILABLE',
+        }],
+      },
       book_entitlement: { data: null },
-      admin_audit_log: { data: null },
+      'rpc:request_full_refund': {
+        data: {
+          outcome: 'created',
+          refund: { ...REFUND_ROW, provider: 'paypal', amount_minor: 1999, currency: 'USD' },
+          payment: paypalPayment,
+        },
+      },
     });
     const paypalAdapter = createFakeAdapter('paypal');
     // Ambiguous transport failure after dispatch — the provider may have
@@ -287,60 +378,152 @@ describe('finance handler', () => {
     expect(result.status).toBe(202);
     expect(JSON.parse(result.body)).toMatchObject({ status: 'processing' });
 
-    // Provider ref/status are persisted BEFORE the processing transition.
+    // Provider ref/status and the recoverable processing transition are one
+    // database write, so a failure cannot leave a half-updated refund fact.
     const persistUpdate = mock.callsFor('refunds', 'update')[0];
-    expect(persistUpdate.args[0]).toMatchObject({ provider_status_code: 'TRANSPORT_UNAVAILABLE' });
-    const processingUpdate = mock.callsFor('refunds', 'update')[1];
-    expect(processingUpdate.args[0]).toMatchObject({ status: 'processing' });
+    expect(persistUpdate.args[0]).toMatchObject({
+      provider_status_code: 'TRANSPORT_UNAVAILABLE',
+      status: 'processing',
+    });
+    expect(mock.callsFor('refunds', 'update')).toHaveLength(1);
     // Entitlement is NEVER revoked on an ambiguous (non-confirmed) refund.
     expect(mock.callsFor('book_entitlement', 'update').length).toBe(0);
   });
 
-  it('finance_admin confirm_refund (primary payment) → refund succeeded + payment/order refunded + entitlement revoked', async () => {
-    const { mock, deps } = setup({
+  it('marks a definitive PayPal refund rejection failed so repair never re-dispatches it', async () => {
+    const paypalPayment = {
+      ...PAYMENT_ROW,
+      provider: 'paypal',
+      provider_payment_ref: 'CAPTURE-1',
+      amount_minor: 1999,
+      currency: 'USD',
+      method: 'paypal',
+      status: 'succeeded',
+    };
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'user-1' } },
       finance_roles: { data: [{ role: 'finance_admin' }] },
-      refunds: { data: REFUND_ROW },
-      payments: { data: { ...PAYMENT_ROW, status: 'succeeded', provider_payment_ref: 'ECPAY-TRADE-1' } },
-      orders: { data: { ...ORDER_ROW, status: 'paid' } },
-      book_entitlement: { data: null },
-      admin_audit_log: { data: null },
-      'rpc:finalize_refund_success': { data: PRIMARY_REFUND_TRANSACTION },
+      refunds: {
+        data: { ...REFUND_ROW, provider: 'paypal', amount_minor: 1999, currency: 'USD' },
+        singleData: [{
+          ...REFUND_ROW,
+          provider: 'paypal',
+          amount_minor: 1999,
+          currency: 'USD',
+          status: 'failed',
+          provider_status_code: 'UNPROCESSABLE_ENTITY',
+        }],
+      },
+      'rpc:request_full_refund': {
+        data: {
+          outcome: 'created',
+          refund: { ...REFUND_ROW, provider: 'paypal', amount_minor: 1999, currency: 'USD' },
+          payment: paypalPayment,
+        },
+      },
     });
+    const paypalAdapter = createFakeAdapter('paypal');
+    paypalAdapter.refund.mockResolvedValue({
+      ok: false,
+      status: 'failed',
+      rawStatusCode: 'UNPROCESSABLE_ENTITY',
+    });
+    const deps = {
+      db: mock.db,
+      log: fakeLogger(),
+      adapters: { ecpay: createFakeAdapter(), paypal: paypalAdapter },
+      now: () => new Date('2026-08-16T12:00:00Z'),
+    };
+
     const result = await handleFinance(
       handlerRequest(
         'POST',
         'https://test.supabase.co/functions/v1/finance',
-        JSON.stringify({ action: 'confirm_refund', refundId: 'ref-1' }),
+        JSON.stringify({ action: 'request_refund', paymentId: 'pay-1' }),
         bearerHeaders('jwt-1'),
       ),
       deps,
     );
-    expect(result.status).toBe(200);
-    const body = JSON.parse(result.body);
-    expect(body).toMatchObject({
-      refund: { id: 'ref-1', status: 'succeeded' },
-      payment_status: 'refunded',
-      order_status: 'refunded',
-      entitlement_revoked: true,
-    });
 
-    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(1);
-    expect(mock.rpcCalls('finalize_refund_success')[0].args[0]).toMatchObject({ p_refund_id: 'ref-1' });
-    expect(mock.callsFor('refunds', 'update')).toHaveLength(0);
-    expect(mock.callsFor('payments', 'update')).toHaveLength(0);
-    expect(mock.callsFor('orders', 'update')).toHaveLength(0);
-    expect(mock.callsFor('book_entitlement', 'update')).toHaveLength(0);
+    expect(result.status).toBe(409);
+    expect(JSON.parse(result.body)).toMatchObject({ status: 'failed' });
+    expect(mock.callsFor('refunds', 'update')[0].args[0]).toMatchObject({
+      status: 'failed',
+      provider_status_code: 'UNPROCESSABLE_ENTITY',
+    });
   });
 
-  it('finance_admin confirm_refund (duplicate_success payment) → payment refunded only; ownership preserved', async () => {
+  it.each([
+    { providerResult: { ok: true, status: 'pending', rawStatusCode: 'PENDING' } },
+    { providerResult: { ok: false, status: 'failed', rawStatusCode: 'UNPROCESSABLE_ENTITY' } },
+  ] as const)(
+    'does not let a stale $providerResult.status provider result downgrade a concurrently succeeded refund',
+    async ({ providerResult }) => {
+      const paypalPayment = {
+        ...PAYMENT_ROW,
+        provider: 'paypal',
+        provider_payment_ref: 'CAPTURE-1',
+        amount_minor: 1999,
+        currency: 'USD',
+        method: 'paypal',
+        status: 'succeeded',
+      };
+      const finalRefund = {
+        ...REFUND_ROW,
+        provider: 'paypal',
+        amount_minor: 1999,
+        currency: 'USD',
+        status: 'succeeded',
+        provider_refund_ref: 'REFUND-FINAL',
+        provider_status_code: 'COMPLETED',
+        completed_at: '2026-08-16T12:00:00Z',
+      };
+      const mock = createMockDb({
+        'auth:getUser': { data: { id: 'user-1' } },
+        finance_roles: { data: [{ role: 'finance_admin' }] },
+        refunds: { data: finalRefund, singleData: [null, finalRefund] },
+        'rpc:request_full_refund': {
+          data: {
+            outcome: 'created',
+            refund: { ...REFUND_ROW, provider: 'paypal', amount_minor: 1999, currency: 'USD' },
+            payment: paypalPayment,
+          },
+        },
+      });
+      const paypalAdapter = createFakeAdapter('paypal');
+      paypalAdapter.refund.mockResolvedValue(providerResult);
+
+      const result = await handleFinance(
+        handlerRequest(
+          'POST',
+          'https://test.supabase.co/functions/v1/finance',
+          JSON.stringify({ action: 'request_refund', paymentId: 'pay-1' }),
+          bearerHeaders('jwt-1'),
+        ),
+        {
+          db: mock.db,
+          log: fakeLogger(),
+          adapters: { ecpay: createFakeAdapter(), paypal: paypalAdapter },
+          now: () => new Date('2026-08-16T12:00:00Z'),
+        },
+      );
+
+      expect(result.status).toBe(200);
+      expect(JSON.parse(result.body)).toMatchObject({
+        status: 'succeeded',
+        refund: { status: 'succeeded', provider_refund_ref: 'REFUND-FINAL' },
+      });
+      expect(mock.callsFor('refunds', 'in')).toContainEqual({
+        table: 'refunds',
+        method: 'in',
+        args: ['status', ['requested', 'processing']],
+      });
+    },
+  );
+
+  it('does not let a finance action assert refund success without provider evidence', async () => {
     const { mock, deps } = setup({
       finance_roles: { data: [{ role: 'finance_admin' }] },
-      refunds: { data: REFUND_ROW },
-      payments: { data: { ...PAYMENT_ROW, status: 'duplicate_success', provider_payment_ref: 'ECPAY-TRADE-2' } },
-      orders: { data: { ...ORDER_ROW, status: 'paid' } },
-      book_entitlement: { data: null },
-      admin_audit_log: { data: null },
-      'rpc:finalize_refund_success': { data: DUPLICATE_REFUND_TRANSACTION },
     });
     const result = await handleFinance(
       handlerRequest(
@@ -351,20 +534,9 @@ describe('finance handler', () => {
       ),
       deps,
     );
-    expect(result.status).toBe(200);
-    const body = JSON.parse(result.body);
-    expect(body).toMatchObject({
-      refund: { id: 'ref-1', status: 'succeeded' },
-      payment_status: 'refunded',
-      order_status: 'paid',
-      entitlement_revoked: false,
-    });
-
-    // The duplicate refund refunds the payment but NEVER touches order/entitlement.
-    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(1);
-    expect(mock.callsFor('payments', 'update')).toHaveLength(0);
-    expect(mock.callsFor('orders', 'update').length).toBe(0);
-    expect(mock.callsFor('book_entitlement', 'update').length).toBe(0);
+    expect(result.status).toBe(400);
+    expect(mock.rpcCalls('finalize_refund_success_audited')).toHaveLength(0);
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(0);
   });
 
   it('unauthenticated → 401', async () => {

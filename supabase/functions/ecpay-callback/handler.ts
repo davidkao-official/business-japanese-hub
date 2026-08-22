@@ -38,7 +38,12 @@ import {
   type HandlerRequest,
   type HandlerResult,
 } from '../_shared/http.ts';
-import { buildPaymentEventRow, sanitizedCallbackPayload } from '../_shared/events.ts';
+import {
+  buildPaymentEventRow,
+  completePaymentEvent,
+  sanitizedCallbackPayload,
+  type PaymentEventProcessingResult,
+} from '../_shared/events.ts';
 import { isEcpayConfigured } from '../_shared/ecpay.ts';
 import {
   applyPaymentEvent,
@@ -126,7 +131,14 @@ export async function handleEcpayCallback(
         { merchantReference: event.providerMerchantRef },
         'callback for unknown MerchantTradeNo; no entitlement, not acknowledged as processed',
       );
-      return notFound('unknown merchant trade no');
+      return finishEvent(
+        deps,
+        event,
+        null,
+        'unknown_reference',
+        notFound('unknown merchant trade no'),
+        now,
+      );
     }
     payment = found;
   } catch (err) {
@@ -134,7 +146,14 @@ export async function handleEcpayCallback(
       { error: err instanceof Error ? err.message : String(err) },
       'payment lookup failed; NOT acknowledging',
     );
-    return jsonResult(500, { error: 'payment lookup failed' });
+    return finishEvent(
+      deps,
+      event,
+      null,
+      'processing_error',
+      jsonResult(500, { error: 'payment lookup failed' }),
+      now,
+    );
   }
 
   const localAmount: Money = { amount: Number(payment.amount_minor), currency: payment.currency };
@@ -145,7 +164,9 @@ export async function handleEcpayCallback(
     return persistAndAck(
       deps,
       payment,
+      event,
       { type: 'payment_failed', merchantReference: event.providerMerchantRef, rawStatusCode: event.rawStatusCode },
+      'failed',
       now,
       'payment failed per callback',
     );
@@ -155,7 +176,9 @@ export async function handleEcpayCallback(
     return persistAndAck(
       deps,
       payment,
+      event,
       { type: 'verification_pending', merchantReference: event.providerMerchantRef },
+      'verification_pending',
       now,
       'simulated payment (SimulatePaid=1); not a real charge',
     );
@@ -170,14 +193,23 @@ export async function handleEcpayCallback(
       { error: err instanceof Error ? err.message : String(err) },
       'confirmPayment failed; NOT acknowledging',
     );
-    return jsonResult(500, { error: 'provider confirmation failed' });
+    return finishEvent(
+      deps,
+      event,
+      payment.id,
+      'processing_error',
+      jsonResult(500, { error: 'provider confirmation failed' }),
+      now,
+    );
   }
   if (snapshot.status !== 'succeeded') {
     // Timeout / ambiguous / not-yet-paid → durable verification_pending → 1|OK.
     return persistAndAck(
       deps,
       payment,
+      event,
       { type: 'verification_pending', merchantReference: event.providerMerchantRef },
+      'verification_pending',
       now,
       `provider confirmation ambiguous (${snapshot.rawStatusCode ?? snapshot.status})`,
     );
@@ -216,7 +248,9 @@ export async function handleEcpayCallback(
     return persistAndAck(
       deps,
       payment,
+      event,
       { type: 'verification_pending', merchantReference: event.providerMerchantRef },
+      'verification_pending',
       now,
       'success predicate failed',
     );
@@ -244,9 +278,16 @@ export async function handleEcpayCallback(
       },
       'verified payment success',
     );
-    return textResult(200, '1|OK');
+    return finishEvent(deps, event, payment.id, 'succeeded', textResult(200, '1|OK'), now);
   } catch (err) {
-    return persistenceFailure(deps, err);
+    return finishEvent(
+      deps,
+      event,
+      payment.id,
+      'processing_error',
+      persistenceFailure(deps, err),
+      now,
+    );
   }
 }
 
@@ -254,19 +295,49 @@ export async function handleEcpayCallback(
 async function persistAndAck(
   deps: EcpayCallbackHandlerDeps,
   payment: PaymentRow,
-  event: PaymentDomainEvent,
+  providerEvent: VerifiedProviderEvent,
+  domainEvent: PaymentDomainEvent,
+  result: PaymentEventProcessingResult,
   now: () => Date,
   note: string,
 ): Promise<HandlerResult> {
   try {
-    const status = await applyPaymentEvent({ db: deps.db, log: deps.log, now }, payment, event);
+    const status = await applyPaymentEvent({ db: deps.db, log: deps.log, now }, payment, domainEvent);
     deps.log.info(
-      { paymentId: payment.id, merchantReference: event.merchantReference, status, note },
+      { paymentId: payment.id, merchantReference: domainEvent.merchantReference, status, note },
       'callback normalized state persisted',
     );
-    return textResult(200, '1|OK');
+    return finishEvent(deps, providerEvent, payment.id, result, textResult(200, '1|OK'), now);
   } catch (err) {
-    return persistenceFailure(deps, err);
+    return finishEvent(
+      deps,
+      providerEvent,
+      payment.id,
+      'processing_error',
+      persistenceFailure(deps, err),
+      now,
+    );
+  }
+}
+
+/** Persist the receipt's correlated outcome before returning any provider ACK. */
+async function finishEvent(
+  deps: EcpayCallbackHandlerDeps,
+  event: VerifiedProviderEvent,
+  paymentId: string | null,
+  result: PaymentEventProcessingResult,
+  response: HandlerResult,
+  now: () => Date,
+): Promise<HandlerResult> {
+  try {
+    await completePaymentEvent(deps.db, event, paymentId, result, now().toISOString());
+    return response;
+  } catch (err) {
+    deps.log.error(
+      { error: err instanceof Error ? err.message : String(err), paymentId, result },
+      'payment event outcome persist failed; NOT acknowledging',
+    );
+    return jsonResult(500, { error: 'event outcome persist failed' });
   }
 }
 

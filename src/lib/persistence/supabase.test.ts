@@ -73,6 +73,10 @@ const entitlementRow = {
   provider: 'manual',
   provider_ref: null,
   granted_at: '2026-08-01T00:00:00Z',
+  status: 'active',
+  source_order_id: null,
+  revoked_at: null,
+  revocation_reason: null,
 };
 
 describe('SupabaseUserStateRepository#getEntitlement', () => {
@@ -85,7 +89,27 @@ describe('SupabaseUserStateRepository#getEntitlement', () => {
       provider: 'manual',
       providerRef: null,
       grantedAt: '2026-08-01T00:00:00Z',
+      status: 'active',
+      sourceOrderId: null,
+      revokedAt: null,
+      revocationReason: null,
     });
+  });
+
+  it('treats a revoked row as not owned even if a backend returns it', async () => {
+    const { client } = createMockClient({
+      book_entitlement: {
+        data: {
+          ...entitlementRow,
+          status: 'revoked',
+          revoked_at: '2026-08-02T00:00:00Z',
+          revocation_reason: 'refund',
+        },
+      },
+    });
+    const repo = new SupabaseUserStateRepository(client);
+
+    await expect(repo.getEntitlement('book-a')).resolves.toBeNull();
   });
 
   it('returns null when the user does not own the book', async () => {
@@ -99,9 +123,11 @@ describe('SupabaseUserStateRepository#getEntitlement', () => {
     const { client, calls } = createMockClient({ book_entitlement: { data: entitlementRow } });
     await new SupabaseUserStateRepository(client).getEntitlement('book-a');
 
-    const eqCall = calls.find((call) => call.method === 'eq');
-    expect(eqCall).toBeDefined();
-    expect(eqCall?.args).toEqual(['book_id', 'book-a']);
+    const eqCalls = calls.filter((call) => call.method === 'eq').map((call) => call.args);
+    expect(eqCalls).toEqual([
+      ['book_id', 'book-a'],
+      ['status', 'active'],
+    ]);
   });
 
   it('throws a stable error on a DB error', async () => {

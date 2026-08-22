@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Route, Routes } from 'react-router-dom'
 import { renderWithAppProviders } from '../test/appProviders'
@@ -90,6 +90,35 @@ describe('PurchaseResultPage — browser-return result (server-driven only)', ()
     expect(screen.getByTestId('receipt-amount')).toHaveTextContent('¥880')
   })
 
+  it('masks a rendered receipt immediately when the authenticated identity changes', async () => {
+    pollOrderStatusMock.mockResolvedValue(order({ status: 'paid', paymentStatus: 'succeeded' }))
+    const { authClient } = renderWithAppProviders(
+      <Routes>
+        <Route path="/purchase/result" element={<PurchaseResultPage />} />
+      </Routes>,
+      {
+        initialEntries: ['/purchase/result?order=order-1'],
+        session: { id: 'buyer-a', email: 'buyer-a@example.com' },
+      },
+    )
+
+    await waitFor(() => expect(screen.getByText('注文の領収書')).toBeInTheDocument())
+
+    const buyerBPoll = deferred<OrderStatusResponse>()
+    pollOrderStatusMock.mockReset()
+    pollOrderStatusMock.mockReturnValue(buyerBPoll.promise)
+    act(() => {
+      authClient.emitAuthStateChange({ id: 'buyer-b', email: 'buyer-b@example.com' })
+    })
+
+    expect(screen.queryByText('注文の領収書')).not.toBeInTheDocument()
+    expect(screen.getByText('決済確認中…')).toBeInTheDocument()
+    expect(pollOrderStatusMock).toHaveBeenCalledWith(
+      'order-1',
+      expect.objectContaining({ functionsBaseUrl: BASE }),
+    )
+  })
+
   it('never treats browser-return query params as payment evidence', async () => {
     const poll = deferred<OrderStatusResponse>()
     pollOrderStatusMock.mockReturnValueOnce(poll.promise)
@@ -106,6 +135,20 @@ describe('PurchaseResultPage — browser-return result (server-driven only)', ()
     expect(screen.getByText(/決済確認中/)).toBeInTheDocument()
     expect(screen.queryByText('注文の領収書')).not.toBeInTheDocument()
     expect(screen.queryByText('購入が完了しました')).not.toBeInTheDocument()
+  })
+
+  it('lets a buyer resume polling after the bounded pending window', async () => {
+    pollOrderStatusMock
+      .mockResolvedValueOnce(order({ status: 'pending' }))
+      .mockResolvedValueOnce(order({ status: 'paid', paymentStatus: 'succeeded' }))
+
+    renderResult(['/purchase/result?order=order-1'])
+
+    const retry = await screen.findByRole('button', { name: '再試行' })
+    fireEvent.click(retry)
+
+    await waitFor(() => expect(pollOrderStatusMock).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.getByText('購入が完了しました')).toBeInTheDocument())
   })
 
   it('renders cancelled from the server order status', async () => {

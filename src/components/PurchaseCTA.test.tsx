@@ -61,6 +61,34 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     expect(executor).not.toHaveBeenCalled()
   })
 
+  it('moves keyboard focus into each checkout step and restores the purchase trigger on cancel', async () => {
+    const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
+    renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} />, {
+      purchaseExecutor: executor,
+      session: signedInUser,
+    })
+
+    const purchase = await screen.findByRole('button', { name: /購入する/ })
+    purchase.focus()
+    fireEvent.click(purchase)
+
+    const declaration = screen.getByRole('region', { name: 'お住まいの国・地域を選択してください' })
+    await waitFor(() => expect(declaration).toHaveFocus())
+
+    fireEvent.click(screen.getByRole('button', { name: /戻る|キャンセル/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /購入する/ })).toHaveFocus())
+  })
+
+  it('focuses the email field when checkout requires authentication', async () => {
+    renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} />, {
+      purchaseExecutor: vi.fn(),
+    })
+
+    await clickPurchase()
+
+    await waitFor(() => expect(screen.getByLabelText('メールアドレス')).toHaveFocus())
+  })
+
   it('asks for a consumer-jurisdiction declaration before checkout (unresolved fails closed)', async () => {
     const executor = vi.fn(async () => ({ ok: true, orderId: 'order-1', status: 'pending' }) as const)
     renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} />, {
@@ -242,5 +270,22 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
 
     await waitFor(() => expect(executor).toHaveBeenCalledTimes(2))
     expect(executor.mock.calls[1]?.[1]).toBe(originalConsent)
+  })
+
+  it('turns a stale-tab already-owned race into a Library recovery action', async () => {
+    const executor = vi.fn().mockResolvedValue({ ok: false, reason: 'already_owned' } as const)
+    renderWithAppProviders(<PurchaseCTA book={paidKeigoBook} jurisdiction="JP" />, {
+      purchaseExecutor: executor,
+      session: signedInUser,
+    })
+
+    await clickPurchase()
+    fireEvent.click(screen.getByRole('button', { name: '同意して購入する' }))
+
+    expect(await screen.findByText('取得済み')).toBeInTheDocument()
+    const libraryLink = screen.getByRole('link', { name: 'ライブラリへ' })
+    expect(libraryLink).toHaveAttribute('href', '/library')
+    expect(libraryLink).toHaveFocus()
+    expect(screen.queryByText('決済は準備中です。')).not.toBeInTheDocument()
   })
 })

@@ -250,6 +250,8 @@ html[data-reader-theme] {
 }
 
 .reader-topbar__action {
+  min-width: var(--control-min-h);
+  min-height: var(--control-min-h);
   border: var(--stroke-thin) solid var(--reader-border);
   background: var(--reader-surface);
   color: var(--reader-text);
@@ -281,8 +283,8 @@ html[data-reader-theme] {
   top: var(--space-2);
   right: var(--reader-gutter-mobile);
   z-index: 170;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: var(--control-min-h);
+  height: var(--control-min-h);
   display: grid;
   place-items: center;
   border: var(--stroke-thin) solid var(--reader-border);
@@ -899,8 +901,8 @@ html[data-reader-theme] {
 .reader-dialog__close {
   display: grid;
   place-items: center;
-  width: 2rem;
-  height: 2rem;
+  width: var(--control-min-h);
+  height: var(--control-min-h);
   border: var(--stroke-thin) solid var(--reader-border);
   border-radius: 50%;
   background: var(--reader-surface);

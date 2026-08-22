@@ -383,7 +383,7 @@ select is(
   'outbox keeps the buyer-facing locale rather than the JP legal-copy locale'
 );
 create temporary table due_claim as
-select public.claim_order_email_jobs(20, '2026-08-20T12:00:00Z') as result;
+select public.claim_order_email_jobs(20, now() + interval '1 minute') as result;
 select is(jsonb_array_length((select result from due_claim)), 2, 'both due email jobs are claimed once');
 select is(
   (select claimed->>'locale'
@@ -415,10 +415,10 @@ select results_eq(
   $$ values ('processing'::text, 1) $$,
   'claim marks the job processing and increments its attempt'
 );
-select is(jsonb_array_length(public.claim_order_email_jobs(20, '2026-08-20T12:01:00Z')), 0, 'active claim cannot be claimed twice');
-update public.order_email_outbox set locked_at = '2026-08-20T11:40:00Z'
+select is(jsonb_array_length(public.claim_order_email_jobs(20, now() + interval '2 minutes')), 0, 'active claim cannot be claimed twice');
+update public.order_email_outbox set locked_at = now() - interval '20 minutes'
 where order_id = (select id from public.orders where book_id = 'book-usd');
-select is(jsonb_array_length(public.claim_order_email_jobs(20, '2026-08-20T12:01:00Z')), 1, 'stale claim is recovered');
+select is(jsonb_array_length(public.claim_order_email_jobs(20, now() + interval '2 minutes')), 1, 'stale claim is recovered');
 select is((select attempt_count from public.order_email_outbox where order_id = (select id from public.orders where book_id = 'book-usd')), 2, 'stale recovery increments the attempt count exactly once');
 
 select is(
@@ -434,7 +434,7 @@ update public.payments set status = 'refunded'
 update public.orders set status = 'refunded', refunded_at = '2026-08-20T12:01:30Z'
  where book_id = 'book-usd';
 select is(
-  jsonb_array_length(public.claim_order_email_jobs(20, '2026-08-20T12:02:00Z')),
+  jsonb_array_length(public.claim_order_email_jobs(20, now() + interval '3 minutes')),
   0,
   'a concurrent cron does not sweep an active fenced send after refund'
 );
@@ -443,10 +443,10 @@ select is(
   'sending'::text,
   'the durable sending fence survives a refund that loses the ordering race'
 );
-update public.order_email_outbox set locked_at = '2026-08-20T11:40:00Z'
+update public.order_email_outbox set locked_at = now() - interval '20 minutes'
 where order_id = (select id from public.orders where book_id = 'book-usd');
 select is(
-  jsonb_array_length(public.claim_order_email_jobs(20, '2026-08-20T12:02:00Z')),
+  jsonb_array_length(public.claim_order_email_jobs(20, now() + interval '3 minutes')),
   1,
   'a stale fenced send is safely recovered under the provider idempotency key'
 );
@@ -487,7 +487,7 @@ insert into public.order_email_outbox (
   'reader@example.com', 'en', 'order-confirmation-v1', 'pending', '2026-08-20T11:59:00Z'
 );
 create temporary table missing_payment_claim as
-select public.claim_order_email_jobs(20, '2026-08-20T12:03:00Z') as result;
+select public.claim_order_email_jobs(20, now() + interval '4 minutes') as result;
 select is(jsonb_array_length((select result from missing_payment_claim)), 1, 'a claimed job is never dropped by a missing succeeded payment join');
 select ok(
   (select result->0->'provider' = 'null'::jsonb and result->0->'paymentMethod' = 'null'::jsonb from missing_payment_claim),

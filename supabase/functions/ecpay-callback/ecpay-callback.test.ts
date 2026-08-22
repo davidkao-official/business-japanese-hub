@@ -88,6 +88,7 @@ function baseMock(overrides: Record<string, unknown> = {}) {
     payments: { data: PAYMENT_ROW },
     orders: { data: ORDER_ROW },
     'rpc:finalize_payment_success': { data: SUCCESS_TRANSACTION },
+    'rpc:complete_payment_event_outcome': { data: 'succeeded' },
     ...overrides,
   });
   const adapter = createFakeAdapter();
@@ -152,6 +153,10 @@ describe('ecpay-callback handler', () => {
     expect(result.status).toBe(404);
     expect(result.body).not.toBe('1|OK');
     expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
+    expect(mock.rpcCalls('complete_payment_event_outcome')[0].args[0]).toMatchObject({
+      p_payment_id: null,
+      p_processing_result: 'unknown_reference',
+    });
   });
 
   it('wrong amount → no entitlement; durable verification_pending; 1|OK', async () => {
@@ -168,6 +173,10 @@ describe('ecpay-callback handler', () => {
     expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
     const paymentUpdate = mock.callsFor('payments', 'update')[0];
     expect(paymentUpdate.args[0]).toMatchObject({ status: 'verification_pending' });
+    expect(mock.rpcCalls('complete_payment_event_outcome')[0].args[0]).toMatchObject({
+      p_payment_id: 'pay-1',
+      p_processing_result: 'verification_pending',
+    });
   });
 
   it('SimulatePaid=1 with RtnCode=1 → no entitlement (not a real charge)', async () => {
@@ -205,6 +214,10 @@ describe('ecpay-callback handler', () => {
     expect(mock.callsFor('payments', 'update')).toHaveLength(0);
     expect(mock.callsFor('orders', 'update')).toHaveLength(0);
     expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
+    expect(mock.rpcCalls('complete_payment_event_outcome')[0].args[0]).toMatchObject({
+      p_payment_id: 'pay-1',
+      p_processing_result: 'succeeded',
+    });
   });
 
   it('double charge: second genuine success on an already-paid order → duplicate_success, no second grant', async () => {

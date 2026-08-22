@@ -1,6 +1,6 @@
 # Accounts, Ownership, and Reading-State Persistence
 
-> 對應實作：`supabase/migrations/0001_accounts.sql`、`src/lib/persistence/**`、`src/lib/auth/**`、`src/lib/entitlement.ts`。
+> 對應實作：`supabase/migrations/0001_accounts.sql`、`0003_compliance_finance.sql`、`20260822170000_entitlement_lifecycle_hardening.sql`、`src/lib/persistence/**`、`src/lib/auth/**`、`src/lib/entitlement.ts`。
 > 上位契約：`docs/product-contract.md`（§7 平台責任分界、§10 payment architecture）、`docs/payments/decision-record.md`（provider-neutral payment contract；ECPay 是第一支 TWD adapter）、`docs/content-model.md`（id namespace）、`docs/ui-ux-research.md`（§4.2 Preview-boundary contract、§4.4 resume-state schema、§8.3 Entitlement CTA state）。
 
 ## 1. 目標與範圍
@@ -21,9 +21,12 @@
 | --- | --- | --- |
 | `user_id` | `uuid` FK `auth.users` | 擁有者；`on delete cascade`。 |
 | `book_id` | `text` | 穩定的 content-model `Book.id`。非 DB FK（書 metadata 在靜態 bundle，不在 DB）。 |
-| `provider` | `text` | `check (provider in ('manual','ecpay'))`。`manual` = operator/service-role；`ecpay` = 未來購買 callback。 |
+| `provider` | `text` | provider-neutral grant source；目前允許 `manual`、`ecpay`、`newebpay`、`stripe`、`paypal`。 |
 | `provider_ref` | `text` | 選用；opaque generic grant provenance（operator 註記）。**不是 provider 交易參考**——provider 交易參考（ECPay `MerchantTradeNo` / `TradeNo`）只存在 payment domain（見 `docs/payments/decision-record.md` §9.2）。 |
 | `granted_at` | `timestamptz default now()` | 授予時間（server-authoritative）。 |
+| `source_order_id` | `uuid` nullable FK `orders` | paid grant 的 provider-neutral Order provenance。 |
+| `status` | `active \| revoked` | 只有 `active` 代表 ownership；`revoked` 是保留的財務／access lifecycle evidence。 |
+| `revoked_at` / `revocation_reason` | nullable | authoritative refund/reversal 撤銷證據。 |
 
 PK `(user_id, book_id)`。
 
@@ -62,7 +65,7 @@ PK `(user_id, book_id)`。resume 語意依 `docs/ui-ux-research.md` §4.4：以 
 
 | 表 | 政策 | 目的 |
 | --- | --- | --- |
-| `book_entitlement` | **只有** `for select to authenticated using (auth.uid() = user_id)` | Client 只能讀自己的擁有權。**無任何 INSERT／UPDATE／DELETE 政策**：client 無法 self-grant。授權只能走 server path（見 §4）。 |
+| `book_entitlement` | **只有** `for select to authenticated using (auth.uid() = user_id and status = 'active')` | Client 只能讀自己的有效擁有權。revoked row 不得被 Library/Reader 當 ownership。**無任何 INSERT／UPDATE／DELETE 政策**：client 無法 self-grant。授權只能走 server path（見 §4）。 |
 | `reading_state` | `for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id)` | User 可讀寫自己的閱讀位置。 |
 | `bookmark` | `for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id)` | User 可讀寫自己的書籤。 |
 
@@ -73,14 +76,17 @@ PK `(user_id, book_id)`。resume 語意依 `docs/ui-ux-research.md` §4.4：以 
 ## 4. 授予路徑（Grant path）
 
 ```sql
-grant_entitlement(user_id uuid, book_id text, provider text, provider_ref text default null)
+grant_entitlement(user_id uuid, book_id text, provider text, provider_ref text default null,
+                  source_order_id uuid default null, status text default 'active',
+                  revoked_at timestamptz default null, revocation_reason text default null)
 ```
 
 - 實作於 migration 的 `security definer` SQL function；`on conflict (user_id, book_id) do update`（冪等）。
 - EXECUTE 從 `public` 與 `authenticated` **revoke**，僅 `service_role` 可執行 → 瀏覽器 anon-key client 永遠無法呼叫。
 - 型別化 helper：`src/lib/persistence/grant.ts` 的 `grantEntitlement(client, input)`。**必須只以 service-role client 執行，絕不可 bundle 於瀏覽器。**
-- **#7 不實作付款、不耦合 ECPay**：MVP 授予為 `manual`（operator 以 service-role 執行）；ECPay（第一支 TWD adapter）日後由 server callback verification 呼叫同一寫入點（`provider: 'ecpay'`），contract 見 `docs/payments/decision-record.md`。
+- Payment provider mechanics remain outside this boundary. Verified PayPal/ECPay success reaches the same provider-neutral grant path with `source_order_id`; provider transaction IDs remain on Payment/Refund rows.
 - **只有第一筆 qualifying successful payment 呼叫 `grant_entitlement`**。`duplicate_success`（第二筆重複成功付款）不得再次呼叫 grant upsert，避免覆寫既有 entitlement 的 `provider_ref` / `granted_at` provenance；其處理路徑是 finance anomaly/review queue + refund（見 `docs/payments/decision-record.md` §7／§13）。
+- Refund 將 row 標為 `revoked`；同一 user/book 合法重新購買時會重新啟用並綁定新的 `source_order_id`，使下一次 refund 撤銷的是最新 Order。
 
 ## 5. Provider-agnostic entitlement boundary
 
@@ -146,10 +152,10 @@ Preview boundary 依 `docs/ui-ux-research.md` §4.2：有序章節前綴（可�
 程式碼層完成（mock 測試全綠）。真實端到端驗證需要一個已佈署的 Supabase instance：
 
 1. Provision Supabase project（或 `supabase start` local）。
-2. `supabase db reset` 套用 `supabase/migrations/0001_accounts.sql`。
+2. `supabase db reset --local` 從頭套用 `supabase/migrations/` 的完整 ordered migration chain。
 3. 設定 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`（build 時 bake）。
 4. 在 Supabase Auth 明確設定允許的 Site URL / redirect URLs、email confirmation policy 與 production mail delivery；這些 external settings 未有 live evidence 前不得宣稱 sign-up E2E 已驗證。
-5. 建立測試 user；以 service-role 呼叫 `grant_entitlement(...)`（operator）授予一本 paid book。
-6. 驗證：sign-in 與 sign-up confirmation round trip、另一 session/device 登入後的 `getEntitlement`／`getReadingState` 一致性、未授予的 paid book 無法靠修改 client state 解鎖，以及 anon key 呼叫 `grant_entitlement` 被拒（`permission denied`）。
+5. 建立測試 user；以 service-role 呼叫 `grant_entitlement(...)` 授予測試 Book，並另留一條 revoked lifecycle fixture。
+6. 驗證：sign-in 與 sign-up confirmation round trip、另一 session/device 登入後的 `getEntitlement`／`getReadingState` 一致性、revoked row 不會出現在 ownership 查詢、未授予的 paid book 無法靠修改 client state 解鎖，以及 anon key 呼叫 `grant_entitlement` 被拒（`permission denied`）。
 
 未 provision instance 前，這些是文件化的環境 dependency，不是 code 缺陷。

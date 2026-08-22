@@ -29,8 +29,9 @@ export interface Entitlement {
   /** ISO-8601 timestamp of the grant (server-authoritative). */
   grantedAt: string;
   /**
-   * 'active' | 'revoked'. The DB column is NOT NULL (default 'active'); optional
-   * here until the persistence adapter selects it — the DB is authoritative.
+   * 'active' | 'revoked'. The DB column is NOT NULL (default 'active'); the
+   * production repository returns only active rows, while this remains optional
+   * for provider-neutral test and alternate repository implementations.
    */
   status?: EntitlementStatus;
   /** Provider-neutral source Order id (payment grants); null for manual grants. */

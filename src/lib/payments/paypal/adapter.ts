@@ -50,6 +50,7 @@ import { sha256Hex } from '../crypto.ts';
 import { resolvePaypalEnv, type PaypalEnv, type PaypalUrls } from './urls.ts';
 import {
   PAYPAL_CAPTURE_EVENT_STATUS,
+  PAYPAL_REFUND_EVENT_STATUS,
   type PaypalCapture,
   type PaypalOrder,
   type PaypalReconciliationEntry,
@@ -167,7 +168,7 @@ export interface PaypalAdapterConfig {
   clientSecret: string;
   /** Server-configured webhook id used by verify-webhook-signature. */
   webhookId: string;
-  /** `'sandbox'` or `'prod'`; `undefined` fails closed to sandbox (§16). */
+  /** `'sandbox'` or `'prod'`; server adapter construction rejects undefined. */
   env?: PaypalEnv;
   /** Injectable clock for deterministic token expiry (tests). */
   now?: () => Date;
@@ -186,11 +187,12 @@ export interface PaypalAdapterConfig {
  */
 export function usdMajorFromCanonical(money: Money): string {
   const minor = minorUnitFor('USD');
-  const major = money.amount / minor;
-  if (!Number.isFinite(major) || major <= 0) {
+  if (money.currency !== 'USD' || !Number.isSafeInteger(money.amount) || money.amount <= 0) {
     throw new Error(`PayPal value must be a positive USD amount, got ${JSON.stringify(money)}`);
   }
-  return major.toFixed(2);
+  const whole = Math.floor(money.amount / minor);
+  const fraction = String(money.amount % minor).padStart(2, '0');
+  return `${whole}.${fraction}`;
 }
 
 /**
@@ -198,15 +200,27 @@ export function usdMajorFromCanonical(money: Money): string {
  * Throws on a non-USD currency or an unsafe / negative result.
  */
 export function paypalMoneyFromString(value: string, currency: string): Money {
-  const amount = Number(value);
-  if (currency !== 'USD' || !Number.isFinite(amount) || amount < 0) {
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value);
+  if (currency !== 'USD' || !match || value.length > 32) {
     throw new Error(`PayPal amount must be a non-negative USD decimal, got ${JSON.stringify({ value, currency })}`);
   }
-  const minor = Math.round(amount * minorUnitFor('USD'));
-  if (!Number.isSafeInteger(minor)) {
+  const whole = BigInt(match[1]);
+  const fraction = BigInt((match[2] ?? '').padEnd(2, '0') || '0');
+  const minor = whole * BigInt(minorUnitFor('USD')) + fraction;
+  if (minor > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new Error(`PayPal amount is not a safe integer in minor units: ${JSON.stringify({ value, currency })}`);
   }
-  return { amount: minor, currency: 'USD' };
+  return { amount: Number(minor), currency: 'USD' };
+}
+
+function isTrustedApprovalUrl(href: string, checkoutBase: string): boolean {
+  try {
+    const candidate = new URL(href);
+    const expected = new URL(checkoutBase);
+    return candidate.protocol === 'https:' && candidate.origin === expected.origin;
+  } catch {
+    return false;
+  }
 }
 
 /** Money-moving PayPal T-codes that remove a prior captured payment. */
@@ -263,7 +277,6 @@ export function sanitizePaypalEvent(event: PaypalWebhookEvent): Record<string, u
   return {
     id: event.id ?? null,
     event_type: event.event_type ?? null,
-    summary: event.summary ?? null,
     resource_type: event.resource_type ?? null,
     resource_status: event.resource?.status ?? null,
     resource_custom_id: event.resource?.custom_id ?? null,
@@ -357,6 +370,9 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
     if (!approve?.href || !order.id) {
       throw new Error('PayPal create order response missing approve link / order id');
     }
+    if (!isTrustedApprovalUrl(approve.href, this.urls.checkoutBase)) {
+      throw new Error('PayPal create order response contains an untrusted approval link');
+    }
     return {
       kind: 'redirect',
       url: approve.href,
@@ -407,6 +423,9 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
     const approve = order.links?.find((link) => link.rel === 'approve');
     if (!approve?.href) {
       throw new CheckoutVerificationPendingError('persisted PayPal Order has no approval redirect');
+    }
+    if (!isTrustedApprovalUrl(approve.href, this.urls.checkoutBase)) {
+      throw new CheckoutVerificationPendingError('persisted PayPal Order has an untrusted approval redirect');
     }
     return {
       kind: 'redirect',
@@ -494,6 +513,11 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
     // refund path; APPROVED/PENDING remain non-granting unknown events.
     const status: VerifiedProviderEvent['status'] =
       PAYPAL_CAPTURE_EVENT_STATUS[event.event_type] ?? 'unknown';
+    const refundStatus = PAYPAL_REFUND_EVENT_STATUS[event.event_type];
+    const isRefundResource = event.event_type.startsWith('PAYMENT.REFUND.');
+    const isCaptureRefundEvidence =
+      event.event_type === 'PAYMENT.CAPTURE.REFUNDED' ||
+      event.event_type === 'PAYMENT.CAPTURE.REVERSED';
 
     // custom_id (our local merchant ref) + order id location differs by event
     // type (§21/B6): APPROVED events carry them on the order resource; capture
@@ -532,7 +556,10 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
       provider: 'paypal',
       providerMerchantRef: customId,
       providerPaymentRef: orderId,
-      providerRefundRef: status === 'refunded' ? resource.id : undefined,
+      providerRefundRef: isRefundResource ? resource.id : undefined,
+      providerCaptureRef: isCaptureRefundEvidence ? resource.id : undefined,
+      refundEvidence: isRefundResource ? 'refund' : isCaptureRefundEvidence ? 'capture' : undefined,
+      refundStatus,
       eventFingerprint: await sha256Hex(body),
       status,
       amount: amountField ? paypalMoneyFromString(amountField.value, amountField.currency_code) : undefined,
@@ -617,7 +644,10 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
     try {
       token = await this.accessToken();
     } catch {
-      return { ok: false, status: 'failed', rawStatusCode: 'OAUTH_FAILED' };
+      // No monetary request was dispatched, so keep the local Refund eligible
+      // for repair instead of terminally rejecting it on transient auth/API
+      // availability.
+      return { ok: true, status: 'pending', rawStatusCode: 'OAUTH_FAILED' };
     }
     let res: { status: number; body: string };
     try {
@@ -639,19 +669,36 @@ export class PaypalPaymentProviderAdapter implements PaymentProviderAdapter {
       return { ok: true, status: 'pending', rawStatusCode: 'TRANSPORT_UNAVAILABLE' };
     }
     if (res.status === 201 || res.status === 200) {
-      let data: { id?: string; status?: string };
+      let parsed: unknown;
       try {
-        data = JSON.parse(res.body) as { id?: string; status?: string };
+        parsed = JSON.parse(res.body) as unknown;
       } catch {
-        return { ok: false, status: 'failed', rawStatusCode: 'BAD_RESPONSE' };
+        // The provider accepted the money-moving request but returned evidence
+        // we cannot safely classify. Retry with the stable PayPal-Request-Id.
+        return { ok: true, status: 'pending', rawStatusCode: 'BAD_RESPONSE' };
       }
+      if (
+        parsed === null ||
+        typeof parsed !== 'object' ||
+        typeof (parsed as { id?: unknown }).id !== 'string' ||
+        (parsed as { id: string }).id.trim().length === 0 ||
+        typeof (parsed as { status?: unknown }).status !== 'string'
+      ) {
+        return { ok: true, status: 'pending', rawStatusCode: 'BAD_RESPONSE' };
+      }
+      const data = parsed as { id: string; status: string };
       if (data.status === 'COMPLETED') {
         return { ok: true, status: 'succeeded', providerRefundRef: data.id, rawStatusCode: data.status };
       }
       if (data.status === 'PENDING') {
         return { ok: true, status: 'pending', providerRefundRef: data.id, rawStatusCode: data.status };
       }
-      return { ok: false, status: 'failed', providerRefundRef: data.id, rawStatusCode: data.status };
+      return {
+        ok: true,
+        status: 'pending',
+        providerRefundRef: data.id,
+        rawStatusCode: data.status ?? 'UNKNOWN_2XX_STATUS',
+      };
     }
     // Ambiguous 5xx / rate limit: the provider may have processed the refund.
     // Recoverable via the stable PayPal-Request-Id on retry (§21/B3).

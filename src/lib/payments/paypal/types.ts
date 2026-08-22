@@ -76,11 +76,15 @@ export const PAYPAL_CAPTURE_EVENT_STATUS: Record<string, 'succeeded' | 'failed' 
   'PAYMENT.CAPTURE.PENDING': 'unknown',
   'PAYMENT.CAPTURE.REFUNDED': 'refunded',
   'PAYMENT.CAPTURE.REVERSED': 'refunded',
-  'PAYMENT.REFUND.COMPLETED': 'refunded',
   'PAYMENT.REFUND.PENDING': 'unknown',
   'PAYMENT.REFUND.FAILED': 'unknown',
-  'PAYMENT.REFUND.CANCELLED': 'unknown',
   'CHECKOUT.ORDER.APPROVED': 'unknown',
+};
+
+/** Lifecycle carried specifically by asynchronous PayPal refund resources. */
+export const PAYPAL_REFUND_EVENT_STATUS: Record<string, 'pending' | 'failed'> = {
+  'PAYMENT.REFUND.PENDING': 'pending',
+  'PAYMENT.REFUND.FAILED': 'failed',
 };
 
 /** Provider-normalized PayPal Transaction Search row used by Layer C. */

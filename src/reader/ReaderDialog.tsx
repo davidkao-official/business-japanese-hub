@@ -9,7 +9,7 @@
  * Accessibility contract (research §8.2 / §7 focus-first):
  *   - `role="dialog"` + `aria-modal` with an accessible name
  *   - focus moves into the panel on open, is trapped while open (Tab cycling)
- *   - Escape closes; the scrim is a focusable-disabled button that also closes
+ *   - Escape closes; the scrim stays outside the tab order and also closes
  *   - on close, focus returns to the previously-focused element (e.g. the
  *     vocabulary term button that opened it)
  *   - body scroll is locked while any reader dialog is open
@@ -71,10 +71,17 @@ export function ReaderDialog({
       }
       if (event.key !== 'Tab' || !panel) return
       const focusable = panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
-      if (focusable.length === 0) return
+      if (focusable.length === 0) {
+        event.preventDefault()
+        panel.focus()
+        return
+      }
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
+      if (document.activeElement === panel || !panel.contains(document.activeElement)) {
+        event.preventDefault()
+        ;(event.shiftKey ? last : first).focus()
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault()
         last.focus()
       } else if (!event.shiftKey && document.activeElement === last) {

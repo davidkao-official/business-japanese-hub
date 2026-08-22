@@ -19,6 +19,8 @@ import type { Logger } from './log.ts';
 export interface MockRoute {
   data?: unknown;
   error?: string;
+  /** Optional terminal-result sequence consumed by single/maybeSingle calls. */
+  singleData?: unknown[];
 }
 
 export interface RecordedCall {
@@ -36,7 +38,11 @@ export interface MockDb {
 }
 
 export function createMockDb(initial?: Record<string, MockRoute>): MockDb {
-  const routes: Record<string, MockRoute> = { ...(initial ?? {}) };
+  const routes: Record<string, MockRoute> = {
+    'rpc:record_scheduled_job_started': { data: '80000000-0000-0000-0000-000000000001' },
+    'rpc:record_scheduled_job_result': { data: true },
+    ...(initial ?? {}),
+  };
   const calls: RecordedCall[] = [];
 
   const record = (table: string, method: string, args: unknown[]): void => {
@@ -53,7 +59,9 @@ export function createMockDb(initial?: Record<string, MockRoute>): MockDb {
   const singleResult = (table: string) => {
     const route = routes[table];
     if (route?.error) return { data: null, error: makeError(route.error) };
-    const raw = route?.data ?? null;
+    const raw = route?.singleData && route.singleData.length > 0
+      ? route.singleData.shift()
+      : (route?.data ?? null);
     const data = Array.isArray(raw) ? (raw[0] ?? null) : raw;
     return { data, error: null };
   };
@@ -189,6 +197,7 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
   return {
     supabaseUrl: 'https://test.supabase.co',
     supabaseServiceRoleKey: 'test-service-role-key',
+    deploymentEnv: 'staging',
     ecpayMerchantId: '2000132',
     ecpayHashKey: 'test-hash-key',
     ecpayHashIV: 'test-hash-iv',

@@ -15,4 +15,14 @@ describe('ECPay provider-scoped configuration', () => {
       EcpayConfigurationUnavailableError,
     );
   });
+
+  it('rejects stage credentials in production and any unresolved deployment identity', () => {
+    expect(isEcpayConfigured(testEnv({ deploymentEnv: 'production', ecpayEnv: 'stage' }))).toBe(false);
+    expect(isEcpayConfigured(testEnv({ deploymentEnv: undefined, ecpayEnv: 'prod' }))).toBe(false);
+  });
+
+  it('accepts only a provider environment aligned with the deployment', () => {
+    expect(isEcpayConfigured(testEnv({ deploymentEnv: 'production', ecpayEnv: 'prod' }))).toBe(true);
+    expect(isEcpayConfigured(testEnv({ deploymentEnv: 'staging', ecpayEnv: 'stage' }))).toBe(true);
+  });
 });

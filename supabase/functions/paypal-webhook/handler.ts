@@ -40,14 +40,20 @@ import {
   type HandlerRequest,
   type HandlerResult,
 } from '../_shared/http.ts';
-import { buildPaymentEventRow } from '../_shared/events.ts';
+import {
+  buildPaymentEventRow,
+  completePaymentEvent,
+  type PaymentEventProcessingResult,
+} from '../_shared/events.ts';
 import { isPaypalConfigured } from '../_shared/paypal.ts';
 import {
   applyPaymentEvent,
   applyVerifiedSuccess,
   confirmProviderRefund,
+  loadRefundForPayment,
   loadPaymentByMerchantRef,
   type PaymentRow,
+  type RefundRow,
 } from '../_shared/flow.ts';
 
 export interface PaypalWebhookHandlerDeps {
@@ -140,7 +146,7 @@ export async function handlePaypalWebhook(
         { merchantReference: event.providerMerchantRef },
         'webhook for unknown custom_id; no entitlement, not acknowledged as processed',
       );
-      return notFound('unknown custom id');
+      return finishEvent(deps, event, null, 'unknown_reference', notFound('unknown custom id'), now);
     }
     payment = found;
   } catch (err) {
@@ -148,10 +154,130 @@ export async function handlePaypalWebhook(
       { error: err instanceof Error ? err.message : String(err) },
       'payment lookup failed; NOT acknowledging',
     );
-    return jsonResult(500, { error: 'payment lookup failed' });
+    return finishEvent(
+      deps,
+      event,
+      null,
+      'processing_error',
+      jsonResult(500, { error: 'payment lookup failed' }),
+      now,
+    );
   }
 
   const localAmount: Money = { amount: Number(payment.amount_minor), currency: payment.currency };
+
+  // Asynchronous PayPal refund lifecycle events are not payment-status events.
+  // Correlate them to the one existing full-refund fact, persist the provider
+  // identity/status with a single CAS, and never revoke access unless a later
+  // authoritative COMPLETED event reaches the finalizer below.
+  if (event.refundStatus === 'pending' || event.refundStatus === 'failed') {
+    let refund: RefundRow | null;
+    try {
+      refund = await loadRefundForPayment(deps.db, payment.id);
+    } catch (err) {
+      return finishEvent(
+        deps,
+        event,
+        payment.id,
+        'processing_error',
+        persistenceFailure(deps, err),
+        now,
+      );
+    }
+    const eventAmountMatches = event.amount === undefined ||
+      (event.amount.amount === localAmount.amount && event.amount.currency === localAmount.currency);
+    const checkoutReferenceMatches =
+      !payment.provider_checkout_ref || event.providerPaymentRef === payment.provider_checkout_ref;
+    if (
+      !eventAmountMatches ||
+      !checkoutReferenceMatches ||
+      refund === null ||
+      refund.provider !== 'paypal' ||
+      Number(refund.amount_minor) !== localAmount.amount ||
+      refund.currency !== localAmount.currency ||
+      !event.providerRefundRef ||
+      (!!refund.provider_refund_ref && refund.provider_refund_ref !== event.providerRefundRef)
+    ) {
+      deps.log.warn(
+        {
+          paymentId: payment.id,
+          merchantReference: event.providerMerchantRef,
+          eventAmountMatches,
+          checkoutReferenceMatches,
+          refundMatches: refund !== null &&
+            refund.provider === 'paypal' &&
+            Number(refund.amount_minor) === localAmount.amount &&
+            refund.currency === localAmount.currency &&
+            !!event.providerRefundRef &&
+            (!refund.provider_refund_ref || refund.provider_refund_ref === event.providerRefundRef),
+        },
+        'asynchronous refund evidence does not match a local full-refund request',
+      );
+      const { error } = await deps.db
+        .from('payments')
+        .update({
+          reconciliation_status: 'mismatch',
+          provider_status_code: event.rawStatusCode ?? null,
+          provider_status_message: 'refund lifecycle evidence mismatch; finance review required',
+          last_verified_at: now().toISOString(),
+        })
+        .eq('id', payment.id);
+      if (error) {
+        return finishEvent(
+          deps,
+          event,
+          payment.id,
+          'processing_error',
+          persistenceFailure(deps, new Error(`refund lifecycle mismatch persist failed: ${error.message}`)),
+          now,
+        );
+      }
+      return finishEvent(deps, event, payment.id, 'refund_mismatch', textResult(200, 'OK'), now);
+    }
+
+    // A terminal local result is strongest. Late/out-of-order lifecycle events
+    // never downgrade succeeded or failed Refund facts.
+    if (refund.status === 'succeeded') {
+      return finishEvent(deps, event, payment.id, 'refund_succeeded', textResult(200, 'OK'), now);
+    }
+    if (refund.status === 'failed') {
+      return finishEvent(deps, event, payment.id, 'refund_failed', textResult(200, 'OK'), now);
+    }
+
+    const targetStatus = event.refundStatus === 'failed' ? 'failed' : 'processing';
+    const transition = await deps.db
+      .from('refunds')
+      .update({
+        status: targetStatus,
+        provider_refund_ref: event.providerRefundRef,
+        provider_status_code: event.rawStatusCode ?? null,
+      })
+      .eq('id', refund.id)
+      .in('status', ['requested', 'processing'])
+      .select('id')
+      .maybeSingle();
+    if (transition.error || !transition.data) {
+      return finishEvent(
+        deps,
+        event,
+        payment.id,
+        'processing_error',
+        persistenceFailure(
+          deps,
+          new Error(`refund lifecycle transition failed: ${transition.error?.message ?? 'concurrent update'}`),
+        ),
+        now,
+      );
+    }
+    return finishEvent(
+      deps,
+      event,
+      payment.id,
+      event.refundStatus === 'failed' ? 'refund_failed' : 'refund_pending',
+      textResult(200, 'OK'),
+      now,
+    );
+  }
 
   // 4. A verified provider refund/reversal is authoritative refund evidence.
   // Record the refund fact and derived payment/order/entitlement transitions in
@@ -161,13 +287,20 @@ export async function handlePaypalWebhook(
       event.amount?.amount === localAmount.amount && event.amount.currency === localAmount.currency;
     const checkoutReferenceMatches =
       !payment.provider_checkout_ref || event.providerPaymentRef === payment.provider_checkout_ref;
-    if (!event.providerRefundRef || !fullAmountMatches || !checkoutReferenceMatches) {
+    const captureEvidenceMatches = event.refundEvidence === 'capture' &&
+      !!event.providerCaptureRef &&
+      !!payment.provider_payment_ref &&
+      event.providerCaptureRef === payment.provider_payment_ref;
+    const refundResourceMatches = event.refundEvidence !== 'capture' && !!event.providerRefundRef;
+    const providerEvidenceMatches = captureEvidenceMatches || refundResourceMatches;
+    if (!providerEvidenceMatches || !fullAmountMatches || !checkoutReferenceMatches) {
       deps.log.warn(
         {
           paymentId: payment.id,
           merchantReference: event.providerMerchantRef,
           fullAmountMatches,
           checkoutReferenceMatches,
+          providerEvidenceMatches,
         },
         'provider refund evidence does not match the full local payment; finance review required',
       );
@@ -180,14 +313,23 @@ export async function handlePaypalWebhook(
           last_verified_at: now().toISOString(),
         })
         .eq('id', payment.id);
-      if (error) return persistenceFailure(deps, new Error(`refund mismatch persist failed: ${error.message}`));
-      return textResult(200, 'OK');
+      if (error) {
+        return finishEvent(
+          deps,
+          event,
+          payment.id,
+          'processing_error',
+          persistenceFailure(deps, new Error(`refund mismatch persist failed: ${error.message}`)),
+          now,
+        );
+      }
+      return finishEvent(deps, event, payment.id, 'refund_mismatch', textResult(200, 'OK'), now);
     }
     try {
       const result = await confirmProviderRefund(
         { db: deps.db, log: deps.log, now },
         payment.id,
-        event.providerRefundRef,
+        event.refundEvidence === 'capture' ? undefined : event.providerRefundRef,
         event.rawStatusCode,
       );
       deps.log.info(
@@ -199,9 +341,16 @@ export async function handlePaypalWebhook(
         },
         'provider-confirmed refund applied from webhook',
       );
-      return textResult(200, 'OK');
+      return finishEvent(deps, event, payment.id, 'refund_succeeded', textResult(200, 'OK'), now);
     } catch (err) {
-      return persistenceFailure(deps, err);
+      return finishEvent(
+        deps,
+        event,
+        payment.id,
+        'processing_error',
+        persistenceFailure(deps, err),
+        now,
+      );
     }
   }
 
@@ -211,7 +360,9 @@ export async function handlePaypalWebhook(
     return persistAndAck(
       deps,
       payment,
+      event,
       { type: 'payment_failed', merchantReference: event.providerMerchantRef, rawStatusCode: event.rawStatusCode },
+      'failed',
       now,
       'payment failed per webhook',
     );
@@ -228,7 +379,14 @@ export async function handlePaypalWebhook(
       { error: err instanceof Error ? err.message : String(err) },
       'confirmPayment failed; NOT acknowledging',
     );
-    return jsonResult(500, { error: 'provider confirmation failed' });
+    return finishEvent(
+      deps,
+      event,
+      payment.id,
+      'processing_error',
+      jsonResult(500, { error: 'provider confirmation failed' }),
+      now,
+    );
   }
 
   if (snapshot.status !== 'succeeded') {
@@ -237,7 +395,9 @@ export async function handlePaypalWebhook(
     return persistAndAck(
       deps,
       payment,
+      event,
       { type: 'verification_pending', merchantReference: event.providerMerchantRef },
+      'verification_pending',
       now,
       `provider confirmation ambiguous (${snapshot.rawStatusCode ?? snapshot.status})`,
     );
@@ -253,7 +413,9 @@ export async function handlePaypalWebhook(
     return persistAndAck(
       deps,
       payment,
+      event,
       { type: 'verification_pending', merchantReference: event.providerMerchantRef },
+      'verification_pending',
       now,
       'success predicate failed',
     );
@@ -281,9 +443,16 @@ export async function handlePaypalWebhook(
       },
       'verified payment success',
     );
-    return textResult(200, 'OK');
+    return finishEvent(deps, event, payment.id, 'succeeded', textResult(200, 'OK'), now);
   } catch (err) {
-    return persistenceFailure(deps, err);
+    return finishEvent(
+      deps,
+      event,
+      payment.id,
+      'processing_error',
+      persistenceFailure(deps, err),
+      now,
+    );
   }
 }
 
@@ -291,19 +460,49 @@ export async function handlePaypalWebhook(
 async function persistAndAck(
   deps: PaypalWebhookHandlerDeps,
   payment: PaymentRow,
-  event: PaymentDomainEvent,
+  providerEvent: VerifiedProviderEvent,
+  domainEvent: PaymentDomainEvent,
+  result: PaymentEventProcessingResult,
   now: () => Date,
   note: string,
 ): Promise<HandlerResult> {
   try {
-    const status = await applyPaymentEvent({ db: deps.db, log: deps.log, now }, payment, event);
+    const status = await applyPaymentEvent({ db: deps.db, log: deps.log, now }, payment, domainEvent);
     deps.log.info(
-      { paymentId: payment.id, merchantReference: event.merchantReference, status, note },
+      { paymentId: payment.id, merchantReference: domainEvent.merchantReference, status, note },
       'webhook normalized state persisted',
     );
-    return textResult(200, 'OK');
+    return finishEvent(deps, providerEvent, payment.id, result, textResult(200, 'OK'), now);
   } catch (err) {
-    return persistenceFailure(deps, err);
+    return finishEvent(
+      deps,
+      providerEvent,
+      payment.id,
+      'processing_error',
+      persistenceFailure(deps, err),
+      now,
+    );
+  }
+}
+
+/** Persist the receipt's correlated outcome before returning any provider ACK. */
+async function finishEvent(
+  deps: PaypalWebhookHandlerDeps,
+  event: VerifiedProviderEvent,
+  paymentId: string | null,
+  result: PaymentEventProcessingResult,
+  response: HandlerResult,
+  now: () => Date,
+): Promise<HandlerResult> {
+  try {
+    await completePaymentEvent(deps.db, event, paymentId, result, now().toISOString());
+    return response;
+  } catch (err) {
+    deps.log.error(
+      { error: err instanceof Error ? err.message : String(err), paymentId, result },
+      'payment event outcome persist failed; NOT acknowledging',
+    );
+    return jsonResult(500, { error: 'event outcome persist failed' });
   }
 }
 

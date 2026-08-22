@@ -200,6 +200,20 @@ describe('PaypalPaymentProviderAdapter.createCheckout', () => {  it('creates a C
     expect(requests.filter((request) => request.method === 'POST' && request.url.endsWith('/v2/checkout/orders'))).toHaveLength(0);
   });
 
+  it('refuses an approval redirect outside the configured PayPal origin', async () => {
+    const maliciousOrder = {
+      ...JSON.parse(CREATE_ORDER_BODY),
+      links: [{ href: 'https://paypal.example.evil/checkout?token=ORDER-1', rel: 'approve', method: 'GET' }],
+    };
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v2/checkout/orders', 201, maliciousOrder),
+    ]);
+    const adapter = makeAdapter({ transport });
+
+    await expect(adapter.createCheckout(makeCheckoutInput())).rejects.toThrow(/untrusted approval link/);
+  });
+
   it('fails closed when a persisted PayPal Order does not exactly match the local attempt', async () => {
     const mismatchedOrder = {
       ...JSON.parse(CREATE_ORDER_BODY),
@@ -422,7 +436,9 @@ describe('PaypalPaymentProviderAdapter.verifyCallback', () => {
     expect(event.providerMerchantRef).toBe('BJH202608160001');
     expect(event.providerPaymentRef).toBe('ORDER-1'); // order id, NEVER the capture id
     expect(event.status).toBe('refunded');
-    expect(event.providerRefundRef).toBe('CAPTURE-1');
+    expect(event.providerRefundRef).toBeUndefined();
+    expect(event.providerCaptureRef).toBe('CAPTURE-1');
+    expect(event.refundEvidence).toBe('capture');
   });
 
   it('B6: correlates a CAPTURE.REFUNDED event without related_ids via its HATEOAS up link', async () => {
@@ -447,25 +463,28 @@ describe('PaypalPaymentProviderAdapter.verifyCallback', () => {
     expect(event.providerMerchantRef).toBe('BJH202608160001');
     expect(event.providerPaymentRef).toBe('ORDER-1');
     expect(event.status).toBe('refunded');
-    expect(event.providerRefundRef).toBe('CAPTURE-1');
+    expect(event.providerRefundRef).toBeUndefined();
+    expect(event.providerCaptureRef).toBe('CAPTURE-1');
+    expect(event.refundEvidence).toBe('capture');
   });
 
-  it('B6: resolves a PAYMENT.REFUND.* event (refund resource) via parent capture → order, and never uses the refund id as an order id', async () => {
+  it.each([
+    ['PAYMENT.REFUND.PENDING', 'PENDING', 'pending'],
+    ['PAYMENT.REFUND.FAILED', 'FAILED', 'failed'],
+  ] as const)('preserves %s as refund lifecycle evidence', async (eventType, resourceStatus, refundStatus) => {
     const rawBody = JSON.stringify({
-      id: 'WEBHOOK-R3',
-      event_type: 'PAYMENT.REFUND.COMPLETED',
+      id: `WEBHOOK-${resourceStatus}`,
+      event_type: eventType,
       resource: {
         id: 'REFUND-1',
-        status: 'COMPLETED',
+        status: resourceStatus,
         amount: { currency_code: 'USD', value: '19.99' },
-        // No custom_id, no related_ids — only the up link to the parent capture.
         links: [{ href: `${SANDBOX_API}/v2/payments/captures/CAPTURE-1`, rel: 'up', method: 'GET' }],
       },
     });
     const captureBody = JSON.stringify({
       id: 'CAPTURE-1',
-      status: 'REFUNDED',
-      amount: { currency_code: 'USD', value: '19.99' },
+      status: 'COMPLETED',
       links: [{ href: `${SANDBOX_API}/v2/checkout/orders/ORDER-1`, rel: 'up', method: 'GET' }],
     });
     const orderBody = JSON.stringify({
@@ -481,17 +500,20 @@ describe('PaypalPaymentProviderAdapter.verifyCallback', () => {
     ]);
     const adapter = makeAdapter({ transport });
     const event = await adapter.verifyCallback({ provider: 'paypal', body: rawBody, headers: webhookHeaders() });
-    expect(event.providerMerchantRef).toBe('BJH202608160001'); // from the order purchase unit
-    expect(event.providerPaymentRef).toBe('ORDER-1'); // real order id, never 'REFUND-1'
-    expect(event.status).toBe('refunded');
+
+    expect(event.status).toBe('unknown');
+    expect(event.refundStatus).toBe(refundStatus);
     expect(event.providerRefundRef).toBe('REFUND-1');
+    expect(event.refundEvidence).toBe('refund');
+    expect(event.providerPaymentRef).toBe('ORDER-1');
+    expect(event.providerMerchantRef).toBe('BJH202608160001');
   });
 
   it('B6: fails closed when a refund event chain cannot resolve an order id', async () => {
     const rawBody = JSON.stringify({
       id: 'WEBHOOK-R4',
-      event_type: 'PAYMENT.REFUND.COMPLETED',
-      resource: { id: 'REFUND-1', status: 'COMPLETED' }, // no links, no related order
+      event_type: 'PAYMENT.REFUND.PENDING',
+      resource: { id: 'REFUND-1', status: 'PENDING' }, // no links, no related order
     });
     const { transport } = fakeTransport([
       jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
@@ -624,6 +646,59 @@ describe('PaypalPaymentProviderAdapter.refund / reconcile', () => {
     expect(result).toEqual({ ok: true, status: 'pending', providerRefundRef: 'REFUND-1', rawStatusCode: 'PENDING' });
   });
 
+  it('treats malformed 2xx refund evidence as ambiguous after dispatch', async () => {
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      { match: '/v2/payments/captures/CAPTURE-1/refund', status: 201, body: '{not-json' },
+    ]);
+    const adapter = makeAdapter({ transport });
+    const result = await adapter.refund({
+      paymentId: 'pay-1',
+      providerPaymentRef: 'CAPTURE-1',
+      amount: { amount: 1999, currency: 'USD' },
+      merchantReference: 'BJH202608160001',
+    });
+    expect(result).toEqual({ ok: true, status: 'pending', rawStatusCode: 'BAD_RESPONSE' });
+  });
+
+  it.each([
+    ['a null body', null],
+    ['a completed body without a refund id', { status: 'COMPLETED' }],
+  ])('treats %s as ambiguous 2xx refund evidence', async (_label, body) => {
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v2/payments/captures/CAPTURE-1/refund', 201, body),
+    ]);
+    const adapter = makeAdapter({ transport });
+    const result = await adapter.refund({
+      paymentId: 'pay-1',
+      providerPaymentRef: 'CAPTURE-1',
+      amount: { amount: 1999, currency: 'USD' },
+      merchantReference: 'BJH202608160001',
+    });
+    expect(result).toEqual({ ok: true, status: 'pending', rawStatusCode: 'BAD_RESPONSE' });
+  });
+
+  it('treats an unrecognized 2xx refund status as ambiguous after dispatch', async () => {
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 200, JSON.parse(OAUTH_BODY)),
+      jsonRoute('/v2/payments/captures/CAPTURE-1/refund', 201, { id: 'REFUND-1', status: 'QUEUED' }),
+    ]);
+    const adapter = makeAdapter({ transport });
+    const result = await adapter.refund({
+      paymentId: 'pay-1',
+      providerPaymentRef: 'CAPTURE-1',
+      amount: { amount: 1999, currency: 'USD' },
+      merchantReference: 'BJH202608160001',
+    });
+    expect(result).toEqual({
+      ok: true,
+      status: 'pending',
+      providerRefundRef: 'REFUND-1',
+      rawStatusCode: 'QUEUED',
+    });
+  });
+
   it('throws UnsupportedCurrencyForProvider for a non-USD refund', async () => {
     const adapter = makeAdapter();
     await expect(
@@ -648,6 +723,20 @@ describe('PaypalPaymentProviderAdapter.refund / reconcile', () => {
       merchantReference: 'BJH202608160001',
     });
     expect(result).toEqual({ ok: true, status: 'pending', rawStatusCode: 'TRANSPORT_UNAVAILABLE' });
+  });
+
+  it('keeps a refund requested when OAuth is temporarily unavailable before dispatch', async () => {
+    const { transport } = fakeTransport([
+      jsonRoute('/v1/oauth2/token', 503, { error: 'temporarily_unavailable' }),
+    ]);
+    const adapter = makeAdapter({ transport });
+    const result = await adapter.refund({
+      paymentId: 'pay-1',
+      providerPaymentRef: 'CAPTURE-1',
+      amount: { amount: 1999, currency: 'USD' },
+      merchantReference: 'BJH202608160001',
+    });
+    expect(result).toEqual({ ok: true, status: 'pending', rawStatusCode: 'OAUTH_FAILED' });
   });
 
   it('B3: an ambiguous HTTP 5xx refund response is recoverable (pending, not failed)', async () => {
@@ -794,12 +883,16 @@ describe('pure helpers', () => {
   it('usdMajorFromCanonical converts minor units to a 2-decimal major string', () => {
     expect(usdMajorFromCanonical({ amount: 1999, currency: 'USD' })).toBe('19.99');
     expect(usdMajorFromCanonical({ amount: 79000, currency: 'USD' })).toBe('790.00');
+    expect(usdMajorFromCanonical({ amount: 9007199254740901, currency: 'USD' })).toBe('90071992547409.01');
+    expect(() => usdMajorFromCanonical({ amount: 1999, currency: 'TWD' })).toThrow(/positive USD/);
   });
 
   it('paypalMoneyFromString converts a decimal major string to canonical minor units', () => {
     expect(paypalMoneyFromString('19.99', 'USD')).toEqual({ amount: 1999, currency: 'USD' });
     expect(paypalMoneyFromString('0.99', 'USD')).toEqual({ amount: 99, currency: 'USD' });
     expect(() => paypalMoneyFromString('19.99', 'TWD')).toThrow(/non-negative USD decimal/);
+    expect(() => paypalMoneyFromString('1.001', 'USD')).toThrow(/non-negative USD decimal/);
+    expect(() => paypalMoneyFromString('1e2', 'USD')).toThrow(/non-negative USD decimal/);
   });
 
   it('sanitizePaypalEvent allowlists financial/status fields only', () => {
@@ -813,5 +906,6 @@ describe('pure helpers', () => {
       resource_amount: { currency_code: 'USD', value: '19.99' },
     });
     expect(sanitized.resource_status).toBe('COMPLETED');
+    expect(sanitized).not.toHaveProperty('summary');
   });
 });

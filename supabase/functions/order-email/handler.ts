@@ -61,6 +61,19 @@ export async function handleOrderEmail(
     deps.log.warn({}, 'order-email rejected: invalid scheduled-job secret');
     return unauthorized('invalid scheduled job secret');
   }
+
+  const { data: runId, error: startHeartbeatError } = await deps.db.rpc('record_scheduled_job_started', {
+    p_job_name: 'email',
+  });
+  if (startHeartbeatError || typeof runId !== 'string' || !/^[0-9a-f-]{36}$/i.test(runId)) {
+    deps.log.error(
+      { error: startHeartbeatError?.message ?? 'missing run id' },
+      'order-email start heartbeat failed',
+    );
+    return jsonResult(500, { error: 'scheduled-job health persistence failed' });
+  }
+
+  const runResult = await (async (): Promise<HandlerResult> => {
   if (!isOrderEmailConfigured(deps.env)) {
     deps.log.error({}, 'order-email disabled: incomplete provider configuration');
     return jsonResult(503, { error: 'transactional email is not configured' });
@@ -88,6 +101,23 @@ export async function handleOrderEmail(
 
   deps.log.info({ ...counts }, 'order-email run');
   return jsonResult(200, counts);
+  })();
+
+  const succeeded = runResult.status >= 200 && runResult.status < 300;
+  const { data: resultRecorded, error: resultHeartbeatError } = await deps.db.rpc('record_scheduled_job_result', {
+    p_job_name: 'email',
+    p_run_id: runId,
+    p_succeeded: succeeded,
+    p_error_code: succeeded ? null : `worker_http_${runResult.status}`,
+  });
+  if (resultHeartbeatError) {
+    deps.log.error({ error: resultHeartbeatError.message }, 'order-email result heartbeat failed');
+    return jsonResult(500, { error: 'scheduled-job health persistence failed' });
+  }
+  if ((resultRecorded as unknown) !== true) {
+    deps.log.info({}, 'order-email result superseded by a newer overlapping run');
+  }
+  return runResult;
 }
 
 async function processJob(

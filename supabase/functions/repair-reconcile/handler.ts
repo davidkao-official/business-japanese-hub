@@ -42,6 +42,7 @@ import {
   loadPaymentByMerchantRef,
   loadPaymentByProviderPaymentRef,
   loadRequestedRefundForPayment,
+  persistOpenRefundObservation,
   type PaymentRow,
   type RefundRow,
 } from '../_shared/flow.ts';
@@ -109,7 +110,27 @@ export async function handleRepairReconcile(
   if (!mode) return jsonResult(400, { error: 'invalid scheduled-job mode' });
   const shouldRepair = mode === 'all' || mode === 'repair';
   const shouldReconcile = mode === 'all' || mode === 'reconcile';
+  const jobNames: Array<'repair' | 'reconcile'> = [
+    ...(shouldRepair ? ['repair' as const] : []),
+    ...(shouldReconcile ? ['reconcile' as const] : []),
+  ];
+  const runIds = new Map<'repair' | 'reconcile', string>();
 
+  for (const jobName of jobNames) {
+    const { data, error } = await deps.db.rpc('record_scheduled_job_started', {
+      p_job_name: jobName,
+    });
+    if (error || typeof data !== 'string' || !/^[0-9a-f-]{36}$/i.test(data)) {
+      deps.log.error(
+        { jobName, error: error?.message ?? 'missing run id' },
+        'scheduled-job start heartbeat failed',
+      );
+      return jsonResult(500, { error: 'scheduled-job health persistence failed' });
+    }
+    runIds.set(jobName, data);
+  }
+
+  const runResult = await (async (): Promise<HandlerResult> => {
   let layerB: LayerBResult = { scanned: 0, repaired: 0, granted: 0, stillUnknown: 0 };
   if (shouldRepair) {
     try {
@@ -157,16 +178,20 @@ export async function handleRepairReconcile(
   // Resume ambiguous PayPal refunds (requested/processing) with the same stable
   // PayPal-Request-Id so provider idempotency returns the current result (§21/B3).
   let refundResume: RefundResumeResult = { scanned: 0, resumed: 0, confirmed: 0 };
+  let refundResumeFailed = false;
   if (shouldRepair) {
     try {
       refundResume = await runRefundResume(deps, now);
     } catch (err) {
       deps.log.error({ error: err instanceof Error ? err.message : String(err) }, 'refund resume failed');
+      refundResumeFailed = true;
     }
   }
 
   deps.log.info({ layerB, layerC, refundResume }, 'repair-reconcile run');
-  return jsonResult(200, {
+  const workerFailed = refundResumeFailed ||
+    (shouldReconcile && (reconciliationFailed || layerC.skipped));
+  return jsonResult(workerFailed ? 500 : 200, {
     repaired: layerB.repaired,
     granted: layerB.granted,
     stillUnknown: layerB.stillUnknown,
@@ -174,7 +199,27 @@ export async function handleRepairReconcile(
     refunds_resumed: refundResume.resumed,
     refunds_confirmed: refundResume.confirmed,
     reconciliation: layerC,
+    ...(workerFailed ? { error: 'scheduled work incomplete' } : {}),
   });
+  })();
+
+  const succeeded = runResult.status >= 200 && runResult.status < 300;
+  for (const jobName of jobNames) {
+    const { data, error } = await deps.db.rpc('record_scheduled_job_result', {
+      p_job_name: jobName,
+      p_run_id: runIds.get(jobName),
+      p_succeeded: succeeded,
+      p_error_code: succeeded ? null : `worker_http_${runResult.status}`,
+    });
+    if (error) {
+      deps.log.error({ jobName, error: error.message }, 'scheduled-job result heartbeat failed');
+      return jsonResult(500, { error: 'scheduled-job health persistence failed' });
+    }
+    if ((data as unknown) !== true) {
+      deps.log.info({ jobName }, 'scheduled-job result superseded by a newer overlapping run');
+    }
+  }
+  return runResult;
 }
 
 function scheduledMode(bodyText: string): 'repair' | 'reconcile' | 'all' | null {
@@ -237,7 +282,8 @@ async function runRefundResume(
       const { error: agedError } = await deps.db
         .from('refunds')
         .update({ provider_status_code: AGED_REFUND_REVIEW_MARKER })
-        .eq('id', refundRow.id);
+        .eq('id', refundRow.id)
+        .in('status', ['requested', 'processing']);
       if (agedError) {
         deps.log.error({ error: agedError.message }, 'refund aged marker update failed');
       }
@@ -283,28 +329,24 @@ async function runRefundResume(
     } else {
       // Persist ambiguous/non-success provider facts for the next repair pass.
       // A confirmed success is persisted inside finalize_refund_success above.
-      const { error: persistError } = await deps.db
-        .from('refunds')
-        .update({
+      const recoverablePending = refundResult.ok && refundResult.status === 'pending';
+      const definitivelyFailed = !refundResult.ok && refundResult.status === 'failed';
+      let persistedRefund: RefundRow;
+      try {
+        persistedRefund = await persistOpenRefundObservation(deps.db, refundRow.id, {
           provider_refund_ref: refundResult.providerRefundRef ?? refundRow.provider_refund_ref,
           provider_status_code: refundResult.rawStatusCode ?? refundRow.provider_status_code,
-        })
-        .eq('id', refundRow.id);
-      if (persistError) {
-        deps.log.error({ error: persistError.message }, 'refund resume: ref persist failed');
+          ...(recoverablePending && refundRow.status === 'requested' ? { status: 'processing' } : {}),
+          ...(definitivelyFailed ? { status: 'failed' } : {}),
+        });
+      } catch (err) {
+        deps.log.error(
+          { error: err instanceof Error ? err.message : String(err) },
+          'refund resume: ref persist failed',
+        );
+        continue;
       }
-    }
-
-    if (refundResult.ok && refundResult.status === 'pending' && refundRow.status === 'requested') {
-      // Still ambiguous — move to the recoverable `processing` state for the
-      // next run. Never a terminal failure (§21/B3).
-      const { error: processingError } = await deps.db
-        .from('refunds')
-        .update({ status: 'processing' })
-        .eq('id', refundRow.id);
-      if (processingError) {
-        deps.log.error({ error: processingError.message }, 'refund resume: processing update failed');
-      }
+      if (persistedRefund.status === 'succeeded') confirmed += 1;
     }
     resumed += 1;
   }
@@ -431,23 +473,66 @@ async function runLayerC(deps: RepairReconcileHandlerDeps, csv: string): Promise
     if (!payment) continue;
 
     const reconTwd = Number(entry.tradeAmt);
-    if (Number.isFinite(reconTwd) && reconTwd < 0) {
-      // A NEGATIVE amount in FundingReconDetail is a confirmed REFUND (§6/§7).
-      // Mark the matching refund row succeeded and apply the derived-state
+    const refundAmountText = entry.refundAmount.trim();
+    const refundTwd = refundAmountText === '' ? 0 : Number(refundAmountText);
+    const referencesMatch =
+      Boolean(deps.env.ecpayMerchantId) &&
+      entry.merchantId === deps.env.ecpayMerchantId &&
+      Boolean(payment.provider_payment_ref) &&
+      entry.tradeNo === payment.provider_payment_ref &&
+      entry.tradeStatus === '1';
+    const malformedRefundAmount = !Number.isFinite(refundTwd) || refundTwd > 0;
+
+    if (!referencesMatch || malformedRefundAmount) {
+      await setReconciliationStatus(deps, payment.id, 'mismatch');
+      mismatched += 1;
+      continue;
+    }
+
+    if (refundTwd < 0) {
+      // FundingReconDetail keeps the original TradeAmt positive and reports a
+      // confirmed refund as a negative RefundAMT. Fail closed unless the report
+      // proves a full refund of the authoritative local amount: partial or
+      // malformed refunds need operator review and must not revoke access.
+      const localTwd = Number(payment.amount_minor) / minorUnitFor('TWD');
+      const isConfirmedFullRefund =
+        payment.currency === 'TWD' &&
+        Number.isSafeInteger(localTwd) &&
+        Math.abs(refundTwd) === localTwd &&
+        entry.refundStatus === '1';
+      if (!isConfirmedFullRefund) {
+        await setReconciliationStatus(deps, payment.id, 'mismatch');
+        mismatched += 1;
+        continue;
+      }
+
+      // Mark the canonical refund succeeded and apply the derived-state
       // transition (primary → order refunded + entitlement revoked; duplicate →
-      // payment refunded only) via the shared confirmRefund path.
+      // payment refunded only) in the locked DB finalizer. Provider-confirmed
+      // out-of-band refunds are recorded even when no local request row exists.
       try {
         const refundRow = await loadRequestedRefundForPayment(deps.db, payment.id);
+        const providerStatusCode = entry.refundStatus || undefined;
         if (refundRow) {
           const result = await confirmRefund(
             { db: deps.db, log: deps.log, now: deps.now ?? (() => new Date()) },
             refundRow.id,
+            { providerStatusCode },
           );
           deps.log.info(
             { refundId: refundRow.id, paymentId: payment.id, entitlementRevoked: result.entitlementRevoked },
             'reconciliation discovered a confirmed refund',
           );
+        } else {
+          await confirmProviderRefund(
+            { db: deps.db, log: deps.log, now: deps.now ?? (() => new Date()) },
+            payment.id,
+            undefined,
+            providerStatusCode,
+          );
         }
+        await setReconciliationStatus(deps, payment.id, 'matched');
+        matched += 1;
       } catch (err) {
         deps.log.error(
           { paymentId: payment.id, error: err instanceof Error ? err.message : String(err) },
@@ -458,7 +543,11 @@ async function runLayerC(deps: RepairReconcileHandlerDeps, csv: string): Promise
     }
 
     const localTwd = Number(payment.amount_minor) / minorUnitFor('TWD');
-    const isMatch = Number.isFinite(reconTwd) && reconTwd === localTwd;
+    const isMatch =
+      payment.currency === 'TWD' &&
+      Number.isSafeInteger(localTwd) &&
+      Number.isFinite(reconTwd) &&
+      reconTwd === localTwd;
     const { error: updateError } = await deps.db
       .from('payments')
       .update({ reconciliation_status: isMatch ? 'matched' : 'mismatch' })
