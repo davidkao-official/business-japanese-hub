@@ -145,10 +145,12 @@ provided by the owner. Never use `supabase db reset --linked` on production.
    on conflict do nothing;
    ```
 
-   `GET /functions/v1/finance` with that user's bearer JWT returns the bounded
-   Order/Payment/Refund/Entitlement read model plus callback ledger, email
-   outbox, audit log, durable scheduler health, reconciliation counts, and
-   actionable failure counts.
+   `GET /functions/v1/finance` with that user's bearer JWT returns bounded row
+   samples for Order/Payment/Refund/Entitlement, callback, email, and audit
+   inspection. Reconciliation and actionable-failure totals are exact
+   full-ledger counts from the server-only `finance_status_counts()` RPC, so an
+   older unresolved row cannot disappear merely because it falls outside a
+   display sample. Durable scheduler health is returned separately.
    `finance_viewer` is read-only; only `finance_admin` can request a refund.
    There is no operator action that can declare a refund successful without
    provider evidence.

@@ -98,9 +98,49 @@ interface ReadModelResult {
   };
 }
 
+type FinanceCounts = ReadModelResult['reconciliation'] & ReadModelResult['operations'];
+
+const FINANCE_COUNT_KEYS = [
+  'matched',
+  'mismatched',
+  'pendingVerification',
+  'succeeded',
+  'failed',
+  'unprocessedEvents',
+  'processingErrors',
+  'duplicatePayments',
+  'refundRequested',
+  'refundProcessing',
+  'refundFailed',
+  'emailPending',
+  'emailDead',
+] as const satisfies readonly (keyof FinanceCounts)[];
+
+function readFinanceCounts(value: unknown): FinanceCounts | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const result: Partial<FinanceCounts> = {};
+  for (const key of FINANCE_COUNT_KEYS) {
+    const count = record[key];
+    if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) return null;
+    result[key] = count;
+  }
+  return result as FinanceCounts;
+}
+
 async function buildFinanceReadModel(deps: FinanceHandlerDeps): Promise<HandlerResult> {
   const now = deps.now ?? (() => new Date());
-  const [orders, payments, refunds, entitlements, paymentEvents, emailOutbox, auditLog, scheduledJobHealth] = await Promise.all([
+  const [
+    orders,
+    payments,
+    refunds,
+    entitlements,
+    paymentEvents,
+    emailOutbox,
+    auditLog,
+    scheduledJobHealth,
+    countResult,
+  ] = await Promise.all([
     deps.db.from('orders').select('*').order('created_at', { ascending: false }).limit(200),
     deps.db.from('payments').select('*').order('created_at', { ascending: false }).limit(500),
     deps.db.from('refunds').select('*').order('requested_at', { ascending: false }).limit(200),
@@ -109,6 +149,7 @@ async function buildFinanceReadModel(deps: FinanceHandlerDeps): Promise<HandlerR
     deps.db.from('order_email_outbox').select('*').order('created_at', { ascending: false }).limit(200),
     deps.db.from('admin_audit_log').select('*').order('created_at', { ascending: false }).limit(500),
     deps.db.from('scheduled_job_health').select('*').order('job_name', { ascending: true }),
+    deps.db.rpc('finance_status_counts', {}),
   ]);
   for (const [name, res] of [
     ['orders', orders],
@@ -119,6 +160,7 @@ async function buildFinanceReadModel(deps: FinanceHandlerDeps): Promise<HandlerR
     ['email outbox', emailOutbox],
     ['audit log', auditLog],
     ['scheduled job health', scheduledJobHealth],
+    ['finance status counts', countResult],
   ] as const) {
     if (res.error) {
       deps.log.error({ error: res.error.message }, `${name} read failed`);
@@ -129,6 +171,11 @@ async function buildFinanceReadModel(deps: FinanceHandlerDeps): Promise<HandlerR
   const refundsData = (refunds.data ?? []) as Array<Record<string, unknown>>;
   const paymentEventsData = (paymentEvents.data ?? []) as Array<Record<string, unknown>>;
   const emailOutboxData = (emailOutbox.data ?? []) as Array<Record<string, unknown>>;
+  const counts = readFinanceCounts(countResult.data);
+  if (!counts) {
+    deps.log.error({}, 'finance status counts returned invalid data');
+    return jsonResult(502, { error: 'finance status counts read failed' });
+  }
   const model: ReadModelResult = {
     generatedAt: now().toISOString(),
     orders: (orders.data ?? []) as unknown[],
@@ -139,44 +186,25 @@ async function buildFinanceReadModel(deps: FinanceHandlerDeps): Promise<HandlerR
     emailOutbox: emailOutboxData,
     auditLog: (auditLog.data ?? []) as unknown[],
     scheduledJobHealth: (scheduledJobHealth.data ?? []) as unknown[],
-    reconciliation: summarizeReconciliation(paymentsData),
-    operations: summarizeOperations(paymentsData, refundsData, paymentEventsData, emailOutboxData),
+    reconciliation: {
+      matched: counts.matched,
+      mismatched: counts.mismatched,
+      pendingVerification: counts.pendingVerification,
+      succeeded: counts.succeeded,
+      failed: counts.failed,
+    },
+    operations: {
+      unprocessedEvents: counts.unprocessedEvents,
+      processingErrors: counts.processingErrors,
+      duplicatePayments: counts.duplicatePayments,
+      refundRequested: counts.refundRequested,
+      refundProcessing: counts.refundProcessing,
+      refundFailed: counts.refundFailed,
+      emailPending: counts.emailPending,
+      emailDead: counts.emailDead,
+    },
   };
   return jsonResult(200, model);
-}
-
-function summarizeOperations(
-  payments: Array<Record<string, unknown>>,
-  refunds: Array<Record<string, unknown>>,
-  paymentEvents: Array<Record<string, unknown>>,
-  emailOutbox: Array<Record<string, unknown>>,
-): ReadModelResult['operations'] {
-  return {
-    unprocessedEvents: paymentEvents.filter((event) => event.processing_result == null).length,
-    processingErrors: paymentEvents.filter((event) => event.processing_result === 'processing_error').length,
-    duplicatePayments: payments.filter((payment) => payment.status === 'duplicate_success').length,
-    refundRequested: refunds.filter((refund) => refund.status === 'requested').length,
-    refundProcessing: refunds.filter((refund) => refund.status === 'processing').length,
-    refundFailed: refunds.filter((refund) => refund.status === 'failed').length,
-    emailPending: emailOutbox.filter((email) => email.status === 'pending' || email.status === 'retry').length,
-    emailDead: emailOutbox.filter((email) => email.status === 'dead').length,
-  };
-}
-
-function summarizeReconciliation(payments: Array<Record<string, unknown>>): ReadModelResult['reconciliation'] {
-  let matched = 0;
-  let mismatched = 0;
-  let pendingVerification = 0;
-  let succeeded = 0;
-  let failed = 0;
-  for (const p of payments) {
-    if (p?.reconciliation_status === 'matched') matched += 1;
-    if (p?.reconciliation_status === 'mismatch') mismatched += 1;
-    if (p?.status === 'verification_pending') pendingVerification += 1;
-    if (p?.status === 'succeeded') succeeded += 1;
-    if (p?.status === 'failed') failed += 1;
-  }
-  return { matched, mismatched, pendingVerification, succeeded, failed };
 }
 
 /* ------------------------------------------------------------------------- *

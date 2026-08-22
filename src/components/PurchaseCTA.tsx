@@ -72,6 +72,7 @@ export function PurchaseCTA({
   const jpDisclosureInfo = jurisdiction === 'JP' ? jpConsentInfo() : null
 
   const [phase, setPhase] = useState<Phase>('idle')
+  const [ownedForUserId, setOwnedForUserId] = useState<string | null>(null)
   const [consentChecked, setConsentChecked] = useState(false)
   const [attempted, setAttempted] = useState(false)
   // In-flight latch: React batches state updates, so a `phase` guard can observe
@@ -87,17 +88,21 @@ export function PurchaseCTA({
   // it never silently rebuilds compliance evidence from potentially changed
   // copy or locale state.
   const pendingConsent = useRef<ConsentSubmission | null>(null)
+  // Scope `already_owned` to the identity that received it. Deriving this
+  // avoids an effect-driven reset (and renders the purchase action immediately
+  // when auth changes) while preserving the recovery link for the same user.
+  const ownedForCurrentUser = phase === 'owned' && ownedForUserId === (user?.id ?? null)
 
   useEffect(() => {
     if (phase === 'jurisdiction' || phase === 'consent' || phase === 'jp-disclosure') {
       stepRef.current?.focus()
-    } else if (phase === 'owned') {
+    } else if (ownedForCurrentUser) {
       ownedLinkRef.current?.focus()
     } else if (phase === 'idle' && restoreTrigger.current) {
       restoreTrigger.current = false
       triggerRef.current?.focus()
     }
-  }, [phase])
+  }, [phase, ownedForCurrentUser])
 
   const beginPurchase = async (consent: ConsentSubmission | null) => {
     if (inFlight.current) return
@@ -117,6 +122,7 @@ export function PurchaseCTA({
       }
       if (!result.ok && result.reason === 'already_owned') {
         pendingConsent.current = null
+        setOwnedForUserId(user?.id ?? null)
         setPhase('owned')
         return
       }
@@ -240,7 +246,7 @@ export function PurchaseCTA({
     phase !== 'jurisdiction' &&
     phase !== 'consent' &&
     phase !== 'jp-disclosure' &&
-    phase !== 'owned'
+    !ownedForCurrentUser
 
   return (
     <div className={`purchase-cta${className ? ` ${className}` : ''}`}>
@@ -359,7 +365,7 @@ export function PurchaseCTA({
         </span>
       )}
 
-      {phase === 'owned' && (
+      {ownedForCurrentUser && (
         <span className="purchase-cta__note" role="status">
           {strings.book.ownedLabel}{' '}
           <Link ref={ownedLinkRef} to="/library">{strings.purchaseResult.goToLibrary}</Link>

@@ -50,6 +50,23 @@ function setup(overrides: Record<string, unknown> = {}) {
     order_email_outbox: { data: [] },
     admin_audit_log: { data: [] },
     scheduled_job_health: { data: [] },
+    'rpc:finance_status_counts': {
+      data: {
+        matched: 0,
+        mismatched: 0,
+        pendingVerification: 0,
+        succeeded: 0,
+        failed: 0,
+        unprocessedEvents: 0,
+        processingErrors: 0,
+        duplicatePayments: 0,
+        refundRequested: 0,
+        refundProcessing: 0,
+        refundFailed: 0,
+        emailPending: 0,
+        emailDead: 0,
+      },
+    },
     ...overrides,
   });
   return {
@@ -85,6 +102,23 @@ describe('finance handler', () => {
       scheduled_job_health: {
         data: [{ job_name: 'repair', last_succeeded_at: '2026-08-16T11:59:00Z' }],
       },
+      'rpc:finance_status_counts': {
+        data: {
+          matched: 501,
+          mismatched: 7,
+          pendingVerification: 3,
+          succeeded: 497,
+          failed: 11,
+          unprocessedEvents: 503,
+          processingErrors: 9,
+          duplicatePayments: 4,
+          refundRequested: 6,
+          refundProcessing: 8,
+          refundFailed: 10,
+          emailPending: 207,
+          emailDead: 12,
+        },
+      },
     });
     const result = await handleFinance(
       handlerRequest('GET', 'https://test.supabase.co/functions/v1/finance', '', bearerHeaders('jwt-1')),
@@ -100,18 +134,39 @@ describe('finance handler', () => {
     expect(body.scheduledJobHealth).toEqual([
       { job_name: 'repair', last_succeeded_at: '2026-08-16T11:59:00Z' },
     ]);
-    expect(body.reconciliation).toMatchObject({ matched: 1, mismatched: 1, succeeded: 1 });
+    // Counts come from an exact DB aggregate, not the bounded display samples.
+    expect(body.reconciliation).toEqual({
+      matched: 501,
+      mismatched: 7,
+      pendingVerification: 3,
+      succeeded: 497,
+      failed: 11,
+    });
     expect(body.operations).toEqual({
-      unprocessedEvents: 1,
-      processingErrors: 1,
-      duplicatePayments: 1,
-      refundRequested: 0,
-      refundProcessing: 1,
-      refundFailed: 1,
-      emailPending: 1,
-      emailDead: 1,
+      unprocessedEvents: 503,
+      processingErrors: 9,
+      duplicatePayments: 4,
+      refundRequested: 6,
+      refundProcessing: 8,
+      refundFailed: 10,
+      emailPending: 207,
+      emailDead: 12,
     });
     expect(typeof body.generatedAt).toBe('string');
+  });
+
+  it('fails closed when the exact-count RPC is missing or malformed', async () => {
+    const { deps } = setup({
+      'rpc:finance_status_counts': { data: { unprocessedEvents: 1 } },
+    });
+
+    const result = await handleFinance(
+      handlerRequest('GET', 'https://test.supabase.co/functions/v1/finance', '', bearerHeaders('jwt-1')),
+      deps,
+    );
+
+    expect(result.status).toBe(502);
+    expect(JSON.parse(result.body)).toEqual({ error: 'finance status counts read failed' });
   });
 
   it('non-finance user → 403', async () => {

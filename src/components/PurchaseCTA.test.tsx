@@ -288,4 +288,22 @@ describe('PurchaseCTA — consumer-jurisdiction declaration + consent flow (#25)
     expect(libraryLink).toHaveFocus()
     expect(screen.queryByText('決済は準備中です。')).not.toBeInTheDocument()
   })
+
+  it('does not carry an already-owned result across authenticated identities', async () => {
+    const executor = vi.fn().mockResolvedValue({ ok: false, reason: 'already_owned' } as const)
+    const { authClient } = renderWithAppProviders(
+      <PurchaseCTA book={paidKeigoBook} jurisdiction="JP" />,
+      { purchaseExecutor: executor, session: signedInUser },
+    )
+
+    await clickPurchase()
+    fireEvent.click(screen.getByRole('button', { name: '同意して購入する' }))
+    expect(await screen.findByText('取得済み')).toBeInTheDocument()
+
+    authClient.emitAuthStateChange({ id: 'u-2', email: 'other@example.com' })
+
+    expect(await screen.findByRole('button', { name: /購入する/ })).toBeInTheDocument()
+    expect(screen.queryByText('取得済み')).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'ライブラリへ' })).not.toBeInTheDocument()
+  })
 })

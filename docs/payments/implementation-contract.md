@@ -23,6 +23,14 @@
 | `admin_audit_log` | 0003 | Audit trail for finance/operator actions (refund requests, reconciliation overrides) with before/after state. | Server-only. |
 | `platform_tax_config` | 0003 | Japan consumption-tax status boundary (#25). Seeded `('japan_consumption_tax_status','unresolved')` — fail-closed: never apply 10% tax / claim tax-inclusive pricing until explicitly `taxable` or `exempt`. | Server-only (clients must not override). |
 | `order_email_outbox` | 20260820100000 | Durable order-confirmation delivery. First fulfillment enqueues one `order-confirmation-v1` row; the worker owns `pending → processing → sent/retry/dead`. | Server-only; no client policy or privilege. |
+| `scheduled_job_health` | 20260822171000 | Run-token-fenced repair/reconcile/email heartbeat state used by paid-launch readiness. | Server-only. |
+
+The finance API returns bounded row samples for investigation, but its
+reconciliation/actionable totals come from the exact server-only
+`finance_status_counts()` aggregate (`20260822175000`). The function scans the
+complete ledgers without a display limit and is executable only by
+`service_role`; the Edge Function still enforces the named finance role before
+calling it.
 
 ## Security posture
 
