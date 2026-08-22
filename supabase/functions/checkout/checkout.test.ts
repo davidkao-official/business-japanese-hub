@@ -290,6 +290,34 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     expect(mock.rpcCalls('create_checkout_intent')).toHaveLength(0);
   });
 
+  it('fails closed with 503 when the scheduler readiness RPC rejects', async () => {
+    const { mock, deps } = setup();
+    const originalRpc = deps.db.rpc.bind(deps.db);
+    deps.db = {
+      ...deps.db,
+      rpc: async (fn, args) => {
+        if (fn === 'is_paid_launch_scheduler_ready') {
+          throw new Error('injected readiness transport failure');
+        }
+        return await originalRpc(fn, args);
+      },
+    };
+
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
+    expect(result.status).toBe(503);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'launch_readiness_unresolved' });
+    expect(mock.rpcCalls('create_checkout_intent')).toHaveLength(0);
+  });
+
   it('blocks checkout when the scheduled worker secret is absent', async () => {
     const { mock, deps } = setup({ env: testEnv({ scheduledJobSecret: undefined }) });
     const result = await handleCheckout(

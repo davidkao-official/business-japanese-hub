@@ -124,6 +124,7 @@ declare
 begin
   if nullif(btrim(p_repair_function_url), '') is null
      or nullif(btrim(p_email_function_url), '') is null
+     or p_secret_sha256 is null
      or p_secret_sha256 !~ '^[0-9a-f]{64}$' then
     return false;
   end if;

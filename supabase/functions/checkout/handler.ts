@@ -252,12 +252,20 @@ export async function handleCheckout(
 
 async function isPaidLaunchSchedulerReady(deps: CheckoutHandlerDeps): Promise<boolean> {
   if (!deps.env.scheduledJobSecret) return false;
-  const { data, error } = await deps.db.rpc('is_paid_launch_scheduler_ready', {
-    p_repair_function_url: edgeFunctionUrl(deps.env, 'repair-reconcile'),
-    p_email_function_url: edgeFunctionUrl(deps.env, 'order-email'),
-    p_secret_sha256: await sha256Hex(deps.env.scheduledJobSecret),
-  });
-  return !error && (data as unknown) === true;
+  try {
+    const { data, error } = await deps.db.rpc('is_paid_launch_scheduler_ready', {
+      p_repair_function_url: edgeFunctionUrl(deps.env, 'repair-reconcile'),
+      p_email_function_url: edgeFunctionUrl(deps.env, 'order-email'),
+      p_secret_sha256: await sha256Hex(deps.env.scheduledJobSecret),
+    });
+    return !error && (data as unknown) === true;
+  } catch (err) {
+    deps.log.error(
+      { error: err instanceof Error ? err.message : String(err) },
+      'paid-launch scheduler readiness check failed',
+    );
+    return false;
+  }
 }
 
 interface CheckoutFlowInput {

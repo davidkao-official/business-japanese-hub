@@ -1,6 +1,6 @@
 begin;
 
-select plan(21);
+select plan(22);
 
 select has_table('public', 'scheduled_job_health',
   'scheduled worker health is stored durably');
@@ -97,6 +97,15 @@ select ok(
     repeat('0', 64)
   ),
   'readiness rejects a mismatched scheduled-job secret'
+);
+select is(
+  public.is_paid_launch_scheduler_ready(
+    'https://test.supabase.co/functions/v1/repair-reconcile',
+    'https://test.supabase.co/functions/v1/order-email',
+    null
+  ),
+  false,
+  'readiness returns false, never null, for a null scheduled-job secret digest'
 );
 
 insert into job_run_tokens values ('repair-older', public.record_scheduled_job_started('repair'));

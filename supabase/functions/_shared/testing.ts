@@ -21,6 +21,8 @@ export interface MockRoute {
   error?: string;
   /** Optional terminal-result sequence consumed by single/maybeSingle calls. */
   singleData?: unknown[];
+  /** Optional result sequence consumed by repeated RPC calls. */
+  rpcResults?: Array<{ data?: unknown; error?: string }>;
 }
 
 export interface RecordedCall {
@@ -147,6 +149,9 @@ export function createMockDb(initial?: Record<string, MockRoute>): MockDb {
     rpc: async (fn: string, args: Record<string, unknown>) => {
       record('rpc', fn, [args]);
       const route = routes[`rpc:${fn}`] ?? routes.rpc;
+      const sequenced = route?.rpcResults?.shift();
+      if (sequenced?.error) return { data: null, error: makeError(sequenced.error) };
+      if (sequenced) return { data: sequenced.data ?? null, error: null };
       if (route?.error) return { data: null, error: makeError(route.error) };
       return { data: route?.data ?? null, error: null };
     },

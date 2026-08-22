@@ -82,7 +82,7 @@ function setup(overrides: Record<string, unknown> = {}) {
 
 describe('finance handler', () => {
   it('finance_viewer can read the read model', async () => {
-    const { deps } = setup({
+    const { mock, deps } = setup({
       orders: { data: [{ id: 'ord-1', status: 'paid', amount_minor: 79000, currency: 'TWD' }] },
       payments: {
         data: [
@@ -134,6 +134,9 @@ describe('finance handler', () => {
     expect(body.scheduledJobHealth).toEqual([
       { job_name: 'repair', last_succeeded_at: '2026-08-16T11:59:00Z' },
     ]);
+    expect(mock.callsFor('order_email_outbox', 'select')[0]?.args[0]).not.toContain('recipient_email');
+    expect(mock.callsFor('admin_audit_log', 'select')[0]?.args[0]).not.toContain('before_state');
+    expect(mock.callsFor('admin_audit_log', 'select')[0]?.args[0]).not.toContain('after_state');
     // Counts come from an exact DB aggregate, not the bounded display samples.
     expect(body.reconciliation).toEqual({
       matched: 501,
@@ -284,6 +287,33 @@ describe('finance handler', () => {
     expect(result.status).toBe(202);
     expect(JSON.parse(result.body)).toMatchObject({ status: 'processing' });
     expect(mock.rpcCalls('request_full_refund')).toHaveLength(1);
+    expect(deps.adapters.paypal.refund).not.toHaveBeenCalled();
+  });
+
+  it('replays a definitively failed refund with the same 409 terminal response', async () => {
+    const { deps } = setup({
+      finance_roles: { data: [{ role: 'finance_admin' }] },
+      'rpc:request_full_refund': {
+        data: { outcome: 'existing', refund: { ...REFUND_ROW, status: 'failed' }, payment: PAYMENT_ROW },
+      },
+    });
+
+    const result = await handleFinance(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/finance',
+        JSON.stringify({ action: 'request_refund', paymentId: 'pay-1' }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
+    expect(result.status).toBe(409);
+    expect(JSON.parse(result.body)).toMatchObject({
+      status: 'failed',
+      reason: 'provider_refund_rejected',
+      replayed: true,
+    });
     expect(deps.adapters.paypal.refund).not.toHaveBeenCalled();
   });
 

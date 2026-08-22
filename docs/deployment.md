@@ -89,7 +89,42 @@ provided by the owner. Never use `supabase db reset --linked` on production.
    or expose the service-role key in GitHub Pages variables. ECPay credentials
    may remain absent for the PayPal/USD first launch.
 
-4. Apply migrations, then deploy all functions using the JWT settings in
+4. Before applying migrations to a database that contains commerce data, run
+   this read-only preflight. Every query must return zero rows. Stop on any
+   result and reconcile the duplicate/inconsistent facts before deployment;
+   never delete financial rows merely to make a migration pass.
+
+   ```sql
+   select payment_id, count(*)
+     from public.refunds
+    group by payment_id having count(*) > 1;
+   select provider, provider_refund_ref, count(*)
+     from public.refunds
+    where provider_refund_ref is not null
+    group by provider, provider_refund_ref having count(*) > 1;
+   select source_order_id, count(*)
+     from public.book_entitlement
+    where source_order_id is not null
+    group by source_order_id having count(*) > 1;
+   select id
+     from public.payment_events
+    where (
+      processing_result is not null
+      and processing_result not in (
+        'succeeded', 'failed', 'verification_pending', 'refund_succeeded',
+        'refund_pending', 'refund_failed', 'refund_mismatch',
+        'unknown_reference', 'processing_error'
+      )
+    ) or (processed_at is null) <> (processing_result is null);
+   ```
+
+   The launch migrations build three unique indexes with ordinary write locks.
+   That is appropriate for the empty or quiesced first-revenue database. If a
+   target already has sustained writes or large ledgers, stop and prepare a
+   reviewed online migration using `CREATE UNIQUE INDEX CONCURRENTLY` through a
+   coordinated direct Postgres session; do not improvise it inside `db push`.
+
+5. Apply migrations, then deploy all functions using the JWT settings in
    `supabase/config.toml`:
 
    ```bash
@@ -97,7 +132,7 @@ provided by the owner. Never use `supabase db reset --linked` on production.
    supabase functions deploy --project-ref <production-project-ref>
    ```
 
-5. In server-only SQL/operator context, replace both placeholder rows in
+6. In server-only SQL/operator context, replace both placeholder rows in
    `scheduled_job_config` with this project's deployed `repair-reconcile` and
    `order-email` URLs. Create Vault secret `scheduled_job_secret` with the exact
    same value as `SCHEDULED_JOB_SECRET`. Keep these exact active jobs:
@@ -111,16 +146,31 @@ provided by the owner. Never use `supabase db reset --linked` on production.
    Verify the complete gate from server-only SQL before attempting checkout;
    do not substitute only the legacy email-readiness RPC:
 
+   First compute only the digest in a trusted shell; the silent-read command
+   keeps the raw secret out of shell history and SQL/query logs:
+
+   ```bash
+   read -r -s -p 'Scheduled job secret: ' BJH_SCHEDULED_JOB_SECRET
+   printf '\n'
+   BJH_SCHEDULED_JOB_SECRET_SHA256="$(
+     printf %s "$BJH_SCHEDULED_JOB_SECRET" | openssl dgst -sha256 | awk '{print $2}'
+   )"
+   unset BJH_SCHEDULED_JOB_SECRET
+   printf 'SHA-256: %s\n' "$BJH_SCHEDULED_JOB_SECRET_SHA256"
+   ```
+
+   Pass only that digest to the readiness query:
+
    ```sql
    select public.is_paid_launch_scheduler_ready(
      'https://<project-ref>.supabase.co/functions/v1/repair-reconcile',
      'https://<project-ref>.supabase.co/functions/v1/order-email',
-     encode(extensions.digest('<same SCHEDULED_JOB_SECRET>', 'sha256'), 'hex')
+     '<SCHEDULED_JOB_SECRET_SHA256>'
    );
    ```
 
    It stays `false` until the deployed workers have produced fresh durable
-   success heartbeats (step 8), and must then return `true`. Seed the released catalog with
+   success heartbeats (step 9), and must then return `true`. Seed the released catalog with
    `scripts/update-catalog.ts` only after reviewing its dry run.
 
    For the first-revenue profile, keep ECPay credentials absent and do not
@@ -128,7 +178,7 @@ provided by the owner. Never use `supabase db reset --linked` on production.
    seam, not an automated fresh report feed; ECPay/TWD requires a separate
    evidenced dated-upload or download workflow before it can be activated.
 
-6. Configure Supabase Auth Site URL/redirect allow-list for the canonical Pages
+7. Configure Supabase Auth Site URL/redirect allow-list for the canonical Pages
    URL and confirm production email delivery. Configure the production PayPal
    webhook as
    `https://<project-ref>.supabase.co/functions/v1/paypal-webhook` and subscribe
@@ -136,7 +186,7 @@ provided by the owner. Never use `supabase db reset --linked` on production.
    `docs/payments/implementation-contract.md`; the browser return cannot replace
    these authoritative events.
 
-7. Provision named finance access only for verified operator user IDs; never
+8. Provision named finance access only for verified operator user IDs; never
    accept a role in a request body or share a buyer JWT:
 
    ```sql
@@ -151,7 +201,8 @@ provided by the owner. Never use `supabase db reset --linked` on production.
    full-ledger counts from the server-only `finance_status_counts()` RPC, so an
    older unresolved row cannot disappear merely because it falls outside a
    display sample. Durable scheduler health is returned separately.
-   `finance_viewer` is read-only; only `finance_admin` can request a refund.
+   `finance_viewer` is read-only and receives redacted outbox/audit samples;
+   only `finance_admin` can read their customer/audit payloads or request a refund.
    There is no operator action that can declare a refund successful without
    provider evidence.
 
@@ -192,7 +243,7 @@ provided by the owner. Never use `supabase db reset --linked` on production.
    unset BJH_FINANCE_JWT
    ```
 
-8. Before checkout can become available, invoke `repair-reconcile` once with
+9. Before checkout can become available, invoke `repair-reconcile` once with
    `{"mode":"repair"}`, once with `{"mode":"reconcile"}`, and invoke
    `order-email` with the configured `X-Scheduled-Job-Secret`. Confirm 2xx
    responses in Edge Function logs and retain the resulting counts. Each
@@ -202,7 +253,7 @@ provided by the owner. Never use `supabase db reset --linked` on production.
    run has no result. A cron row alone proves scheduling, not successful HTTP
    execution.
 
-9. Confirm the server-only scheduler
+10. Confirm the server-only scheduler
    readiness RPC, legal/seller readiness, released catalog price, PayPal live
    webhook, and Resend sender. Activate the remaining fail-closed launch
    conditions in a controlled window, execute one low-value paid golden path,

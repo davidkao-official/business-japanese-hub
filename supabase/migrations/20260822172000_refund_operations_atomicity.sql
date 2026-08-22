@@ -8,6 +8,12 @@ create unique index refunds_provider_refund_ref_uidx
   on public.refunds (provider, provider_refund_ref)
   where provider_refund_ref is not null;
 
+-- One Book purchase fulfills one entitlement lifecycle row. This also makes
+-- the refund finalizer's exactly-one revocation postcondition structural.
+create unique index book_entitlement_source_order_uidx
+  on public.book_entitlement (source_order_id)
+  where source_order_id is not null;
+
 -- Preserve the existing locked finalizer as an internal implementation and put
 -- a postcondition wrapper at its public service boundary. Any invariant failure
 -- raises in the same transaction and rolls every refund/payment/order write back.
@@ -172,6 +178,10 @@ begin
     select status into v_before_status
       from public.refunds
      where id = p_refund_id;
+  elsif p_payment_id is not null then
+    select status into v_before_status
+      from public.refunds
+     where payment_id = p_payment_id;
   end if;
 
   v_result := public.finalize_refund_success(

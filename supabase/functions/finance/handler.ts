@@ -12,7 +12,7 @@
  *   only; atomically creates one full-refund fact plus its audit evidence and,
  *   where supported, dispatches the provider refund.
  */
-import { fetchFinanceRole } from '../_shared/finance-role.ts';
+import { fetchFinanceRole, type FinanceRole } from '../_shared/finance-role.ts';
 import type { DbClient } from '../_shared/db.ts';
 import type { Logger } from '../_shared/log.ts';
 import type { ProviderAdapters } from '../_shared/provider.ts';
@@ -56,7 +56,7 @@ export async function handleFinance(
   if (!role) return forbidden('finance role required');
 
   if (req.method === 'GET') {
-    return await buildFinanceReadModel(deps);
+    return await buildFinanceReadModel(deps, role);
   }
   if (req.method === 'POST') {
     if (role !== 'finance_admin') return forbidden('finance_admin role required');
@@ -128,7 +128,18 @@ function readFinanceCounts(value: unknown): FinanceCounts | null {
   return result as FinanceCounts;
 }
 
-async function buildFinanceReadModel(deps: FinanceHandlerDeps): Promise<HandlerResult> {
+const VIEWER_EMAIL_OUTBOX_COLUMNS = [
+  'id', 'order_id', 'locale', 'template_key', 'status', 'attempt_count',
+  'next_attempt_at', 'locked_at', 'provider_message_id', 'last_error_code',
+  'created_at', 'sent_at',
+].join(',');
+
+const VIEWER_AUDIT_LOG_COLUMNS = 'id,action,entity_type,entity_id,created_at';
+
+async function buildFinanceReadModel(
+  deps: FinanceHandlerDeps,
+  role: FinanceRole,
+): Promise<HandlerResult> {
   const now = deps.now ?? (() => new Date());
   const [
     orders,
@@ -146,8 +157,14 @@ async function buildFinanceReadModel(deps: FinanceHandlerDeps): Promise<HandlerR
     deps.db.from('refunds').select('*').order('requested_at', { ascending: false }).limit(200),
     deps.db.from('book_entitlement').select('*').limit(500),
     deps.db.from('payment_events').select('*').order('received_at', { ascending: false }).limit(500),
-    deps.db.from('order_email_outbox').select('*').order('created_at', { ascending: false }).limit(200),
-    deps.db.from('admin_audit_log').select('*').order('created_at', { ascending: false }).limit(500),
+    deps.db.from('order_email_outbox')
+      .select(role === 'finance_admin' ? '*' : VIEWER_EMAIL_OUTBOX_COLUMNS)
+      .order('created_at', { ascending: false })
+      .limit(200),
+    deps.db.from('admin_audit_log')
+      .select(role === 'finance_admin' ? '*' : VIEWER_AUDIT_LOG_COLUMNS)
+      .order('created_at', { ascending: false })
+      .limit(500),
     deps.db.from('scheduled_job_health').select('*').order('job_name', { ascending: true }),
     deps.db.rpc('finance_status_counts', {}),
   ]);
@@ -279,9 +296,11 @@ async function requestManualRefund(
   // with its stable provider idempotency key.
   if (transaction.outcome === 'existing') {
     const status = refund.status;
-    return jsonResult(status === 'processing' ? 202 : 200, {
+    const httpStatus = status === 'processing' ? 202 : status === 'failed' ? 409 : 200;
+    return jsonResult(httpStatus, {
       refund: { id: refund.id, status },
       status,
+      ...(status === 'failed' ? { reason: 'provider_refund_rejected' } : {}),
       replayed: true,
     });
   }

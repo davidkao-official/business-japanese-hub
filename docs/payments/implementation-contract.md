@@ -17,7 +17,7 @@
 | `payments` | 0002 + 0006 + 20260819212459 + 20260822173000 | Payment attempts. `provider_merchant_ref` is the local/provider correlation key; `provider_checkout_ref` preserves a checkout/session id such as a PayPal Order ID; `provider_payment_ref` holds the final capture/transaction id. Each reference is unique per provider once known. Identity, commercial facts, and non-null provider references are immutable. | Server-only. |
 | `refunds` | 0002 + 20260822172000 + 20260822173000 | **Source of truth for refunds** (§7). Exactly one full-refund fact per Payment; provider-confirmed refund → `status='succeeded'`. Creation and audit are one transaction. Identity, commercial facts, and non-null provider reference are immutable. | Server-only. |
 | `payment_events` | 0002 | Reliability ledger; `UNIQUE(provider, event_fingerprint)` makes receipt idempotent while replay re-applies the locked finalizer. `sanitized_payload_json` holds allowlisted financial/status fields only; `payment_id`, `processed_at`, and `processing_result` expose the durable outcome. | Server-only. |
-| `book_entitlement` | 0001 + 0003 + 20260822170000 | Ownership lifecycle. Revoked evidence is hidden by active-only owner RLS. A legitimate repurchase rebinds `source_order_id`, allowing a later refund to revoke the current purchase. | Authenticated client can select only its own active rows; writes only via `grant_entitlement`. |
+| `book_entitlement` | 0001 + 0003 + 20260822170000 + 20260822172000 | Ownership lifecycle. Revoked evidence is hidden by active-only owner RLS. A legitimate repurchase rebinds `source_order_id`, allowing a later refund to revoke the current purchase; every non-null source Order identifies exactly one entitlement row. | Authenticated client can select only its own active rows; writes only via `grant_entitlement`. |
 | `order_compliance` | 0003 | Order-linked immutable compliance evidence (notice/consent snapshots) written in the same transaction as Order creation (#25). One row per order. | Server-only. |
 | `finance_roles` | 0003 | Server-enforced `finance_viewer` / `finance_admin`. Source for the finance Edge Function authorization — never trust a client-claimed role. | Server-only (`grant select` to service_role). |
 | `admin_audit_log` | 0003 | Audit trail for finance/operator actions (refund requests, reconciliation overrides) with before/after state. | Server-only. |
@@ -30,7 +30,9 @@ reconciliation/actionable totals come from the exact server-only
 `finance_status_counts()` aggregate (`20260822175000`). The function scans the
 complete ledgers without a display limit and is executable only by
 `service_role`; the Edge Function still enforces the named finance role before
-calling it.
+calling it. `finance_viewer` receives operational outbox/audit columns without
+recipient email or before/after payloads; `finance_admin` retains the full
+operator evidence required for delivery and refund investigation.
 
 ## Security posture
 
@@ -44,7 +46,9 @@ calling it.
 2. Provider transaction: partial unique index `payments_provider_payment_ref_uidx` on `(provider, provider_payment_ref) WHERE provider_payment_ref IS NOT NULL`.
 3. Provider checkout/session: partial unique index `payments_provider_checkout_ref_uidx` on `(provider, provider_checkout_ref) WHERE provider_checkout_ref IS NOT NULL`.
 4. Callback receipt: `UNIQUE(provider, event_fingerprint)`; receipt uses conflict-ignoring upsert, then re-applies the idempotent transaction on replay.
-5. Ownership: `UNIQUE(user_id, book_id)` on `book_entitlement`.
+5. Ownership: `UNIQUE(user_id, book_id)` on `book_entitlement`; partial
+   `UNIQUE(source_order_id) WHERE source_order_id IS NOT NULL` proves one Book
+   Order can fulfill only one entitlement lifecycle row.
 6. Open checkout: partial `UNIQUE(user_id, book_id) WHERE status='pending'` on `orders`, plus a transaction advisory lock keyed by user + Book for retry decisions. A PayPal attempt with a persisted Order id resumes by read-only GET of that exact Order after immutable-fact validation; when the id was not persisted after an ambiguous create call, POST replay is bounded to five hours (below PayPal Orders' default six-hour Request-Id retention) and older attempts are held for verification. An ECPay `created` attempt is exclusively claimed before reconstructing its not-yet-issued local form; `pending`/`verification_pending` attempts are held so a submitted `MerchantTradeNo` is never reused. An authoritatively `failed` Payment gets a new PaymentAttempt and merchant reference on the same immutable Order. Active entitlement or a paid Order returns `owned` before handoff. The migration deliberately stops with a reconciliation hint if legacy data contains duplicate pending Orders; operators must verify provider state rather than silently discard an attempt.
 7. Receipt delivery: `UNIQUE(order_id, template_key)` in `order_email_outbox`, plus Resend key `order-confirmation/<orderId>`. Automatic send/retry stops before the provider's 24-hour idempotency boundary; aged rows become `dead` for manual handling. `prepare_order_email_send` rechecks that the Order is still paid and atomically fences `processing → sending` immediately before the external call. A refund that wins before the fence suppresses delivery; a fenced historical confirmation may finish, and its copy points to current Library state. Active `sending` rows are never swept by another cron, stale rows recover through the same provider idempotency key, and every worker transition verifies its expected-state compare-and-set matched. Any 2xx response without a usable provider message id is treated as ambiguous and retried with that same key rather than dead-lettered.
 8. Refund request: `UNIQUE(payment_id)` plus partial `UNIQUE(provider, provider_refund_ref)`; the locked request RPC returns the existing fact on retry and never dispatches a second provider operation.

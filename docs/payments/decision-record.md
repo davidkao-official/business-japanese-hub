@@ -750,6 +750,7 @@ ECPay 官方要求 duplicate callback 要安全處理；Business Japanese Hub �
 | Provider transaction | `UNIQUE(provider, provider_payment_ref)` when non-null |
 | Callback receipt | `UNIQUE(provider, event_fingerprint)` |
 | Ownership | `UNIQUE(user_id, book_id)` |
+| Fulfillment provenance | `UNIQUE(source_order_id)` when non-null |
 
 - ECPay 沒有像某些 webhook provider 一樣提供獨立 event ID，因此 `event_fingerprint` 可由已驗證 callback canonical payload 做 SHA-256；**但不能只靠 fingerprint 防止 double fulfillment**。真正 entitlement guarantee 必須靠 state transition + unique entitlement constraint。
 - 交易更新採 conditional state transition + `ON CONFLICT`（見 §6/§7 的 transaction 模式）。
@@ -765,7 +766,7 @@ ECPay 官方要求 duplicate callback 要安全處理；Business Japanese Hub �
 - 當需要 provider-level 操作時：ECPay 官方後台提供「廠商後台子帳號」，為不同權責人員建立專用帳號、個別設定功能權限與雙因子驗證；**不是共享主帳密**。ECPay portal 定位成 break-glass / provider-specific operations / manual refund / investigation；internal finance dashboard 才是 daily operational visibility。
 - 最低顯示：sales summary、orders、payments、refunds、entitlement、reconciliation、provider health。
 - 「營收」與「實際撥款」不要混成一個數字：verified successful payments = gross sales；refund success = refunded sales；provider fee 與真正 settlement/payout 以 reconciliation 資料為準。
-- 權限最少分 `finance_viewer`（read orders/payments/refunds/reconciliation）與 `finance_admin`（read + request/refund operational actions + resolve reconciliation anomalies）。任何退款或人工 reconciliation override 寫入 `admin_audit_log`（actor、action、entity_type、entity_id、before/after state、created_at）。
+- 權限最少分 `finance_viewer`（read orders/payments/refunds/reconciliation；outbox／audit samples 排除 recipient email 與 before/after payload）與 `finance_admin`（full read + request/refund operational actions + resolve reconciliation anomalies）。任何退款或人工 reconciliation override 寫入 `admin_audit_log`（actor、action、entity_type、entity_id、before/after state、created_at）。
 
 ---
 

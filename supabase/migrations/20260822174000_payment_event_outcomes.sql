@@ -16,11 +16,18 @@ alter table public.payment_events
       'unknown_reference',
       'processing_error'
     )
-  );
+  ) not valid;
 
 alter table public.payment_events
   add constraint payment_events_processing_completion_check
-  check ((processed_at is null) = (processing_result is null));
+  check ((processed_at is null) = (processing_result is null)) not valid;
+
+-- NOT VALID keeps the initial metadata lock short on an existing ledger;
+-- validation scans under the weaker SHARE UPDATE EXCLUSIVE lock.
+alter table public.payment_events
+  validate constraint payment_events_processing_result_check;
+alter table public.payment_events
+  validate constraint payment_events_processing_completion_check;
 
 create or replace function public.complete_payment_event_outcome(
   p_provider text,

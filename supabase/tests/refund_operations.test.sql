@@ -1,6 +1,6 @@
 begin;
 
-select plan(21);
+select plan(23);
 
 select has_function(
   'public', 'request_full_refund', array['uuid','uuid','text'],
@@ -31,6 +31,8 @@ select ok(to_regclass('public.refunds_payment_uidx') is not null,
   'the database permits only one full-refund fact per Payment');
 select ok(to_regclass('public.refunds_provider_refund_ref_uidx') is not null,
   'provider refund references are unique per provider');
+select ok(to_regclass('public.book_entitlement_source_order_uidx') is not null,
+  'a fulfilled Order can be the provenance of only one entitlement');
 
 insert into auth.users (id, aud, role, email)
 values ('70000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'refund@example.com');
@@ -201,12 +203,20 @@ select throws_ok(
 );
 select is(
   public.finalize_refund_success_audited(
-    '73000000-0000-0000-0000-000000000003', null,
+    null, '72000000-0000-0000-0000-000000000003',
     'REFUND-RECOVERED', 'COMPLETED', '2026-08-16T12:05:00Z',
     '70000000-0000-0000-0000-000000000001'
   )->>'refund_status',
   'succeeded'::text,
   'authoritative finalization may repair failed to succeeded'
+);
+select is(
+  (select before_state->>'status'
+     from public.admin_audit_log
+    where action = 'refund.confirmed'
+      and entity_id = '73000000-0000-0000-0000-000000000003'),
+  'failed'::text,
+  'payment-id finalization records the actual pre-refund status in audit evidence'
 );
 
 select * from finish();

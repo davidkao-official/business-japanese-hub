@@ -13,6 +13,7 @@ describe('paid launch scheduler readiness migration', () => {
     expect(sql).toContain("where key = 'repair_reconcile_function_url'");
     expect(sql).toContain("where key = 'order_email_function_url'");
     expect(sql).toContain("encode(extensions.digest(v_job_secret, 'sha256'), 'hex') = p_secret_sha256");
+    expect(sql).toMatch(/p_secret_sha256 is null[\s\S]*?p_secret_sha256 !~ '\^\[0-9a-f\]\{64\}\$'/);
   });
 
   it('requires fresh durable success heartbeats from every deployed worker', () => {

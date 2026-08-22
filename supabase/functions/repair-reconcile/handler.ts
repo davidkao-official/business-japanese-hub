@@ -117,13 +117,28 @@ export async function handleRepairReconcile(
   const runIds = new Map<'repair' | 'reconcile', string>();
 
   for (const jobName of jobNames) {
-    const { data, error } = await deps.db.rpc('record_scheduled_job_started', {
-      p_job_name: jobName,
-    });
+    let data: unknown;
+    let error: { message: string } | null;
+    try {
+      const result = await deps.db.rpc('record_scheduled_job_started', {
+        p_job_name: jobName,
+      });
+      data = result.data;
+      error = result.error;
+    } catch (err) {
+      data = null;
+      error = { message: err instanceof Error ? err.message : String(err) };
+    }
     if (error || typeof data !== 'string' || !/^[0-9a-f-]{36}$/i.test(data)) {
       deps.log.error(
         { jobName, error: error?.message ?? 'missing run id' },
         'scheduled-job start heartbeat failed',
+      );
+      await recordScheduledJobResults(
+        deps,
+        runIds,
+        false,
+        'start_heartbeat_aborted',
       );
       return jsonResult(500, { error: 'scheduled-job health persistence failed' });
     }
@@ -204,22 +219,51 @@ export async function handleRepairReconcile(
   })();
 
   const succeeded = runResult.status >= 200 && runResult.status < 300;
-  for (const jobName of jobNames) {
-    const { data, error } = await deps.db.rpc('record_scheduled_job_result', {
-      p_job_name: jobName,
-      p_run_id: runIds.get(jobName),
-      p_succeeded: succeeded,
-      p_error_code: succeeded ? null : `worker_http_${runResult.status}`,
-    });
+  const resultsPersisted = await recordScheduledJobResults(
+    deps,
+    runIds,
+    succeeded,
+    succeeded ? null : `worker_http_${runResult.status}`,
+  );
+  if (!resultsPersisted) {
+    return jsonResult(500, { error: 'scheduled-job health persistence failed' });
+  }
+  return runResult;
+}
+
+async function recordScheduledJobResults(
+  deps: RepairReconcileHandlerDeps,
+  runIds: ReadonlyMap<'repair' | 'reconcile', string>,
+  succeeded: boolean,
+  errorCode: string | null,
+): Promise<boolean> {
+  let allPersisted = true;
+  for (const [jobName, runId] of runIds) {
+    let data: unknown;
+    let error: { message: string } | null;
+    try {
+      const result = await deps.db.rpc('record_scheduled_job_result', {
+        p_job_name: jobName,
+        p_run_id: runId,
+        p_succeeded: succeeded,
+        p_error_code: errorCode,
+      });
+      data = result.data;
+      error = result.error;
+    } catch (err) {
+      data = null;
+      error = { message: err instanceof Error ? err.message : String(err) };
+    }
     if (error) {
       deps.log.error({ jobName, error: error.message }, 'scheduled-job result heartbeat failed');
-      return jsonResult(500, { error: 'scheduled-job health persistence failed' });
+      allPersisted = false;
+      continue;
     }
     if ((data as unknown) !== true) {
       deps.log.info({ jobName }, 'scheduled-job result superseded by a newer overlapping run');
     }
   }
-  return runResult;
+  return allPersisted;
 }
 
 function scheduledMode(bodyText: string): 'repair' | 'reconcile' | 'all' | null {

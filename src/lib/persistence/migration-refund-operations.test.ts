@@ -10,6 +10,7 @@ const sql = readFileSync(
 describe('refund operations atomicity migration', () => {
   it('allows only one canonical full-refund fact per Payment', () => {
     expect(sql).toMatch(/create unique index refunds_payment_uidx\s+on public\.refunds \(payment_id\)/);
+    expect(sql).toMatch(/create unique index book_entitlement_source_order_uidx[\s\S]*?source_order_id is not null/);
   });
 
   it('creates refund request and audit inside one service-role-only RPC', () => {
@@ -24,6 +25,7 @@ describe('refund operations atomicity migration', () => {
     expect(sql).toMatch(/create or replace function public\.finalize_refund_success_audited\(/);
     expect(sql).toContain('public.finalize_refund_success(');
     expect(sql).toMatch(/insert into public\.admin_audit_log[\s\S]*?'refund\.confirmed'/);
+    expect(sql).toMatch(/elsif p_payment_id is not null then[\s\S]*?where payment_id = p_payment_id/);
   });
 
   it('fails a primary refund transaction unless exactly one entitlement is revoked', () => {

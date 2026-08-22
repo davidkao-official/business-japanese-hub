@@ -135,6 +135,100 @@ describe('repair-reconcile handler', () => {
     expect(mock.rpcCalls('record_scheduled_job_result')).toHaveLength(0);
   });
 
+  it('fails closed when the start-heartbeat transport rejects', async () => {
+    const { mock, deps } = setup();
+    const originalRpc = deps.db.rpc.bind(deps.db);
+    deps.db = {
+      ...deps.db,
+      rpc: async (fn, args) => {
+        if (fn === 'record_scheduled_job_started') {
+          throw new Error('injected start transport failure');
+        }
+        return await originalRpc(fn, args);
+      },
+    };
+
+    const result = await run(deps, { 'x-scheduled-job-secret': 'test-scheduled-secret' });
+
+    expect(result.status).toBe(500);
+    expect(mock.callsFor('payments', 'select')).toHaveLength(0);
+  });
+
+  it('releases every sibling heartbeat when an all-mode start partially fails', async () => {
+    const { mock, deps } = setup({
+      'rpc:record_scheduled_job_started': {
+        rpcResults: [
+          { data: '81000000-0000-0000-0000-000000000001' },
+          { error: 'injected reconcile start failure' },
+        ],
+      },
+    });
+
+    const result = await run(
+      deps,
+      { 'x-scheduled-job-secret': 'test-scheduled-secret' },
+      JSON.stringify({ mode: 'all' }),
+    );
+
+    expect(result.status).toBe(500);
+    expect(mock.callsFor('payments', 'select')).toHaveLength(0);
+    expect(mock.rpcCalls('record_scheduled_job_result')).toHaveLength(1);
+    expect(mock.rpcCalls('record_scheduled_job_result')[0]?.args[0]).toEqual({
+      p_job_name: 'repair',
+      p_run_id: '81000000-0000-0000-0000-000000000001',
+      p_succeeded: false,
+      p_error_code: 'start_heartbeat_aborted',
+    });
+  });
+
+  it('attempts every result heartbeat when one all-mode result write fails', async () => {
+    const { mock, deps } = setup({
+      'rpc:record_scheduled_job_result': {
+        rpcResults: [
+          { error: 'injected repair result failure' },
+          { data: true },
+        ],
+      },
+    });
+
+    const result = await run(
+      deps,
+      { 'x-scheduled-job-secret': 'test-scheduled-secret' },
+      JSON.stringify({ mode: 'all' }),
+    );
+
+    expect(result.status).toBe(500);
+    expect(mock.rpcCalls('record_scheduled_job_result')).toHaveLength(2);
+    expect(mock.rpcCalls('record_scheduled_job_result')[1]?.args[0]).toMatchObject({
+      p_job_name: 'reconcile',
+    });
+  });
+
+  it('attempts every result heartbeat when one all-mode transport rejects', async () => {
+    const { deps } = setup();
+    const originalRpc = deps.db.rpc.bind(deps.db);
+    let resultAttempts = 0;
+    deps.db = {
+      ...deps.db,
+      rpc: async (fn, args) => {
+        if (fn === 'record_scheduled_job_result') {
+          resultAttempts += 1;
+          if (resultAttempts === 1) throw new Error('injected result transport failure');
+        }
+        return await originalRpc(fn, args);
+      },
+    };
+
+    const result = await run(
+      deps,
+      { 'x-scheduled-job-secret': 'test-scheduled-secret' },
+      JSON.stringify({ mode: 'all' }),
+    );
+
+    expect(result.status).toBe(500);
+    expect(resultAttempts).toBe(2);
+  });
+
   it('records an unsuccessful reconciliation heartbeat when no source is configured', async () => {
     const { mock, deps } = setup();
     const result = await runReconcile(deps, {
