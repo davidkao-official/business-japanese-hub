@@ -17,16 +17,21 @@ import type { PaypalEnv } from '../../../src/lib/payments/paypal/urls.ts';
 export type { EcpayEnv };
 export type { PaypalEnv };
 
+/** Explicit deployment identity used to prevent live/non-live provider mixing. */
+export type DeploymentEnv = 'development' | 'staging' | 'production';
+
 /** Injectable, pure environment snapshot read at the Deno boundary. */
 export interface Env {
   supabaseUrl: string;
   /** Server-only; the ONLY key used to build the DB client (never the anon key). */
   supabaseServiceRoleKey: string;
+  /** Missing/invalid stays unresolved and disables every payment provider. */
+  deploymentEnv: DeploymentEnv | undefined;
   /** ECPay credentials are provider-scoped; optional for PayPal-only deploys. */
   ecpayMerchantId?: string;
   ecpayHashKey?: string;
   ecpayHashIV?: string;
-  /** 'stage' | 'prod'; undefined fails closed to stage (§16 — never mixed). */
+  /** 'stage' | 'prod'; undefined disables ECPay (§16 — never mixed). */
   ecpayEnv: EcpayEnv | undefined;
   /**
    * PayPal OAuth client id (server-only; never client-facing, §15). Optional:
@@ -36,7 +41,7 @@ export interface Env {
   paypalClientId?: string;
   /** PayPal OAuth client secret (server-only; never client-facing, §15). Optional. */
   paypalClientSecret?: string;
-  /** 'sandbox' | 'prod'; undefined fails closed to sandbox (§16). Optional. */
+  /** 'sandbox' | 'prod'; undefined disables PayPal (§16). Optional. */
   paypalEnv: PaypalEnv | undefined;
   /** Server-configured webhook id used by verify-webhook-signature (§21). Optional. */
   paypalWebhookId?: string;
@@ -74,18 +79,36 @@ function required(reader: EnvReader, key: string): string {
   return value;
 }
 
-/** Parse `ECPAY_ENV`; anything other than 'prod' fails closed to stage. */
+/** Parse `ECPAY_ENV`; missing/unknown values disable ECPay. */
 function parseEcpayEnv(value: string | undefined): EcpayEnv | undefined {
   if (value === 'prod') return 'prod';
   if (value === 'stage') return 'stage';
   return undefined;
 }
 
-/** Parse `PAYPAL_ENV`; anything other than 'prod' fails closed to sandbox. */
+/** Parse `PAYPAL_ENV`; missing/unknown values disable PayPal. */
 function parsePaypalEnv(value: string | undefined): PaypalEnv | undefined {
   if (value === 'prod') return 'prod';
   if (value === 'sandbox') return 'sandbox';
   return undefined;
+}
+
+function parseDeploymentEnv(value: string | undefined): DeploymentEnv | undefined {
+  if (value === 'development' || value === 'staging' || value === 'production') return value;
+  return undefined;
+}
+
+/** True only for an explicit live/live or non-live/non-live pairing. */
+export function isProviderEnvironmentAligned(
+  deploymentEnv: DeploymentEnv | undefined,
+  providerEnv: string | undefined,
+  productionValue: string,
+  nonProductionValue: string,
+): boolean {
+  if (!deploymentEnv) return false;
+  return deploymentEnv === 'production'
+    ? providerEnv === productionValue
+    : providerEnv === nonProductionValue;
 }
 
 /** Deno boundary implementation — reads from an injected `Deno.env`-shaped reader. */
@@ -93,6 +116,7 @@ export function readEnvFrom(reader: EnvReader): Env {
   return {
     supabaseUrl: required(reader, 'SUPABASE_URL'),
     supabaseServiceRoleKey: required(reader, 'SUPABASE_SERVICE_ROLE_KEY'),
+    deploymentEnv: parseDeploymentEnv(reader.get('DEPLOYMENT_ENV')),
     ecpayMerchantId: reader.get('ECPAY_MERCHANT_ID'),
     ecpayHashKey: reader.get('ECPAY_HASH_KEY'),
     ecpayHashIV: reader.get('ECPAY_HASH_IV'),

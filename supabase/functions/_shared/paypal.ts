@@ -14,7 +14,7 @@
  */
 import { PaypalPaymentProviderAdapter } from '../../../src/lib/payments/paypal/adapter.ts';
 import type { PaymentProviderAdapter } from '../../../src/lib/payments/contract.ts';
-import type { Env } from './env.ts';
+import { isProviderEnvironmentAligned, type Env } from './env.ts';
 
 /** Thrown when a PayPal operation is requested but required config is absent. */
 export class PaypalConfigurationUnavailableError extends Error {
@@ -26,7 +26,12 @@ export class PaypalConfigurationUnavailableError extends Error {
 
 /** True when all required PayPal server-side config is present. */
 export function isPaypalConfigured(env: Env): boolean {
-  return Boolean(env.paypalClientId && env.paypalClientSecret && env.paypalWebhookId);
+  return Boolean(
+    env.paypalClientId &&
+      env.paypalClientSecret &&
+      env.paypalWebhookId &&
+      isProviderEnvironmentAligned(env.deploymentEnv, env.paypalEnv, 'prod', 'sandbox'),
+  );
 }
 
 /**

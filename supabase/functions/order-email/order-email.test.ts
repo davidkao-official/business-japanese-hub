@@ -38,6 +38,8 @@ function sender(result: Awaited<ReturnType<EmailSender['send']>>): EmailSender {
 
 function workerDb(routes: Record<string, MockRoute> = {}) {
   return createMockDb({
+    'rpc:record_scheduled_job_started': { data: '82000000-0000-0000-0000-000000000001' },
+    'rpc:record_scheduled_job_result': { data: true },
     'rpc:prepare_order_email_send': { data: true },
     order_email_outbox: { data: { id: 'job-1' } },
     ...routes,
@@ -106,6 +108,45 @@ describe('order-email scheduled worker', () => {
     expect(mock.callsFor('order_email_outbox', 'eq').some((call) =>
       call.args[0] === 'status' && call.args[1] === 'sending'
     )).toBe(true);
+    expect(mock.rpcCalls('record_scheduled_job_started')[0]?.args[0]).toEqual({
+      p_job_name: 'email',
+    });
+    expect(mock.rpcCalls('record_scheduled_job_result')[0]?.args[0]).toEqual({
+      p_job_name: 'email',
+      p_run_id: '82000000-0000-0000-0000-000000000001',
+      p_succeeded: true,
+      p_error_code: null,
+    });
+  });
+
+  it('fails closed before claiming when the start heartbeat cannot be stored', async () => {
+    const mock = workerDb({
+      'rpc:record_scheduled_job_started': { error: 'database unavailable' },
+    });
+    const emailSender = sender({ ok: true, providerMessageId: 'msg-1' });
+    const result = await handleOrderEmail(request(), {
+      env: testEnv(), db: mock.db, sender: emailSender, log: fakeLogger(), now: () => NOW,
+    });
+
+    expect(result.status).toBe(500);
+    expect(mock.rpcCalls('claim_order_email_jobs')).toHaveLength(0);
+    expect(emailSender.send).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 when a successful run cannot persist its result heartbeat', async () => {
+    const mock = workerDb({
+      'rpc:claim_order_email_jobs': { data: [] },
+      'rpc:record_scheduled_job_result': { error: 'database unavailable' },
+    });
+    const result = await handleOrderEmail(request(), {
+      env: testEnv(),
+      db: mock.db,
+      sender: sender({ ok: true, providerMessageId: 'msg-1' }),
+      log: fakeLogger(),
+      now: () => NOW,
+    });
+
+    expect(result.status).toBe(500);
   });
 
   it('suppresses a claimed confirmation when a refund wins the pre-send recheck', async () => {

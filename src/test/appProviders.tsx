@@ -20,8 +20,12 @@ import type { Entitlement, ReadingState } from '../lib/persistence/types'
 import { PurchaseProvider } from '../lib/purchase/PurchaseContext'
 import type { PurchaseExecutor } from '../lib/purchase/types'
 
+export interface MockAuthClient extends AuthClient {
+  emitAuthStateChange(user: SessionUser | null): void
+}
+
 /** Auth client whose session restore resolves immediately to `session`. */
-export function createMockAuthClient(session: SessionUser | null): AuthClient {
+export function createMockAuthClient(session: SessionUser | null): MockAuthClient {
   const listeners: Array<(user: SessionUser | null) => void> = []
   return {
     getSession: vi.fn().mockResolvedValue(session),
@@ -37,6 +41,9 @@ export function createMockAuthClient(session: SessionUser | null): AuthClient {
       listeners.push(listener)
       return () => {}
     }),
+    emitAuthStateChange(nextUser) {
+      for (const listener of listeners) listener(nextUser)
+    },
   }
 }
 

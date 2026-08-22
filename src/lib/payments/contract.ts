@@ -151,6 +151,12 @@ export interface VerifiedProviderEvent {
   providerPaymentRef?: string;
   /** Provider refund/capture reference carried by a confirmed refund/reversal event. */
   providerRefundRef?: string;
+  /** Capture identity carried by capture-level refund/reversal evidence. */
+  providerCaptureRef?: string;
+  /** Distinguishes a refund resource id from capture-level refund evidence. */
+  refundEvidence?: 'refund' | 'capture';
+  /** Lifecycle carried by an asynchronous provider refund webhook. */
+  refundStatus?: 'pending' | 'failed';
   eventFingerprint: string;
   status: 'succeeded' | 'failed' | 'refunded' | 'unknown';
   amount?: Money;
@@ -409,7 +415,13 @@ export type PurchaseResult =
   | { ok: true; orderId: string; status: 'pending' | 'succeeded' | 'failed' | 'cancelled' }
   | {
       ok: false;
-      reason: 'unavailable' | 'canceled' | 'failed' | 'consent_required' | 'signed_out';
+      reason:
+        | 'unavailable'
+        | 'canceled'
+        | 'failed'
+        | 'consent_required'
+        | 'signed_out'
+        | 'already_owned';
       message?: string;
     };
 

@@ -75,7 +75,7 @@ function setup(initial: Record<string, unknown> = {}, routes: Record<string, Moc
         payment: PAYMENT_ROW,
       },
     },
-    'rpc:is_order_email_scheduler_ready': { data: true },
+    'rpc:is_paid_launch_scheduler_ready': { data: true },
     ...jpTax('taxable'),
     ...routes,
   });
@@ -151,8 +151,9 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     );
 
     expect(result.status).toBe(200);
-    expect(mock.rpcCalls('is_order_email_scheduler_ready')[0]?.args[0]).toEqual({
-      p_function_url: 'https://test.supabase.co/functions/v1/order-email',
+    expect(mock.rpcCalls('is_paid_launch_scheduler_ready')[0]?.args[0]).toEqual({
+      p_repair_function_url: 'https://test.supabase.co/functions/v1/repair-reconcile',
+      p_email_function_url: 'https://test.supabase.co/functions/v1/order-email',
       p_secret_sha256: '788ce709321f4667893eb59c1613e3f3e1a24e6f872ec47bda1355f5ce1a0642',
     });
     const body = JSON.parse(result.body) as { orderId: string; paymentId: string; instruction: { action: string } };
@@ -273,8 +274,8 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
     expect(mock.callsFor('payments', 'insert')).toHaveLength(0);
   });
 
-  it('blocks checkout when the email scheduler activation check fails', async () => {
-    const { mock, deps } = setup({}, { 'rpc:is_order_email_scheduler_ready': { data: false } });
+  it('blocks checkout when any paid-launch scheduler activation check fails', async () => {
+    const { mock, deps } = setup({}, { 'rpc:is_paid_launch_scheduler_ready': { data: false } });
     const result = await handleCheckout(
       handlerRequest(
         'POST',
@@ -284,6 +285,34 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       ),
       deps,
     );
+    expect(result.status).toBe(503);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'launch_readiness_unresolved' });
+    expect(mock.rpcCalls('create_checkout_intent')).toHaveLength(0);
+  });
+
+  it('fails closed with 503 when the scheduler readiness RPC rejects', async () => {
+    const { mock, deps } = setup();
+    const originalRpc = deps.db.rpc.bind(deps.db);
+    deps.db = {
+      ...deps.db,
+      rpc: async (fn, args) => {
+        if (fn === 'is_paid_launch_scheduler_ready') {
+          throw new Error('injected readiness transport failure');
+        }
+        return await originalRpc(fn, args);
+      },
+    };
+
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-a',
+        JSON.stringify({ bookId: 'book-a', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      deps,
+    );
+
     expect(result.status).toBe(503);
     expect(JSON.parse(result.body)).toMatchObject({ reason: 'launch_readiness_unresolved' });
     expect(mock.rpcCalls('create_checkout_intent')).toHaveLength(0);
@@ -301,7 +330,7 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
       deps,
     );
     expect(result.status).toBe(503);
-    expect(mock.rpcCalls('is_order_email_scheduler_ready')).toHaveLength(0);
+    expect(mock.rpcCalls('is_paid_launch_scheduler_ready')).toHaveLength(0);
     expect(mock.rpcCalls('create_checkout_intent')).toHaveLength(0);
   });
 
@@ -756,7 +785,7 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
           payment: PAYMENT_ROW,
         },
       },
-      'rpc:is_order_email_scheduler_ready': { data: true },
+      'rpc:is_paid_launch_scheduler_ready': { data: true },
     });
     const result = await handleCheckout(
       handlerRequest(
@@ -781,7 +810,7 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
         data: { id: 'user-1', email: 'buyer@example.com', email_confirmed_at: '2026-08-16T00:00:00Z' },
       },
       catalog: { data: null },
-      'rpc:is_order_email_scheduler_ready': { data: true },
+      'rpc:is_paid_launch_scheduler_ready': { data: true },
     });
     const result = await handleCheckout(
       handlerRequest(
@@ -834,7 +863,7 @@ describe('checkout handler — jurisdiction + consent + tax gates (#25 remediati
           payment: PAYMENT_ROW,
         },
       },
-      'rpc:is_order_email_scheduler_ready': { data: true },
+      'rpc:is_paid_launch_scheduler_ready': { data: true },
       ...jpTax('taxable'),
     });
     const result = await handleCheckout(
@@ -889,7 +918,7 @@ describe('checkout handler — currency → provider routing (§21)', () => {
           payment: { ...PAYMENT_ROW, provider: 'paypal', currency: 'USD', amount_minor: 1999, method: 'paypal' },
         },
       },
-      'rpc:is_order_email_scheduler_ready': { data: true },
+      'rpc:is_paid_launch_scheduler_ready': { data: true },
       ...jpTax('taxable'),
       ...routes,
     });
@@ -1060,7 +1089,7 @@ describe('checkout handler — currency → provider routing (§21)', () => {
       orders: { data: { id: 'ord-1' } },
       order_compliance: { data: null },
       payments: { data: PAYMENT_ROW },
-      'rpc:is_order_email_scheduler_ready': { data: true },
+      'rpc:is_paid_launch_scheduler_ready': { data: true },
       ...jpTax('taxable'),
     });
     const result = await handleCheckout(
@@ -1110,7 +1139,7 @@ describe('checkout handler — currency → provider routing (§21)', () => {
       orders: { data: { id: 'ord-1' } },
       order_compliance: { data: null },
       payments: { data: PAYMENT_ROW },
-      'rpc:is_order_email_scheduler_ready': { data: true },
+      'rpc:is_paid_launch_scheduler_ready': { data: true },
       ...jpTax('taxable'),
     });
     const result = await handleCheckout(
@@ -1132,6 +1161,24 @@ describe('checkout handler — currency → provider routing (§21)', () => {
     expect(mock.callsFor('orders', 'insert').length).toBe(0);
     expect(mock.callsFor('payments', 'insert').length).toBe(0);
     expect(mock.callsFor('order_compliance', 'insert').length).toBe(0);
+  });
+
+  it('production checkout refuses sandbox PayPal credentials before creating commercial state', async () => {
+    const { mock, paypalAdapter, deps } = usdSetup();
+    const result = await handleCheckout(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/checkout/books/book-usd',
+        JSON.stringify({ bookId: 'book-usd', consent: TW_CONSENT }),
+        bearerHeaders('jwt-1'),
+      ),
+      { ...deps, env: testEnv({ deploymentEnv: 'production', paypalEnv: 'sandbox' }) },
+    );
+
+    expect(result.status).toBe(422);
+    expect(JSON.parse(result.body)).toMatchObject({ reason: 'provider_configuration_unavailable' });
+    expect(mock.rpcCalls('create_checkout_intent')).toHaveLength(0);
+    expect(paypalAdapter.createCheckout).not.toHaveBeenCalled();
   });
 
   it('TWD checkout with ECPay NOT configured → refused BEFORE any insert', async () => {

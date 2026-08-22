@@ -37,9 +37,11 @@ export interface GrantEntitlementInput {
 /**
  * Grants (or refreshes) ownership for a user+book through the single server write
  * point. The SQL upsert refreshes provider/provider_ref/granted_at on a genuine
- * re-grant (incoming non-NULL provider_ref) and applies status/revoked fields on
- * every call; pass provider_ref NULL for a pure status flip that preserves
- * existing provenance. Call ONLY for the first qualifying successful payment —
+ * re-grant (incoming non-NULL provider_ref or source_order_id) and applies
+ * status/revoked fields on every call. For non-manual providers, pass both
+ * provenance values as NULL for a pure status flip that preserves existing
+ * provenance. A `manual` grant intentionally clears prior provenance and resets
+ * `granted_at`, even when both values are NULL. Call ONLY for the first qualifying successful payment —
  * duplicate successful charges must never call grant (decision-record §13).
  */
 export async function grantEntitlement(

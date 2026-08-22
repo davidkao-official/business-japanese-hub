@@ -113,6 +113,7 @@ function baseMock(overrides: Record<string, unknown> = {}) {
     payments: { data: PAYMENT_ROW_USD },
     orders: { data: ORDER_ROW_USD },
     'rpc:finalize_payment_success': { data: SUCCESS_TRANSACTION },
+    'rpc:complete_payment_event_outcome': { data: 'succeeded' },
     ...overrides,
   });
   const adapter = createFakeAdapter('paypal');
@@ -180,6 +181,10 @@ describe('paypal-webhook handler', () => {
     expect(mock.callsFor('payments', 'update')).toHaveLength(0);
     expect(mock.callsFor('orders', 'update')).toHaveLength(0);
     expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
+    expect(mock.rpcCalls('complete_payment_event_outcome')[0].args[0]).toMatchObject({
+      p_payment_id: 'pay-1',
+      p_processing_result: 'succeeded',
+    });
   });
 
   it('duplicate / replayed webhook → re-processed idempotently against persisted state (no second grant)', async () => {
@@ -226,6 +231,10 @@ describe('paypal-webhook handler', () => {
     const result = await run(adapter, mock.db);
     expect(result.status).toBe(404);
     expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
+    expect(mock.rpcCalls('complete_payment_event_outcome')[0].args[0]).toMatchObject({
+      p_payment_id: null,
+      p_processing_result: 'unknown_reference',
+    });
   });
 
   it('amount / currency mismatch → no entitlement (verification_pending)', async () => {
@@ -328,6 +337,117 @@ describe('paypal-webhook handler', () => {
       p_provider_status_code: 'REFUNDED',
     });
     expect(mock.rpcCalls('grant_entitlement').length).toBe(0);
+  });
+
+  it('finalizes signed capture-level refund evidence without replacing the refund resource id', async () => {
+    const { mock, adapter } = baseMock({
+      payments: {
+        data: {
+          ...PAYMENT_ROW_USD,
+          status: 'succeeded',
+          provider_payment_ref: 'CAPTURE-1',
+        },
+      },
+      'rpc:finalize_refund_success': {
+        data: {
+          refund_id: 'refund-1',
+          refund_status: 'succeeded',
+          payment_status: 'refunded',
+          order_status: 'refunded',
+          entitlement_revoked: true,
+          already_confirmed: false,
+        },
+      },
+    });
+    adapter.verifyCallback.mockResolvedValue({
+      ...EVENT_OK,
+      status: 'refunded',
+      refundEvidence: 'capture',
+      providerCaptureRef: 'CAPTURE-1',
+      providerRefundRef: undefined,
+      rawStatusCode: 'REFUNDED',
+    });
+
+    const result = await run(adapter, mock.db);
+
+    expect(result.status).toBe(200);
+    expect(adapter.confirmPayment).not.toHaveBeenCalled();
+    expect(mock.rpcCalls('finalize_refund_success')[0]?.args[0]).toMatchObject({
+      p_payment_id: 'pay-1',
+      p_provider_refund_ref: null,
+      p_provider_status_code: 'REFUNDED',
+    });
+    expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
+  });
+
+  it('persists an asynchronous refund pending webhook without touching paid access', async () => {
+    const refund = {
+      id: 'refund-1', payment_id: 'pay-1', provider: 'paypal', provider_refund_ref: null,
+      amount_minor: 1999, currency: 'USD', status: 'requested', reason_code: null,
+      requested_by: 'user-1', provider_status_code: null,
+      requested_at: '2026-08-16T11:00:00Z', completed_at: null,
+    };
+    const { mock, adapter } = baseMock({
+      payments: { data: { ...PAYMENT_ROW_USD, status: 'succeeded' } },
+      refunds: { data: refund },
+    });
+    adapter.verifyCallback.mockResolvedValue({
+      ...EVENT_OK,
+      status: 'unknown',
+      refundStatus: 'pending',
+      providerRefundRef: 'REFUND-1',
+      rawStatusCode: 'PENDING',
+    });
+
+    const result = await run(adapter, mock.db);
+
+    expect(result.status).toBe(200);
+    expect(adapter.confirmPayment).not.toHaveBeenCalled();
+    expect(mock.callsFor('refunds', 'update')[0]?.args[0]).toMatchObject({
+      status: 'processing',
+      provider_refund_ref: 'REFUND-1',
+      provider_status_code: 'PENDING',
+    });
+    expect(mock.rpcCalls('complete_payment_event_outcome')[0]?.args[0]).toMatchObject({
+      p_processing_result: 'refund_pending',
+    });
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(0);
+    expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
+  });
+
+  it('terminates a processing refund on an authoritative refund failed webhook without revoking access', async () => {
+    const refund = {
+      id: 'refund-1', payment_id: 'pay-1', provider: 'paypal', provider_refund_ref: 'REFUND-1',
+      amount_minor: 1999, currency: 'USD', status: 'processing', reason_code: null,
+      requested_by: 'user-1', provider_status_code: 'PENDING',
+      requested_at: '2026-08-16T11:00:00Z', completed_at: null,
+    };
+    const { mock, adapter } = baseMock({
+      payments: { data: { ...PAYMENT_ROW_USD, status: 'succeeded' } },
+      refunds: { data: refund },
+    });
+    adapter.verifyCallback.mockResolvedValue({
+      ...EVENT_OK,
+      status: 'unknown',
+      refundStatus: 'failed',
+      providerRefundRef: 'REFUND-1',
+      rawStatusCode: 'FAILED',
+    });
+
+    const result = await run(adapter, mock.db);
+
+    expect(result.status).toBe(200);
+    expect(adapter.confirmPayment).not.toHaveBeenCalled();
+    expect(mock.callsFor('refunds', 'update')[0]?.args[0]).toMatchObject({
+      status: 'failed',
+      provider_refund_ref: 'REFUND-1',
+      provider_status_code: 'FAILED',
+    });
+    expect(mock.rpcCalls('complete_payment_event_outcome')[0]?.args[0]).toMatchObject({
+      p_processing_result: 'refund_failed',
+    });
+    expect(mock.rpcCalls('finalize_refund_success')).toHaveLength(0);
+    expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
   });
 
   it('B6: a partial provider refund is recorded as a finance mismatch and never revokes ownership', async () => {

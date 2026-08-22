@@ -5,13 +5,14 @@
  * Authorization is server-enforced from the `finance_roles` table (read via the
  * service-role client) — a client-claimed role is NEVER trusted.
  *
- * - `GET` → authorized read model: orders, payments, refunds, entitlement
- *   outcomes, reconciliation summary. Any finance role may read.
+ * - `GET` → authorized read model: financial facts, callback/outbox/audit
+ *   evidence, reconciliation and actionable operations summaries. Any finance
+ *   role may read.
  * - `POST { action: 'request_refund', paymentId, reasonCode? }` → finance_admin
- *   only; MVP manual-refund flow: writes a `refunds` row (status 'requested',
- *   full amount) + an `admin_audit_log` entry.
+ *   only; atomically creates one full-refund fact plus its audit evidence and,
+ *   where supported, dispatches the provider refund.
  */
-import { fetchFinanceRole } from '../_shared/finance-role.ts';
+import { fetchFinanceRole, type FinanceRole } from '../_shared/finance-role.ts';
 import type { DbClient } from '../_shared/db.ts';
 import type { Logger } from '../_shared/log.ts';
 import type { ProviderAdapters } from '../_shared/provider.ts';
@@ -29,7 +30,12 @@ import {
   type HandlerResult,
 } from '../_shared/http.ts';
 import { authenticateBearer } from '../_shared/auth.ts';
-import { confirmRefund, loadPaymentById, type PaymentRow } from '../_shared/flow.ts';
+import {
+  confirmRefund,
+  persistOpenRefundObservation,
+  type PaymentRow,
+  type RefundRow,
+} from '../_shared/flow.ts';
 
 export interface FinanceHandlerDeps {
   db: DbClient;
@@ -50,7 +56,7 @@ export async function handleFinance(
   if (!role) return forbidden('finance role required');
 
   if (req.method === 'GET') {
-    return await buildFinanceReadModel(deps);
+    return await buildFinanceReadModel(deps, role);
   }
   if (req.method === 'POST') {
     if (role !== 'finance_admin') return forbidden('finance_admin role required');
@@ -69,6 +75,10 @@ interface ReadModelResult {
   payments: unknown[];
   refunds: unknown[];
   entitlements: unknown[];
+  paymentEvents: unknown[];
+  emailOutbox: unknown[];
+  auditLog: unknown[];
+  scheduledJobHealth: unknown[];
   reconciliation: {
     matched: number;
     mismatched: number;
@@ -76,21 +86,98 @@ interface ReadModelResult {
     succeeded: number;
     failed: number;
   };
+  operations: {
+    unprocessedEvents: number;
+    processingErrors: number;
+    duplicatePayments: number;
+    refundRequested: number;
+    refundProcessing: number;
+    refundFailed: number;
+    emailPending: number;
+    emailDead: number;
+  };
 }
 
-async function buildFinanceReadModel(deps: FinanceHandlerDeps): Promise<HandlerResult> {
+type FinanceCounts = ReadModelResult['reconciliation'] & ReadModelResult['operations'];
+
+const FINANCE_COUNT_KEYS = [
+  'matched',
+  'mismatched',
+  'pendingVerification',
+  'succeeded',
+  'failed',
+  'unprocessedEvents',
+  'processingErrors',
+  'duplicatePayments',
+  'refundRequested',
+  'refundProcessing',
+  'refundFailed',
+  'emailPending',
+  'emailDead',
+] as const satisfies readonly (keyof FinanceCounts)[];
+
+function readFinanceCounts(value: unknown): FinanceCounts | null {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const result: Partial<FinanceCounts> = {};
+  for (const key of FINANCE_COUNT_KEYS) {
+    const count = record[key];
+    if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) return null;
+    result[key] = count;
+  }
+  return result as FinanceCounts;
+}
+
+const VIEWER_EMAIL_OUTBOX_COLUMNS = [
+  'id', 'order_id', 'locale', 'template_key', 'status', 'attempt_count',
+  'next_attempt_at', 'locked_at', 'provider_message_id', 'last_error_code',
+  'created_at', 'sent_at',
+].join(',');
+
+const VIEWER_AUDIT_LOG_COLUMNS = 'id,action,entity_type,entity_id,created_at';
+
+async function buildFinanceReadModel(
+  deps: FinanceHandlerDeps,
+  role: FinanceRole,
+): Promise<HandlerResult> {
   const now = deps.now ?? (() => new Date());
-  const [orders, payments, refunds, entitlements] = await Promise.all([
+  const [
+    orders,
+    payments,
+    refunds,
+    entitlements,
+    paymentEvents,
+    emailOutbox,
+    auditLog,
+    scheduledJobHealth,
+    countResult,
+  ] = await Promise.all([
     deps.db.from('orders').select('*').order('created_at', { ascending: false }).limit(200),
     deps.db.from('payments').select('*').order('created_at', { ascending: false }).limit(500),
     deps.db.from('refunds').select('*').order('requested_at', { ascending: false }).limit(200),
     deps.db.from('book_entitlement').select('*').limit(500),
+    deps.db.from('payment_events').select('*').order('received_at', { ascending: false }).limit(500),
+    deps.db.from('order_email_outbox')
+      .select(role === 'finance_admin' ? '*' : VIEWER_EMAIL_OUTBOX_COLUMNS)
+      .order('created_at', { ascending: false })
+      .limit(200),
+    deps.db.from('admin_audit_log')
+      .select(role === 'finance_admin' ? '*' : VIEWER_AUDIT_LOG_COLUMNS)
+      .order('created_at', { ascending: false })
+      .limit(500),
+    deps.db.from('scheduled_job_health').select('*').order('job_name', { ascending: true }),
+    deps.db.rpc('finance_status_counts', {}),
   ]);
   for (const [name, res] of [
     ['orders', orders],
     ['payments', payments],
     ['refunds', refunds],
     ['entitlements', entitlements],
+    ['payment events', paymentEvents],
+    ['email outbox', emailOutbox],
+    ['audit log', auditLog],
+    ['scheduled job health', scheduledJobHealth],
+    ['finance status counts', countResult],
   ] as const) {
     if (res.error) {
       deps.log.error({ error: res.error.message }, `${name} read failed`);
@@ -98,31 +185,43 @@ async function buildFinanceReadModel(deps: FinanceHandlerDeps): Promise<HandlerR
     }
   }
   const paymentsData = (payments.data ?? []) as Array<Record<string, unknown>>;
+  const refundsData = (refunds.data ?? []) as Array<Record<string, unknown>>;
+  const paymentEventsData = (paymentEvents.data ?? []) as Array<Record<string, unknown>>;
+  const emailOutboxData = (emailOutbox.data ?? []) as Array<Record<string, unknown>>;
+  const counts = readFinanceCounts(countResult.data);
+  if (!counts) {
+    deps.log.error({}, 'finance status counts returned invalid data');
+    return jsonResult(502, { error: 'finance status counts read failed' });
+  }
   const model: ReadModelResult = {
     generatedAt: now().toISOString(),
     orders: (orders.data ?? []) as unknown[],
     payments: paymentsData,
-    refunds: (refunds.data ?? []) as unknown[],
+    refunds: refundsData,
     entitlements: (entitlements.data ?? []) as unknown[],
-    reconciliation: summarizeReconciliation(paymentsData),
+    paymentEvents: paymentEventsData,
+    emailOutbox: emailOutboxData,
+    auditLog: (auditLog.data ?? []) as unknown[],
+    scheduledJobHealth: (scheduledJobHealth.data ?? []) as unknown[],
+    reconciliation: {
+      matched: counts.matched,
+      mismatched: counts.mismatched,
+      pendingVerification: counts.pendingVerification,
+      succeeded: counts.succeeded,
+      failed: counts.failed,
+    },
+    operations: {
+      unprocessedEvents: counts.unprocessedEvents,
+      processingErrors: counts.processingErrors,
+      duplicatePayments: counts.duplicatePayments,
+      refundRequested: counts.refundRequested,
+      refundProcessing: counts.refundProcessing,
+      refundFailed: counts.refundFailed,
+      emailPending: counts.emailPending,
+      emailDead: counts.emailDead,
+    },
   };
   return jsonResult(200, model);
-}
-
-function summarizeReconciliation(payments: Array<Record<string, unknown>>): ReadModelResult['reconciliation'] {
-  let matched = 0;
-  let mismatched = 0;
-  let pendingVerification = 0;
-  let succeeded = 0;
-  let failed = 0;
-  for (const p of payments) {
-    if (p?.reconciliation_status === 'matched') matched += 1;
-    if (p?.reconciliation_status === 'mismatch') mismatched += 1;
-    if (p?.status === 'verification_pending') pendingVerification += 1;
-    if (p?.status === 'succeeded') succeeded += 1;
-    if (p?.status === 'failed') failed += 1;
-  }
-  return { matched, mismatched, pendingVerification, succeeded, failed };
 }
 
 /* ------------------------------------------------------------------------- *
@@ -148,50 +247,14 @@ async function handleFinanceAction(
     const reasonCode = typeof raw.reasonCode === 'string' ? raw.reasonCode : null;
     return await requestManualRefund(deps, actorUid, raw.paymentId, reasonCode);
   }
-  if (raw.action === 'confirm_refund') {
-    if (typeof raw.refundId !== 'string' || raw.refundId.length === 0) {
-      return badRequest('refundId is required');
-    }
-    return await confirmManualRefund(deps, actorUid, raw.refundId);
-  }
   return badRequest('unsupported finance action');
 }
 
-/**
- * finance_admin confirms a manual refund (the operator executed it in the ECPay
- * portal). Marks `refunds.status = succeeded` and applies the §7 derived-state
- * transition (primary → order refunded + entitlement revoked; duplicate_success
- * → payment refunded only, ownership preserved).
- */
-async function confirmManualRefund(
-  deps: FinanceHandlerDeps,
-  actorUid: string,
-  refundId: string,
-): Promise<HandlerResult> {
-  const now = deps.now ?? (() => new Date());
-  try {
-    const result = await confirmRefund(
-      { db: deps.db, log: deps.log, now, actor: actorUid },
-      refundId,
-    );
-    deps.log.info(
-      { refundId, paymentStatus: result.paymentStatus, orderStatus: result.orderStatus, entitlementRevoked: result.entitlementRevoked },
-      'manual refund confirmed',
-    );
-    return jsonResult(200, {
-      refund: { id: refundId, status: result.refundStatus },
-      payment_status: result.paymentStatus,
-      order_status: result.orderStatus,
-      entitlement_revoked: result.entitlementRevoked,
-      already_confirmed: result.alreadyConfirmed,
-    });
-  } catch (err) {
-    deps.log.error(
-      { refundId, error: err instanceof Error ? err.message : String(err) },
-      'refund confirm failed',
-    );
-    return jsonResult(502, { error: 'refund confirm failed' });
-  }
+interface RefundRequestTransaction {
+  outcome: 'created' | 'existing' | 'payment_not_found' | 'not_refundable';
+  refund?: RefundRow;
+  payment?: PaymentRow;
+  payment_status?: string;
 }
 
 async function requestManualRefund(
@@ -200,62 +263,57 @@ async function requestManualRefund(
   paymentId: string,
   reasonCode: string | null,
 ): Promise<HandlerResult> {
-  let payment: PaymentRow | null;
-  try {
-    payment = await loadPaymentById(deps.db, paymentId);
-  } catch (err) {
-    deps.log.error({ error: err instanceof Error ? err.message : String(err) }, 'payment lookup failed');
-    return jsonResult(502, { error: 'payment lookup failed' });
-  }
-  if (!payment) return notFound('payment not found');
-
-  // MVP full refund only (§7): the refund amount equals the payment's full amount.
-  const refundInsert = await deps.db
-    .from('refunds')
-    .insert({
-      payment_id: payment.id,
-      provider: payment.provider,
-      amount_minor: Number(payment.amount_minor),
-      currency: payment.currency,
-      status: 'requested',
-      reason_code: reasonCode,
-      requested_by: actorUid,
-    })
-    .select('id')
-    .single();
-  if (refundInsert.error || !refundInsert.data) {
-    deps.log.error(
-      { error: refundInsert.error?.message ?? 'no row returned' },
-      'refund insert failed',
-    );
-    return jsonResult(502, { error: 'refund insert failed' });
-  }
-
-  const auditInsert = await deps.db.from('admin_audit_log').insert({
-    actor: actorUid,
-    action: 'refund.requested',
-    entity_type: 'refund',
-    entity_id: payment.id,
-    after_state: {
-      status: 'requested',
-      reason_code: reasonCode,
-      payment_id: payment.id,
-      refund_id: refundInsert.data.id,
-    },
+  const request = await deps.db.rpc('request_full_refund', {
+    p_payment_id: paymentId,
+    p_actor: actorUid,
+    p_reason_code: reasonCode,
   });
-  if (auditInsert.error) {
-    deps.log.error({ error: auditInsert.error.message }, 'admin_audit_log insert failed');
-    return jsonResult(502, { error: 'audit log insert failed' });
+  if (request.error || !request.data) {
+    deps.log.error(
+      { error: request.error?.message ?? 'no result returned' },
+      'refund request transaction failed',
+    );
+    return jsonResult(502, { error: 'refund request failed' });
+  }
+  const transaction = request.data as unknown as RefundRequestTransaction;
+  if (transaction.outcome === 'payment_not_found') return notFound('payment not found');
+  if (transaction.outcome === 'not_refundable') {
+    return jsonResult(409, {
+      error: 'payment is not refundable',
+      reason: 'payment_not_refundable',
+      payment_status: transaction.payment_status ?? null,
+    });
+  }
+  const refund = transaction.refund;
+  const payment = transaction.payment;
+  if (!refund || !payment || (transaction.outcome !== 'created' && transaction.outcome !== 'existing')) {
+    deps.log.error({}, 'refund request transaction returned invalid data');
+    return jsonResult(502, { error: 'refund request failed' });
+  }
+
+  // Replays return the one canonical Refund fact and never dispatch a second
+  // provider operation. Ambiguous PayPal work is resumed only by the repair loop
+  // with its stable provider idempotency key.
+  if (transaction.outcome === 'existing') {
+    const status = refund.status;
+    const httpStatus = status === 'processing' ? 202 : status === 'failed' ? 409 : 200;
+    return jsonResult(httpStatus, {
+      refund: { id: refund.id, status },
+      status,
+      ...(status === 'failed' ? { reason: 'provider_refund_rejected' } : {}),
+      replayed: true,
+    });
   }
 
   deps.log.info(
-    { paymentId: payment.id, refundId: refundInsert.data.id, actor: actorUid },
+    { paymentId: payment.id, refundId: refund.id, actor: actorUid },
     'manual refund requested',
   );
 
   // Provider-automatable refund (PayPal, §21): execute the full refund via the
   // adapter and confirm immediately when the provider confirms it. ECPay stays
-  // on the manual flow (portal refund → confirm_refund action) unchanged.
+  // on the provider-portal flow; authoritative FundingReconDetail evidence,
+  // never an operator assertion, later drives the local refund finalizer.
   if (
     payment.provider === 'paypal' &&
     payment.provider_payment_ref &&
@@ -272,7 +330,7 @@ async function requestManualRefund(
     } catch (err) {
       if (err instanceof PaypalConfigurationUnavailableError) {
         deps.log.warn(
-          { paymentId: payment.id, refundId: refundInsert.data.id },
+          { paymentId: payment.id, refundId: refund.id },
           'paypal refund refused: provider not configured; refund left requested',
         );
         return jsonResult(502, {
@@ -286,7 +344,7 @@ async function requestManualRefund(
       try {
         await confirmRefund(
           { db: deps.db, log: deps.log, now: deps.now ?? (() => new Date()), actor: actorUid },
-          String(refundInsert.data.id),
+          String(refund.id),
           {
             providerRefundRef: refundResult.providerRefundRef,
             providerStatusCode: refundResult.rawStatusCode,
@@ -294,13 +352,13 @@ async function requestManualRefund(
         );
       } catch (err) {
         deps.log.error(
-          { refundId: refundInsert.data.id, error: err instanceof Error ? err.message : String(err) },
+          { refundId: refund.id, error: err instanceof Error ? err.message : String(err) },
           'paypal refund confirm failed after provider success',
         );
         return jsonResult(502, { error: 'refund confirm failed' });
       }
       return jsonResult(200, {
-        refund: { id: refundInsert.data.id, status: 'succeeded', provider_refund_ref: refundResult.providerRefundRef ?? null },
+        refund: { id: refund.id, status: 'succeeded', provider_refund_ref: refundResult.providerRefundRef ?? null },
         payment_status: 'refunded',
         status: 'succeeded',
       });
@@ -310,38 +368,69 @@ async function requestManualRefund(
     // provider reference/status before any processing transition so repair can
     // safely retry with the same idempotency key (§21/B3). Confirmed success is
     // handled above in the atomic finalization transaction.
-    const { error: refPersistError } = await deps.db
-      .from('refunds')
-      .update({
-        provider_refund_ref: refundResult.providerRefundRef ?? null,
+    const definitivelyFailed = !refundResult.ok && refundResult.status === 'failed';
+    const recoverablePending = refundResult.ok && refundResult.status === 'pending';
+    let persistedRefund: RefundRow;
+    try {
+      persistedRefund = await persistOpenRefundObservation(deps.db, refund.id, {
+        provider_refund_ref: refundResult.providerRefundRef ?? refund.provider_refund_ref,
         provider_status_code: refundResult.rawStatusCode ?? null,
-      })
-      .eq('id', refundInsert.data.id);
-    if (refPersistError) {
-      deps.log.error({ error: refPersistError.message }, 'refund provider ref persist failed');
+        ...(definitivelyFailed ? { status: 'failed' } : {}),
+        ...(recoverablePending ? { status: 'processing' } : {}),
+      });
+    } catch (err) {
+      deps.log.error(
+        { error: err instanceof Error ? err.message : String(err) },
+        'refund provider ref persist failed',
+      );
+      return jsonResult(502, { error: 'refund status persistence failed' });
     }
 
-    if (refundResult.ok && refundResult.status === 'pending') {
+    // A concurrent webhook/finalizer is authoritative. Report its terminal
+    // result instead of allowing this stale provider call to downgrade it.
+    if (persistedRefund.status === 'succeeded') {
+      return jsonResult(200, {
+        refund: {
+          id: persistedRefund.id,
+          status: 'succeeded',
+          provider_refund_ref: persistedRefund.provider_refund_ref,
+        },
+        payment_status: 'refunded',
+        status: 'succeeded',
+        replayed: true,
+      });
+    }
+
+    if (persistedRefund.status === 'failed') {
+      deps.log.warn(
+        { paymentId: payment.id, refundId: refund.id, rawStatusCode: refundResult.rawStatusCode },
+        'paypal refund definitively rejected',
+      );
+      return jsonResult(409, {
+        refund: { id: refund.id, status: 'failed' },
+        status: 'failed',
+        reason: 'provider_refund_rejected',
+      });
+    }
+
+    if (persistedRefund.status === 'processing') {
       // Ambiguous (transport 5xx/timeout) or genuinely pending — leave it in the
       // recoverable `processing` state; the repair loop resumes it with the same
       // stable PayPal-Request-Id (§21/B3). Never a terminal failed refund here.
-      const { error: processingError } = await deps.db
-        .from('refunds')
-        .update({ status: 'processing' })
-        .eq('id', refundInsert.data.id);
-      if (processingError) {
-        deps.log.error({ error: processingError.message }, 'refund processing update failed');
-      }
       return jsonResult(202, {
-        refund: { id: refundInsert.data.id, status: 'processing', provider_refund_ref: refundResult.providerRefundRef ?? null },
+        refund: {
+          id: persistedRefund.id,
+          status: 'processing',
+          provider_refund_ref: persistedRefund.provider_refund_ref,
+        },
         status: 'processing',
       });
     }
     deps.log.warn(
-      { paymentId: payment.id, refundId: refundInsert.data.id, rawStatusCode: refundResult.rawStatusCode },
+      { paymentId: payment.id, refundId: refund.id, rawStatusCode: refundResult.rawStatusCode },
       'paypal refund request rejected; left requested for operator review',
     );
   }
 
-  return jsonResult(201, { refund: refundInsert.data, status: 'requested' });
+  return jsonResult(201, { refund: { id: refund.id, status: refund.status }, status: refund.status });
 }

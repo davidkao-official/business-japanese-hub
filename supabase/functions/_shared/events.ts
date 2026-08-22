@@ -6,6 +6,7 @@
  * the allowlisted financial/status fields — never a raw provider payload dump.
  */
 import type { VerifiedProviderEvent } from '../../../src/lib/payments/contract.ts';
+import type { DbClient } from './db.ts';
 
 /** Allowlisted callback evidence fields (mirrors the adapter's canonicalization set). */
 const CALLBACK_ALLOWLIST = [
@@ -66,4 +67,38 @@ export function buildPaymentEventRow(
     processed_at: null,
     processing_result: null,
   };
+}
+
+export type PaymentEventProcessingResult =
+  | 'succeeded'
+  | 'failed'
+  | 'verification_pending'
+  | 'refund_succeeded'
+  | 'refund_pending'
+  | 'refund_failed'
+  | 'refund_mismatch'
+  | 'unknown_reference'
+  | 'processing_error';
+
+/** Correlate a durable receipt with the local Payment and its latest outcome. */
+export async function completePaymentEvent(
+  db: DbClient,
+  event: VerifiedProviderEvent,
+  paymentId: string | null,
+  result: PaymentEventProcessingResult,
+  processedAt: string,
+): Promise<void> {
+  // The locked database RPC upgrades an unprocessed/transient result but never
+  // lets a slower concurrent replay overwrite a terminal result such as
+  // `succeeded` with `processing_error` or `verification_pending`.
+  const { data, error } = await db.rpc('complete_payment_event_outcome', {
+    p_provider: event.provider,
+    p_event_fingerprint: event.eventFingerprint,
+    p_payment_id: paymentId,
+    p_processing_result: result,
+    p_processed_at: processedAt,
+  });
+  if (error || typeof data !== 'string') {
+    throw new Error(`payment event outcome update failed: ${error?.message ?? 'no result returned'}`);
+  }
 }

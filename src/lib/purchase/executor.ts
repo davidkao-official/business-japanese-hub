@@ -259,6 +259,9 @@ export function createCheckoutPurchaseExecutor(deps: CheckoutExecutorDeps = {}):
             navigate(purchaseResultPath(conflict.orderId));
             return { ok: true, orderId: conflict.orderId, status: 'pending' };
           }
+          if (conflict.reason === 'already_owned') {
+            return { ok: false, reason: 'already_owned' };
+          }
         } catch {
           // Malformed conflicts remain a generic fail-closed checkout failure.
         }

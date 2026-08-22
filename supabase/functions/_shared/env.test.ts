@@ -8,6 +8,7 @@ import { readEnvFrom, type Env, type EnvReader } from './env.ts';
 const BASE: Record<string, string> = {
   SUPABASE_URL: 'https://test.supabase.co',
   SUPABASE_SERVICE_ROLE_KEY: 'service-key',
+  DEPLOYMENT_ENV: 'staging',
   ECPAY_MERCHANT_ID: '2000132',
   ECPAY_HASH_KEY: 'hash-key',
   ECPAY_HASH_IV: 'hash-iv',
@@ -38,6 +39,23 @@ describe('readEnvFrom — provider-scoped config seam (#21)', () => {
     expect(env.paypalClientSecret).toBe('csec');
     expect(env.paypalWebhookId).toBe('wh');
     expect(env.paypalEnv).toBe('sandbox');
+    expect(env.deploymentEnv).toBe('staging');
+  });
+
+  it('keeps a missing or invalid deployment identity unresolved', () => {
+    const missing = readEnvFrom(readerFrom({
+      SUPABASE_URL: 'https://test.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'service-key',
+    }));
+    const invalid = readEnvFrom(readerFrom({ ...BASE, DEPLOYMENT_ENV: 'prod' }));
+
+    expect(missing.deploymentEnv).toBeUndefined();
+    expect(invalid.deploymentEnv).toBeUndefined();
+  });
+
+  it('parses an explicit production deployment identity', () => {
+    const env = readEnvFrom(readerFrom({ ...BASE, DEPLOYMENT_ENV: 'production' }));
+    expect(env.deploymentEnv).toBe('production');
   });
 
   it('boots a PayPal-only environment without ECPay credentials', () => {

@@ -8,7 +8,7 @@
 import { EcpayPaymentProviderAdapter } from '../../../src/lib/payments/ecpay/adapter.ts';
 import type { PaymentProviderAdapter } from '../../../src/lib/payments/contract.ts';
 import type { EcpayLanguage } from '../../../src/lib/payments/ecpay/types.ts';
-import type { Env } from './env.ts';
+import { isProviderEnvironmentAligned, type Env } from './env.ts';
 
 export type EcpayConfiguredEnv = Env & {
   ecpayMerchantId: string;
@@ -24,7 +24,12 @@ export class EcpayConfigurationUnavailableError extends Error {
 }
 
 export function isEcpayConfigured(env: Env): env is EcpayConfiguredEnv {
-  return Boolean(env.ecpayMerchantId && env.ecpayHashKey && env.ecpayHashIV);
+  return Boolean(
+    env.ecpayMerchantId &&
+      env.ecpayHashKey &&
+      env.ecpayHashIV &&
+      isProviderEnvironmentAligned(env.deploymentEnv, env.ecpayEnv, 'prod', 'stage'),
+  );
 }
 
 export function createEcpayAdapter(env: Env): EcpayPaymentProviderAdapter {

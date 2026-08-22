@@ -1,6 +1,6 @@
 begin;
 
-select plan(31);
+select plan(46);
 
 select has_column('public', 'payments', 'provider_checkout_ref',
   'payments separates checkout/session ids from settlement transaction ids');
@@ -84,6 +84,15 @@ insert into public.payments (
     'paypal', 'MERCHANT-REPAIR', 1999, 'USD', 'pending'
   );
 
+select throws_ok(
+  $$ update public.payments
+        set amount_minor = 1
+      where id = '30000000-0000-0000-0000-000000000001' $$,
+  'P0001',
+  'payments: identity and commercial facts are immutable after creation',
+  'a service path cannot rewrite the authoritative Payment amount'
+);
+
 select is(
   public.finalize_payment_success(
     '30000000-0000-0000-0000-000000000001', 'CAPTURE-PRIMARY',
@@ -94,6 +103,14 @@ select is(
 );
 select is((select status from public.payments where id = '30000000-0000-0000-0000-000000000001'),
   'succeeded'::text, 'primary payment is succeeded');
+select throws_ok(
+  $$ update public.payments
+        set provider_payment_ref = 'CAPTURE-TAMPERED'
+      where id = '30000000-0000-0000-0000-000000000001' $$,
+  'P0001',
+  'payments: provider references and paid_at cannot change once recorded',
+  'a settled provider transaction reference cannot be replaced'
+);
 select is((select status from public.orders where id = '20000000-0000-0000-0000-000000000001'),
   'paid'::text, 'order is paid');
 select results_eq(
@@ -154,6 +171,22 @@ select results_eq(
       where id = '40000000-0000-0000-0000-000000000001' $$,
   $$ values ('succeeded'::text, 'REFUND-PRIMARY'::text) $$,
   'refund fact stores authoritative provider reference'
+);
+select throws_ok(
+  $$ update public.refunds
+        set amount_minor = 1
+      where id = '40000000-0000-0000-0000-000000000001' $$,
+  'P0001',
+  'refunds: identity and commercial facts are immutable after creation',
+  'a Refund cannot be changed from the full authoritative amount'
+);
+select throws_ok(
+  $$ update public.refunds
+        set provider_refund_ref = 'REFUND-TAMPERED'
+      where id = '40000000-0000-0000-0000-000000000001' $$,
+  'P0001',
+  'refunds: provider reference cannot change once recorded',
+  'a confirmed provider Refund reference cannot be replaced'
 );
 select is((select status from public.payments where id = '30000000-0000-0000-0000-000000000001'),
   'refunded'::text, 'primary payment becomes refunded');
@@ -227,16 +260,6 @@ insert into public.refunds (
     '40000000-0000-0000-0000-000000000010',
     '30000000-0000-0000-0000-000000000005',
     'paypal', 1998, 'USD', 'requested'
-  ),
-  (
-    '40000000-0000-0000-0000-000000000011',
-    '30000000-0000-0000-0000-000000000005',
-    'paypal', 1999, 'TWD', 'requested'
-  ),
-  (
-    '40000000-0000-0000-0000-000000000012',
-    '30000000-0000-0000-0000-000000000005',
-    'ecpay', 1999, 'USD', 'requested'
   );
 
 select throws_ok(
@@ -247,20 +270,38 @@ select throws_ok(
   'refund 40000000-0000-0000-0000-000000000010 does not match payment 30000000-0000-0000-0000-000000000005 full-refund contract',
   'refund amount mismatch is rejected inside the transaction'
 );
-select throws_ok(
-  $$ select public.finalize_refund_success(
-    '40000000-0000-0000-0000-000000000011', null, 'BAD-CURRENCY', 'COMPLETED', now()
-  ) $$,
-  'P0001',
-  'refund 40000000-0000-0000-0000-000000000011 does not match payment 30000000-0000-0000-0000-000000000005 full-refund contract',
-  'refund currency mismatch is rejected inside the transaction'
+delete from public.refunds
+ where id = '40000000-0000-0000-0000-000000000010';
+insert into public.refunds (
+  id, payment_id, provider, amount_minor, currency, status
+) values (
+  '40000000-0000-0000-0000-000000000010',
+  '30000000-0000-0000-0000-000000000005',
+  'paypal', 1999, 'TWD', 'requested'
 );
 select throws_ok(
   $$ select public.finalize_refund_success(
-    '40000000-0000-0000-0000-000000000012', null, 'BAD-PROVIDER', 'COMPLETED', now()
+    '40000000-0000-0000-0000-000000000010', null, 'BAD-CURRENCY', 'COMPLETED', now()
   ) $$,
   'P0001',
-  'refund 40000000-0000-0000-0000-000000000012 does not match payment 30000000-0000-0000-0000-000000000005 full-refund contract',
+  'refund 40000000-0000-0000-0000-000000000010 does not match payment 30000000-0000-0000-0000-000000000005 full-refund contract',
+  'refund currency mismatch is rejected inside the transaction'
+);
+delete from public.refunds
+ where id = '40000000-0000-0000-0000-000000000010';
+insert into public.refunds (
+  id, payment_id, provider, amount_minor, currency, status
+) values (
+  '40000000-0000-0000-0000-000000000010',
+  '30000000-0000-0000-0000-000000000005',
+  'ecpay', 1999, 'USD', 'requested'
+);
+select throws_ok(
+  $$ select public.finalize_refund_success(
+    '40000000-0000-0000-0000-000000000010', null, 'BAD-PROVIDER', 'COMPLETED', now()
+  ) $$,
+  'P0001',
+  'refund 40000000-0000-0000-0000-000000000010 does not match payment 30000000-0000-0000-0000-000000000005 full-refund contract',
   'refund provider mismatch is rejected inside the transaction'
 );
 select results_eq(
@@ -272,6 +313,11 @@ select results_eq(
   $$ values ('succeeded'::text, 'paid'::text, 'active'::text) $$,
   'rejected refund mismatches preserve payment, order, and entitlement'
 );
+
+-- The rows above are deliberately-invalid injected facts. Remove that one
+-- fixture before simulating the only valid full refund for this Payment.
+delete from public.refunds
+ where id = '40000000-0000-0000-0000-000000000010';
 
 -- Simulate the former non-atomic path stopping immediately after it persisted
 -- the refund fact. A replay must finish every missing derived transition.
@@ -287,7 +333,7 @@ insert into public.refunds (
 select is(
   (public.finalize_refund_success(
     '40000000-0000-0000-0000-000000000003', null,
-    'REFUND-REPAIR', 'COMPLETED', '2026-08-20T06:00:00Z'
+    'REFUND-REPAIR', 'COMPLETED', '2026-08-20T06:10:00Z'
   ) ->> 'already_confirmed')::boolean,
   false,
   'a half-applied succeeded refund is repaired instead of short-circuited'
@@ -300,6 +346,126 @@ select results_eq(
       where p.id = '30000000-0000-0000-0000-000000000005' $$,
   $$ values ('refunded'::text, 'refunded'::text, 'revoked'::text) $$,
   'refund replay heals payment, order, and entitlement together'
+);
+select is(
+  (select completed_at from public.refunds where id = '40000000-0000-0000-0000-000000000003'),
+  '2026-08-20T06:00:00Z'::timestamptz,
+  'repair preserves the first authoritative refund completion timestamp'
+);
+
+-- A refund leaves a revoked lifecycle row. A legitimate later purchase of the
+-- same book must rebind that row to the new Order so a second refund can revoke
+-- access again instead of targeting stale provenance.
+insert into public.orders (
+  id, user_id, book_id, item_name_snapshot, published_revision,
+  amount_minor, currency, status, jurisdiction, japan_tax_status_snapshot,
+  customer_email_snapshot, customer_locale_snapshot
+) values (
+  '20000000-0000-0000-0000-000000000004',
+  '10000000-0000-0000-0000-000000000001',
+  'book-primary', 'Primary Book Repurchase', 'book-primary@r2',
+  1999, 'USD', 'pending', 'TW', 'unresolved', 'repurchase@example.com', 'en'
+);
+
+insert into public.payments (
+  id, order_id, provider, provider_merchant_ref, amount_minor, currency, status
+) values (
+  '30000000-0000-0000-0000-000000000006',
+  '20000000-0000-0000-0000-000000000004',
+  'paypal', 'MERCHANT-REPURCHASE', 1999, 'USD', 'pending'
+);
+
+select is(
+  (public.finalize_payment_success(
+    '30000000-0000-0000-0000-000000000006', 'CAPTURE-REPURCHASE',
+    '2026-08-20T07:00:00Z', 'COMPLETED'
+  ) ->> 'granted')::boolean,
+  true,
+  'repurchase reactivates the refunded book entitlement'
+);
+select results_eq(
+  $$ select status, source_order_id
+       from public.book_entitlement
+      where user_id = '10000000-0000-0000-0000-000000000001'
+        and book_id = 'book-primary' $$,
+  $$ values ('active'::text, '20000000-0000-0000-0000-000000000004'::uuid) $$,
+  'repurchase rebinds entitlement provenance to the new Order'
+);
+
+select is(
+  (public.finalize_refund_success(
+    '40000000-0000-0000-0000-000000000001', null,
+    'REFUND-PRIMARY', 'COMPLETED', '2026-08-20T07:10:00Z'
+  ) ->> 'already_confirmed')::boolean,
+  true,
+  'replaying an old refund after repurchase does not reject current entitlement provenance'
+);
+
+insert into public.refunds (
+  id, payment_id, provider, provider_refund_ref, amount_minor, currency, status
+) values (
+  '40000000-0000-0000-0000-000000000004',
+  '30000000-0000-0000-0000-000000000006',
+  'paypal', 'REFUND-REPURCHASE', 1999, 'USD', 'processing'
+);
+
+select is(
+  (public.finalize_refund_success(
+    '40000000-0000-0000-0000-000000000004', null,
+    null, 'REFUNDED', '2026-08-20T08:00:00Z'
+  ) ->> 'entitlement_revoked')::boolean,
+  true,
+  'the repurchase refund reports an entitlement revocation'
+);
+select is(
+  (select provider_refund_ref from public.refunds
+    where id = '40000000-0000-0000-0000-000000000004'),
+  'REFUND-REPURCHASE'::text,
+  'capture-level REFUNDED evidence preserves the existing PayPal refund resource id'
+);
+select results_eq(
+  $$ select status, source_order_id, revocation_reason
+       from public.book_entitlement
+      where user_id = '10000000-0000-0000-0000-000000000001'
+        and book_id = 'book-primary' $$,
+  $$ values (
+       'revoked'::text,
+       '20000000-0000-0000-0000-000000000004'::uuid,
+       'refund'::text
+     ) $$,
+  'a second refund revokes the repurchased entitlement with current provenance'
+);
+
+select lives_ok(
+  $$ select public.grant_entitlement(
+    '10000000-0000-0000-0000-000000000001',
+    'book-primary', 'manual', null, null, 'active', null, null
+  ) $$,
+  'an operator can issue a manual recovery grant after a refund'
+);
+select results_eq(
+  $$ select provider, provider_ref, source_order_id, status
+       from public.book_entitlement
+      where user_id = '10000000-0000-0000-0000-000000000001'
+        and book_id = 'book-primary' $$,
+  $$ values ('manual'::text, null::text, null::uuid, 'active'::text) $$,
+  'a manual regrant clears stale paid-provider and Order provenance'
+);
+select is(
+  (public.finalize_refund_success(
+    '40000000-0000-0000-0000-000000000004', null,
+    'REFUND-REPURCHASE', 'COMPLETED', '2026-08-20T09:00:00Z'
+  ) ->> 'already_confirmed')::boolean,
+  true,
+  'replaying the old refund cannot revoke the newer manual grant'
+);
+select results_eq(
+  $$ select provider, source_order_id, status
+       from public.book_entitlement
+      where user_id = '10000000-0000-0000-0000-000000000001'
+        and book_id = 'book-primary' $$,
+  $$ values ('manual'::text, null::uuid, 'active'::text) $$,
+  'the manual grant remains active after the old refund replay'
 );
 
 select * from finish();

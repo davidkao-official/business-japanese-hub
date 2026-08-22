@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyPaymentEvent,
   applyVerifiedSuccess,
   confirmRefund,
   paymentFromRow,
   type PaymentRow,
   type RefundRow,
 } from './flow.ts';
+import type { DbBuilder, DbClient } from './db.ts';
 import { createMockDb, fakeLogger, ORDER_ROW, PAYMENT_ROW } from './testing.ts';
 
 const SUCCESS_RESULT = {
@@ -37,6 +39,52 @@ const REFUND_ROW: RefundRow = {
   requested_at: '2026-08-16T08:00:00Z',
   completed_at: null,
 };
+
+function createStatefulPaymentDb(initial: PaymentRow): {
+  db: DbClient;
+  current: () => PaymentRow;
+} {
+  let state = { ...initial };
+
+  const db = {
+    from(table: string) {
+      if (table !== 'payments') throw new Error(`unexpected table ${table}`);
+      let mode: 'select' | 'update' = 'select';
+      let patch: Record<string, unknown> = {};
+      const filters: Record<string, unknown> = {};
+
+      const matches = () => Object.entries(filters).every(
+        ([column, value]) => (state as unknown as Record<string, unknown>)[column] === value,
+      );
+      const executeSingle = () => {
+        if (!matches()) return { data: null, error: null };
+        if (mode === 'update') state = { ...state, ...patch } as PaymentRow;
+        return { data: { ...state } as unknown as Record<string, unknown>, error: null };
+      };
+
+      const builder = {
+        select: () => builder,
+        eq: (column, value) => {
+          filters[column] = value;
+          return builder;
+        },
+        update: (partial) => {
+          mode = 'update';
+          patch = partial;
+          return builder;
+        },
+        maybeSingle: async () => executeSingle(),
+        then: (onfulfilled) => Promise.resolve({
+          data: executeSingle().data ? [{ ...state } as unknown as Record<string, unknown>] : [],
+          error: null,
+        }).then(onfulfilled),
+      } as unknown as DbBuilder;
+      return builder;
+    },
+  } as unknown as DbClient;
+
+  return { db, current: () => ({ ...state }) };
+}
 
 describe('payment flow atomic persistence', () => {
   it('maps PayPal as a provider payment method and rejects unknown persisted methods', () => {
@@ -75,6 +123,62 @@ describe('payment flow atomic persistence', () => {
     expect(mock.callsFor('payments', 'update')).toHaveLength(0);
     expect(mock.callsFor('orders', 'update')).toHaveLength(0);
     expect(mock.rpcCalls('grant_entitlement')).toHaveLength(0);
+  });
+
+  it('does not let a stale ambiguous callback overwrite a concurrently succeeded payment', async () => {
+    const stalePayment = { ...PAYMENT_ROW, status: 'pending' } as PaymentRow;
+    const stateful = createStatefulPaymentDb({
+      ...stalePayment,
+      status: 'succeeded',
+      provider_payment_ref: 'CAPTURE-1',
+      provider_status_code: 'COMPLETED',
+      provider_status_message: 'payment confirmed',
+      paid_at: '2026-08-16T12:00:00Z',
+    });
+
+    const result = await applyPaymentEvent(
+      { db: stateful.db, log: fakeLogger(), now: () => new Date('2026-08-16T12:00:01Z') },
+      stalePayment,
+      { type: 'verification_pending', merchantReference: stalePayment.provider_merchant_ref },
+    );
+
+    expect(result).toBe('succeeded');
+    expect(stateful.current()).toMatchObject({
+      status: 'succeeded',
+      provider_payment_ref: 'CAPTURE-1',
+      provider_status_code: 'COMPLETED',
+      provider_status_message: 'payment confirmed',
+    });
+  });
+
+  it('preserves successful provider diagnostics when a late failure callback is a state no-op', async () => {
+    const succeededPayment = {
+      ...PAYMENT_ROW,
+      status: 'succeeded',
+      provider_payment_ref: 'CAPTURE-1',
+      provider_status_code: 'COMPLETED',
+      provider_status_message: 'payment confirmed',
+      paid_at: '2026-08-16T12:00:00Z',
+    } as PaymentRow;
+    const stateful = createStatefulPaymentDb(succeededPayment);
+
+    const result = await applyPaymentEvent(
+      { db: stateful.db, log: fakeLogger(), now: () => new Date('2026-08-16T12:00:01Z') },
+      succeededPayment,
+      {
+        type: 'payment_failed',
+        merchantReference: succeededPayment.provider_merchant_ref,
+        rawStatusCode: 'DENIED',
+      },
+    );
+
+    expect(result).toBe('succeeded');
+    expect(stateful.current()).toMatchObject({
+      status: 'succeeded',
+      provider_payment_ref: 'CAPTURE-1',
+      provider_status_code: 'COMPLETED',
+      provider_status_message: 'payment confirmed',
+    });
   });
 
   it('finalizes a provider-confirmed refund through one database transaction RPC', async () => {

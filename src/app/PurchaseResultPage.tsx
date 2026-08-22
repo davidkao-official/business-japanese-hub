@@ -12,7 +12,7 @@
  * exhausts without a terminal state (or the Edge Functions gateway is
  * unconfigured).
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useStrings } from '../i18n/strings'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
@@ -26,19 +26,28 @@ import {
   resultStateFor,
 } from '../lib/purchase/executor'
 import type { OrderStatusResponse } from '../lib/payments/contract'
+import { useUserState } from '../lib/persistence/UserStateContext'
 
 export function PurchaseResultPage() {
   const strings = useStrings()
   const [searchParams] = useSearchParams()
   const orderId = searchParams.get('order')
+  const { user } = useUserState()
+  const viewerId = user?.id ?? null
   const [order, setOrder] = useState<OrderStatusResponse | null>(null)
   const [finished, setFinished] = useState(false)
   const [lastOrderId, setLastOrderId] = useState(orderId)
+  const [lastViewerId, setLastViewerId] = useState(viewerId)
+  const [retryKey, setRetryKey] = useState(0)
+  const headingRef = useRef<HTMLHeadingElement>(null)
 
-  // Reset the polling state when the order id changes — React-recommended
-  // "adjust state during render" (never setState synchronously in the effect).
-  if (lastOrderId !== orderId) {
+  // Receipt data is scoped to both the Order and the authenticated viewer.
+  // Mask it synchronously when either identity changes, before the replacement
+  // authorization request resolves. React recommends this render-time state
+  // adjustment pattern for resetting derived state.
+  if (lastOrderId !== orderId || lastViewerId !== viewerId) {
     setLastOrderId(orderId)
+    setLastViewerId(viewerId)
     setOrder(null)
     setFinished(false)
   }
@@ -75,9 +84,15 @@ export function PurchaseResultPage() {
     return () => {
       active = false
     }
-  }, [orderId, baseUrl])
+  }, [orderId, baseUrl, retryKey, user?.id])
 
   const headingId = 'purchase-result-title'
+  const showStillProcessing = finished || !baseUrl
+  const view = order ? resultStateFor(order) : 'pending'
+
+  useEffect(() => {
+    if (view !== 'pending') headingRef.current?.focus()
+  }, [view])
 
   if (!orderId) {
     return (
@@ -95,18 +110,29 @@ export function PurchaseResultPage() {
 
   // Polling finished without a terminal state, or no gateway configured —
   // either way the order has not reached a result we can display.
-  const showStillProcessing = finished || !baseUrl
-  const view = order ? resultStateFor(order) : 'pending'
-
   if (view === 'pending') {
     return (
       <section className="page" aria-labelledby={headingId} role="status">
-        <h1 className="page__title" id={headingId}>
+        <h1 className="page__title" id={headingId} ref={headingRef} tabIndex={-1}>
           {strings.purchaseResult.title}
         </h1>
         <p className="page__lead">{strings.purchaseResult.pending}</p>
         {showStillProcessing && (
-          <p className="purchase-result__note">{strings.purchaseResult.stillProcessing}</p>
+          <>
+            <p className="purchase-result__note">{strings.purchaseResult.stillProcessing}</p>
+            {baseUrl && (
+              <button
+                className="page__action"
+                type="button"
+                onClick={() => {
+                  setFinished(false)
+                  setRetryKey((value) => value + 1)
+                }}
+              >
+                {strings.library.retry}
+              </button>
+            )}
+          </>
         )}
         <Link className="page__action" to="/library">
           {strings.purchaseResult.goToLibrary}
@@ -117,8 +143,8 @@ export function PurchaseResultPage() {
 
   if (view === 'succeeded' && order) {
     return (
-      <section className="page" aria-labelledby={headingId}>
-        <h1 className="page__title" id={headingId}>
+      <section className="page" aria-labelledby={headingId} role="status" aria-live="polite">
+        <h1 className="page__title" id={headingId} ref={headingRef} tabIndex={-1}>
           {strings.purchaseResult.succeededTitle}
         </h1>
         <p className="page__lead">{strings.purchaseResult.succeededMessage}</p>
@@ -132,8 +158,8 @@ export function PurchaseResultPage() {
 
   if (view === 'refunded' && order) {
     return (
-      <section className="page" aria-labelledby={headingId}>
-        <h1 className="page__title" id={headingId}>
+      <section className="page" aria-labelledby={headingId} role="status" aria-live="polite">
+        <h1 className="page__title" id={headingId} ref={headingRef} tabIndex={-1}>
           {strings.purchaseResult.refundedTitle}
         </h1>
         <p className="page__lead">{strings.purchaseResult.refundedMessage}</p>
@@ -147,8 +173,8 @@ export function PurchaseResultPage() {
 
   if (view === 'cancelled') {
     return (
-      <section className="page" aria-labelledby={headingId}>
-        <h1 className="page__title" id={headingId}>
+      <section className="page" aria-labelledby={headingId} role="status" aria-live="polite">
+        <h1 className="page__title" id={headingId} ref={headingRef} tabIndex={-1}>
           {strings.purchaseResult.cancelledTitle}
         </h1>
         <p className="page__lead">{strings.purchaseResult.cancelledMessage}</p>
@@ -161,8 +187,8 @@ export function PurchaseResultPage() {
 
   // failed (payment failed) — terminal.
   return (
-    <section className="page" aria-labelledby={headingId}>
-      <h1 className="page__title" id={headingId}>
+    <section className="page" aria-labelledby={headingId} role="status" aria-live="polite">
+      <h1 className="page__title" id={headingId} ref={headingRef} tabIndex={-1}>
         {strings.purchaseResult.failedTitle}
       </h1>
       <p className="page__lead">{strings.purchaseResult.failedMessage}</p>

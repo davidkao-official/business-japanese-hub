@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useStrings } from '../i18n/strings'
 import { useAuth } from '../lib/auth/AuthContext'
 
@@ -20,6 +20,11 @@ export function AuthPanel({ onAuthenticated, onCancel, showPurchaseIntro = false
   const emailId = useId()
   const passwordId = useId()
   const inFlight = useRef(false)
+  const emailRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (showPurchaseIntro) emailRef.current?.focus()
+  }, [showPurchaseIntro])
 
   const submit = async (form: HTMLFormElement) => {
     if (inFlight.current) return
@@ -74,7 +79,14 @@ export function AuthPanel({ onAuthenticated, onCancel, showPurchaseIntro = false
       >
         <label className="auth-panel__field" htmlFor={emailId}>
           <span>{strings.auth.email}</span>
-          <input id={emailId} name="email" type="email" autoComplete="email" required />
+          <input
+            ref={emailRef}
+            id={emailId}
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+          />
         </label>
         <label className="auth-panel__field" htmlFor={passwordId}>
           <span>{strings.auth.password}</span>

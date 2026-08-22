@@ -194,6 +194,19 @@ describe('checkout executor (#9)', () => {
     expect(result).toEqual({ ok: true, orderId: 'order-pending-1', status: 'pending' })
   })
 
+  it('maps an already-owned checkout race to a distinct recoverable result', async () => {
+    const fetchClient = vi.fn().mockResolvedValue(jsonResponse({ reason: 'already_owned' }, false, 409))
+    const executor = createCheckoutPurchaseExecutor({
+      functionsBaseUrl: BASE,
+      fetchClient,
+      authToken: 'tok-123',
+    })
+
+    const result = await executor({ bookId: 'book-1' }, consent())
+
+    expect(result).toEqual({ ok: false, reason: 'already_owned' })
+  })
+
   it('returns failed on an invalid checkout response shape', async () => {
     const fetchClient = vi.fn().mockResolvedValue(jsonResponse({ orderId: 123 }))
     const executor = createCheckoutPurchaseExecutor({

@@ -16,7 +16,8 @@
  *     before any executor call. Proceeding after viewing them records the same
  *     displayed snapshots in order_compliance; no TW-style checkbox is used.
  */
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { Book } from '../content/types'
 import { useLocale, useStrings } from '../i18n/strings'
 import { isPaidLaunchLegalReady } from '../legal-content'
@@ -45,7 +46,15 @@ export interface PurchaseCTAProps {
   jurisdiction?: ResolvedJurisdiction
 }
 
-type Phase = 'idle' | 'auth' | 'jurisdiction' | 'consent' | 'jp-disclosure' | 'pending' | 'unavailable'
+type Phase =
+  | 'idle'
+  | 'auth'
+  | 'jurisdiction'
+  | 'consent'
+  | 'jp-disclosure'
+  | 'pending'
+  | 'unavailable'
+  | 'owned'
 
 export function PurchaseCTA({
   book,
@@ -63,17 +72,37 @@ export function PurchaseCTA({
   const jpDisclosureInfo = jurisdiction === 'JP' ? jpConsentInfo() : null
 
   const [phase, setPhase] = useState<Phase>('idle')
+  const [ownedForUserId, setOwnedForUserId] = useState<string | null>(null)
   const [consentChecked, setConsentChecked] = useState(false)
   const [attempted, setAttempted] = useState(false)
   // In-flight latch: React batches state updates, so a `phase` guard can observe
   // a stale value and double-submit a checkout (two orders for one purchase).
   const inFlight = useRef(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const stepRef = useRef<HTMLSpanElement>(null)
+  const ownedLinkRef = useRef<HTMLAnchorElement>(null)
+  const restoreTrigger = useRef(false)
   // If the Edge Function rejects an expired/missing session after the buyer has
   // already viewed the disclosures, retain the exact evidence object. A
   // successful inline reauthentication retries that same immutable snapshot;
   // it never silently rebuilds compliance evidence from potentially changed
   // copy or locale state.
   const pendingConsent = useRef<ConsentSubmission | null>(null)
+  // Scope `already_owned` to the identity that received it. Deriving this
+  // avoids an effect-driven reset (and renders the purchase action immediately
+  // when auth changes) while preserving the recovery link for the same user.
+  const ownedForCurrentUser = phase === 'owned' && ownedForUserId === (user?.id ?? null)
+
+  useEffect(() => {
+    if (phase === 'jurisdiction' || phase === 'consent' || phase === 'jp-disclosure') {
+      stepRef.current?.focus()
+    } else if (ownedForCurrentUser) {
+      ownedLinkRef.current?.focus()
+    } else if (phase === 'idle' && restoreTrigger.current) {
+      restoreTrigger.current = false
+      triggerRef.current?.focus()
+    }
+  }, [phase, ownedForCurrentUser])
 
   const beginPurchase = async (consent: ConsentSubmission | null) => {
     if (inFlight.current) return
@@ -89,6 +118,12 @@ export function PurchaseCTA({
       if (!result.ok && result.reason === 'signed_out') {
         pendingConsent.current = consent
         setPhase('auth')
+        return
+      }
+      if (!result.ok && result.reason === 'already_owned') {
+        pendingConsent.current = null
+        setOwnedForUserId(user?.id ?? null)
+        setPhase('owned')
         return
       }
       if (result.ok) pendingConsent.current = null
@@ -152,6 +187,7 @@ export function PurchaseCTA({
     pendingConsent.current = null
     setConsentChecked(false)
     setAttempted(false)
+    restoreTrigger.current = true
     setPhase('idle')
   }
 
@@ -168,6 +204,7 @@ export function PurchaseCTA({
   }
 
   const onCancelJurisdiction = () => {
+    restoreTrigger.current = true
     setPhase('idle')
   }
 
@@ -193,17 +230,23 @@ export function PurchaseCTA({
   const onCancelConsent = () => {
     setConsentChecked(false)
     setAttempted(false)
+    restoreTrigger.current = true
     setPhase('idle')
   }
 
   const onCancelJpDisclosure = () => {
+    restoreTrigger.current = true
     setPhase('idle')
   }
 
   const priceLabel = book.price ? formatPrice(book.price) : null
   const label = priceLabel ? `${strings.book.purchase}（${priceLabel}）` : strings.book.purchase
   const showPrimaryButton =
-    phase !== 'auth' && phase !== 'jurisdiction' && phase !== 'consent' && phase !== 'jp-disclosure'
+    phase !== 'auth' &&
+    phase !== 'jurisdiction' &&
+    phase !== 'consent' &&
+    phase !== 'jp-disclosure' &&
+    !ownedForCurrentUser
 
   return (
     <div className={`purchase-cta${className ? ` ${className}` : ''}`}>
@@ -217,9 +260,11 @@ export function PurchaseCTA({
 
       {phase === 'jurisdiction' && (
         <span
+          ref={stepRef}
           className="purchase-cta__jurisdiction"
           role="region"
           aria-label={strings.checkout.jurisdictionTitle}
+          tabIndex={-1}
         >
           <strong>{strings.checkout.jurisdictionTitle}</strong>
           <span className="purchase-cta__notice-text">{strings.checkout.jurisdictionNote}</span>
@@ -239,9 +284,11 @@ export function PurchaseCTA({
 
       {phase === 'consent' && consentInfo && (
         <span
+          ref={stepRef}
           className="purchase-cta__consent"
           role="region"
           aria-label={strings.checkout.consentTitle}
+          tabIndex={-1}
         >
           <span className="purchase-cta__notice" role="note">
             <strong>{strings.checkout.waiverNoticeLabel}</strong>
@@ -275,9 +322,11 @@ export function PurchaseCTA({
 
       {phase === 'jp-disclosure' && jpDisclosureInfo && (
         <span
+          ref={stepRef}
           className="purchase-cta__consent"
           role="region"
           aria-label={jpDisclosureInfo.noticeHeading}
+          tabIndex={-1}
         >
           <span className="purchase-cta__notice" role="note">
             <strong>{jpDisclosureInfo.noticeHeading}</strong>
@@ -300,6 +349,7 @@ export function PurchaseCTA({
 
       {showPrimaryButton && (
         <button
+          ref={triggerRef}
           type="button"
           className="btn btn--primary"
           onClick={onPrimaryClick}
@@ -312,6 +362,13 @@ export function PurchaseCTA({
       {phase === 'unavailable' && (
         <span className="purchase-cta__note" role="status">
           {strings.book.purchaseUnavailable}
+        </span>
+      )}
+
+      {ownedForCurrentUser && (
+        <span className="purchase-cta__note" role="status">
+          {strings.book.ownedLabel}{' '}
+          <Link ref={ownedLinkRef} to="/library">{strings.purchaseResult.goToLibrary}</Link>
         </span>
       )}
     </div>
