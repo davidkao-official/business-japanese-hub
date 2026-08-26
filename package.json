@@ -10,7 +10,6 @@
   "scripts": {
     "dev": "vite",
     "build": "pnpm workflow:verify-releases && tsc -b && vite build",
-    "build:pages": "pnpm build && tsx scripts/prepare-pages.ts",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "eslint .",
@@ -35,7 +34,6 @@
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "@vitejs/plugin-react": "^6.0.5",
     "eslint": "^9.39.5",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
