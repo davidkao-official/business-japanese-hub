@@ -1,289 +1,371 @@
 # Production deployment runbook
 
-This runbook keeps the public frontend deployable before paid activation while
-all payment, entitlement, auth, legal, email, refund, and reconciliation paths
-remain server-authoritative and fail closed.
+This runbook keeps the public frontend deployable while payment, entitlement,
+auth, legal, email, refund, and reconciliation paths remain server-authoritative
+and fail closed.
 
-## 1. GitHub Pages public frontend
+## 1. Canonical frontend: Cloudflare Pages
 
-One repository administrator must set **Settings → Pages → Source → GitHub
-Actions**. The `Deploy GitHub Pages` workflow then validates the full
-application and server/database boundary, builds with the project base
-`/business-japanese-hub/`, deploys, and smokes the root, built assets, a direct
-Book route, and the purchase-result route.
+The canonical production frontend is:
 
-Repository variables:
+```text
+https://business-japanese-hub.pages.dev/
+```
 
-- `DEPLOY_BASE_PATH=/business-japanese-hub/` (the workflow default; use `/` only
-  after configuring a custom domain)
-- `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (public browser values)
-- optional `VITE_EDGE_FUNCTIONS_BASE_URL` (otherwise derived from the Supabase
-  URL)
+GitHub Pages is **not** a deployment target for this project. Do not reintroduce
+a repository project-path build, a copied top-level `404.html`, or a GitHub Pages
+deploy workflow unless a later explicit deployment decision supersedes this
+runbook.
 
-Without the Supabase variables, the live site intentionally serves only the
+Cloudflare Pages is connected to the repository and should use:
+
+- production branch: `main`
+- package manager: the committed `pnpm` version
+- build command: `pnpm build`
+- build output directory: `dist`
+- `DEPLOY_BASE_PATH`: unset, so Vite builds for `/`
+
+Cloudflare Pages treats a project without a top-level `404.html` as a SPA and
+serves the root application for unmatched history routes. The production build
+therefore deliberately does **not** generate the old GitHub Pages `404.html`
+artifact.
+
+Frontend production environment variables:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+- optional `VITE_EDGE_FUNCTIONS_BASE_URL` (otherwise derived from the Supabase URL)
+
+Without the Supabase variables, the live frontend intentionally serves only the
 free/public catalog and paid purchase remains unavailable.
 
 The authenticated checkout and order-status functions accept browser CORS only
-from the exact origin derived from server-only `PUBLIC_SITE_URL`; keep it aligned
-with the canonical Pages/custom-domain URL. The deploy job holds only Pages/OIDC
-permissions. Post-deploy route smoke runs afterward in a separate read-only job.
+from the exact server-side `PUBLIC_SITE_URL`. For the current canonical origin,
+set:
 
-The current product contract also explicitly accepts that static web Book
-content can be inspected in the browser bundle (`docs/accounts-and-entitlement.md`
-§7). Server-authoritative ownership and in-product access gates are enforced,
-but they are not DRM or a confidentiality boundary; the Pages deployment does
-not claim otherwise. A future private content-delivery layer would be a separate
-product/architecture decision, not a payment-entitlement shortcut.
+```text
+PUBLIC_SITE_URL=https://business-japanese-hub.pages.dev/
+```
+
+Keep Supabase Auth Site URL / redirect allow-list aligned with that same origin.
+If a custom domain later becomes canonical, update Cloudflare, `PUBLIC_SITE_URL`,
+Auth redirects, CORS evidence, payment return URLs, email links, and this runbook
+together rather than running two canonical origins.
+
+After any production frontend deployment, run:
+
+```bash
+pnpm exec tsx scripts/smoke-deployment.ts https://business-japanese-hub.pages.dev/
+```
+
+The smoke verifies the root document, emitted assets, and direct SPA routes.
+The commercial Book itself should additionally be checked manually through its
+current catalog route as part of the paid golden path.
+
+The product contract explicitly accepts that static web Book content can be
+inspected in the browser bundle (`docs/accounts-and-entitlement.md` §7).
+Server-authoritative ownership and in-product access gates are enforced, but
+this is not DRM or a confidentiality boundary.
 
 ## 2. Production Supabase activation
 
-Do not perform these steps until the production project and credentials are
-provided by the owner. Never use `supabase db reset --linked` on production.
+Do not perform production writes until the intended Supabase project and
+credentials are explicitly identified. Never use `supabase db reset --linked`
+on production.
 
-1. From an exact, reviewed `main`, run all local gates:
+### 2.1 Exact-head local gates
 
-   ```bash
-   pnpm typecheck
-   deno check supabase/functions/*/index.ts
-   pnpm lint
-   pnpm test
-   DEPLOY_BASE_PATH=/business-japanese-hub/ pnpm build:pages
-   supabase db start
-   supabase db reset --local
-   supabase test db --local supabase/tests
-   supabase db lint --local --schema public --level warning --fail-on error
-   ```
+From an exact reviewed `main`:
 
-2. Authenticate and link the intended project, then inspect migration state:
+```bash
+pnpm typecheck
+deno check supabase/functions/*/index.ts
+pnpm lint
+pnpm test
+pnpm build
+supabase db start
+supabase db reset --local
+supabase test db --local supabase/tests
+supabase db lint --local --schema public --level warning --fail-on error
+```
 
-   ```bash
-   supabase login
-   supabase link --project-ref <production-project-ref>
-   supabase migration list --linked
-   supabase db push --linked --dry-run
-   ```
+### 2.2 Link and preflight the intended project
 
-   If the first-sale migration reports duplicate pending Orders, stop and
-   reconcile those payment records manually. The migration deliberately refuses
-   to guess or discard financial state.
+```bash
+supabase login
+supabase link --project-ref <production-project-ref>
+supabase migration list --linked
+supabase db push --linked --dry-run
+```
 
-3. Set Edge Function secrets through Supabase Secrets or an untracked local env
-   file (`supabase secrets set --env-file <untracked-file>`). For the smallest
-   first-revenue configuration, enable only PayPal/USD plus Resend:
+If the first-sale migration reports duplicate pending Orders or another
+financial inconsistency, stop and reconcile those facts manually. Migrations
+must never guess or discard financial state merely to proceed.
 
-   - `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_ENV=prod`,
-     `PAYPAL_WEBHOOK_ID`
-   - `DEPLOYMENT_ENV=production` — required. Missing, misspelled, or any value
-     other than `production` disables live providers. A production deployment
-     paired with `PAYPAL_ENV=sandbox` or `ECPAY_ENV=stage` is rejected before
-     creating a checkout.
-   - `ORDER_EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, verified
-     `ORDER_EMAIL_FROM`
-   - `PUBLIC_SITE_URL=<canonical public site URL for this deployment>` (default:
-     `https://davidkao-official.github.io/business-japanese-hub/`; use the exact
-     custom-domain URL when applicable)
-   - `SUPPORT_EMAIL`, `LEGAL_SELLER_NAME`, and a generated
-     `SCHEDULED_JOB_SECRET`
+### 2.3 Server-only secrets
 
-   Supabase supplies `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Do not set
-   or expose the service-role key in GitHub Pages variables. ECPay credentials
-   may remain absent for the PayPal/USD first launch.
+For the smallest first-revenue profile, enable PayPal/USD plus Resend only:
 
-4. Before applying migrations to a database that contains commerce data, run
-   this read-only preflight. Every query must return zero rows. Stop on any
-   result and reconcile the duplicate/inconsistent facts before deployment;
-   never delete financial rows merely to make a migration pass.
+- `PAYPAL_CLIENT_ID`
+- `PAYPAL_CLIENT_SECRET`
+- `PAYPAL_ENV=prod`
+- `PAYPAL_WEBHOOK_ID`
+- `DEPLOYMENT_ENV=production`
+- `ORDER_EMAIL_PROVIDER=resend`
+- `RESEND_API_KEY`
+- verified `ORDER_EMAIL_FROM`
+- `PUBLIC_SITE_URL=https://business-japanese-hub.pages.dev/`
+- `SUPPORT_EMAIL`
+- `LEGAL_SELLER_NAME`
+- generated `SCHEDULED_JOB_SECRET`
 
-   ```sql
-   select payment_id, count(*)
-     from public.refunds
-    group by payment_id having count(*) > 1;
-   select provider, provider_refund_ref, count(*)
-     from public.refunds
-    where provider_refund_ref is not null
-    group by provider, provider_refund_ref having count(*) > 1;
-   select source_order_id, count(*)
-     from public.book_entitlement
-    where source_order_id is not null
-    group by source_order_id having count(*) > 1;
-   select id
-     from public.payment_events
-    where (
-      processing_result is not null
-      and processing_result not in (
-        'succeeded', 'failed', 'verification_pending', 'refund_succeeded',
-        'refund_pending', 'refund_failed', 'refund_mismatch',
-        'unknown_reference', 'processing_error'
-      )
-    ) or (processed_at is null) <> (processing_result is null);
-   ```
+Supabase supplies `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Never expose a
+service-role / secret key in Cloudflare Pages, GitHub repository variables, or
+client code.
 
-   The launch migrations build three unique indexes with ordinary write locks.
-   That is appropriate for the empty or quiesced first-revenue database. If a
-   target already has sustained writes or large ledgers, stop and prepare a
-   reviewed online migration using `CREATE UNIQUE INDEX CONCURRENTLY` through a
-   coordinated direct Postgres session; do not improvise it inside `db push`.
+`DEPLOYMENT_ENV=production` is required. Missing, misspelled, or non-production
+values disable live providers. A production deployment paired with
+`PAYPAL_ENV=sandbox` or `ECPAY_ENV=stage` is rejected before checkout.
 
-5. Apply migrations, then deploy all functions using the JWT settings in
-   `supabase/config.toml`:
+ECPay credentials may remain absent for the PayPal/USD first launch. Do not
+release a TWD catalog row until its production operational evidence is ready.
 
-   ```bash
-   supabase db push --linked
-   supabase functions deploy --project-ref <production-project-ref>
-   ```
+### 2.4 Commerce-data preflight
 
-6. In server-only SQL/operator context, replace both placeholder rows in
-   `scheduled_job_config` with this project's deployed `repair-reconcile` and
-   `order-email` URLs. Create Vault secret `scheduled_job_secret` with the exact
-   same value as `SCHEDULED_JOB_SECRET`. Keep these exact active jobs:
+Before applying migrations to a database that contains commerce data, run this
+read-only preflight. Every query must return zero rows:
 
-   | Job | Schedule | Command |
-   | --- | --- | --- |
-   | `payments-repair-layer-b` | `*/10 * * * *` | `select public.scheduled_repair_call();` |
-   | `payments-recon-layer-c` | `0 3 * * *` | `select public.scheduled_reconciliation_call();` |
-   | `order-email-outbox` | `* * * * *` | `select public.scheduled_order_email_call();` |
+```sql
+select payment_id, count(*)
+  from public.refunds
+ group by payment_id having count(*) > 1;
 
-   Verify the complete gate from server-only SQL before attempting checkout;
-   do not substitute only the legacy email-readiness RPC:
+select provider, provider_refund_ref, count(*)
+  from public.refunds
+ where provider_refund_ref is not null
+ group by provider, provider_refund_ref having count(*) > 1;
 
-   First compute only the digest in a trusted shell; the silent-read command
-   keeps the raw secret out of shell history and SQL/query logs:
+select source_order_id, count(*)
+  from public.book_entitlement
+ where source_order_id is not null
+ group by source_order_id having count(*) > 1;
 
-   ```bash
-   read -r -s -p 'Scheduled job secret: ' BJH_SCHEDULED_JOB_SECRET
-   printf '\n'
-   BJH_SCHEDULED_JOB_SECRET_SHA256="$(
-     printf %s "$BJH_SCHEDULED_JOB_SECRET" | openssl dgst -sha256 | awk '{print $2}'
-   )"
-   unset BJH_SCHEDULED_JOB_SECRET
-   printf 'SHA-256: %s\n' "$BJH_SCHEDULED_JOB_SECRET_SHA256"
-   ```
+select id
+  from public.payment_events
+ where (
+   processing_result is not null
+   and processing_result not in (
+     'succeeded', 'failed', 'verification_pending', 'refund_succeeded',
+     'refund_pending', 'refund_failed', 'refund_mismatch',
+     'unknown_reference', 'processing_error'
+   )
+ ) or (processed_at is null) <> (processing_result is null);
+```
 
-   Pass only that digest to the readiness query:
+Stop on any result. Never delete financial rows merely to make a migration pass.
+For an empty or quiesced first-revenue database, the committed unique-index
+migrations are appropriate. If a target already has sustained writes or a large
+ledger, prepare a separately reviewed online migration rather than improvising
+inside `db push`.
 
-   ```sql
-   select public.is_paid_launch_scheduler_ready(
-     'https://<project-ref>.supabase.co/functions/v1/repair-reconcile',
-     'https://<project-ref>.supabase.co/functions/v1/order-email',
-     '<SCHEDULED_JOB_SECRET_SHA256>'
-   );
-   ```
+### 2.5 Apply migrations and deploy Edge Functions
 
-   It stays `false` until the deployed workers have produced fresh durable
-   success heartbeats (step 9), and must then return `true`. Seed the released catalog with
-   `scripts/update-catalog.ts` only after reviewing its dry run.
+```bash
+supabase db push --linked
+supabase functions deploy --project-ref <production-project-ref>
+```
 
-   For the first-revenue profile, keep ECPay credentials absent and do not
-   release a TWD catalog row. `FUNDING_RECON_CSV` is an operator-supplied parser
-   seam, not an automated fresh report feed; ECPay/TWD requires a separate
-   evidenced dated-upload or download workflow before it can be activated.
+Deploy using the JWT settings committed in `supabase/config.toml`.
 
-7. Configure Supabase Auth Site URL/redirect allow-list for the canonical Pages
-   URL and confirm production email delivery. Configure the production PayPal
-   webhook as
-   `https://<project-ref>.supabase.co/functions/v1/paypal-webhook` and subscribe
-   the complete capture/refund event list in
-   `docs/payments/implementation-contract.md`; the browser return cannot replace
-   these authoritative events.
+### 2.6 Configure scheduled jobs
 
-8. Provision named finance access only for verified operator user IDs; never
-   accept a role in a request body or share a buyer JWT:
+In server-only SQL/operator context, replace placeholder rows in
+`scheduled_job_config` with this project's deployed `repair-reconcile` and
+`order-email` function URLs. Create Vault secret `scheduled_job_secret` with the
+same value as `SCHEDULED_JOB_SECRET`.
 
-   ```sql
-   insert into public.finance_roles (user_id, role)
-   values ('<verified auth.users id>'::uuid, 'finance_admin')
-   on conflict do nothing;
-   ```
+Keep these active jobs:
 
-   `GET /functions/v1/finance` with that user's bearer JWT returns bounded row
-   samples for Order/Payment/Refund/Entitlement, callback, email, and audit
-   inspection. Reconciliation and actionable-failure totals are exact
-   full-ledger counts from the server-only `finance_status_counts()` RPC, so an
-   older unresolved row cannot disappear merely because it falls outside a
-   display sample. Durable scheduler health is returned separately.
-   `finance_viewer` is read-only and receives redacted outbox/audit samples;
-   only `finance_admin` can read their customer/audit payloads or request a refund.
-   There is no operator action that can declare a refund successful without
-   provider evidence.
+| Job | Schedule | Command |
+| --- | --- | --- |
+| `payments-repair-layer-b` | `*/10 * * * *` | `select public.scheduled_repair_call();` |
+| `payments-recon-layer-c` | `0 3 * * *` | `select public.scheduled_reconciliation_call();` |
+| `order-email-outbox` | `* * * * *` | `select public.scheduled_order_email_call();` |
 
-   The first-launch operator surface is the authenticated finance API/CLI (no
-   browser admin route). In a trusted shell, obtain a short-lived token for the
-   named finance user and inspect it with these exact requests; do not paste the
-   password, token, service-role key, or scheduled-job secret into Issues/logs:
+Compute only the scheduled-job secret digest in a trusted shell:
 
-   ```bash
-   export BJH_SUPABASE_URL='https://<project-ref>.supabase.co'
-   export BJH_SUPABASE_ANON_KEY='<production publishable/anon key>'
-   read -r -s -p 'Finance user password: ' BJH_FINANCE_PASSWORD
-   BJH_FINANCE_JWT="$(/usr/bin/curl --fail-with-body --silent --show-error \
-     "$BJH_SUPABASE_URL/auth/v1/token?grant_type=password" \
-     -H "apikey: $BJH_SUPABASE_ANON_KEY" \
-     -H 'Content-Type: application/json' \
-     --data "$(jq -nc --arg email '<named-finance-user@example.com>' \
-       --arg password "$BJH_FINANCE_PASSWORD" '{email:$email,password:$password}')" \
-     | jq -er '.access_token')"
-   unset BJH_FINANCE_PASSWORD
+```bash
+read -r -s -p 'Scheduled job secret: ' BJH_SCHEDULED_JOB_SECRET
+printf '\n'
+BJH_SCHEDULED_JOB_SECRET_SHA256="$(
+  printf %s "$BJH_SCHEDULED_JOB_SECRET" | openssl dgst -sha256 | awk '{print $2}'
+)"
+unset BJH_SCHEDULED_JOB_SECRET
+printf 'SHA-256: %s\n' "$BJH_SCHEDULED_JOB_SECRET_SHA256"
+```
 
-   /usr/bin/curl --fail-with-body --silent --show-error \
-     "$BJH_SUPABASE_URL/functions/v1/finance" \
-     -H "Authorization: Bearer $BJH_FINANCE_JWT" | jq .
-   ```
+Then pass only the digest to the readiness RPC:
 
-   For a reviewed PayPal full-refund request, copy the immutable local Payment
-   UUID from that read model, confirm its amount/currency/provider, then run:
+```sql
+select public.is_paid_launch_scheduler_ready(
+  'https://<project-ref>.supabase.co/functions/v1/repair-reconcile',
+  'https://<project-ref>.supabase.co/functions/v1/order-email',
+  '<SCHEDULED_JOB_SECRET_SHA256>'
+);
+```
 
-   ```bash
-   /usr/bin/curl --fail-with-body --silent --show-error \
-     "$BJH_SUPABASE_URL/functions/v1/finance" \
-     -H "Authorization: Bearer $BJH_FINANCE_JWT" \
-     -H 'Content-Type: application/json' \
-     --data "$(jq -nc --arg paymentId '<payment-uuid>' \
-       --arg reasonCode 'buyer_request' \
-       '{action:"request_refund",paymentId:$paymentId,reasonCode:$reasonCode}')" | jq .
-   unset BJH_FINANCE_JWT
-   ```
+It must remain `false` until the deployed workers have produced fresh durable
+success heartbeats.
 
-9. Before checkout can become available, invoke `repair-reconcile` once with
-   `{"mode":"repair"}`, once with `{"mode":"reconcile"}`, and invoke
-   `order-email` with the configured `X-Scheduled-Job-Secret`. Confirm 2xx
-   responses in Edge Function logs and retain the resulting counts. Each
-   authenticated worker invocation records `scheduled_job_health`; checkout
-   closes when repair (20 minutes), reconciliation (36 hours), or email (5
-   minutes) lacks a fresh success, when the latest run failed, or while a newer
-   run has no result. Per-item provider, finalizer, and persistence failures make
-   the whole worker heartbeat fail even when the remaining scan continues. A
-   cron row alone proves scheduling, not successful HTTP execution.
+### 2.7 Seed the released catalog
 
-10. Confirm the server-only scheduler
-   readiness RPC, legal/seller readiness, released catalog price, PayPal live
-   webhook, and Resend sender. Activate the remaining fail-closed launch
-   conditions in a controlled window, execute one low-value paid golden path,
-   then verify Order, Payment, compliance snapshots, entitlement, Library
-   delivery, confirmation email, refund/revocation, and financial
-   reconciliation. Do not record a gate as passed without live evidence.
+Review the dry run first, then sync the committed release ledger:
 
-## 3. Rollback and observability
+```bash
+pnpm exec tsx scripts/update-catalog.ts --dry-run
+```
 
-- **Pages:** inspect the `Deploy GitHub Pages` Actions run and `github-pages`
-  environment. Roll back with a normal revert PR to the last known-good commit;
-  merging it triggers a fresh validated deployment. Do not force-push `main`.
-- **Edge Functions:** inspect Supabase Edge Function invocation/log views. A
-  function-only rollback may redeploy a known-good Git SHA only after confirming
-  it remains compatible with the current forward-only database schema.
-- **Database:** inspect Postgres logs, migration history, `cron.job`,
+Use the production invocation documented by the script only after confirming the
+intended project and released prices. The browser cannot provide trusted amount,
+currency, provider, or success state.
+
+For the first-revenue profile, keep ECPay credentials absent and do not release
+a TWD catalog row. `FUNDING_RECON_CSV` is an operator-supplied parser seam, not
+an automated fresh report feed; ECPay/TWD requires separate dated settlement
+report evidence before activation.
+
+### 2.8 Auth, PayPal, and email external configuration
+
+Configure Supabase Auth Site URL and redirect allow-list for:
+
+```text
+https://business-japanese-hub.pages.dev/
+```
+
+Configure the PayPal production webhook as:
+
+```text
+https://<project-ref>.supabase.co/functions/v1/paypal-webhook
+```
+
+Subscribe the exact capture/refund event catalog in
+`docs/payments/implementation-contract.md`. Browser return parameters never
+replace authoritative webhook/provider evidence.
+
+Verify the Resend sender used by `ORDER_EMAIL_FROM` and retain evidence of a
+real matching order-confirmation delivery before closing the email launch gate.
+
+### 2.9 Named finance access
+
+Provision finance roles only for verified operator user IDs:
+
+```sql
+insert into public.finance_roles (user_id, role)
+values ('<verified auth.users id>'::uuid, 'finance_admin')
+on conflict do nothing;
+```
+
+`GET /functions/v1/finance` with that user's bearer JWT returns bounded samples
+for Orders, Payments, Refunds, Entitlements, callbacks, email and audit state.
+Reconciliation and actionable-failure totals come from the server-only
+`finance_status_counts()` RPC.
+
+`finance_viewer` is read-only and receives redacted outbox/audit samples;
+`finance_admin` can inspect the privileged operational fields and request a full
+refund. No operator action may declare a refund successful without provider
+evidence.
+
+### 2.10 Prime worker health
+
+Before checkout can become available, invoke:
+
+1. `repair-reconcile` with `{"mode":"repair"}`
+2. `repair-reconcile` with `{"mode":"reconcile"}`
+3. `order-email` with the configured `X-Scheduled-Job-Secret`
+
+Confirm 2xx responses in Edge Function logs and retain the resulting counts.
+Each authenticated worker invocation records `scheduled_job_health`.
+
+Checkout fails closed when repair, reconciliation, or email health is stale,
+when the latest run failed, or while a newer run has no result. A cron row alone
+proves scheduling, not successful execution.
+
+## 3. Paid-launch activation gates
+
+Before accepting a real payment, all enabled-jurisdiction gates must have real
+evidence:
+
+- canonical Cloudflare frontend is reachable and its production environment
+  points to the intended Supabase project;
+- Supabase migrations/functions/auth redirects are live;
+- released USD catalog price matches the committed release;
+- real seller identity/contact fields are supplied and match the merchant setup;
+- exact legal documents have received the required human/professional approval;
+- PayPal merchant/KYC eligibility and live credentials are confirmed;
+- PayPal webhook is configured with the exact event catalog;
+- Resend sender and delivery are verified;
+- scheduler readiness is `true`;
+- named finance access works without shared merchant credentials.
+
+Japan tax status is required before enabling JP checkout. It does not block the
+current USD-first launch where otherwise lawful. JPY adapter work remains a
+separate follow-up and must not delay first revenue.
+
+## 4. Production golden path
+
+Activate the remaining fail-closed gates in a controlled window and execute one
+low-value real purchase:
+
+```text
+Cloudflare Storefront
+→ 会議の日本語
+→ free preview
+→ authenticated checkout
+→ PayPal approval/capture
+→ authoritative webhook
+→ exactly-one Entitlement
+→ Library / Reader access
+→ order result / receipt
+→ real confirmation email
+→ finance visibility
+→ full refund
+→ entitlement revocation
+→ reconciliation
+```
+
+Also exercise duplicate/replayed webhook evidence. Do not mark a gate passed
+without external evidence.
+
+After the transaction, rerun:
+
+```bash
+pnpm exec tsx scripts/smoke-deployment.ts https://business-japanese-hub.pages.dev/
+```
+
+Inspect finance state, payment events, outbox state, scheduler health, and logs.
+
+## 5. Rollback and observability
+
+- **Cloudflare Pages:** production is sourced from `main`. Prefer a normal revert
+  PR to the last known-good commit, allowing Cloudflare Git integration to build
+  and deploy the reviewed state. Cloudflare deployment history may be used as an
+  emergency frontend rollback surface, but repository `main` must still be
+  reconciled immediately afterward so Git remains canonical.
+- **Edge Functions:** inspect Supabase Edge Function logs. A function-only
+  rollback may redeploy a known-good Git SHA only after confirming compatibility
+  with the current forward-only database schema.
+- **Database:** inspect migration history, Postgres logs, `cron.job`,
   `payment_events`, `payments`, `orders`, `refunds`, `book_entitlement`,
-  `order_email_outbox`, `scheduled_job_health`, and `admin_audit_log` from
-  server-only/operator access.
-  Never undo a production migration with `db reset` or by deleting
-  financial rows. Use a reviewed forward repair migration; use the provider and
-  database backup/PITR procedures for a genuine data incident.
-- **Payments/email:** use the finance read model to correlate provider event IDs
-  and local Payment/Order/Refund IDs. Treat `processingErrors`, unprocessed
-  events, `duplicatePayments`, requested/processing/failed refunds, `emailDead`,
-  reconciliation mismatches, and verification-pending attempts as actionable;
-  never log secrets or customer email bodies. Dead/manual outbox jobs and
-  verification-pending attempts require operator review rather than blind
-  replay.
+  `order_email_outbox`, `scheduled_job_health`, and `admin_audit_log`. Never use
+  `db reset` on production and never delete financial rows as rollback. Use a
+  reviewed forward repair migration or the provider/database backup procedures
+  for a genuine data incident.
+- **Payments/email:** correlate provider event IDs with local
+  Payment/Order/Refund IDs through the finance read model. Treat processing
+  errors, unprocessed events, duplicate payments, requested/processing/failed
+  refunds, dead/manual email jobs, reconciliation mismatches, and
+  verification-pending attempts as actionable operator work. Never log secrets
+  or customer email bodies.
 
-Canonical details remain in `docs/payments/implementation-contract.md` and
-`docs/payments/decision-record.md`.
+Canonical payment details remain in `docs/payments/implementation-contract.md`
+and `docs/payments/decision-record.md`.
