@@ -38,6 +38,7 @@
 - 保持 web-first：不以原生 app 或 mobile-first-only 為主，兼顧行動通勤閱讀與桌面專注閱讀。
 - 不要引入 subscription-first 商業模式，不要以 AI 作為主要產品 abstraction，不為 MVP non-goals（見 product contract §13）投入實作。
 - Payment implementation（#9）以 `docs/payments/decision-record.md` 為唯一 contract；payment architecture 為 provider-neutral，ECPay（綠界）只是第一支 TWD adapter。Provider-specific mechanics 不得污染 Book / Reader / Library / Entitlement architecture；paid ownership 只能由 verified authoritative server event 驅動。所有 payment `/api/*` endpoints 都必須在 server-only execution boundary 執行（Supabase Edge Functions，見 decision-record §3.5）；client 永不可提供可信 amount/currency，server 以 authoritative catalog price seam 取價（見 §8.3）。
+- **Canonical production frontend 是 Cloudflare Pages**：`https://business-japanese-hub.pages.dev/`。GitHub Pages 不是 deployment target，也不得重新引入其 project-path build、`404.html` artifact 或 deployment workflow，除非先有新的明確 deployment 決策。
 - 與 `docs/product-contract.md` 衝突的實作方向應被視為錯誤，先釐清再動手。
 
 ## 當前階段：Paid Launch／first revenue
@@ -48,6 +49,7 @@
 - #20 JPY 在 seller／merchant entity 與 provider eligibility 有真實證據前不阻塞第一筆營收。不得猜測 merchant eligibility、seller identity、tax status、credentials、專業法律核准或外部 account state。
 - Free/public access 仍必須以 generic catalog/access 語意表達（例如 `Price.tier: 'free'`），**不得 hard-code book slug**，也不得讓 paid books 意外公開。
 - **既有 payment / entitlement / legal architecture 不得刪除、繞過或弱化**；Paid Launch 必須沿用它們完成 production golden path。
+- Cloudflare Pages frontend 已選定；Paid Launch 的 deployment 主線是把 production Supabase / Auth / Edge Functions / payment / email / legal gates 接到 canonical Cloudflare origin，而不是再建第二套 frontend hosting。
 - UI / Reader quality 維持 P0，遵循 `docs/ui-ux-research.md`。
 
 ## 文件地圖
@@ -58,3 +60,4 @@
 - `docs/payments/decision-record.md` — canonical payment decision record（provider-neutral payment architecture 的唯一規範來源；6 頁初版研究已 SUPERSEDED，見 `docs/payments/research-v1-superseded.md`）。
 - `docs/accounts-and-entitlement.md` — accounts / ownership / reading-state persistence 契約。
 - `docs/legal-tax-launch-brief.md` — legal / tax / entity structure launch brief（#11 研究成果；MVP 結構建議、A–G 比較、金流、launch compliance checklist、對 #9/#20/#21 的影響）。
+- `docs/deployment.md` — Cloudflare Pages frontend + production Supabase activation / rollback / smoke runbook。
