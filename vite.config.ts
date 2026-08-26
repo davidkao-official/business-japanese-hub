@@ -39,13 +39,15 @@ function themeColorPlugin(): Plugin {
 }
 
 /**
- * Resolve the public deployment path. Local builds default to `/`; production
- * project sites such as GitHub Pages provide an absolute path-only base.
+ * Resolve the public deployment path. The canonical Cloudflare Pages site is
+ * deployed at the origin root (`/`). `DEPLOY_BASE_PATH` remains a narrow escape
+ * hatch for a future explicitly path-prefixed deployment without coupling the
+ * router or asset URLs to a specific hosting provider.
  */
 export function resolveDeploymentBase(raw: string | undefined): string {
   const candidate = raw?.trim() || '/'
   if (!candidate.startsWith('/') || candidate.includes('?') || candidate.includes('#')) {
-    throw new Error('DEPLOY_BASE_PATH must be an absolute path such as /business-japanese-hub/')
+    throw new Error('DEPLOY_BASE_PATH must be an absolute path such as /app/')
   }
   const segments = candidate.split('/').filter(Boolean)
   if (
@@ -65,8 +67,7 @@ export function resolveDeploymentBase(raw: string | undefined): string {
 export default defineConfig({
   plugins: [react(), themeColorPlugin()],
   // `BASE_URL` is derived from this value and is also used as BrowserRouter's
-  // basename. GitHub Pages sets the repository project path; local and custom-
-  // domain builds keep the root default. See src/deploy-base.test.ts.
+  // basename. Cloudflare Pages production uses the root default.
   base: resolveDeploymentBase(process.env.DEPLOY_BASE_PATH),
   test: {
     environment: 'jsdom',
