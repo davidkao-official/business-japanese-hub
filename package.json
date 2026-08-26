@@ -10,7 +10,6 @@
   "scripts": {
     "dev": "vite",
     "build": "pnpm workflow:verify-releases && tsc -b && vite build",
-    "build:pages": "pnpm build && tsx scripts/prepare-pages.ts",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "eslint .",

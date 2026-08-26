@@ -1,4 +1,4 @@
-export interface PagesSmokeOptions {
+export interface DeploymentSmokeOptions {
   attempts?: number;
   fetcher?: (url: URL) => Promise<Response>;
   retryDelayMs?: number;
@@ -16,7 +16,7 @@ function deploymentBase(raw: string): URL {
     base.search ||
     base.hash
   ) {
-    throw new Error('Pages deployment URL must be a clean HTTPS URL');
+    throw new Error('Deployment URL must be a clean HTTPS URL');
   }
   return base;
 }
@@ -30,7 +30,7 @@ async function fetchWithRetry(
   url: URL,
   accept: (response: Response) => boolean,
   label: string,
-  options: Required<PagesSmokeOptions>,
+  options: Required<DeploymentSmokeOptions>,
 ): Promise<Response> {
   let lastStatus = 'no response';
   for (let attempt = 1; attempt <= options.attempts; attempt += 1) {
@@ -43,16 +43,16 @@ async function fetchWithRetry(
     }
     if (attempt < options.attempts) await wait(options.retryDelayMs);
   }
-  throw new Error(`Pages deployment smoke failed for ${label}: ${lastStatus}`);
+  throw new Error(`Deployment smoke failed for ${label}: ${lastStatus}`);
 }
 
-/** Verify the deployed Pages artifact, including history-routing fallbacks. */
-export async function verifyPagesDeployment(
+/** Verify the deployed SPA root, built assets, and history-routing fallback. */
+export async function verifyDeployment(
   rawBaseUrl: string,
-  partialOptions: PagesSmokeOptions = {},
+  partialOptions: DeploymentSmokeOptions = {},
 ): Promise<void> {
   const base = deploymentBase(rawBaseUrl);
-  const options: Required<PagesSmokeOptions> = {
+  const options: Required<DeploymentSmokeOptions> = {
     attempts: partialOptions.attempts ?? DEFAULT_ATTEMPTS,
     fetcher:
       partialOptions.fetcher ??
@@ -60,7 +60,7 @@ export async function verifyPagesDeployment(
     retryDelayMs: partialOptions.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS,
   };
   if (!Number.isInteger(options.attempts) || options.attempts < 1) {
-    throw new Error('Pages smoke attempts must be a positive integer');
+    throw new Error('Deployment smoke attempts must be a positive integer');
   }
 
   const rootResponse = await fetchWithRetry(base, (response) => response.ok, 'root', options);
@@ -72,7 +72,7 @@ export async function verifyPagesDeployment(
       ),
     ),
   ];
-  if (assetRefs.length === 0) throw new Error('Pages deployment smoke found no built assets');
+  if (assetRefs.length === 0) throw new Error('Deployment smoke found no built assets');
 
   for (const ref of assetRefs) {
     await fetchWithRetry(
@@ -83,38 +83,20 @@ export async function verifyPagesDeployment(
     );
   }
 
-  const manifestResponse = await fetchWithRetry(
-    new URL('deployment-manifest.json', base),
-    (response) => response.ok,
-    'deployment manifest',
-    options,
-  );
-  const manifest = (await manifestResponse.json()) as { bookSlugs?: unknown };
-  if (
-    !Array.isArray(manifest.bookSlugs) ||
-    manifest.bookSlugs.length === 0 ||
-    manifest.bookSlugs.some(
-      (slug) => typeof slug !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug),
-    )
-  ) {
-    throw new Error('Pages deployment smoke received an invalid deployment manifest');
-  }
-  const catalogBookSlug = manifest.bookSlugs[0] as string;
-
   const directRoutes = [
-    `books/${catalogBookSlug}`,
+    'books/deployment-smoke',
     'purchase/result?order=deployment-smoke',
   ];
   for (const route of directRoutes) {
     const response = await fetchWithRetry(
       new URL(route, base),
-      (candidate) => candidate.ok || candidate.status === 404,
+      (candidate) => candidate.ok,
       `direct route ${route}`,
       options,
     );
     const body = await response.text();
     if (body !== rootHtml) {
-      throw new Error(`Pages deployment smoke received a non-SPA fallback for ${route}`);
+      throw new Error(`Deployment smoke received a non-SPA fallback for ${route}`);
     }
   }
 }
