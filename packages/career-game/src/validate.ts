@@ -21,6 +21,13 @@ const METER_LIMIT = 100
 const EFFECT_ADJUSTMENT_LIMIT = 100
 
 type RecordValue = Record<string, unknown>
+type JsonSnapshot =
+  | null
+  | string
+  | boolean
+  | number
+  | JsonSnapshot[]
+  | { [key: string]: JsonSnapshot }
 
 interface Reference {
   path: string
@@ -65,62 +72,64 @@ function isRecord(value: unknown): value is RecordValue {
   return prototype === Object.prototype || prototype === null
 }
 
-function checkJsonSafe(
+function captureJsonSafe(
   value: unknown,
   path: string,
   ctx: JsonSafetyContext,
   depth = 0,
-): void {
+): JsonSnapshot | undefined {
   try {
-    checkJsonSafeUnsafe(value, path, ctx, depth)
+    return captureJsonSafeUnsafe(value, path, ctx, depth)
   } catch {
     if (typeof value === 'object' && value !== null) ctx.ancestors.delete(value)
     addIssue(ctx.issues, path, 'not_json_safe', `could not inspect value at "${path}" safely`)
+    return undefined
   }
 }
 
-function checkJsonSafeUnsafe(
+function captureJsonSafeUnsafe(
   value: unknown,
   path: string,
   ctx: JsonSafetyContext,
   depth = 0,
-): void {
-  if (ctx.halted) return
+): JsonSnapshot | undefined {
+  if (ctx.halted) return undefined
   ctx.visitedNodes += 1
   if (ctx.visitedNodes > CAREER_GAME_V1_LIMITS.maxJsonNodes) {
     addIssue(ctx.issues, path, 'validation_limit', 'JSON-safe preflight exceeded the V1 node budget')
     ctx.halted = true
-    return
+    return undefined
   }
   if (depth > CAREER_GAME_V1_LIMITS.maxJsonDepth) {
     addIssue(ctx.issues, path, 'validation_limit', 'JSON-safe preflight exceeded the V1 depth budget')
     ctx.halted = true
-    return
+    return undefined
   }
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) {
       addIssue(ctx.issues, path, 'not_json_safe', `expected a finite number at "${path}"`)
+      return undefined
     }
-    return
+    return value
   }
   if (typeof value !== 'object') {
     addIssue(ctx.issues, path, 'not_json_safe', `expected JSON-safe plain data at "${path}"`)
-    return
+    return undefined
   }
   if (ctx.ancestors.has(value)) {
     addIssue(ctx.issues, path, 'not_json_safe', `cyclic reference at "${path}"`)
-    return
+    return undefined
   }
 
   if (Array.isArray(value)) {
     if (Object.getPrototypeOf(value) !== Array.prototype) {
       addIssue(ctx.issues, path, 'not_json_safe', `expected a canonical array at "${path}"`)
-      return
+      return undefined
     }
   } else if (!isRecord(value)) {
     addIssue(ctx.issues, path, 'not_json_safe', `expected a plain object at "${path}"`)
-    return
+    return undefined
   }
 
   if (Array.isArray(value)) {
@@ -133,7 +142,7 @@ function checkJsonSafeUnsafe(
       lengthDescriptor.value < 0
     ) {
       addIssue(ctx.issues, path, 'not_json_safe', `array length metadata is invalid at "${path}"`)
-      return
+      return undefined
     }
     const length = lengthDescriptor.value
     if (length > CAREER_GAME_V1_LIMITS.maxJsonArrayLength) {
@@ -143,13 +152,13 @@ function checkJsonSafeUnsafe(
         'too_many_items',
         `JSON arrays support at most ${CAREER_GAME_V1_LIMITS.maxJsonArrayLength} items in schema V1`,
       )
-      return
+      return undefined
     }
 
     const keys = Reflect.ownKeys(value)
     if (keys.length > CAREER_GAME_V1_LIMITS.maxJsonArrayLength + 1) {
       addIssue(ctx.issues, path, 'not_json_safe', `unexpected array properties at "${path}"`)
-      return
+      return undefined
     }
     let indexedKeyCount = 0
     let hasUnexpectedKey = false
@@ -167,13 +176,14 @@ function checkJsonSafeUnsafe(
     }
     if (hasUnexpectedKey) {
       addIssue(ctx.issues, path, 'not_json_safe', `unexpected array properties at "${path}"`)
-      return
+      return undefined
     }
     if (indexedKeyCount !== length) {
       addIssue(ctx.issues, path, 'not_json_safe', `sparse arrays are not JSON-safe at "${path}"`)
-      return
+      return undefined
     }
 
+    const snapshot: JsonSnapshot[] = new Array(length)
     ctx.ancestors.add(value)
     for (let index = 0; index < length; index += 1) {
       const childPath = `${path}[${index}]`
@@ -181,11 +191,13 @@ function checkJsonSafeUnsafe(
       if (descriptor === undefined || !('value' in descriptor)) {
         addIssue(ctx.issues, childPath, 'not_json_safe', `expected a plain array value at "${childPath}"`)
       } else {
-        checkJsonSafe(descriptor.value, childPath, ctx, depth + 1)
+        const captured = captureJsonSafe(descriptor.value, childPath, ctx, depth + 1)
+        if (captured !== undefined) snapshot[index] = captured
       }
       if (ctx.halted) break
     }
     ctx.ancestors.delete(value)
+    return snapshot
   } else {
     const keys = Reflect.ownKeys(value)
     if (keys.length > CAREER_GAME_V1_LIMITS.maxJsonObjectProperties) {
@@ -195,8 +207,9 @@ function checkJsonSafeUnsafe(
         'too_many_items',
         `JSON objects support at most ${CAREER_GAME_V1_LIMITS.maxJsonObjectProperties} properties in schema V1`,
       )
-      return
+      return undefined
     }
+    const snapshot: Record<string, JsonSnapshot> = {}
     ctx.ancestors.add(value)
     for (const key of keys) {
       const childPath = `${path}.${String(key)}`
@@ -209,10 +222,19 @@ function checkJsonSafeUnsafe(
         addIssue(ctx.issues, childPath, 'not_json_safe', `expected an enumerable data property at "${childPath}"`)
         continue
       }
-      checkJsonSafe(descriptor.value, childPath, ctx, depth + 1)
+      const captured = captureJsonSafe(descriptor.value, childPath, ctx, depth + 1)
+      if (captured !== undefined) {
+        Object.defineProperty(snapshot, key, {
+          value: captured,
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        })
+      }
       if (ctx.halted) break
     }
     ctx.ancestors.delete(value)
+    return snapshot
   }
 }
 
@@ -246,6 +268,35 @@ function optionalString(record: RecordValue, key: string, path: string, ctx: Val
   return requiredString(record, key, path, ctx)
 }
 
+function identifierValue(
+  value: unknown,
+  path: string,
+  ctx: ValidationContext,
+): string | undefined {
+  if (typeof value !== 'string') {
+    addIssue(ctx.issues, path, 'wrong_type', 'expected identifier to be a string')
+    return undefined
+  }
+  if (value.length > CAREER_GAME_V1_LIMITS.maxIdentifierLength) {
+    addIssue(
+      ctx.issues,
+      path,
+      'identifier_too_long',
+      `identifier must not exceed ${CAREER_GAME_V1_LIMITS.maxIdentifierLength} characters`,
+    )
+    return undefined
+  }
+  if (value.trim() === '') {
+    addIssue(ctx.issues, path, 'empty_string', 'identifier must not be empty')
+    return undefined
+  }
+  if (!ID_PATTERN.test(value)) {
+    addIssue(ctx.issues, path, 'invalid_format', 'identifier must be a lowercase stable id')
+    return undefined
+  }
+  return value
+}
+
 function requiredIdentifier(
   record: RecordValue,
   key: string,
@@ -257,29 +308,7 @@ function requiredIdentifier(
     addIssue(ctx.issues, fieldPath, 'missing_field', `required field "${key}" is missing`)
     return undefined
   }
-  const value = record[key]
-  if (typeof value !== 'string') {
-    addIssue(ctx.issues, fieldPath, 'wrong_type', `expected "${key}" to be a string`)
-    return undefined
-  }
-  if (value.length > CAREER_GAME_V1_LIMITS.maxIdentifierLength) {
-    addIssue(
-      ctx.issues,
-      fieldPath,
-      'identifier_too_long',
-      `identifier must not exceed ${CAREER_GAME_V1_LIMITS.maxIdentifierLength} characters`,
-    )
-    return undefined
-  }
-  if (value.trim() === '') {
-    addIssue(ctx.issues, fieldPath, 'empty_string', `field "${key}" must not be empty`)
-    return undefined
-  }
-  if (!ID_PATTERN.test(value)) {
-    addIssue(ctx.issues, fieldPath, 'invalid_format', 'identifier must be a lowercase stable id')
-    return undefined
-  }
-  return value
+  return identifierValue(record[key], fieldPath, ctx)
 }
 
 function optionalIdentifier(
@@ -368,6 +397,10 @@ function validateStringArray(values: unknown[], path: string, ctx: ValidationCon
       addIssue(ctx.issues, `${path}[${index}]`, 'empty_string', `string at "${path}[${index}]" must not be empty`)
     }
   })
+}
+
+function validateIdentifierArray(values: unknown[], path: string, ctx: ValidationContext): void {
+  values.forEach((value, index) => identifierValue(value, `${path}[${index}]`, ctx))
 }
 
 function registerId(
@@ -661,7 +694,7 @@ function validateOutcomes(values: unknown[], ctx: ValidationContext): void {
     const nextSceneId = requiredIdentifier(value, 'nextSceneId', path, ctx)
     if (nextSceneId !== undefined) ctx.sceneRefs.push({ path: `${path}.nextSceneId`, id: nextSceneId })
     const skillTags = optionalArray(value, 'skillTags', path, ctx)
-    if (skillTags !== undefined) validateStringArray(skillTags, `${path}.skillTags`, ctx)
+    if (skillTags !== undefined) validateIdentifierArray(skillTags, `${path}.skillTags`, ctx)
     const libraryLinks = optionalArray(value, 'libraryLinks', path, ctx)
     if (libraryLinks !== undefined) validateLibraryLinks(libraryLinks, `${path}.libraryLinks`, ctx)
     rejectUnknown(
@@ -845,10 +878,11 @@ function checkExecutableCompletion(scenario: Scenario, ctx: ValidationContext): 
   )
 }
 
-function validateScenarioUnsafe(input: unknown): ScenarioValidationResult {
+function validateScenarioUnsafe(candidate: unknown): ScenarioValidationResult {
   const jsonIssues: ScenarioIssue[] = []
+  let captured: JsonSnapshot | undefined
   try {
-    checkJsonSafe(input, '$', {
+    captured = captureJsonSafe(candidate, '$', {
       issues: jsonIssues,
       ancestors: new Set(),
       visitedNodes: 0,
@@ -858,9 +892,10 @@ function validateScenarioUnsafe(input: unknown): ScenarioValidationResult {
     addIssue(jsonIssues, '$', 'not_json_safe', 'input could not be inspected safely')
   }
   if (jsonIssues.length > 0) return { ok: false, issues: jsonIssues }
-  if (!isRecord(input)) {
+  if (!isRecord(captured)) {
     return { ok: false, issues: [{ path: '$', code: 'invalid_root', message: 'scenario must be a plain object' }] }
   }
+  const input = captured
 
   const ctx: ValidationContext = {
     issues: [],
@@ -910,7 +945,7 @@ function validateScenarioUnsafe(input: unknown): ScenarioValidationResult {
   const flags = optionalArray(input, 'flags', '$', ctx)
   if (flags !== undefined) validateFlags(flags, ctx)
   const skillTags = optionalArray(input, 'skillTags', '$', ctx)
-  if (skillTags !== undefined) validateStringArray(skillTags, '$.skillTags', ctx)
+  if (skillTags !== undefined) validateIdentifierArray(skillTags, '$.skillTags', ctx)
   const libraryLinks = optionalArray(input, 'libraryLinks', '$', ctx)
   if (libraryLinks !== undefined) validateLibraryLinks(libraryLinks, '$.libraryLinks', ctx)
   const scenes = requiredArray(input, 'scenes', '$', ctx)

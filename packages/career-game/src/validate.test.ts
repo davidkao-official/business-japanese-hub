@@ -424,7 +424,37 @@ describe('validateScenario', () => {
     expect(Math.max(...issues.map((issue) => issue.message.length))).toBeLessThan(512)
   })
 
-  it('never throws when Proxy has/get traps reject schema traversal', () => {
+  it('applies the stable identifier width and format policy to skill tags', () => {
+    const boundaryScenario = clone()
+    const boundaryTag = `s${'a'.repeat(63)}`
+    boundaryScenario.skillTags = [boundaryTag]
+    const boundaryOutcomes = boundaryScenario.outcomes as Array<Record<string, unknown>>
+    boundaryOutcomes[0]!.skillTags = [boundaryTag]
+    expect(validateScenario(boundaryScenario)).toEqual({ ok: true, value: boundaryScenario })
+
+    const invalidScenario = clone()
+    const oversizedTag = `s${'a'.repeat(100_000)}`
+    invalidScenario.skillTags = [oversizedTag, 'Not Stable']
+    const invalidOutcomes = invalidScenario.outcomes as Array<Record<string, unknown>>
+    invalidOutcomes[0]!.skillTags = [oversizedTag, 'Not Stable']
+
+    expect(expectInvalid(invalidScenario)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: '$.skillTags[0]', code: 'identifier_too_long' }),
+        expect.objectContaining({ path: '$.skillTags[1]', code: 'invalid_format' }),
+        expect.objectContaining({
+          path: '$.outcomes[0].skillTags[0]',
+          code: 'identifier_too_long',
+        }),
+        expect.objectContaining({
+          path: '$.outcomes[0].skillTags[1]',
+          code: 'invalid_format',
+        }),
+      ]),
+    )
+  })
+
+  it('does not invoke Proxy has/get traps and fails closed on descriptor traps', () => {
     const inputs = [
       new Proxy(clone(), {
         has() {
@@ -440,10 +470,7 @@ describe('validateScenario', () => {
 
     for (const input of inputs) {
       expect(() => validateScenario(input)).not.toThrow()
-      expect(validateScenario(input)).toEqual({
-        ok: false,
-        issues: [expect.objectContaining({ path: '$', code: 'not_json_safe' })],
-      })
+      expect(validateScenario(input)).toEqual({ ok: true, value: workplaceScenario })
     }
 
     const nested = clone()
@@ -458,6 +485,74 @@ describe('validateScenario', () => {
         expect.objectContaining({ path: '$.characters', code: 'not_json_safe' }),
       ],
     })
+  })
+
+  it('validates and returns one descriptor-captured snapshot from a deceptive root Proxy', () => {
+    const source = clone()
+    const laterCharacters = new Array<unknown>(100_001)
+    laterCharacters[100_000] = { id: 'late-character', name: 'Late character' }
+    let charactersGetCount = 0
+    const input = new Proxy(source, {
+      get(target, key, receiver) {
+        if (key === 'characters') {
+          charactersGetCount += 1
+          return laterCharacters
+        }
+        return Reflect.get(target, key, receiver)
+      },
+    })
+
+    const startedAt = performance.now()
+    const result = validateScenario(input)
+    const elapsedMilliseconds = performance.now() - startedAt
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) throw new Error('expected descriptor snapshot validation to succeed')
+    expect(charactersGetCount).toBe(0)
+    expect(result.value).not.toBe(source)
+    expect(result.value.characters).toEqual(workplaceScenario.characters)
+    expect(result.value.characters).not.toBe(source.characters)
+    expect(elapsedMilliseconds).toBeLessThan(250)
+
+    source.title = 'Mutated after validation'
+    ;(source.characters as unknown[]).length = 0
+    expect(result.value.title).toBe(workplaceScenario.title)
+    expect(result.value.characters).toHaveLength(2)
+  })
+
+  it('copies aliases by value and rejects cycles without prototype pollution', () => {
+    const aliased = clone()
+    const sharedMedia = { src: '/career-game/shared.jpg', alt: 'Shared media' }
+    aliased.cover = sharedMedia
+    aliased.thumbnail = sharedMedia
+    const aliasedResult = validateScenario(aliased)
+    expect(aliasedResult.ok).toBe(true)
+    if (!aliasedResult.ok) throw new Error('expected aliased plain data to be copied')
+    expect(aliasedResult.value.cover).toEqual(sharedMedia)
+    expect(aliasedResult.value.thumbnail).toEqual(sharedMedia)
+    expect(aliasedResult.value.cover).not.toBe(aliasedResult.value.thumbnail)
+
+    const cyclic = clone()
+    const cycle: Record<string, unknown> = {}
+    cycle.self = cycle
+    cyclic.futureField = cycle
+    expect(expectInvalid(cyclic)).toEqual([
+      expect.objectContaining({ path: '$.futureField.self', code: 'not_json_safe' }),
+    ])
+
+    const prototypeKey = clone()
+    Object.defineProperty(prototypeKey, '__proto__', {
+      value: { polluted: true },
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    })
+    expect(expectInvalid(prototypeKey)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: '$.__proto__', code: 'unknown_field' }),
+      ]),
+    )
+    expect(({} as { polluted?: boolean }).polluted).toBeUndefined()
   })
 
   it('rejects invalid scene choice cardinality and terminal choices', () => {
