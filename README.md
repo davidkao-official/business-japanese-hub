@@ -19,7 +19,7 @@ Business Japanese Hub 是 shared、web-first 的 business-Japanese 平台，服�
 - **React + TypeScript + Vite**
 - **pnpm** 作為套件管理
 - Web-first：行動網頁支援通勤閱讀，桌面支援專注閱讀與查閱
-- **Cloudflare Pages** 作為 canonical production frontend
+- **Cloudflare Pages** 作為 canonical Library／Paid Launch production frontend
 - **Supabase modular monolith** 作為 shared、server-authoritative auth / database / Edge Functions boundary
 
 ## 關鍵決策摘要

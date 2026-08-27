@@ -40,7 +40,7 @@
 - 保持 web-first：不以原生 app 或 mobile-first-only 為主，兼顧行動通勤閱讀與桌面專注閱讀。
 - 不要引入 subscription-first 商業模式，不要以 AI 作為主要產品 abstraction，不為 MVP non-goals（見 product contract §13）投入實作。
 - Payment implementation（#9）以 `docs/payments/decision-record.md` 為唯一 contract；payment architecture 為 provider-neutral，ECPay（綠界）只是第一支 TWD adapter。Provider-specific mechanics 不得污染 Book / Reader / Library / Entitlement architecture；paid ownership 只能由 verified authoritative server event 驅動。所有 payment `/api/*` endpoints 都必須在 server-only execution boundary 執行（Supabase Edge Functions，見 decision-record §3.5）；client 永不可提供可信 amount/currency，server 以 authoritative catalog price seam 取價（見 §8.3）。
-- **Canonical production frontend 是 Cloudflare Pages**：`https://business-japanese-hub.pages.dev/`。GitHub Pages 不是 deployment target，也不得重新引入其 project-path build、`404.html` artifact 或 deployment workflow，除非先有新的明確 deployment 決策。
+- **Canonical Library／Paid Launch production frontend 是 Cloudflare Pages**：`https://business-japanese-hub.pages.dev/`。GitHub Pages 不是 deployment target，也不得重新引入其 project-path build、`404.html` artifact 或 deployment workflow，除非先有新的明確 deployment 決策。
 - 這個 canonical origin 是現有 Library／Paid Launch frontend contract；Career Game production hostname 尚未決定，不得猜測。
 - 與 `docs/product-contract.md` 衝突的實作方向應被視為錯誤，先釐清再動手。
 
