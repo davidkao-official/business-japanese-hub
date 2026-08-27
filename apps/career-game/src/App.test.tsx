@@ -14,4 +14,11 @@ describe('Career Game application shell', () => {
     expect(screen.getByRole('main')).toBeInTheDocument()
     expect(screen.getByText('日本の職場で、次の一手を考える。')).toBeInTheDocument()
   })
+
+  it('identifies English phrases inside the Japanese document', () => {
+    render(<App />)
+
+    expect(screen.getByText('Workplace simulation')).toHaveAttribute('lang', 'en')
+    expect(screen.getByText('Phase A')).toHaveAttribute('lang', 'en')
+  })
 })

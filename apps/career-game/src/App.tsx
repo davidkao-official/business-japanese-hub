@@ -12,12 +12,16 @@ export default function App() {
           </span>
           <span className="career-game-brand__platform">Business Japanese Hub</span>
         </div>
-        <p className="career-game-status">Phase A · 準備中</p>
+        <p className="career-game-status">
+          <span lang="en">Phase A</span> · 準備中
+        </p>
       </header>
 
       <main className="career-game-main" id="career-game-main" tabIndex={-1}>
         <div className="career-game-intro">
-          <p className="career-game-intro__label">Workplace simulation</p>
+          <p className="career-game-intro__label" lang="en">
+            Workplace simulation
+          </p>
           <h1>キャリアゲーム</h1>
           <p className="career-game-intro__lead">日本の職場で、次の一手を考える。</p>
           <p className="career-game-intro__note">
