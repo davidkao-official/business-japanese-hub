@@ -5,7 +5,15 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'coverage', 'node_modules', 'content-dist', '.claude', '.omc'],
+    ignores: [
+      'dist',
+      'dist-career-game',
+      'coverage',
+      'node_modules',
+      'content-dist',
+      '.claude',
+      '.omc',
+    ],
   },
   {
     files: ['**/*.{js,mjs,cjs}'],

@@ -22,6 +22,29 @@ Business Japanese Hub 是 shared、web-first 的 business-Japanese 平台，服�
 - **Cloudflare Pages** 作為 canonical Library／Paid Launch production frontend
 - **Supabase modular monolith** 作為 shared、server-authoritative auth / database / Edge Functions boundary
 
+## Frontend topology 與本機開發
+
+目前採增量式的雙 frontend topology，保留既有 Library production path，同時讓 Career Game 可獨立啟動與 build：
+
+| Product | Entry / source | Vite config | Build output |
+| --- | --- | --- | --- |
+| Library | `index.html`、`src/` | `vite.config.ts` | `dist/` |
+| Career Game | `apps/career-game/index.html`、`apps/career-game/src/` | `vite.career-game.config.ts` | `dist-career-game/` |
+
+從 repository root 執行一次 `pnpm install` 即可安裝兩個 frontend 所需的 pinned toolchain。常用指令：
+
+| Command | 用途 |
+| --- | --- |
+| `pnpm dev` / `pnpm dev:library` | 啟動 Library dev server |
+| `pnpm dev:career-game` | 獨立啟動 Career Game dev server |
+| `pnpm preview` / `pnpm preview:library` | 預覽 Library build |
+| `pnpm preview:career-game` | 預覽 Career Game build |
+| `pnpm build:library` | 只 build Library 至 `dist/` |
+| `pnpm build:career-game` | 只 build Career Game 至 `dist-career-game/` |
+| `pnpm build` | 驗證 released Books、typecheck 全部 projects，依序 build 兩個 frontends |
+
+這個 topology 沒有新增第二 backend；兩個產品仍共用既有 Supabase modular monolith。Career Game production hostname／routing 由 #60 決定，目前的 `dist-career-game/` 不代表 production deployment target。
+
 ## 關鍵決策摘要
 
 - **Prototype MVP 已完成**；當前目標是 **Paid Launch／最快安全的第一筆真實營收**。保留陌生訪客免登入閱讀 free/public books 的正式能力，同時完成最小可上線的 paid Book、authoritative pricing、payment／entitlement、compliance 與 production activation（見 [product contract §15](docs/product-contract.md#15-產品階段paid-launchprototype-mvp-已完成)）。
@@ -36,7 +59,7 @@ Business Japanese Hub 是 shared、web-first 的 business-Japanese 平台，服�
 ## 部署
 
 - **Canonical Library／Paid Launch frontend**：`https://business-japanese-hub.pages.dev/`（Cloudflare Pages）。GitHub Pages 不是 deployment target；Career Game production hostname 尚未決定。
-- **Production build**：`pnpm build` → `dist/`。Cloudflare Pages 使用 origin root `/`，因此 production 不設定 `DEPLOY_BASE_PATH`。
+- **Production build**：`pnpm build` 會驗證並 build 兩個 frontends；Cloudflare Pages 仍只上傳 canonical Library artifact `dist/`。Career Game 的 `dist-career-game/` 是獨立、非 production-routing 的 build artifact。Cloudflare Pages 使用 origin root `/`，因此 Library production 不設定 `DEPLOY_BASE_PATH`。
 - **Cloudflare Pages Git integration**：production branch 使用 `main`；每次 production branch 更新由 Cloudflare 重新 build/deploy。GitHub Actions `.github/workflows/ci.yml` 獨立負責 typecheck / lint / test / build quality gate。
 - **SPA routing**：不要產生 GitHub Pages 式的頂層 `404.html`。Cloudflare Pages 在沒有頂層 `404.html` 時會把未命中 static asset 的路徑交給 SPA root，讓 `BrowserRouter` deep links 可直接載入。
 - **Frontend production variables**：Cloudflare Pages environment 設定 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`，以及需要時的 `VITE_EDGE_FUNCTIONS_BASE_URL`。後端 `PUBLIC_SITE_URL` 必須與 canonical frontend origin 一致：`https://business-japanese-hub.pages.dev/`。

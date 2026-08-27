@@ -38,13 +38,28 @@ payment adapter -> provider-neutral payment core -> authoritative entitlement gr
 - Catalog、commerce、entitlement 與 progress 只有在某個 product flow 實際需要時才接入。Library 的 Book entitlement 不自動成為 Career Game 的 access/progression schema。
 - Payment provider mechanics 停在 adapter boundary；browser state 不得建立 paid ownership，server execution boundary 維持 Supabase Edge Functions。
 
-## 4. Delivery boundary
+## 4. Frontend topology
+
+目前使用 incremental、非對稱的雙 frontend topology，避免為了加入 Career Game 而搬動已上線的 Library：
+
+| Product | Source / entry | Build config | Artifact |
+| --- | --- | --- | --- |
+| Library | repository root `index.html` + `src/` | `vite.config.ts` | `dist/` |
+| Career Game | `apps/career-game/index.html` + `apps/career-game/src/` | `vite.career-game.config.ts` | `dist-career-game/` |
+
+- Root `pnpm build` 驗證 released Books、typecheck 全部 projects，並 build 兩個 frontend；`pnpm build:library` 與 `pnpm build:career-game` 也可獨立產生互不覆寫的 artifacts。
+- `pnpm dev`／`pnpm preview` 繼續代表 Library；兩個產品另有明確的 product-specific dev／preview commands。
+- Library 保持既有 root routes、Reader imports、deployment base 與 canonical Cloudflare `dist/` contract。Career Game app shell 不依賴 Library providers、Book／Reader／purchase／entitlement code；目前只共用平台的 semantic design tokens。
+- 此 frontend split 沒有新增第二 backend。兩個產品仍使用同一 shared Supabase modular monolith boundary，但保有 product-specific frontend state 與 release cadence。
+- `dist-career-game/` 只證明獨立 build boundary，不代表 production routing 決策。Career Game production hostname／routing deferred 至 #60，不得從目前的 local base 或 artifact name 推導。
+
+## 5. Delivery boundary
 
 Paid Launch／first revenue 仍是 current revenue priority，既有 Book purchase golden path、free/public Library reading、legal/compliance 與 fail-closed contracts 不得弱化。Career Game Phase A 可以並行做 free validation，但不得延後或繞過 Paid Launch。
 
-Career Game 的非 Book commerce 只被承認為未來可能性：等 #58 的 evidence 後由 #59 決策。現在不定義 generalized commerce schema、Career Game production hostname、DB schema、repository folder/workspace layout 或 product routing topology。
+Career Game 的非 Book commerce 只被承認為未來可能性：等 #58 的 evidence 後由 #59 決策。現在不定義 generalized commerce schema、Career Game production hostname、DB schema 或 production routing topology。
 
-## 5. Architecture non-goals
+## 6. Architecture non-goals
 
 - 把 Career Game content 塞進 Book／Chapter／ContentBlock。
 - 把 Library navigation、Reader 或 commerce flow 改寫成 game concepts。

@@ -25,6 +25,23 @@ Cloudflare Pages is connected to the repository and should use:
 - build output directory: `dist`
 - `DEPLOY_BASE_PATH`: unset, so Vite builds for `/`
 
+The root build now validates both frontend boundaries in one checkout:
+
+```text
+pnpm build
+├── verify committed Library Book releases
+├── typecheck all projects
+├── build Library → dist/
+└── build Career Game → dist-career-game/
+```
+
+Cloudflare Pages must continue to upload **only `dist/`**. The separate
+`dist-career-game/` artifact proves that Career Game is independently
+buildable; it has no production hostname or routing contract yet. That decision
+is deferred to #60. Do not add a second Pages project, change `PUBLIC_SITE_URL`,
+or infer production routing from the Career Game artifact without that explicit
+decision.
+
 Cloudflare Pages treats a project without a top-level `404.html` as a SPA and
 serves the root application for unmatched history routes. The production build
 therefore deliberately does **not** generate the old GitHub Pages `404.html`
