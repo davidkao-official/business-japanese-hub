@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@business-japanese-hub/career-game':
+        specifier: workspace:*
+        version: link:packages/career-game
       '@supabase/supabase-js':
         specifier: ^2.112.3
         version: 2.112.3
