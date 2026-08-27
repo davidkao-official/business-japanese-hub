@@ -5,7 +5,9 @@ import {
   OUTCOME_CATEGORIES,
   SCENE_KINDS,
 } from './types'
+import { applyChoice, createInitialState, getAvailableChoices } from './runtime'
 import type {
+  GameState,
   Scenario,
   ScenarioIssue,
   ScenarioIssueCode,
@@ -16,6 +18,7 @@ const ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 const LOCALE_PATTERN = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/
 const METER_LIMIT = 100
 const EFFECT_ADJUSTMENT_LIMIT = 100
+const EXECUTABLE_STATE_LIMIT = 50_000
 
 type RecordValue = Record<string, unknown>
 
@@ -605,7 +608,67 @@ function checkGraph(scenario: RecordValue, ctx: ValidationContext): void {
   })
 }
 
-export function validateScenario(input: unknown): ScenarioValidationResult {
+function executableStateKey(scenario: Scenario, state: GameState): string {
+  return JSON.stringify([
+    state.currentSceneId,
+    (scenario.meters ?? []).map((meter) => state.meters[meter.id]),
+    (scenario.flags ?? []).map((flag) => state.flags[flag.id]),
+    state.status,
+  ])
+}
+
+/**
+ * Proves that at least one terminal is executable under the same bounded
+ * condition/effect semantics as the runtime. History is deliberately removed
+ * from queued states because no V1 condition or effect can inspect it.
+ */
+function checkExecutableCompletion(scenario: Scenario, ctx: ValidationContext): void {
+  const initial = createInitialState(scenario)
+  if (initial.status === 'completed') return
+
+  const queue: GameState[] = [{ ...initial, history: [] }]
+  const visited = new Set([executableStateKey(scenario, initial)])
+  let cursor = 0
+
+  while (cursor < queue.length) {
+    const state = queue[cursor]!
+    cursor += 1
+    for (const choice of getAvailableChoices(scenario, state)) {
+      const result = applyChoice(scenario, state, {
+        scenarioId: scenario.id,
+        contentVersion: scenario.contentVersion,
+        sceneId: state.currentSceneId,
+        choiceId: choice.id,
+      })
+      if (result.kind === 'completed') return
+      if (result.kind !== 'advanced') continue
+
+      const nextState: GameState = { ...result.state, history: [] }
+      const key = executableStateKey(scenario, nextState)
+      if (visited.has(key)) continue
+      if (visited.size >= EXECUTABLE_STATE_LIMIT) {
+        addIssue(
+          ctx.issues,
+          '$.scenes',
+          'executable_analysis_limit',
+          `could not prove an executable completion within ${EXECUTABLE_STATE_LIMIT} runtime states`,
+        )
+        return
+      }
+      visited.add(key)
+      queue.push(nextState)
+    }
+  }
+
+  addIssue(
+    ctx.issues,
+    '$.scenes',
+    'no_executable_completion',
+    'no terminal completion is executable from the initial runtime state',
+  )
+}
+
+function validateScenarioUnsafe(input: unknown): ScenarioValidationResult {
   const jsonIssues: ScenarioIssue[] = []
   try {
     checkJsonSafe(input, '$', jsonIssues, new Set())
@@ -695,9 +758,29 @@ export function validateScenario(input: unknown): ScenarioValidationResult {
     outcomes !== undefined && outcomes.every(isRecord)
   ) {
     checkGraph(input, ctx)
+    if (ctx.issues.length === 0) {
+      checkExecutableCompletion(input as unknown as Scenario, ctx)
+    }
   }
 
   return ctx.issues.length === 0
     ? { ok: true, value: input as unknown as Scenario }
     : { ok: false, issues: ctx.issues }
+}
+
+export function validateScenario(input: unknown): ScenarioValidationResult {
+  try {
+    return validateScenarioUnsafe(input)
+  } catch {
+    return {
+      ok: false,
+      issues: [
+        {
+          path: '$',
+          code: 'not_json_safe',
+          message: 'input could not be inspected safely',
+        },
+      ],
+    }
+  }
 }

@@ -164,6 +164,8 @@ export type ScenarioIssueCode =
   | 'unreachable_scene'
   | 'no_reachable_completion'
   | 'no_terminal_path'
+  | 'no_executable_completion'
+  | 'executable_analysis_limit'
 
 export interface ScenarioIssue {
   path: string

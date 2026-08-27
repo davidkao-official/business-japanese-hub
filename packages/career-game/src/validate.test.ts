@@ -14,6 +14,58 @@ function expectInvalid(input: unknown): ScenarioIssue[] {
   return result.issues
 }
 
+function conditionDeadlockScenario(): Record<string, unknown> {
+  const scenario = clone(narrativeScenario)
+  scenario.flags = [{ id: 'gate', label: 'Completion gate', initial: false }]
+  scenario.scenes = [
+    {
+      id: 'waiting',
+      kind: 'decision',
+      context: 'The completion gate is initially closed.',
+      prompt: 'What happens next?',
+      choices: [
+        { id: 'wait-again', label: 'Wait', outcomeId: 'loop-outcome' },
+        {
+          id: 'finish-case',
+          label: 'Finish',
+          outcomeId: 'finish-outcome',
+          conditions: [{ kind: 'flagEquals', flagId: 'gate', value: true }],
+        },
+      ],
+    },
+    {
+      id: 'finished',
+      kind: 'terminal',
+      context: 'The gate opened.',
+      completion: { title: 'Complete', summary: 'The executable route reached completion.' },
+    },
+  ]
+  scenario.startSceneId = 'waiting'
+  scenario.outcomes = [
+    {
+      id: 'loop-outcome',
+      category: 'mixed',
+      consequence: 'Nothing changes.',
+      feedback: 'The gate remains closed.',
+      recommendedExpression: 'もう少し待ちます。',
+      acceptableAlternatives: [],
+      effects: [],
+      nextSceneId: 'waiting',
+    },
+    {
+      id: 'finish-outcome',
+      category: 'strong',
+      consequence: 'The case completes.',
+      feedback: 'The gate was open.',
+      recommendedExpression: '完了します。',
+      acceptableAlternatives: [],
+      effects: [],
+      nextSceneId: 'finished',
+    },
+  ]
+  return scenario
+}
+
 describe('validateScenario', () => {
   it('accepts a generic workplace scenario as JSON-safe data', () => {
     const result = validateScenario(workplaceScenario)
@@ -176,6 +228,29 @@ describe('validateScenario', () => {
     ])
   })
 
+  it('never throws when Proxy has/get traps reject schema traversal', () => {
+    const inputs = [
+      new Proxy(clone(), {
+        has() {
+          throw new Error('has trap rejected access')
+        },
+      }),
+      new Proxy(clone(), {
+        get() {
+          throw new Error('get trap rejected access')
+        },
+      }),
+    ]
+
+    for (const input of inputs) {
+      expect(() => validateScenario(input)).not.toThrow()
+      expect(validateScenario(input)).toEqual({
+        ok: false,
+        issues: [expect.objectContaining({ path: '$', code: 'not_json_safe' })],
+      })
+    }
+  })
+
   it('rejects invalid scene choice cardinality and terminal choices', () => {
     const scenario = clone()
     const scenes = scenario.scenes as Array<Record<string, unknown>>
@@ -223,6 +298,22 @@ describe('validateScenario', () => {
         }),
       ]),
     )
+  })
+
+  it('rejects a structurally routed terminal that no runtime state can execute', () => {
+    expect(expectInvalid(conditionDeadlockScenario())).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: '$.scenes', code: 'no_executable_completion' }),
+      ]),
+    )
+  })
+
+  it('accepts a runtime-reachable terminal after an effect opens its condition gate', () => {
+    const scenario = conditionDeadlockScenario()
+    const outcomes = scenario.outcomes as Array<Record<string, unknown>>
+    outcomes[0]!.effects = [{ kind: 'setFlag', flagId: 'gate', value: true }]
+
+    expect(validateScenario(scenario)).toEqual({ ok: true, value: scenario })
   })
 
   it('rejects unreachable scenes and graphs without a reachable completion', () => {
