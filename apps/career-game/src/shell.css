@@ -602,7 +602,7 @@ button {
 }
 
 .feedback-sheet--mixed .outcome-verdict__category {
-  color: var(--game-caution);
+  color: var(--game-ink);
 }
 
 .feedback-sheet--risky .case-sheet__header,

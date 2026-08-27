@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import App from './App'
 import { rookieSurvivalScenario } from './content/rookie-survival'
@@ -29,7 +30,41 @@ describe('Career Game playable slice', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('Workplace simulation')).toHaveAttribute('lang', 'en')
     expect(screen.getByText('無料・ゲストプレイ')).toBeInTheDocument()
+    expect(
+      screen.getByText(/判断するたびに、その場の結果と職場語用論の解説を確認/),
+    ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'ケースを開始' })).toBeEnabled()
+  })
+
+  it('supports keyboard activation and moves focus across each case view', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    const startButton = screen.getByRole('button', { name: 'ケースを開始' })
+    startButton.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('heading', { name: '配属初日の挨拶' })).toHaveFocus()
+
+    for (let file = 1; file <= 5; file += 1) {
+      const choices = screen.getByRole('group', { name: 'あなたの判断' })
+      const choice = within(choices).getAllByRole('button')[0]!
+      choice.focus()
+      await user.keyboard('{Enter}')
+      expect(screen.getByRole('heading', { name: '判断の結果' })).toHaveFocus()
+
+      const continueButton = screen.getByRole('button', {
+        name: file === 5 ? '結果を見る' : '次のファイルへ',
+      })
+      continueButton.focus()
+      await user.keyboard('{Enter}')
+
+      if (file === 5) {
+        expect(screen.getByRole('heading', { name: 'ケース完了' })).toHaveFocus()
+      } else {
+        expect(screen.getByText(`FILE ${String(file + 1).padStart(2, '0')} / 05`)).toBeInTheDocument()
+        expect(screen.getByRole('heading', { level: 1 })).toHaveFocus()
+      }
+    }
   })
 
   it('plays the five-file golden path through consequence feedback and completion', () => {
