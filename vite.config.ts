@@ -75,6 +75,7 @@ export default defineConfig({
     include: [
       'src/**/*.test.{ts,tsx}',
       'apps/**/*.test.{ts,tsx}',
+      'packages/**/*.test.ts',
       'supabase/functions/**/*.test.ts',
     ],
     css: false,
