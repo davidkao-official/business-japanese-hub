@@ -57,7 +57,7 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Build
+      - name: Build Library and Career Game frontends
         run: pnpm build
 
       - name: Start clean local database

@@ -1,0 +1,150 @@
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-feature-settings: var(--font-feature-defaults);
+}
+
+body {
+  margin: 0;
+}
+
+.career-game-shell {
+  min-height: 100dvh;
+  background: var(--color-bg);
+}
+
+.career-game-skip-link {
+  position: fixed;
+  z-index: var(--z-skip-link);
+  inset-block-start: var(--space-3);
+  inset-inline-start: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-text);
+  color: var(--color-text-inverse);
+  font-size: var(--text-sm);
+  transform: translateY(calc(-100% - var(--space-5)));
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.career-game-skip-link:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+  transform: translateY(0);
+}
+
+.career-game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  max-width: var(--container-max-width);
+  margin-inline: auto;
+  padding: var(--space-5) var(--container-padding);
+  border-block-end: var(--stroke-thin) solid var(--color-border);
+}
+
+.career-game-brand {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.career-game-brand__product,
+.career-game-intro__label,
+.career-game-status {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.career-game-brand__product {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.career-game-brand__platform,
+.career-game-status {
+  color: var(--color-text-muted);
+}
+
+.career-game-brand__platform {
+  font-size: var(--text-sm);
+}
+
+.career-game-status {
+  margin: 0;
+  text-align: end;
+}
+
+.career-game-main {
+  max-width: var(--container-max-width);
+  margin-inline: auto;
+  padding: var(--space-8) var(--container-padding) var(--space-9);
+}
+
+.career-game-main:focus {
+  outline: none;
+}
+
+.career-game-main:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: calc(var(--focus-ring-offset) * -1);
+}
+
+.career-game-intro {
+  max-width: var(--measure-reading);
+  padding-inline-start: var(--space-6);
+  border-inline-start: var(--stroke-medium) solid var(--color-accent);
+}
+
+.career-game-intro__label {
+  margin: 0 0 var(--space-4);
+  color: var(--color-accent);
+}
+
+.career-game-intro h1 {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--text-3xl);
+  font-weight: var(--font-weight-semibold);
+  font-feature-settings: var(--jp-feature-palt);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+}
+
+.career-game-intro__lead {
+  margin: var(--space-5) 0 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--leading-body);
+}
+
+.career-game-intro__note {
+  max-width: var(--measure-reading);
+  margin: var(--space-5) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+  line-height: var(--leading-relaxed);
+}
+
+@media (min-width: 48rem) {
+  .career-game-main {
+    padding-block-start: var(--space-9);
+  }
+
+  .career-game-intro {
+    padding-inline-start: var(--space-7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .career-game-skip-link {
+    transition: none;
+  }
+}
