@@ -1,15 +1,15 @@
-# Content Model：Book → Chapter → ContentBlock
+# Library Content Model：Book → Chapter → ContentBlock
 
-> 本文件描述 Business Japanese Hub 的 content model：概念階層、資料結構、block vocabulary、runtime validation 與 versioning／migration 策略。文件以台灣正體中文撰寫；程式碼識別字與 API 名稱保留英文。
+> 本文件描述 Business Japanese Hub **Library bounded context** 的 content model：概念階層、資料結構、block vocabulary、runtime validation 與 versioning／migration 策略。這份 Book contract **不是 Career Game schema**；Career Game 的 scenario／scene／choice／outcome／feedback／progression 語意邊界見 `docs/platform-architecture.md`，不得塞入 Book／Chapter／ContentBlock。文件以台灣正體中文撰寫；程式碼識別字與 API 名稱保留英文。
 >
 > 對應實作：`src/content/types.ts`、`src/content/validate.ts`、`src/content/fixtures/sample-book.ts`。
-> 上位契約：`docs/product-contract.md`（§5 平台 abstraction、§6 book-agnostic 硬性約束）。
+> 上位契約：`docs/product-contract.md`（§5 平台 abstraction、§6 book-agnostic 硬性約束）、`docs/platform-architecture.md`（bounded contexts）。
 
 ---
 
 ## 1. 概觀
 
-內容模型是固定的三層階層，對應產品的核心抽象（contract §5）：
+Library 內容模型是固定的三層階層，對應 Library 的核心抽象（contract §5）：
 
 ```text
 Book
