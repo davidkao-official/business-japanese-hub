@@ -10,6 +10,12 @@ export const EFFECT_KINDS = ['adjustMeter', 'setFlag'] as const
  * predictably bounded. Changing these limits requires a schema-version review.
  */
 export const CAREER_GAME_V1_LIMITS = {
+  maxJsonArrayLength: 256,
+  maxJsonObjectProperties: 32,
+  maxJsonDepth: 32,
+  maxJsonNodes: 50_000,
+  maxValidationIssues: 100,
+  maxIdentifierLength: 64,
   maxScenes: 24,
   maxMeters: 4,
   maxFlags: 8,
@@ -166,9 +172,11 @@ export type ScenarioIssueCode =
   | 'wrong_type'
   | 'invalid_number'
   | 'invalid_format'
+  | 'identifier_too_long'
   | 'invalid_enum'
   | 'missing_items'
   | 'too_many_items'
+  | 'validation_limit'
   | 'unknown_field'
   | 'unknown_condition_kind'
   | 'unknown_effect_kind'

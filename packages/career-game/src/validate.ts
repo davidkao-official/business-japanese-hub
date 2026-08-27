@@ -27,6 +27,13 @@ interface Reference {
   id: string
 }
 
+interface JsonSafetyContext {
+  issues: ScenarioIssue[]
+  ancestors: Set<object>
+  visitedNodes: number
+  halted: boolean
+}
+
 interface ValidationContext {
   issues: ScenarioIssue[]
   allIds: Set<string>
@@ -48,6 +55,7 @@ function addIssue(
   code: ScenarioIssueCode,
   message: string,
 ): void {
+  if (issues.length >= CAREER_GAME_V1_LIMITS.maxValidationIssues) return
   issues.push({ path, code, message })
 }
 
@@ -60,75 +68,152 @@ function isRecord(value: unknown): value is RecordValue {
 function checkJsonSafe(
   value: unknown,
   path: string,
-  issues: ScenarioIssue[],
-  ancestors: Set<object>,
+  ctx: JsonSafetyContext,
+  depth = 0,
 ): void {
+  try {
+    checkJsonSafeUnsafe(value, path, ctx, depth)
+  } catch {
+    if (typeof value === 'object' && value !== null) ctx.ancestors.delete(value)
+    addIssue(ctx.issues, path, 'not_json_safe', `could not inspect value at "${path}" safely`)
+  }
+}
+
+function checkJsonSafeUnsafe(
+  value: unknown,
+  path: string,
+  ctx: JsonSafetyContext,
+  depth = 0,
+): void {
+  if (ctx.halted) return
+  ctx.visitedNodes += 1
+  if (ctx.visitedNodes > CAREER_GAME_V1_LIMITS.maxJsonNodes) {
+    addIssue(ctx.issues, path, 'validation_limit', 'JSON-safe preflight exceeded the V1 node budget')
+    ctx.halted = true
+    return
+  }
+  if (depth > CAREER_GAME_V1_LIMITS.maxJsonDepth) {
+    addIssue(ctx.issues, path, 'validation_limit', 'JSON-safe preflight exceeded the V1 depth budget')
+    ctx.halted = true
+    return
+  }
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) {
-      addIssue(issues, path, 'not_json_safe', `expected a finite number at "${path}"`)
+      addIssue(ctx.issues, path, 'not_json_safe', `expected a finite number at "${path}"`)
     }
     return
   }
   if (typeof value !== 'object') {
-    addIssue(issues, path, 'not_json_safe', `expected JSON-safe plain data at "${path}"`)
+    addIssue(ctx.issues, path, 'not_json_safe', `expected JSON-safe plain data at "${path}"`)
     return
   }
-  if (ancestors.has(value)) {
-    addIssue(issues, path, 'not_json_safe', `cyclic reference at "${path}"`)
-    return
-  }
-
-  let keys: (string | symbol)[]
-  try {
-    keys = Reflect.ownKeys(value)
-  } catch {
-    addIssue(issues, path, 'not_json_safe', `could not inspect value at "${path}" safely`)
+  if (ctx.ancestors.has(value)) {
+    addIssue(ctx.issues, path, 'not_json_safe', `cyclic reference at "${path}"`)
     return
   }
 
   if (Array.isArray(value)) {
     if (Object.getPrototypeOf(value) !== Array.prototype) {
-      addIssue(issues, path, 'not_json_safe', `expected a canonical array at "${path}"`)
+      addIssue(ctx.issues, path, 'not_json_safe', `expected a canonical array at "${path}"`)
       return
     }
   } else if (!isRecord(value)) {
-    addIssue(issues, path, 'not_json_safe', `expected a plain object at "${path}"`)
+    addIssue(ctx.issues, path, 'not_json_safe', `expected a plain object at "${path}"`)
     return
   }
 
-  ancestors.add(value)
   if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index += 1) {
+    const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length')
+    if (
+      lengthDescriptor === undefined ||
+      !('value' in lengthDescriptor) ||
+      typeof lengthDescriptor.value !== 'number' ||
+      !Number.isSafeInteger(lengthDescriptor.value) ||
+      lengthDescriptor.value < 0
+    ) {
+      addIssue(ctx.issues, path, 'not_json_safe', `array length metadata is invalid at "${path}"`)
+      return
+    }
+    const length = lengthDescriptor.value
+    if (length > CAREER_GAME_V1_LIMITS.maxJsonArrayLength) {
+      addIssue(
+        ctx.issues,
+        path,
+        'too_many_items',
+        `JSON arrays support at most ${CAREER_GAME_V1_LIMITS.maxJsonArrayLength} items in schema V1`,
+      )
+      return
+    }
+
+    const keys = Reflect.ownKeys(value)
+    if (keys.length > CAREER_GAME_V1_LIMITS.maxJsonArrayLength + 1) {
+      addIssue(ctx.issues, path, 'not_json_safe', `unexpected array properties at "${path}"`)
+      return
+    }
+    let indexedKeyCount = 0
+    let hasUnexpectedKey = false
+    for (const key of keys) {
+      if (key === 'length') continue
+      if (
+        typeof key !== 'string' ||
+        !/^(?:0|[1-9]\d*)$/.test(key) ||
+        Number(key) >= length
+      ) {
+        hasUnexpectedKey = true
+      } else {
+        indexedKeyCount += 1
+      }
+    }
+    if (hasUnexpectedKey) {
+      addIssue(ctx.issues, path, 'not_json_safe', `unexpected array properties at "${path}"`)
+      return
+    }
+    if (indexedKeyCount !== length) {
+      addIssue(ctx.issues, path, 'not_json_safe', `sparse arrays are not JSON-safe at "${path}"`)
+      return
+    }
+
+    ctx.ancestors.add(value)
+    for (let index = 0; index < length; index += 1) {
       const childPath = `${path}[${index}]`
       const descriptor = Object.getOwnPropertyDescriptor(value, String(index))
       if (descriptor === undefined || !('value' in descriptor)) {
-        addIssue(issues, childPath, 'not_json_safe', `expected a plain array value at "${childPath}"`)
+        addIssue(ctx.issues, childPath, 'not_json_safe', `expected a plain array value at "${childPath}"`)
       } else {
-        checkJsonSafe(descriptor.value, childPath, issues, ancestors)
+        checkJsonSafe(descriptor.value, childPath, ctx, depth + 1)
       }
+      if (ctx.halted) break
     }
-    for (const key of keys) {
-      if (key === 'length') continue
-      if (typeof key === 'string' && /^\d+$/.test(key) && Number(key) < value.length) continue
-      addIssue(issues, `${path}.${String(key)}`, 'not_json_safe', `unexpected array property at "${path}"`)
-    }
+    ctx.ancestors.delete(value)
   } else {
+    const keys = Reflect.ownKeys(value)
+    if (keys.length > CAREER_GAME_V1_LIMITS.maxJsonObjectProperties) {
+      addIssue(
+        ctx.issues,
+        path,
+        'too_many_items',
+        `JSON objects support at most ${CAREER_GAME_V1_LIMITS.maxJsonObjectProperties} properties in schema V1`,
+      )
+      return
+    }
+    ctx.ancestors.add(value)
     for (const key of keys) {
       const childPath = `${path}.${String(key)}`
       if (typeof key !== 'string') {
-        addIssue(issues, childPath, 'not_json_safe', `symbol properties are not JSON-safe at "${path}"`)
+        addIssue(ctx.issues, childPath, 'not_json_safe', `symbol properties are not JSON-safe at "${path}"`)
         continue
       }
       const descriptor = Object.getOwnPropertyDescriptor(value, key)
       if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) {
-        addIssue(issues, childPath, 'not_json_safe', `expected an enumerable data property at "${childPath}"`)
+        addIssue(ctx.issues, childPath, 'not_json_safe', `expected an enumerable data property at "${childPath}"`)
         continue
       }
-      checkJsonSafe(descriptor.value, childPath, issues, ancestors)
+      checkJsonSafe(descriptor.value, childPath, ctx, depth + 1)
+      if (ctx.halted) break
     }
+    ctx.ancestors.delete(value)
   }
-  ancestors.delete(value)
 }
 
 function rejectUnknown(record: RecordValue, path: string, allowed: readonly string[], ctx: ValidationContext): void {
@@ -159,6 +244,52 @@ function requiredString(record: RecordValue, key: string, path: string, ctx: Val
 function optionalString(record: RecordValue, key: string, path: string, ctx: ValidationContext): string | undefined {
   if (!(key in record)) return undefined
   return requiredString(record, key, path, ctx)
+}
+
+function requiredIdentifier(
+  record: RecordValue,
+  key: string,
+  path: string,
+  ctx: ValidationContext,
+): string | undefined {
+  const fieldPath = `${path}.${key}`
+  if (!(key in record)) {
+    addIssue(ctx.issues, fieldPath, 'missing_field', `required field "${key}" is missing`)
+    return undefined
+  }
+  const value = record[key]
+  if (typeof value !== 'string') {
+    addIssue(ctx.issues, fieldPath, 'wrong_type', `expected "${key}" to be a string`)
+    return undefined
+  }
+  if (value.length > CAREER_GAME_V1_LIMITS.maxIdentifierLength) {
+    addIssue(
+      ctx.issues,
+      fieldPath,
+      'identifier_too_long',
+      `identifier must not exceed ${CAREER_GAME_V1_LIMITS.maxIdentifierLength} characters`,
+    )
+    return undefined
+  }
+  if (value.trim() === '') {
+    addIssue(ctx.issues, fieldPath, 'empty_string', `field "${key}" must not be empty`)
+    return undefined
+  }
+  if (!ID_PATTERN.test(value)) {
+    addIssue(ctx.issues, fieldPath, 'invalid_format', 'identifier must be a lowercase stable id')
+    return undefined
+  }
+  return value
+}
+
+function optionalIdentifier(
+  record: RecordValue,
+  key: string,
+  path: string,
+  ctx: ValidationContext,
+): string | undefined {
+  if (!(key in record)) return undefined
+  return requiredIdentifier(record, key, path, ctx)
 }
 
 function requiredNumber(record: RecordValue, key: string, path: string, ctx: ValidationContext): number | undefined {
@@ -244,18 +375,15 @@ function registerId(
   path: string,
   target: Set<string>,
   ctx: ValidationContext,
-): void {
-  if (value === undefined) return
-  if (!ID_PATTERN.test(value)) {
-    addIssue(ctx.issues, path, 'invalid_format', `identifier "${value}" is not a lowercase stable id`)
-    return
-  }
+): boolean {
+  if (value === undefined) return false
   if (ctx.allIds.has(value)) {
     addIssue(ctx.issues, path, 'duplicate_id', `identifier "${value}" is already used in this scenario`)
-    return
+    return false
   }
   ctx.allIds.add(value)
   target.add(value)
+  return true
 }
 
 function validateCharacters(values: unknown[], ctx: ValidationContext): void {
@@ -265,7 +393,7 @@ function validateCharacters(values: unknown[], ctx: ValidationContext): void {
       addIssue(ctx.issues, path, 'wrong_type', `expected a character object at "${path}"`)
       return
     }
-    const id = requiredString(value, 'id', path, ctx)
+    const id = requiredIdentifier(value, 'id', path, ctx)
     registerId(id, `${path}.id`, ctx.characterIds, ctx)
     requiredString(value, 'name', path, ctx)
     optionalString(value, 'role', path, ctx)
@@ -280,9 +408,8 @@ function validateMeters(values: unknown[], ctx: ValidationContext): void {
       addIssue(ctx.issues, path, 'wrong_type', `expected a meter definition at "${path}"`)
       return
     }
-    const id = requiredString(value, 'id', path, ctx)
-    const before = ctx.meterDefinitions.size
-    registerId(id, `${path}.id`, new Set<string>(), ctx)
+    const id = requiredIdentifier(value, 'id', path, ctx)
+    const idRegistered = registerId(id, `${path}.id`, new Set<string>(), ctx)
     requiredString(value, 'label', path, ctx)
     const min = requiredNumber(value, 'min', path, ctx)
     const max = requiredNumber(value, 'max', path, ctx)
@@ -298,7 +425,7 @@ function validateMeters(values: unknown[], ctx: ValidationContext): void {
     if (initial !== undefined && min !== undefined && max !== undefined && (initial < min || initial > max)) {
       addIssue(ctx.issues, `${path}.initial`, 'invalid_number', 'meter initial must be within min and max')
     }
-    if (id !== undefined && before === ctx.meterDefinitions.size && ID_PATTERN.test(id) && min !== undefined && max !== undefined) {
+    if (id !== undefined && idRegistered && min !== undefined && max !== undefined) {
       ctx.meterDefinitions.set(id, { min, max })
     }
     rejectUnknown(value, path, ['id', 'label', 'min', 'max', 'initial'], ctx)
@@ -312,7 +439,7 @@ function validateFlags(values: unknown[], ctx: ValidationContext): void {
       addIssue(ctx.issues, path, 'wrong_type', `expected a flag definition at "${path}"`)
       return
     }
-    const id = requiredString(value, 'id', path, ctx)
+    const id = requiredIdentifier(value, 'id', path, ctx)
     registerId(id, `${path}.id`, ctx.flagIds, ctx)
     requiredString(value, 'label', path, ctx)
     requiredBoolean(value, 'initial', path, ctx)
@@ -328,7 +455,7 @@ function validateDialogue(values: unknown[], path: string, ctx: ValidationContex
       addIssue(ctx.issues, linePath, 'wrong_type', `expected a dialogue line at "${linePath}"`)
       return
     }
-    const characterId = requiredString(value, 'characterId', linePath, ctx)
+    const characterId = requiredIdentifier(value, 'characterId', linePath, ctx)
     if (characterId !== undefined) ctx.characterRefs.push({ path: `${linePath}.characterId`, id: characterId })
     requiredString(value, 'text', linePath, ctx)
     rejectUnknown(value, linePath, ['characterId', 'text'], ctx)
@@ -355,12 +482,12 @@ function validateConditions(values: unknown[], path: string, ctx: ValidationCont
       return
     }
     if (kind === 'flagEquals') {
-      const flagId = requiredString(value, 'flagId', conditionPath, ctx)
+      const flagId = requiredIdentifier(value, 'flagId', conditionPath, ctx)
       if (flagId !== undefined) ctx.flagRefs.push({ path: `${conditionPath}.flagId`, id: flagId })
       requiredBoolean(value, 'value', conditionPath, ctx)
       rejectUnknown(value, conditionPath, ['kind', 'flagId', 'value'], ctx)
     } else if (kind === 'meterAtLeast') {
-      const meterId = requiredString(value, 'meterId', conditionPath, ctx)
+      const meterId = requiredIdentifier(value, 'meterId', conditionPath, ctx)
       if (meterId !== undefined) ctx.meterRefs.push({ path: `${conditionPath}.meterId`, id: meterId })
       const threshold = requiredNumber(value, 'value', conditionPath, ctx)
       if (threshold !== undefined && !Number.isInteger(threshold)) {
@@ -406,10 +533,10 @@ function validateChoices(values: unknown[], path: string, ctx: ValidationContext
       addIssue(ctx.issues, choicePath, 'wrong_type', `expected a choice at "${choicePath}"`)
       return
     }
-    const id = requiredString(value, 'id', choicePath, ctx)
+    const id = requiredIdentifier(value, 'id', choicePath, ctx)
     registerId(id, `${choicePath}.id`, new Set<string>(), ctx)
     requiredString(value, 'label', choicePath, ctx)
-    const outcomeId = requiredString(value, 'outcomeId', choicePath, ctx)
+    const outcomeId = requiredIdentifier(value, 'outcomeId', choicePath, ctx)
     if (outcomeId !== undefined) ctx.outcomeRefs.push({ path: `${choicePath}.outcomeId`, id: outcomeId })
     const conditions = optionalArray(value, 'conditions', choicePath, ctx)
     if (conditions !== undefined) validateConditions(conditions, `${choicePath}.conditions`, ctx)
@@ -436,7 +563,7 @@ function validateScenes(values: unknown[], ctx: ValidationContext): void {
       addIssue(ctx.issues, path, 'wrong_type', `expected a scene at "${path}"`)
       return
     }
-    const id = requiredString(value, 'id', path, ctx)
+    const id = requiredIdentifier(value, 'id', path, ctx)
     registerId(id, `${path}.id`, ctx.sceneIds, ctx)
     const kind = requiredString(value, 'kind', path, ctx)
     if (kind !== undefined && !(SCENE_KINDS as readonly string[]).includes(kind)) {
@@ -494,7 +621,7 @@ function validateEffects(values: unknown[], path: string, ctx: ValidationContext
       return
     }
     if (kind === 'adjustMeter') {
-      const meterId = requiredString(value, 'meterId', effectPath, ctx)
+      const meterId = requiredIdentifier(value, 'meterId', effectPath, ctx)
       if (meterId !== undefined) ctx.meterRefs.push({ path: `${effectPath}.meterId`, id: meterId })
       const amount = requiredNumber(value, 'amount', effectPath, ctx)
       if (amount !== undefined && (!Number.isInteger(amount) || Math.abs(amount) > EFFECT_ADJUSTMENT_LIMIT)) {
@@ -502,7 +629,7 @@ function validateEffects(values: unknown[], path: string, ctx: ValidationContext
       }
       rejectUnknown(value, effectPath, ['kind', 'meterId', 'amount'], ctx)
     } else if (kind === 'setFlag') {
-      const flagId = requiredString(value, 'flagId', effectPath, ctx)
+      const flagId = requiredIdentifier(value, 'flagId', effectPath, ctx)
       if (flagId !== undefined) ctx.flagRefs.push({ path: `${effectPath}.flagId`, id: flagId })
       requiredBoolean(value, 'value', effectPath, ctx)
       rejectUnknown(value, effectPath, ['kind', 'flagId', 'value'], ctx)
@@ -518,7 +645,7 @@ function validateOutcomes(values: unknown[], ctx: ValidationContext): void {
       addIssue(ctx.issues, path, 'wrong_type', `expected an outcome at "${path}"`)
       return
     }
-    const id = requiredString(value, 'id', path, ctx)
+    const id = requiredIdentifier(value, 'id', path, ctx)
     registerId(id, `${path}.id`, ctx.outcomeIds, ctx)
     const category = requiredString(value, 'category', path, ctx)
     if (category !== undefined && !(OUTCOME_CATEGORIES as readonly string[]).includes(category)) {
@@ -531,7 +658,7 @@ function validateOutcomes(values: unknown[], ctx: ValidationContext): void {
     if (alternatives !== undefined) validateStringArray(alternatives, `${path}.acceptableAlternatives`, ctx)
     const effects = requiredArray(value, 'effects', path, ctx)
     if (effects !== undefined) validateEffects(effects, `${path}.effects`, ctx)
-    const nextSceneId = requiredString(value, 'nextSceneId', path, ctx)
+    const nextSceneId = requiredIdentifier(value, 'nextSceneId', path, ctx)
     if (nextSceneId !== undefined) ctx.sceneRefs.push({ path: `${path}.nextSceneId`, id: nextSceneId })
     const skillTags = optionalArray(value, 'skillTags', path, ctx)
     if (skillTags !== undefined) validateStringArray(skillTags, `${path}.skillTags`, ctx)
@@ -551,9 +678,9 @@ function validateLibraryLink(value: unknown, path: string, ctx: ValidationContex
     addIssue(ctx.issues, path, 'wrong_type', 'Library link must be an object')
     return
   }
-  requiredString(value, 'bookId', path, ctx)
-  optionalString(value, 'chapterId', path, ctx)
-  optionalString(value, 'blockId', path, ctx)
+  requiredIdentifier(value, 'bookId', path, ctx)
+  optionalIdentifier(value, 'chapterId', path, ctx)
+  optionalIdentifier(value, 'blockId', path, ctx)
   rejectUnknown(value, path, ['bookId', 'chapterId', 'blockId'], ctx)
 }
 
@@ -653,9 +780,13 @@ function checkGraph(scenario: RecordValue, ctx: ValidationContext): void {
   })
 }
 
-function executableStateKey(scenario: Scenario, state: GameState): string {
+function executableStateKey(
+  scenario: Scenario,
+  state: GameState,
+  sceneIndexes: ReadonlyMap<string, number>,
+): string {
   return JSON.stringify([
-    state.currentSceneId,
+    sceneIndexes.get(state.currentSceneId) ?? -1,
     (scenario.meters ?? []).map((meter) => state.meters[meter.id]),
     (scenario.flags ?? []).map((flag) => state.flags[flag.id]),
     state.status,
@@ -671,8 +802,9 @@ function checkExecutableCompletion(scenario: Scenario, ctx: ValidationContext): 
   const initial = createInitialState(scenario)
   if (initial.status === 'completed') return
 
+  const sceneIndexes = new Map(scenario.scenes.map((scene, index) => [scene.id, index]))
   const queue: GameState[] = [{ ...initial, history: [] }]
-  const visited = new Set([executableStateKey(scenario, initial)])
+  const visited = new Set([executableStateKey(scenario, initial, sceneIndexes)])
   let cursor = 0
 
   while (cursor < queue.length) {
@@ -689,7 +821,7 @@ function checkExecutableCompletion(scenario: Scenario, ctx: ValidationContext): 
       if (result.kind !== 'advanced') continue
 
       const nextState: GameState = { ...result.state, history: [] }
-      const key = executableStateKey(scenario, nextState)
+      const key = executableStateKey(scenario, nextState, sceneIndexes)
       if (visited.has(key)) continue
       if (visited.size >= CAREER_GAME_V1_LIMITS.maxExecutableStates) {
         addIssue(
@@ -716,7 +848,12 @@ function checkExecutableCompletion(scenario: Scenario, ctx: ValidationContext): 
 function validateScenarioUnsafe(input: unknown): ScenarioValidationResult {
   const jsonIssues: ScenarioIssue[] = []
   try {
-    checkJsonSafe(input, '$', jsonIssues, new Set())
+    checkJsonSafe(input, '$', {
+      issues: jsonIssues,
+      ancestors: new Set(),
+      visitedNodes: 0,
+      halted: false,
+    })
   } catch {
     addIssue(jsonIssues, '$', 'not_json_safe', 'input could not be inspected safely')
   }
@@ -748,12 +885,9 @@ function validateScenarioUnsafe(input: unknown): ScenarioValidationResult {
     addIssue(ctx.issues, '$.schemaVersion', 'schema_version_mismatch', `only schema version ${CAREER_GAME_SCHEMA_VERSION} is supported`)
   }
 
-  const scenarioId = requiredString(input, 'id', '$', ctx)
+  const scenarioId = requiredIdentifier(input, 'id', '$', ctx)
   registerId(scenarioId, '$.id', new Set<string>(), ctx)
-  const slug = requiredString(input, 'slug', '$', ctx)
-  if (slug !== undefined && !ID_PATTERN.test(slug)) {
-    addIssue(ctx.issues, '$.slug', 'invalid_format', `slug "${slug}" is not a URL-safe segment`)
-  }
+  requiredIdentifier(input, 'slug', '$', ctx)
   const contentVersion = requiredNumber(input, 'contentVersion', '$', ctx)
   if (contentVersion !== undefined && (!Number.isInteger(contentVersion) || contentVersion < 1)) {
     addIssue(ctx.issues, '$.contentVersion', 'invalid_number', 'contentVersion must be a positive integer')
@@ -767,7 +901,7 @@ function validateScenarioUnsafe(input: unknown): ScenarioValidationResult {
   requiredString(input, 'summary', '$', ctx)
   if ('cover' in input) validateMediaAsset(input.cover, '$.cover', ctx)
   if ('thumbnail' in input) validateMediaAsset(input.thumbnail, '$.thumbnail', ctx)
-  const startSceneId = requiredString(input, 'startSceneId', '$', ctx)
+  const startSceneId = requiredIdentifier(input, 'startSceneId', '$', ctx)
 
   const characters = requiredArray(input, 'characters', '$', ctx)
   if (characters !== undefined) validateCharacters(characters, ctx)

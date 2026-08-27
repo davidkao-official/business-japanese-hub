@@ -297,6 +297,133 @@ describe('validateScenario', () => {
     ])
   })
 
+  it('rejects sparse and oversized arrays quickly with bounded preflight output', () => {
+    const sparseScenario = clone()
+    const sparse = new Array<unknown>(4)
+    sparse[0] = { id: 'only-item', name: 'Only item' }
+    sparseScenario.characters = sparse
+
+    expect(expectInvalid(sparseScenario)).toEqual([
+      expect.objectContaining({ path: '$.characters', code: 'not_json_safe' }),
+    ])
+
+    const oversizedScenario = clone()
+    const oversized = new Array<unknown>(100_001)
+    oversized[0] = { id: 'only-item', name: 'Only item' }
+    oversizedScenario.characters = oversized
+    const startedAt = performance.now()
+    const issues = expectInvalid(oversizedScenario)
+    const elapsedMilliseconds = performance.now() - startedAt
+
+    expect(issues).toEqual([
+      expect.objectContaining({ path: '$.characters', code: 'too_many_items' }),
+    ])
+    expect(issues.length).toBeLessThanOrEqual(100)
+    expect(elapsedMilliseconds).toBeLessThan(250)
+  })
+
+  it('caps JSON-safe preflight node work and issue output', () => {
+    const oversizedTree = clone()
+    oversizedTree.futureField = Array.from({ length: 256 }, () =>
+      Array.from({ length: 200 }, () => 0),
+    )
+    expect(expectInvalid(oversizedTree)).toEqual([
+      expect.objectContaining({ code: 'validation_limit' }),
+    ])
+
+    const manyInvalidValues = clone()
+    manyInvalidValues.futureField = Array.from({ length: 200 }, () => () => 'not JSON')
+    const issues = expectInvalid(manyInvalidValues)
+    expect(issues).toHaveLength(100)
+    expect(issues.every((issue) => issue.code === 'not_json_safe')).toBe(true)
+  })
+
+  it('accepts identifiers at the V1 width boundary', () => {
+    const scenario = clone()
+    const boundaryId = `s${'a'.repeat(63)}`
+    const scenes = scenario.scenes as Array<Record<string, unknown>>
+    const previousStartId = scenes[0]!.id
+    scenes[0]!.id = boundaryId
+    scenario.startSceneId = boundaryId
+    const outcomes = scenario.outcomes as Array<Record<string, unknown>>
+    for (const outcome of outcomes) {
+      if (outcome.nextSceneId === previousStartId) outcome.nextSceneId = boundaryId
+    }
+
+    expect(validateScenario(scenario)).toEqual({ ok: true, value: scenario })
+  })
+
+  it('rejects oversized identifiers consistently for declarations and references', () => {
+    const scenario = clone()
+    const oversizedId = `i${'d'.repeat(100_000)}`
+    scenario.id = oversizedId
+    scenario.startSceneId = oversizedId
+
+    const characters = scenario.characters as Array<Record<string, unknown>>
+    characters[0]!.id = oversizedId
+    const meters = scenario.meters as Array<Record<string, unknown>>
+    meters[0]!.id = oversizedId
+    const flags = scenario.flags as Array<Record<string, unknown>>
+    flags[0]!.id = oversizedId
+    const scenes = scenario.scenes as Array<Record<string, unknown>>
+    scenes[0]!.id = oversizedId
+    const dialogue = scenes[0]!.dialogue as Array<Record<string, unknown>>
+    dialogue[0]!.characterId = oversizedId
+    const firstChoices = scenes[0]!.choices as Array<Record<string, unknown>>
+    firstChoices[0]!.id = oversizedId
+    firstChoices[0]!.outcomeId = oversizedId
+    const gatedChoices = scenes[1]!.choices as Array<Record<string, unknown>>
+    const conditions = gatedChoices[0]!.conditions as Array<Record<string, unknown>>
+    conditions[0]!.meterId = oversizedId
+
+    const outcomes = scenario.outcomes as Array<Record<string, unknown>>
+    outcomes[0]!.id = oversizedId
+    const meterEffects = outcomes[0]!.effects as Array<Record<string, unknown>>
+    meterEffects[0]!.meterId = oversizedId
+    const flagEffects = outcomes[2]!.effects as Array<Record<string, unknown>>
+    flagEffects[0]!.flagId = oversizedId
+    scenario.libraryLinks = [{ bookId: oversizedId, chapterId: oversizedId, blockId: oversizedId }]
+
+    const issues = expectInvalid(scenario)
+    expect(issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: '$.id', code: 'identifier_too_long' }),
+        expect.objectContaining({ path: '$.startSceneId', code: 'identifier_too_long' }),
+        expect.objectContaining({ path: '$.characters[0].id', code: 'identifier_too_long' }),
+        expect.objectContaining({
+          path: '$.scenes[0].dialogue[0].characterId',
+          code: 'identifier_too_long',
+        }),
+        expect.objectContaining({ path: '$.meters[0].id', code: 'identifier_too_long' }),
+        expect.objectContaining({
+          path: '$.scenes[1].choices[0].conditions[0].meterId',
+          code: 'identifier_too_long',
+        }),
+        expect.objectContaining({ path: '$.flags[0].id', code: 'identifier_too_long' }),
+        expect.objectContaining({
+          path: '$.outcomes[2].effects[0].flagId',
+          code: 'identifier_too_long',
+        }),
+        expect.objectContaining({ path: '$.scenes[0].id', code: 'identifier_too_long' }),
+        expect.objectContaining({ path: '$.scenes[0].choices[0].id', code: 'identifier_too_long' }),
+        expect.objectContaining({
+          path: '$.scenes[0].choices[0].outcomeId',
+          code: 'identifier_too_long',
+        }),
+        expect.objectContaining({ path: '$.outcomes[0].id', code: 'identifier_too_long' }),
+        expect.objectContaining({
+          path: '$.outcomes[0].effects[0].meterId',
+          code: 'identifier_too_long',
+        }),
+        expect.objectContaining({ path: '$.libraryLinks[0].bookId', code: 'identifier_too_long' }),
+        expect.objectContaining({ path: '$.libraryLinks[0].chapterId', code: 'identifier_too_long' }),
+        expect.objectContaining({ path: '$.libraryLinks[0].blockId', code: 'identifier_too_long' }),
+      ]),
+    )
+    expect(issues.length).toBeLessThanOrEqual(100)
+    expect(Math.max(...issues.map((issue) => issue.message.length))).toBeLessThan(512)
+  })
+
   it('never throws when Proxy has/get traps reject schema traversal', () => {
     const inputs = [
       new Proxy(clone(), {
@@ -318,6 +445,19 @@ describe('validateScenario', () => {
         issues: [expect.objectContaining({ path: '$', code: 'not_json_safe' })],
       })
     }
+
+    const nested = clone()
+    nested.characters = new Proxy([], {
+      ownKeys() {
+        throw new Error('nested ownKeys trap rejected access')
+      },
+    })
+    expect(validateScenario(nested)).toEqual({
+      ok: false,
+      issues: [
+        expect.objectContaining({ path: '$.characters', code: 'not_json_safe' }),
+      ],
+    })
   })
 
   it('rejects invalid scene choice cardinality and terminal choices', () => {
