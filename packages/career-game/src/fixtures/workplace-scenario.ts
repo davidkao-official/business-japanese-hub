@@ -10,6 +10,13 @@ export const workplaceScenario = {
   title: '曖昧な引き継ぎ',
   subtitle: '確認の仕方で信頼を守る',
   summary: '期限と優先順位が曖昧な依頼を、関係を損なわずに確認するケース。',
+  cover: {
+    src: '/career-game/handoff-cover.jpg',
+    alt: '青木さんから引き継ぎを受ける森さん',
+    width: 1200,
+    height: 1600,
+  },
+  thumbnail: { src: '/career-game/handoff-thumbnail.jpg', alt: '曖昧な引き継ぎ' },
   startSceneId: 'briefing',
   characters: [
     { id: 'aoki', name: '青木', role: 'チームリーダー' },
@@ -18,7 +25,7 @@ export const workplaceScenario = {
   meters: [{ id: 'trust', label: '信頼', min: 0, max: 5, initial: 2 }],
   flags: [{ id: 'risk-raised', label: 'リスクを共有した', initial: false }],
   skillTags: ['clarification', 'handoff'],
-  libraryLink: { bookId: 'workplace-communication', chapterId: 'clarifying-requests' },
+  libraryLinks: [{ bookId: 'workplace-communication', chapterId: 'clarifying-requests' }],
   scenes: [
     {
       id: 'briefing',
@@ -85,6 +92,14 @@ export const workplaceScenario = {
       acceptableAlternatives: ['認識をそろえるため、二点確認してもよろしいでしょうか。'],
       effects: [{ kind: 'adjustMeter', meterId: 'trust', amount: 5 }],
       nextSceneId: 'follow-up',
+      skillTags: ['clarification', 'deadline-alignment'],
+      libraryLinks: [
+        {
+          bookId: 'workplace-communication',
+          chapterId: 'clarifying-requests',
+          blockId: 'confirming-deadlines',
+        },
+      ],
     },
     {
       id: 'assume',

@@ -21,6 +21,7 @@ export type {
   HistoryRecord,
   InvalidChoiceReason,
   LibraryLink,
+  MediaAsset,
   MeterAtLeastCondition,
   MeterDefinition,
   Outcome,
@@ -36,5 +37,11 @@ export type {
   StaleReason,
   TerminalScene,
 } from './types'
-export { applyChoice, createInitialState, getAvailableChoices, getCurrentScene } from './runtime'
+export {
+  applyChoice,
+  createInitialState,
+  getAvailableChoices,
+  getCurrentScene,
+  isGameStateValid,
+} from './runtime'
 export { validateScenario } from './validate'

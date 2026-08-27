@@ -25,6 +25,53 @@ describe('validateScenario', () => {
     expect(validateScenario(narrativeScenario)).toEqual({ ok: true, value: narrativeScenario })
   })
 
+  it('accepts scenario media and feedback-level learning references as plain data', () => {
+    const scenario = clone()
+    scenario.cover = {
+      src: '/career-game/handoff-cover.jpg',
+      alt: '青木さんから引き継ぎを受ける森さん',
+      width: 1200,
+      height: 1600,
+    }
+    scenario.thumbnail = {
+      src: '/career-game/handoff-thumbnail.jpg',
+      alt: '曖昧な引き継ぎ',
+    }
+    scenario.libraryLinks = [{ bookId: 'workplace-communication' }]
+    const outcomes = scenario.outcomes as Array<Record<string, unknown>>
+    outcomes[0]!.skillTags = ['clarification', 'deadline-alignment']
+    outcomes[0]!.libraryLinks = [
+      {
+        bookId: 'workplace-communication',
+        chapterId: 'clarifying-requests',
+        blockId: 'confirming-deadlines',
+      },
+    ]
+
+    const result = validateScenario(scenario)
+    expect(result.ok).toBe(true)
+  })
+
+  it('rejects malformed media and nested Library links contextually', () => {
+    const scenario = clone()
+    scenario.cover = { src: '', alt: 'Cover', width: 0 }
+    scenario.libraryLinks = [{ bookId: '' }]
+    const outcomes = scenario.outcomes as Array<Record<string, unknown>>
+    outcomes[0]!.libraryLinks = [{ chapterId: 'missing-book' }]
+
+    expect(expectInvalid(scenario)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: '$.cover.src', code: 'empty_string' }),
+        expect.objectContaining({ path: '$.cover.width', code: 'invalid_number' }),
+        expect.objectContaining({ path: '$.libraryLinks[0].bookId', code: 'empty_string' }),
+        expect.objectContaining({
+          path: '$.outcomes[0].libraryLinks[0].bookId',
+          code: 'missing_field',
+        }),
+      ]),
+    )
+  })
+
   it('reports structural issues in deterministic document order', () => {
     const scenario = clone()
     scenario.schemaVersion = 2
@@ -156,6 +203,24 @@ describe('validateScenario', () => {
     expect(expectInvalid(scenario)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ path: '$.scenes[0].choices', code: 'missing_field' }),
+      ]),
+    )
+  })
+
+  it('requires an unconditional fallback choice in every decision scene', () => {
+    const scenario = clone()
+    const scenes = scenario.scenes as Array<Record<string, unknown>>
+    const choices = scenes[0]!.choices as Array<Record<string, unknown>>
+    for (const choice of choices) {
+      choice.conditions = [{ kind: 'flagEquals', flagId: 'risk-raised', value: true }]
+    }
+
+    expect(expectInvalid(scenario)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: '$.scenes[0].choices',
+          code: 'missing_unconditional_choice',
+        }),
       ]),
     )
   })

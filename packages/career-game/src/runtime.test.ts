@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { narrativeScenario } from './fixtures/narrative-scenario'
 import { workplaceScenario } from './fixtures/workplace-scenario'
+import { isGameStateValid } from './index'
 import {
   applyChoice,
   createInitialState,
@@ -125,6 +126,53 @@ describe('Career Game runtime', () => {
       applyChoice(workplaceScenario, oldCheckpoint, input(oldCheckpoint, 'clarify-now')),
     ).toEqual({ kind: 'stale', reason: 'content_version_mismatch' })
     expect(getCurrentScene(workplaceScenario, oldCheckpoint)).toBeUndefined()
+  })
+
+  it('accepts a JSON round-trip checkpoint after deterministic replay', () => {
+    const initial = createInitialState(workplaceScenario)
+    const advanced = advance(workplaceScenario, initial, 'clarify-now')
+    const restored: unknown = JSON.parse(JSON.stringify(advanced))
+
+    expect(isGameStateValid(workplaceScenario, restored)).toBe(true)
+    if (!isGameStateValid(workplaceScenario, restored)) return
+    expect(restored.currentSceneId).toBe('follow-up')
+    expect(restored.meters).toEqual({ trust: 5 })
+    expect(restored.history).toHaveLength(1)
+  })
+
+  it('rejects malformed and version-mismatched checkpoints without throwing', () => {
+    const state = createInitialState(workplaceScenario)
+    const malformed = [
+      null,
+      [],
+      { ...state, unexpected: true },
+      { ...state, meters: [] },
+      { ...state, history: [{ sceneId: 'briefing' }] },
+    ]
+
+    for (const inputValue of malformed) {
+      expect(() => isGameStateValid(workplaceScenario, inputValue)).not.toThrow()
+      expect(isGameStateValid(workplaceScenario, inputValue)).toBe(false)
+    }
+    expect(isGameStateValid(workplaceScenario, { ...state, contentVersion: 0 })).toBe(false)
+    expect(isGameStateValid(workplaceScenario, { ...state, scenarioId: 'other' })).toBe(false)
+  })
+
+  it('rejects checkpoints whose scene, effects, or history disagree with replay', () => {
+    const initial = createInitialState(workplaceScenario)
+    const advanced = advance(workplaceScenario, initial, 'clarify-now')
+    const forgedScene = { ...advanced, currentSceneId: 'recovery' }
+    const forgedEffect = { ...advanced, meters: { trust: 4 } }
+    const forgedHistory = {
+      ...advanced,
+      history: [{ ...advanced.history[0]!, outcomeId: 'assume' }],
+    }
+    const missingHistory = { ...advanced, history: [] }
+
+    expect(isGameStateValid(workplaceScenario, forgedScene)).toBe(false)
+    expect(isGameStateValid(workplaceScenario, forgedEffect)).toBe(false)
+    expect(isGameStateValid(workplaceScenario, forgedHistory)).toBe(false)
+    expect(isGameStateValid(workplaceScenario, missingHistory)).toBe(false)
   })
 
   it('rejects unknown and replayed choices and invalid checkpoints', () => {

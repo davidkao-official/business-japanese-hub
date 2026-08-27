@@ -34,6 +34,13 @@ export interface LibraryLink {
   blockId?: string
 }
 
+export interface MediaAsset {
+  src: string
+  alt: string
+  width?: number
+  height?: number
+}
+
 export interface DialogueLine {
   characterId: string
   text: string
@@ -110,6 +117,8 @@ export interface Outcome {
   acceptableAlternatives: string[]
   effects: OutcomeEffect[]
   nextSceneId: string
+  skillTags?: string[]
+  libraryLinks?: LibraryLink[]
 }
 
 export interface Scenario {
@@ -121,12 +130,14 @@ export interface Scenario {
   title: string
   subtitle?: string
   summary: string
+  cover?: MediaAsset
+  thumbnail?: MediaAsset
   startSceneId: string
   characters: Character[]
   meters?: MeterDefinition[]
   flags?: FlagDefinition[]
   skillTags?: string[]
-  libraryLink?: LibraryLink
+  libraryLinks?: LibraryLink[]
   scenes: Scene[]
   outcomes: Outcome[]
 }
@@ -148,6 +159,7 @@ export type ScenarioIssueCode =
   | 'reference_not_found'
   | 'schema_version_mismatch'
   | 'invalid_choice_count'
+  | 'missing_unconditional_choice'
   | 'terminal_has_choices'
   | 'unreachable_scene'
   | 'no_reachable_completion'

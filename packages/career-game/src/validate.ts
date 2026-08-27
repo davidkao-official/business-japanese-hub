@@ -373,6 +373,17 @@ function validateChoices(values: unknown[], path: string, ctx: ValidationContext
     if (conditions !== undefined) validateConditions(conditions, `${choicePath}.conditions`, ctx)
     rejectUnknown(value, choicePath, ['id', 'label', 'outcomeId', 'conditions'], ctx)
   })
+  const hasUnconditionalChoice = values.some(
+    (value) => isRecord(value) && (!('conditions' in value) || (Array.isArray(value.conditions) && value.conditions.length === 0)),
+  )
+  if (!hasUnconditionalChoice) {
+    addIssue(
+      ctx.issues,
+      path,
+      'missing_unconditional_choice',
+      'decision scenes require at least one unconditional fallback choice',
+    )
+  }
 }
 
 function validateScenes(values: unknown[], ctx: ValidationContext): void {
@@ -474,25 +485,52 @@ function validateOutcomes(values: unknown[], ctx: ValidationContext): void {
     if (effects !== undefined) validateEffects(effects, `${path}.effects`, ctx)
     const nextSceneId = requiredString(value, 'nextSceneId', path, ctx)
     if (nextSceneId !== undefined) ctx.sceneRefs.push({ path: `${path}.nextSceneId`, id: nextSceneId })
+    const skillTags = optionalArray(value, 'skillTags', path, ctx)
+    if (skillTags !== undefined) validateStringArray(skillTags, `${path}.skillTags`, ctx)
+    const libraryLinks = optionalArray(value, 'libraryLinks', path, ctx)
+    if (libraryLinks !== undefined) validateLibraryLinks(libraryLinks, `${path}.libraryLinks`, ctx)
     rejectUnknown(
       value,
       path,
-      ['id', 'category', 'consequence', 'feedback', 'recommendedExpression', 'acceptableAlternatives', 'effects', 'nextSceneId'],
+      ['id', 'category', 'consequence', 'feedback', 'recommendedExpression', 'acceptableAlternatives', 'effects', 'nextSceneId', 'skillTags', 'libraryLinks'],
       ctx,
     )
   })
 }
 
-function validateLibraryLink(value: unknown, ctx: ValidationContext): void {
-  const path = '$.libraryLink'
+function validateLibraryLink(value: unknown, path: string, ctx: ValidationContext): void {
   if (!isRecord(value)) {
-    addIssue(ctx.issues, path, 'wrong_type', 'libraryLink must be an object')
+    addIssue(ctx.issues, path, 'wrong_type', 'Library link must be an object')
     return
   }
   requiredString(value, 'bookId', path, ctx)
   optionalString(value, 'chapterId', path, ctx)
   optionalString(value, 'blockId', path, ctx)
   rejectUnknown(value, path, ['bookId', 'chapterId', 'blockId'], ctx)
+}
+
+function validateLibraryLinks(values: unknown[], path: string, ctx: ValidationContext): void {
+  if (values.length === 0) {
+    addIssue(ctx.issues, path, 'missing_items', 'libraryLinks must contain at least one link')
+  }
+  values.forEach((value, index) => validateLibraryLink(value, `${path}[${index}]`, ctx))
+}
+
+function validateMediaAsset(value: unknown, path: string, ctx: ValidationContext): void {
+  if (!isRecord(value)) {
+    addIssue(ctx.issues, path, 'wrong_type', 'media asset must be an object')
+    return
+  }
+  requiredString(value, 'src', path, ctx)
+  requiredString(value, 'alt', path, ctx)
+  for (const field of ['width', 'height'] as const) {
+    if (!(field in value)) continue
+    const dimension = requiredNumber(value, field, path, ctx)
+    if (dimension !== undefined && (!Number.isInteger(dimension) || dimension < 1)) {
+      addIssue(ctx.issues, `${path}.${field}`, 'invalid_number', `${field} must be a positive integer`)
+    }
+  }
+  rejectUnknown(value, path, ['src', 'alt', 'width', 'height'], ctx)
 }
 
 function checkReferences(ctx: ValidationContext): void {
@@ -619,6 +657,8 @@ export function validateScenario(input: unknown): ScenarioValidationResult {
   requiredString(input, 'title', '$', ctx)
   optionalString(input, 'subtitle', '$', ctx)
   requiredString(input, 'summary', '$', ctx)
+  if ('cover' in input) validateMediaAsset(input.cover, '$.cover', ctx)
+  if ('thumbnail' in input) validateMediaAsset(input.thumbnail, '$.thumbnail', ctx)
   const startSceneId = requiredString(input, 'startSceneId', '$', ctx)
 
   const characters = requiredArray(input, 'characters', '$', ctx)
@@ -629,7 +669,8 @@ export function validateScenario(input: unknown): ScenarioValidationResult {
   if (flags !== undefined) validateFlags(flags, ctx)
   const skillTags = optionalArray(input, 'skillTags', '$', ctx)
   if (skillTags !== undefined) validateStringArray(skillTags, '$.skillTags', ctx)
-  if ('libraryLink' in input) validateLibraryLink(input.libraryLink, ctx)
+  const libraryLinks = optionalArray(input, 'libraryLinks', '$', ctx)
+  if (libraryLinks !== undefined) validateLibraryLinks(libraryLinks, '$.libraryLinks', ctx)
   const scenes = requiredArray(input, 'scenes', '$', ctx)
   if (scenes !== undefined) validateScenes(scenes, ctx)
   const outcomes = requiredArray(input, 'outcomes', '$', ctx)
@@ -638,7 +679,7 @@ export function validateScenario(input: unknown): ScenarioValidationResult {
   rejectUnknown(
     input,
     '$',
-    ['schemaVersion', 'id', 'slug', 'contentVersion', 'locale', 'title', 'subtitle', 'summary', 'startSceneId', 'characters', 'meters', 'flags', 'skillTags', 'libraryLink', 'scenes', 'outcomes'],
+    ['schemaVersion', 'id', 'slug', 'contentVersion', 'locale', 'title', 'subtitle', 'summary', 'cover', 'thumbnail', 'startSceneId', 'characters', 'meters', 'flags', 'skillTags', 'libraryLinks', 'scenes', 'outcomes'],
     ctx,
   )
 
