@@ -66,6 +66,75 @@ function conditionDeadlockScenario(): Record<string, unknown> {
   return scenario
 }
 
+function analysisLimitScenario(): Record<string, unknown> {
+  return {
+    schemaVersion: 1,
+    id: 'analysis-limit',
+    slug: 'analysis-limit',
+    contentVersion: 1,
+    locale: 'ja-JP',
+    title: 'Executable analysis limit',
+    summary: 'Three bounded meters produce more than 50,000 semantic runtime states.',
+    startSceneId: 'counting',
+    characters: [],
+    meters: ['a', 'b', 'c'].map((suffix) => ({
+      id: `meter-${suffix}`,
+      label: `Meter ${suffix}`,
+      min: 0,
+      max: 37,
+      initial: 0,
+    })),
+    flags: [{ id: 'gate', label: 'Completion gate', initial: false }],
+    scenes: [
+      {
+        id: 'counting',
+        kind: 'decision',
+        context: 'Each choice increments one bounded meter.',
+        prompt: 'Which meter changes?',
+        choices: [
+          { id: 'increase-a', label: 'Increase A', outcomeId: 'increase-a-outcome' },
+          { id: 'increase-b', label: 'Increase B', outcomeId: 'increase-b-outcome' },
+          { id: 'increase-c', label: 'Increase C', outcomeId: 'increase-c-outcome' },
+          {
+            id: 'finish-analysis',
+            label: 'Finish',
+            outcomeId: 'finish-analysis-outcome',
+            conditions: [{ kind: 'flagEquals', flagId: 'gate', value: true }],
+          },
+        ],
+      },
+      {
+        id: 'analysis-finished',
+        kind: 'terminal',
+        context: 'The unreachable gate opened.',
+        completion: { title: 'Complete', summary: 'The analysis reached completion.' },
+      },
+    ],
+    outcomes: [
+      ...['a', 'b', 'c'].map((suffix) => ({
+        id: `increase-${suffix}-outcome`,
+        category: 'mixed',
+        consequence: `Meter ${suffix} increases.`,
+        feedback: 'The state remains bounded.',
+        recommendedExpression: '数え続けます。',
+        acceptableAlternatives: [],
+        effects: [{ kind: 'adjustMeter', meterId: `meter-${suffix}`, amount: 1 }],
+        nextSceneId: 'counting',
+      })),
+      {
+        id: 'finish-analysis-outcome',
+        category: 'strong',
+        consequence: 'The case completes.',
+        feedback: 'The gate was open.',
+        recommendedExpression: '完了します。',
+        acceptableAlternatives: [],
+        effects: [],
+        nextSceneId: 'analysis-finished',
+      },
+    ],
+  }
+}
+
 describe('validateScenario', () => {
   it('accepts a generic workplace scenario as JSON-safe data', () => {
     const result = validateScenario(workplaceScenario)
@@ -270,6 +339,76 @@ describe('validateScenario', () => {
     )
   })
 
+  it('rejects collections that exceed V1 executable-analysis width budgets', () => {
+    const scenario = clone()
+    scenario.meters = Array.from({ length: 5 }, (_, index) => ({
+      id: `budget-meter-${index}`,
+      label: `Budget meter ${index}`,
+      min: 0,
+      max: 10,
+      initial: 0,
+    }))
+    scenario.flags = Array.from({ length: 9 }, (_, index) => ({
+      id: `budget-flag-${index}`,
+      label: `Budget flag ${index}`,
+      initial: false,
+    }))
+
+    const scenes = scenario.scenes as Array<Record<string, unknown>>
+    const choices = scenes[0]!.choices as Array<Record<string, unknown>>
+    scenes[0]!.choices = Array.from({ length: 5 }, (_, index) => ({
+      ...choices[0],
+      id: `budget-choice-${index}`,
+      conditions: Array.from({ length: 5 }, () => ({
+        kind: 'flagEquals',
+        flagId: 'budget-flag-0',
+        value: false,
+      })),
+    }))
+    for (let index = scenes.length; index < 25; index += 1) {
+      scenes.push({
+        id: `budget-scene-${index}`,
+        kind: 'terminal',
+        context: 'This scene exceeds the scenario width budget.',
+        completion: { title: 'Over budget', summary: 'Not analyzed.' },
+      })
+    }
+
+    const outcomes = scenario.outcomes as Array<Record<string, unknown>>
+    outcomes[0]!.effects = Array.from({ length: 5 }, () => ({
+      kind: 'setFlag',
+      flagId: 'budget-flag-0',
+      value: true,
+    }))
+    for (let index = outcomes.length; index < 97; index += 1) {
+      outcomes.push({
+        id: `budget-outcome-${index}`,
+        category: 'mixed',
+        consequence: 'This outcome exceeds the scenario width budget.',
+        feedback: 'Not analyzed.',
+        recommendedExpression: '確認します。',
+        acceptableAlternatives: [],
+        effects: [],
+        nextSceneId: 'complete',
+      })
+    }
+
+    expect(expectInvalid(scenario)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: '$.meters', code: 'too_many_items' }),
+        expect.objectContaining({ path: '$.flags', code: 'too_many_items' }),
+        expect.objectContaining({ path: '$.scenes', code: 'too_many_items' }),
+        expect.objectContaining({ path: '$.scenes[0].choices', code: 'invalid_choice_count' }),
+        expect.objectContaining({
+          path: '$.scenes[0].choices[0].conditions',
+          code: 'too_many_items',
+        }),
+        expect.objectContaining({ path: '$.outcomes', code: 'too_many_items' }),
+        expect.objectContaining({ path: '$.outcomes[0].effects', code: 'too_many_items' }),
+      ]),
+    )
+  })
+
   it('rejects a decision scene without choices without throwing', () => {
     const scenario = clone()
     const scenes = scenario.scenes as Array<Record<string, unknown>>
@@ -314,6 +453,14 @@ describe('validateScenario', () => {
     outcomes[0]!.effects = [{ kind: 'setFlag', flagId: 'gate', value: true }]
 
     expect(validateScenario(scenario)).toEqual({ ok: true, value: scenario })
+  })
+
+  it('fails closed at the executable analysis state limit within all width budgets', () => {
+    expect(expectInvalid(analysisLimitScenario())).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: '$.scenes', code: 'executable_analysis_limit' }),
+      ]),
+    )
   })
 
   it('rejects unreachable scenes and graphs without a reachable completion', () => {

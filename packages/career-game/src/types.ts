@@ -5,6 +5,22 @@ export const OUTCOME_CATEGORIES = ['strong', 'mixed', 'risky'] as const
 export const CONDITION_KINDS = ['flagEquals', 'meterAtLeast'] as const
 export const EFFECT_KINDS = ['adjustMeter', 'setFlag'] as const
 
+/**
+ * V1 authoring limits keep validation and executable-completion analysis
+ * predictably bounded. Changing these limits requires a schema-version review.
+ */
+export const CAREER_GAME_V1_LIMITS = {
+  maxScenes: 24,
+  maxMeters: 4,
+  maxFlags: 8,
+  minChoicesPerDecision: 2,
+  maxChoicesPerDecision: 4,
+  maxConditionsPerChoice: 4,
+  maxEffectsPerOutcome: 4,
+  maxOutcomes: 96,
+  maxExecutableStates: 50_000,
+} as const
+
 export type SceneKind = (typeof SCENE_KINDS)[number]
 export type OutcomeCategory = (typeof OUTCOME_CATEGORIES)[number]
 
@@ -152,6 +168,7 @@ export type ScenarioIssueCode =
   | 'invalid_format'
   | 'invalid_enum'
   | 'missing_items'
+  | 'too_many_items'
   | 'unknown_field'
   | 'unknown_condition_kind'
   | 'unknown_effect_kind'

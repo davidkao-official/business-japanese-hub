@@ -1,5 +1,6 @@
 import {
   CAREER_GAME_SCHEMA_VERSION,
+  CAREER_GAME_V1_LIMITS,
   CONDITION_KINDS,
   EFFECT_KINDS,
   OUTCOME_CATEGORIES,
@@ -18,7 +19,6 @@ const ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 const LOCALE_PATTERN = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/
 const METER_LIMIT = 100
 const EFFECT_ADJUSTMENT_LIMIT = 100
-const EXECUTABLE_STATE_LIMIT = 50_000
 
 type RecordValue = Record<string, unknown>
 
@@ -211,6 +211,24 @@ function optionalArray(record: RecordValue, key: string, path: string, ctx: Vali
   return requiredArray(record, key, path, ctx)
 }
 
+function withinItemLimit(
+  values: unknown[],
+  path: string,
+  maximum: number,
+  description: string,
+  ctx: ValidationContext,
+): unknown[] {
+  if (values.length > maximum) {
+    addIssue(
+      ctx.issues,
+      path,
+      'too_many_items',
+      `${description} supports at most ${maximum} items in schema V1`,
+    )
+  }
+  return values.slice(0, maximum)
+}
+
 function validateStringArray(values: unknown[], path: string, ctx: ValidationContext): void {
   values.forEach((value, index) => {
     if (typeof value !== 'string') {
@@ -256,7 +274,7 @@ function validateCharacters(values: unknown[], ctx: ValidationContext): void {
 }
 
 function validateMeters(values: unknown[], ctx: ValidationContext): void {
-  values.forEach((value, index) => {
+  withinItemLimit(values, '$.meters', CAREER_GAME_V1_LIMITS.maxMeters, 'meters', ctx).forEach((value, index) => {
     const path = `$.meters[${index}]`
     if (!isRecord(value)) {
       addIssue(ctx.issues, path, 'wrong_type', `expected a meter definition at "${path}"`)
@@ -288,7 +306,7 @@ function validateMeters(values: unknown[], ctx: ValidationContext): void {
 }
 
 function validateFlags(values: unknown[], ctx: ValidationContext): void {
-  values.forEach((value, index) => {
+  withinItemLimit(values, '$.flags', CAREER_GAME_V1_LIMITS.maxFlags, 'flags', ctx).forEach((value, index) => {
     const path = `$.flags[${index}]`
     if (!isRecord(value)) {
       addIssue(ctx.issues, path, 'wrong_type', `expected a flag definition at "${path}"`)
@@ -318,7 +336,13 @@ function validateDialogue(values: unknown[], path: string, ctx: ValidationContex
 }
 
 function validateConditions(values: unknown[], path: string, ctx: ValidationContext): void {
-  values.forEach((value, index) => {
+  withinItemLimit(
+    values,
+    path,
+    CAREER_GAME_V1_LIMITS.maxConditionsPerChoice,
+    'choice conditions',
+    ctx,
+  ).forEach((value, index) => {
     const conditionPath = `${path}[${index}]`
     if (!isRecord(value)) {
       addIssue(ctx.issues, conditionPath, 'wrong_type', `expected a condition at "${conditionPath}"`)
@@ -358,10 +382,25 @@ function validateConditions(values: unknown[], path: string, ctx: ValidationCont
 }
 
 function validateChoices(values: unknown[], path: string, ctx: ValidationContext): void {
-  if (values.length < 2 || values.length > 4) {
-    addIssue(ctx.issues, path, 'invalid_choice_count', 'decision scenes require between 2 and 4 choices')
+  if (
+    values.length < CAREER_GAME_V1_LIMITS.minChoicesPerDecision ||
+    values.length > CAREER_GAME_V1_LIMITS.maxChoicesPerDecision
+  ) {
+    addIssue(
+      ctx.issues,
+      path,
+      'invalid_choice_count',
+      `decision scenes require between ${CAREER_GAME_V1_LIMITS.minChoicesPerDecision} and ${CAREER_GAME_V1_LIMITS.maxChoicesPerDecision} choices`,
+    )
   }
-  values.forEach((value, index) => {
+  const boundedChoices = withinItemLimit(
+    values,
+    path,
+    CAREER_GAME_V1_LIMITS.maxChoicesPerDecision,
+    'decision choices',
+    ctx,
+  )
+  boundedChoices.forEach((value, index) => {
     const choicePath = `${path}[${index}]`
     if (!isRecord(value)) {
       addIssue(ctx.issues, choicePath, 'wrong_type', `expected a choice at "${choicePath}"`)
@@ -376,7 +415,7 @@ function validateChoices(values: unknown[], path: string, ctx: ValidationContext
     if (conditions !== undefined) validateConditions(conditions, `${choicePath}.conditions`, ctx)
     rejectUnknown(value, choicePath, ['id', 'label', 'outcomeId', 'conditions'], ctx)
   })
-  const hasUnconditionalChoice = values.some(
+  const hasUnconditionalChoice = boundedChoices.some(
     (value) => isRecord(value) && (!('conditions' in value) || (Array.isArray(value.conditions) && value.conditions.length === 0)),
   )
   if (!hasUnconditionalChoice) {
@@ -391,7 +430,7 @@ function validateChoices(values: unknown[], path: string, ctx: ValidationContext
 
 function validateScenes(values: unknown[], ctx: ValidationContext): void {
   if (values.length === 0) addIssue(ctx.issues, '$.scenes', 'missing_items', 'scenario requires at least one scene')
-  values.forEach((value, index) => {
+  withinItemLimit(values, '$.scenes', CAREER_GAME_V1_LIMITS.maxScenes, 'scenes', ctx).forEach((value, index) => {
     const path = `$.scenes[${index}]`
     if (!isRecord(value)) {
       addIssue(ctx.issues, path, 'wrong_type', `expected a scene at "${path}"`)
@@ -436,7 +475,13 @@ function validateScenes(values: unknown[], ctx: ValidationContext): void {
 }
 
 function validateEffects(values: unknown[], path: string, ctx: ValidationContext): void {
-  values.forEach((value, index) => {
+  withinItemLimit(
+    values,
+    path,
+    CAREER_GAME_V1_LIMITS.maxEffectsPerOutcome,
+    'outcome effects',
+    ctx,
+  ).forEach((value, index) => {
     const effectPath = `${path}[${index}]`
     if (!isRecord(value)) {
       addIssue(ctx.issues, effectPath, 'wrong_type', `expected an effect at "${effectPath}"`)
@@ -467,7 +512,7 @@ function validateEffects(values: unknown[], path: string, ctx: ValidationContext
 
 function validateOutcomes(values: unknown[], ctx: ValidationContext): void {
   if (values.length === 0) addIssue(ctx.issues, '$.outcomes', 'missing_items', 'scenario requires at least one outcome')
-  values.forEach((value, index) => {
+  withinItemLimit(values, '$.outcomes', CAREER_GAME_V1_LIMITS.maxOutcomes, 'outcomes', ctx).forEach((value, index) => {
     const path = `$.outcomes[${index}]`
     if (!isRecord(value)) {
       addIssue(ctx.issues, path, 'wrong_type', `expected an outcome at "${path}"`)
@@ -646,12 +691,12 @@ function checkExecutableCompletion(scenario: Scenario, ctx: ValidationContext): 
       const nextState: GameState = { ...result.state, history: [] }
       const key = executableStateKey(scenario, nextState)
       if (visited.has(key)) continue
-      if (visited.size >= EXECUTABLE_STATE_LIMIT) {
+      if (visited.size >= CAREER_GAME_V1_LIMITS.maxExecutableStates) {
         addIssue(
           ctx.issues,
           '$.scenes',
           'executable_analysis_limit',
-          `could not prove an executable completion within ${EXECUTABLE_STATE_LIMIT} runtime states`,
+          `could not prove an executable completion within ${CAREER_GAME_V1_LIMITS.maxExecutableStates} runtime states`,
         )
         return
       }
