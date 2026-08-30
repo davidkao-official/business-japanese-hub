@@ -10,6 +10,14 @@ function clientWithSignUp(result: unknown): SupabaseClient {
   } as unknown as SupabaseClient
 }
 
+function clientWithSignOut(result: unknown): SupabaseClient {
+  return {
+    auth: {
+      signOut: vi.fn().mockResolvedValue(result),
+    },
+  } as unknown as SupabaseClient
+}
+
 describe('SupabaseAuthClient sign-up', () => {
   it('reports a confirmation-pending account without claiming a session', async () => {
     const client = clientWithSignUp({
@@ -43,5 +51,15 @@ describe('SupabaseAuthClient sign-up', () => {
     })
 
     expect(result.signedIn).toBe(true)
+  })
+})
+
+describe('SupabaseAuthClient sign-out', () => {
+  it('ends only the current browser session', async () => {
+    const client = clientWithSignOut({ error: null })
+
+    await new SupabaseAuthClient(client).signOut()
+
+    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
   })
 })

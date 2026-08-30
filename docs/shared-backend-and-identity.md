@@ -63,8 +63,14 @@ the clients do not define a product-specific auth storage key.
 
 | Deployment shape | Expected behavior |
 | --- | --- |
-| Both products under one browser origin | The default project session can be reused. Auth state changes, including logout, propagate through Supabase's same-origin browser mechanisms. |
-| Products on separate origins or subdomains | Browser storage is origin-isolated. The user signs in again with the same Supabase account; cross-origin instant logout is not promised. Each request still revalidates its JWT and fails closed when expired or invalid. |
+| Both products under one browser origin | The default project session can be reused. Auth state changes, including local-session logout, propagate through Supabase's same-origin browser mechanisms. |
+| Products on separate origins or subdomains | Browser storage is origin-isolated. The user signs in again with the same Supabase account; logging out one origin does not revoke the other origin or another device. Each request still revalidates its JWT and fails closed when expired or invalid. |
+
+Product logout buttons explicitly use Supabase `scope: 'local'`: they end the
+current browser session without unexpectedly revoking refresh tokens on every
+device. They are not an account-wide "sign out everywhere" control. As with any
+JWT session, an already issued access token cannot be revoked before its expiry;
+server authorization must continue to validate it rather than trust UI state.
 
 The only canonical production frontend origin currently decided is the Library
 at `https://business-japanese-hub.pages.dev/`. Career Game's production hostname

@@ -31,7 +31,7 @@ export interface AuthClient {
   /** Create an email/password account; `signedIn=false` means confirmation is pending. */
   signUpWithPassword(input: { email: string; password: string }): Promise<SignUpResult>
 
-  /** Sign out the current session. */
+  /** Sign out the current browser session without revoking other devices. */
   signOut(): Promise<void>
 
   /** Subscribe to auth state changes and return an unsubscribe function. */

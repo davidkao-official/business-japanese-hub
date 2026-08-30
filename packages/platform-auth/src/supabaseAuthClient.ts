@@ -30,7 +30,7 @@ export class SupabaseAuthClient implements AuthClient {
   }
 
   async signOut(): Promise<void> {
-    const { error } = await this.client.auth.signOut()
+    const { error } = await this.client.auth.signOut({ scope: 'local' })
     if (error) throw new Error(`signOut: ${error.message}`)
   }
 
