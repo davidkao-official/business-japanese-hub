@@ -9,7 +9,6 @@ import { SupabaseAuthClient } from './supabaseAuthClient'
 import type { AuthClient } from './types'
 
 export interface BrowserPlatformServices {
-  applicationId: PlatformApplicationId
   client: SupabaseClient | null
   authClient: AuthClient
 }
@@ -21,7 +20,6 @@ export function createBrowserPlatformServices(
 ): BrowserPlatformServices {
   const client = createSupabaseClientFromEnv(applicationId, environment)
   return {
-    applicationId,
     client,
     authClient: client ? new SupabaseAuthClient(client) : createNullAuthClient(),
   }

@@ -1,9 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export const PLATFORM_APPLICATION_IDS = ['library', 'career-game'] as const
-
-export type PlatformApplicationId = (typeof PLATFORM_APPLICATION_IDS)[number]
+export type PlatformApplicationId = 'library' | 'career-game'
 
 /** Public browser configuration. Vite exposes only `VITE_`-prefixed values. */
 export interface BrowserPlatformEnvironment {

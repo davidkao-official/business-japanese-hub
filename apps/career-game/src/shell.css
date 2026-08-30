@@ -198,7 +198,7 @@ button {
 }
 
 .career-game-account strong {
-  max-width: min(42vw, calc(var(--space-9) * 3));
+  max-width: min(var(--account-identifier-max-width), calc(var(--space-9) * 3));
   overflow: hidden;
   color: var(--game-ink);
   font-family: var(--font-mono);
