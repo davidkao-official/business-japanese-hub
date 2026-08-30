@@ -143,7 +143,7 @@ button {
   inset-block-start: calc(100% + var(--space-2));
   inset-inline-end: 0;
   display: grid;
-  width: min(calc(var(--space-9) * 4), calc(100vw - var(--space-6)));
+  width: min(calc(var(--space-9) * 4), calc(100vw - var(--space-8)));
   gap: var(--space-3);
   padding: var(--space-4);
   border: var(--stroke-thin) solid var(--game-rule);
