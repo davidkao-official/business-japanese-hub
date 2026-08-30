@@ -11,6 +11,9 @@ importers:
       '@business-japanese-hub/career-game':
         specifier: workspace:*
         version: link:packages/career-game
+      '@business-japanese-hub/platform-auth':
+        specifier: workspace:*
+        version: link:packages/platform-auth
       '@supabase/supabase-js':
         specifier: ^2.112.3
         version: 2.112.3
@@ -80,6 +83,15 @@ importers:
         version: 4.1.10(@types/node@26.2.0)(jsdom@30.0.1)(vite@8.2.1(@types/node@26.2.0)(esbuild@0.28.2)(tsx@4.23.12))
 
   packages/career-game: {}
+
+  packages/platform-auth:
+    dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.112.3
+        version: 2.112.3
+      react:
+        specifier: ^19.2.8
+        version: 19.2.8
 
 packages:
 

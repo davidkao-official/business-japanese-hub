@@ -9,6 +9,7 @@ import {
   type MeterDefinition,
   type Outcome,
 } from '@business-japanese-hub/career-game'
+import { AccountControl } from './AccountControl'
 import { rookieSurvivalScenario as scenario } from './content/rookie-survival'
 import {
   clearGameSession,
@@ -468,7 +469,7 @@ export default function App() {
           </span>
           <span className="career-game-brand__platform">Business Japanese Hub</span>
         </div>
-        <p className="career-game-status">無料・ゲストプレイ</p>
+        <AccountControl />
       </header>
 
       <p className="sr-only" aria-live="polite" aria-atomic="true">

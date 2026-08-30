@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { describe, expect, it, vi } from 'vitest'
-import { SupabaseAuthClient } from './supabaseAuthClient'
+import { SupabaseAuthClient } from '@business-japanese-hub/platform-auth'
 
 function clientWithSignUp(result: unknown): SupabaseClient {
   return {

@@ -1,7 +1,11 @@
 import { act, render, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { AuthProvider, useAuth } from './AuthContext';
-import type { AuthClient, SessionUser, SignUpResult } from './types';
+import { AuthProvider, useAuth } from '@business-japanese-hub/platform-auth';
+import type {
+  AuthClient,
+  SessionUser,
+  SignUpResult,
+} from '@business-japanese-hub/platform-auth';
 
 function createMockAuthClient(initialSession: SessionUser | null) {
   const listeners: Array<(user: SessionUser | null) => void> = [];

@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
+import { useAuth } from '@business-japanese-hub/platform-auth'
 import { useStrings } from '../i18n/strings'
-import { useAuth } from '../lib/auth/AuthContext'
 
 export interface AuthPanelProps {
   onAuthenticated?: () => void

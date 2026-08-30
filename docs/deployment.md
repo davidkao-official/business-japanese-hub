@@ -53,6 +53,12 @@ Frontend production environment variables:
 - `VITE_SUPABASE_ANON_KEY`
 - optional `VITE_EDGE_FUNCTIONS_BASE_URL` (otherwise derived from the Supabase URL)
 
+Both frontend builds consume the same repository-root public Supabase values;
+Career Game's Vite config sets `envDir` accordingly. Only `VITE_` values are
+browser-public. Service-role, payment-provider, email and scheduler credentials
+must never enter either artifact; `src/test/frontend-builds.test.ts` enforces
+that boundary with build sentinels.
+
 Without the Supabase variables, the live frontend intentionally serves only the
 free/public catalog and paid purchase remains unavailable.
 
@@ -65,6 +71,12 @@ PUBLIC_SITE_URL=https://business-japanese-hub.pages.dev/
 ```
 
 Keep Supabase Auth Site URL / redirect allow-list aligned with that same origin.
+Career Game currently supports existing-account password login without an auth
+redirect and has no production origin. If #60 later assigns a separate origin,
+users may reauthenticate against the same `auth.users` identity; cross-origin
+session sharing is not assumed. Review redirects explicitly rather than widening
+payment CORS or changing `PUBLIC_SITE_URL`. See
+`docs/shared-backend-and-identity.md` for the full session matrix.
 If a custom domain later becomes canonical, update Cloudflare, `PUBLIC_SITE_URL`,
 Auth redirects, CORS evidence, payment return URLs, email links, and this runbook
 together rather than running two canonical origins.

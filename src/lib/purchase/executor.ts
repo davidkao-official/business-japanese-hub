@@ -21,7 +21,7 @@
  * HTTP + form submission live in small injectable helpers (`FetchClient`,
  * `SubmitForm`) so tests mock them and never touch the network or navigate.
  * Without a configured Edge Function base URL the executor degrades to
- * `unavailable` (mirrors `src/lib/supabase.ts`'s env contract).
+ * `unavailable` (mirrors the shared platform-auth browser env contract).
  *
  * Environment (Vite, baked at build time):
  *   - `VITE_EDGE_FUNCTIONS_BASE_URL` — optional explicit base URL of the Edge

@@ -1,5 +1,10 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { useMemo } from 'react'
+import {
+  AuthProvider,
+  createBrowserPlatformServices,
+  type AuthClient,
+} from '@business-japanese-hub/platform-auth'
 import { BookPage } from './app/BookPage'
 import { HomePage } from './app/HomePage'
 import { LibraryPage } from './app/LibraryPage'
@@ -10,16 +15,11 @@ import { LegalPage } from './app/legal/LegalPage'
 import { Layout } from './components/Layout'
 import { ReaderPage } from './reader/ReaderPage'
 import { AppearanceProvider } from './lib/appearance/AppearanceContext'
-import { AuthProvider } from './lib/auth/AuthContext'
-import { createNullAuthClient } from './lib/auth/nullAuthClient'
-import { SupabaseAuthClient } from './lib/auth/supabaseAuthClient'
 import { SupabaseUserStateRepository } from './lib/persistence/supabase'
 import { UserStateProvider } from './lib/persistence/UserStateContext'
 import { PurchaseProvider } from './lib/purchase/PurchaseContext'
 import { createCheckoutPurchaseExecutor } from './lib/purchase/executor'
 import { configureEdgeFunctionsAuth } from './lib/purchase/executor'
-import { createSupabaseClientFromEnv } from './lib/supabase'
-import type { AuthClient } from './lib/auth/types'
 import type { UserStateRepository } from './lib/persistence/repository'
 
 /**
@@ -33,10 +33,11 @@ function createAppServices(): {
   repository: UserStateRepository | null
   getAccessToken: () => Promise<string | null>
 } {
-  const client = createSupabaseClientFromEnv()
+  const platform = createBrowserPlatformServices('library')
+  const client = platform.client
   if (!client) {
     return {
-      authClient: createNullAuthClient(),
+      authClient: platform.authClient,
       repository: null,
       getAccessToken: async () => null,
     }
@@ -48,7 +49,7 @@ function createAppServices(): {
     async () => (await client.auth.getSession()).data.session?.access_token ?? null,
   )
   return {
-    authClient: new SupabaseAuthClient(client),
+    authClient: platform.authClient,
     repository: new SupabaseUserStateRepository(client),
     getAccessToken: async () => (await client.auth.getSession()).data.session?.access_token ?? null,
   }

@@ -14,7 +14,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import type { SessionUser } from '../auth/types';
+import type { SessionUser } from '@business-japanese-hub/platform-auth';
 import type { ReadingState, SaveReadingStateInput } from './types';
 import { useUserState } from './UserStateContext';
 

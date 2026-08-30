@@ -14,8 +14,8 @@
 
 import { createContext, useContext, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import { useAuth } from '../auth/AuthContext';
-import type { SessionUser } from '../auth/types';
+import { useAuth } from '@business-japanese-hub/platform-auth';
+import type { SessionUser } from '@business-japanese-hub/platform-auth';
 import type { UserStateRepository } from './repository';
 
 export interface UserStateContextValue {
