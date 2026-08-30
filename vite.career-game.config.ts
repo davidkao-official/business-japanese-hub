@@ -6,6 +6,7 @@ import { defineConfig } from 'vite'
 // artifact published by Cloudflare Pages.
 export default defineConfig({
   root: 'apps/career-game',
+  envDir: '../..',
   plugins: [react()],
   build: {
     outDir: '../../dist-career-game',

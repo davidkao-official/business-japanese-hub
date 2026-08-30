@@ -61,6 +61,7 @@
 - `README.md` — 專案入口。
 - `docs/product-contract.md` — durable product contract（canonical）。
 - `docs/platform-architecture.md` — Library + Career Game bounded contexts、shared platform 與 dependency direction。
+- `docs/shared-backend-and-identity.md` — shared Supabase identity、origin/session topology、browser/server secret boundary 與 data-access isolation。
 - `docs/content-model.md` — Library 內容資料模型（`Book → Chapter → ContentBlock` 的具體定義；不是 Career Game schema）。
 - `docs/payments/decision-record.md` — canonical payment decision record（provider-neutral payment architecture 的唯一規範來源；6 頁初版研究已 SUPERSEDED，見 `docs/payments/research-v1-superseded.md`）。
 - `docs/accounts-and-entitlement.md` — accounts / ownership / reading-state persistence 契約。

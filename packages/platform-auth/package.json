@@ -1,0 +1,13 @@
+{
+  "name": "@business-japanese-hub/platform-auth",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "peerDependencies": {
+    "@supabase/supabase-js": "^2.112.3",
+    "react": "^19.2.8"
+  }
+}

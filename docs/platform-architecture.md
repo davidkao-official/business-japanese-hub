@@ -49,7 +49,7 @@ payment adapter -> provider-neutral payment core -> authoritative entitlement gr
 
 - Root `pnpm build` 驗證 released Books、typecheck 全部 projects，並 build 兩個 frontend；`pnpm build:library` 與 `pnpm build:career-game` 也可獨立產生互不覆寫的 artifacts。
 - `pnpm dev`／`pnpm preview` 繼續代表 Library；兩個產品另有明確的 product-specific dev／preview commands。
-- Library 保持既有 root routes、Reader imports、deployment base 與 canonical Cloudflare `dist/` contract。Career Game app shell 不依賴 Library providers、Book／Reader／purchase／entitlement code；目前只共用平台的 semantic design tokens。
+- Library 保持既有 root routes、Reader imports、deployment base 與 canonical Cloudflare `dist/` contract。Career Game app shell 不依賴 Library providers、Book／Reader／purchase／entitlement code；目前只共用平台的 semantic design tokens 與 narrow `@business-japanese-hub/platform-auth` identity package。完整 auth／origin／data-access boundary 見 [`shared-backend-and-identity.md`](shared-backend-and-identity.md)。
 - 此 frontend split 沒有新增第二 backend。兩個產品仍使用同一 shared Supabase modular monolith boundary，但保有 product-specific frontend state 與 release cadence。
 - `dist-career-game/` 只證明獨立 build boundary，不代表 production routing 決策。Career Game production hostname／routing deferred 至 #60，不得從目前的 local base 或 artifact name 推導。
 

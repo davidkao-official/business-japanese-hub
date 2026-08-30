@@ -120,6 +120,120 @@ button {
   text-align: end;
 }
 
+.career-game-account-control {
+  position: relative;
+  z-index: var(--z-header);
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
+}
+
+.career-game-account-control__toggle {
+  min-height: var(--control-min-h);
+  padding: var(--space-2) var(--space-3);
+  border: var(--stroke-thin) solid var(--game-rule);
+  background: var(--game-paper);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.career-game-login {
+  position: absolute;
+  inset-block-start: calc(100% + var(--space-2));
+  inset-inline-end: 0;
+  display: grid;
+  width: min(calc(var(--space-9) * 4), calc(100vw - var(--space-8)));
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--stroke-thin) solid var(--game-rule);
+  background: var(--game-paper);
+  box-shadow: var(--shadow-md);
+}
+
+.career-game-login label {
+  display: grid;
+  gap: var(--space-1);
+  color: var(--game-ink-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.career-game-login input {
+  min-height: var(--control-min-h);
+  padding: var(--space-2) var(--space-3);
+  border: var(--stroke-thin) solid var(--game-rule);
+  background: var(--game-paper);
+  color: var(--game-ink);
+}
+
+.career-game-login button {
+  min-height: var(--control-min-h);
+  border: var(--stroke-thin) solid var(--game-ink);
+  background: var(--game-ink);
+  color: var(--color-text-inverse);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.career-game-login button:disabled {
+  cursor: wait;
+  opacity: var(--opacity-disabled);
+}
+
+.career-game-login__error {
+  margin: 0;
+  color: var(--game-risk);
+  font-size: var(--text-xs);
+  line-height: var(--leading-body);
+}
+
+.career-game-account {
+  display: grid;
+  justify-items: end;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--game-ink-muted);
+  font-size: var(--text-xs);
+}
+
+.career-game-account strong {
+  max-width: min(var(--account-identifier-max-width), calc(var(--space-9) * 3));
+  overflow: hidden;
+  color: var(--game-ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.career-game-account small {
+  font-size: var(--text-xs);
+}
+
+.career-game-account__sign-out {
+  min-height: var(--control-min-h);
+  padding: var(--space-2) var(--space-3);
+  border: var(--stroke-thin) solid var(--game-rule);
+  background: var(--game-paper);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.career-game-account__sign-out:disabled {
+  cursor: wait;
+  opacity: var(--opacity-disabled);
+}
+
+.career-game-account-control__toggle:focus-visible,
+.career-game-account__sign-out:focus-visible,
+.career-game-login button:focus-visible,
+.career-game-login input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .career-game-main {
   width: min(100%, var(--container-max-width));
   margin-inline: auto;

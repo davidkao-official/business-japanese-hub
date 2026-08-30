@@ -1,11 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { describe, expect, it, vi } from 'vitest'
-import { SupabaseAuthClient } from './supabaseAuthClient'
+import { SupabaseAuthClient } from '@business-japanese-hub/platform-auth'
 
 function clientWithSignUp(result: unknown): SupabaseClient {
   return {
     auth: {
       signUp: vi.fn().mockResolvedValue(result),
+    },
+  } as unknown as SupabaseClient
+}
+
+function clientWithSignOut(result: unknown): SupabaseClient {
+  return {
+    auth: {
+      signOut: vi.fn().mockResolvedValue(result),
     },
   } as unknown as SupabaseClient
 }
@@ -43,5 +51,15 @@ describe('SupabaseAuthClient sign-up', () => {
     })
 
     expect(result.signedIn).toBe(true)
+  })
+})
+
+describe('SupabaseAuthClient sign-out', () => {
+  it('ends only the current browser session', async () => {
+    const client = clientWithSignOut({ error: null })
+
+    await new SupabaseAuthClient(client).signOut()
+
+    expect(client.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })
   })
 })

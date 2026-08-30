@@ -166,6 +166,7 @@
   --duration-fast: 160ms;
   --duration-base: 240ms;
   --duration-slow: 400ms;
+  --opacity-disabled: 0.55;
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
@@ -178,6 +179,7 @@
   --container-padding: 1.25rem; /* 20px, mobile-first */
   --measure-reading: 60ch; /* comfortable line measure for long-form prose */
   --receipt-label-min: 7rem;
+  --account-identifier-max-width: 42vw;
   --z-header: 100;
   --z-skip-link: 1000;
 

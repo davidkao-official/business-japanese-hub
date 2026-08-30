@@ -1,6 +1,6 @@
 # Accounts, Ownership, and Reading-State Persistence
 
-> 對應實作：`supabase/migrations/0001_accounts.sql`、`0003_compliance_finance.sql`、`20260822170000_entitlement_lifecycle_hardening.sql`、`src/lib/persistence/**`、`src/lib/auth/**`、`src/lib/entitlement.ts`。
+> 對應實作：`supabase/migrations/0001_accounts.sql`、`0003_compliance_finance.sql`、`20260822170000_entitlement_lifecycle_hardening.sql`、`src/lib/persistence/**`、`packages/platform-auth/**`、`src/lib/entitlement.ts`。
 > 上位契約：`docs/product-contract.md`（§7 平台責任分界、§10 payment architecture）、`docs/payments/decision-record.md`（provider-neutral payment contract；ECPay 是第一支 TWD adapter）、`docs/content-model.md`（id namespace）、`docs/ui-ux-research.md`（§4.2 Preview-boundary contract、§4.4 resume-state schema、§8.3 Entitlement CTA state）。
 
 ## 1. 目標與範圍
@@ -125,14 +125,15 @@ canRead({ tier, owned, position, chapters, previewBoundary }): boolean
 
 Preview boundary 依 `docs/ui-ux-research.md` §4.2：有序章節前綴（可細到 block 前綴），以 book-level generic metadata 表達；確切 `Book` 欄位形狀由 content-model lane（#3 follow-up）定稿——因此本 gate 以顯式參數接受 boundary 形狀，不依賴該欄位。與 Universal Reader 的實際整合留給 #5 的 bounded follow-up；本檔只定義並測試 primitive。
 
-## 6. Auth（從屬於 reading 與 purchase）
+## 6. Shared Auth（Library 從屬於 reading 與 purchase）
 
-- `src/lib/auth/types.ts` — 最小 `AuthClient` interface（session restore、email/password sign-in、sign-up、sign-out、state-change 訂閱）。
-- `src/lib/auth/supabaseAuthClient.ts` — `SupabaseAuthClient`，薄薄映射 `supabase.auth`。sign-up 明確區分「已建立 session」與「等待 email confirmation」；後者維持 signed-out，絕不提前宣稱已驗證。
-- `src/lib/auth/AuthContext.tsx` — `AuthProvider` / `useAuth`：mount 時 session restore、sign-in、sign-up、sign-out、reactive user state。`loading` 不隱藏 children（public surface 不需登入）。登入失敗／restore 失敗降級為 signed-out，不崩潰。
+- `packages/platform-auth/src/types.ts` — 兩個 frontends 共用的最小 `AuthClient` interface（session restore、email/password sign-in、sign-up、sign-out、state-change 訂閱）。
+- `packages/platform-auth/src/supabaseAuthClient.ts` — `SupabaseAuthClient`，薄薄映射 `supabase.auth`。sign-up 明確區分「已建立 session」與「等待 email confirmation」；後者維持 signed-out，絕不提前宣稱已驗證。
+- `packages/platform-auth/src/AuthContext.tsx` — `AuthProvider` / `useAuth`：mount 時 session restore、sign-in、sign-up、sign-out、reactive user state。`loading` 不隱藏 children（public surfaces 不需登入）。登入失敗／restore 失敗降級為 signed-out，不崩潰。
 - `src/components/AuthPanel.tsx` 是 Header 與 paid checkout 共用的 inline email/password UI；`AccountControl` 提供最小 login/logout 入口，**不新增帳號中心 page**。Provider 的 raw error 不直接顯示，避免暴露帳號枚舉細節。
+- Career Game 擁有自己的 account presentation，只提供 existing-account login/logout；其 progress 在 #57 前仍為 device-local，auth 不得隱式接入 Library persistence 或 entitlement。
 - paid CTA 在蒐集 consumer jurisdiction / compliance evidence **之前**要求登入。若 checkout 以 missing/expired bearer token 或 HTTP 401 回傳 `signed_out`，UI 會要求重新驗證，成功後以同一個既有 `ConsentSubmission` object 重試；不得以新的 locale／文案重建 evidence，也不得把 signed-out 當一般付款失敗。
-- Supabase client 建構：`src/lib/supabase.ts` 的 `createSupabaseClientFromEnv()`（讀 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`；未設定回傳 `null`，app 以 signed-out / no-sync 運作）。
+- Supabase client 建構：`packages/platform-auth/src/browser.ts` 的 `createSupabaseClientFromEnv(applicationId)`（兩個 builds 讀同一組 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`；未設定回傳 `null`，app 以 signed-out / no-sync 運作）。Session/origin 與完整 data-access contract 見 [`shared-backend-and-identity.md`](shared-backend-and-identity.md)。
 
 ## 7. Non-goals 與已接受限制
 
@@ -145,7 +146,7 @@ Preview boundary 依 `docs/ui-ux-research.md` §4.2：有序章節前綴（可�
 - **Repository**：`UserStateRepository`（§5.1）供 Library（#6）與 Reader（#5）讀寫 entitlement／reading state／bookmark。
 - **Gate**：`canRead`（§5.3）供 Reader（#5）在 Universal Reader 的 entitlement gate 使用，依 boundary 隱藏其後內容；Book Detail 的四種 CTA state（`docs/ui-ux-research.md` §8.3）與 Library「続きを読む」以 `getEntitlement` / `getReadingState` 驅動。
 - **Auth**：`AuthProvider` / `useAuth`（§6）供登入/登出前置 gate。
-- **Client 建構**：`createSupabaseClientFromEnv()`（§6）；entity 身份由 coordinator 決定單一 mount 位置。
+- **Client 建構**：`createBrowserPlatformServices('library')`（§6）在 app root 單一 mount，讓 auth、Library repository 與 bearer token 使用同一個 Supabase client。
 
 ## 9. Environment dependency（真實驗證所需）
 

@@ -39,7 +39,7 @@ export interface LibraryDataState {
 }
 
 interface FetchedLibraryData {
-  user: import('../lib/auth/types').SessionUser
+  user: import('@business-japanese-hub/platform-auth').SessionUser
   data: LibraryData | null
   error: Error | null
 }
