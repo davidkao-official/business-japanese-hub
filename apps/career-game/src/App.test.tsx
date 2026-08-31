@@ -431,6 +431,36 @@ describe('authenticated Career Game progress', () => {
     expect(reset).toHaveBeenCalledWith('rookie-survival', 1, 1, CHECKPOINT_ID, 7)
   })
 
+  it('leaves reset mode after a CAS conflict loads a replacement checkpoint', async () => {
+    const replacementCheckpointId = '22222222-2222-4222-8222-222222222222'
+    const replacement = {
+      ...firstRemoteProgress(1),
+      checkpointId: replacementCheckpointId,
+    }
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce({
+        kind: 'reset-required',
+        reason: 'invalid-persisted-progress',
+        currentVersion: 1,
+        storedVersion: 1,
+        checkpointId: CHECKPOINT_ID,
+        revision: 7,
+      } satisfies CareerGameProgressResponse)
+      .mockResolvedValueOnce(replacement)
+    const reset = vi.fn().mockResolvedValue({ kind: 'conflict' })
+    renderGame(signedIn, createRepository({ load, reset }))
+
+    fireEvent.click(await screen.findByRole('button', { name: '保存済み進行をリセット' }))
+
+    expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '進行をリセットしてください' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '保存済み進行をリセット' })).not.toBeInTheDocument()
+    expect(reset).toHaveBeenCalledTimes(1)
+    expect(reset).toHaveBeenCalledWith('rookie-survival', 1, 1, CHECKPOINT_ID, 7)
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+
   it('uses the loaded progress checkpoint identity for a successful replay reset', async () => {
     const reset = vi.fn().mockResolvedValue({ kind: 'none' })
     renderGame(
@@ -524,7 +554,12 @@ describe('authenticated Career Game progress', () => {
 
     expect(choose).toHaveBeenCalledOnce()
     expect(choose).toHaveBeenCalledWith(
-      'rookie-survival', 1, 'file-one-greeting', 'greeting-concise-choice', 4,
+      'rookie-survival',
+      1,
+      'file-one-greeting',
+      'greeting-concise-choice',
+      CHECKPOINT_ID,
+      4,
     )
     await act(async () => resolveChoose(firstRemoteProgress(5)))
     expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()

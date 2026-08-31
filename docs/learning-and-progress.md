@@ -70,9 +70,12 @@ meter、history 或 user id。server：
 4. 從 authoritative outcome derive skill ids、quality 與 stable references；
 5. 以 optimistic revision RPC 在同一 transaction 更新 progress 與 evidence。
 
-多分頁／多裝置的 stale revision 回傳 conflict，不覆寫較新 checkpoint。pending outcome
-必須先 acknowledge 才能再選；reset 只刪除該 user/scenario 的目前 progress，保留已發生的
-evidence。Reset 還必須帶上 server 最後回傳的 stored version、opaque checkpoint id
+多分頁／多裝置的 stale action 回傳 conflict，不覆寫較新 checkpoint。`choose` 與
+`acknowledge` 都必須同時符合 server 最後回傳的 opaque checkpoint id 與 revision，
+因此 reset／再 start 後即使 revision 重新從 1 開始，舊 tab 也不能對 replacement
+attempt 行動。Pending outcome 必須先 acknowledge 才能再選；reset 只刪除該
+user/scenario 的目前 progress，保留已發生的 evidence。Reset 還必須帶上 server
+最後回傳的 stored version、opaque checkpoint id
 與 revision；service-only RPC 在 row lock 內三者完全相符才刪除。這使 stale tab 與
 先 reset／再 start 的 replacement attempt 都不能被舊 request 刪除。
 
@@ -101,6 +104,10 @@ evidence。Reset 還必須帶上 server 最後回傳的 stored version、opaque 
 summary UI，因此刻意不建立
 「最近練習」、推薦、completion aggregate、mastery score 或另一張 materialized read
 model。未來只有在有實際 consumer 與 documented deterministic rule 時才新增 read seam。
+
+Library 的一次 `chapter_opened` 以「當前 stable user id + 當前 Book/Chapter mount」為前端
+觸發邊界；Supabase token refresh 即使產生新 user object，也不得在章節沒有重新開啟時
+製造第二個 event。
 
 ## 5. Authorization
 

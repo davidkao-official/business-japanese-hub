@@ -292,6 +292,7 @@ describe('career-game-progress handler', () => {
         contentVersion: 1,
         sceneId: 'file-one-greeting',
         choiceId: 'greeting-concise-choice',
+        checkpointId: ATTEMPT_ID,
         expectedRevision: 1,
       },
       {
@@ -344,6 +345,7 @@ describe('career-game-progress handler', () => {
           contentVersion: 1,
           sceneId: 'file-one-greeting',
           choiceId: 'greeting-concise-choice',
+          checkpointId: ATTEMPT_ID,
           expectedRevision: 1,
         }),
         bearerHeaders('jwt-1'),
@@ -384,6 +386,7 @@ describe('career-game-progress handler', () => {
         contentVersion: 1,
         sceneId: first.state.currentSceneId,
         choiceId: 'request-confirm-choice',
+        checkpointId: ATTEMPT_ID,
         expectedRevision: 2,
       },
       { career_game_progress: { data: row } },
@@ -396,6 +399,7 @@ describe('career-game-progress handler', () => {
         action: 'acknowledge',
         scenarioId: rookieSurvivalScenario.id,
         contentVersion: 1,
+        checkpointId: ATTEMPT_ID,
         expectedRevision: 2,
       },
       {
@@ -417,6 +421,7 @@ describe('career-game-progress handler', () => {
         action: 'acknowledge',
         scenarioId: rookieSurvivalScenario.id,
         contentVersion: 1,
+        checkpointId: ATTEMPT_ID,
         expectedRevision: 2,
       },
       { career_game_progress: { data: progressRow({ revision: 1, pending_outcome_id: 'x' }) } },
@@ -431,6 +436,7 @@ describe('career-game-progress handler', () => {
         contentVersion: 1,
         sceneId: 'file-one-greeting',
         choiceId: 'greeting-concise-choice',
+        checkpointId: ATTEMPT_ID,
         expectedRevision: 1,
       },
       {
@@ -440,6 +446,39 @@ describe('career-game-progress handler', () => {
     );
     expect(lost.result.status).toBe(409);
     expect(JSON.parse(lost.result.body)).toEqual({ kind: 'conflict' });
+  });
+
+  it('rejects stale actions when a replacement attempt reuses the same revision', async () => {
+    const replacementAttemptId = '10000000-0000-4000-8000-000000000099';
+    const replacement = progressRow({ attempt_id: replacementAttemptId, revision: 1 });
+    const choose = await call(
+      {
+        action: 'choose',
+        scenarioId: rookieSurvivalScenario.id,
+        contentVersion: 1,
+        sceneId: 'file-one-greeting',
+        choiceId: 'greeting-concise-choice',
+        checkpointId: ATTEMPT_ID,
+        expectedRevision: 1,
+      },
+      { career_game_progress: { data: replacement } },
+    );
+    const acknowledge = await call(
+      {
+        action: 'acknowledge',
+        scenarioId: rookieSurvivalScenario.id,
+        contentVersion: 1,
+        checkpointId: ATTEMPT_ID,
+        expectedRevision: 1,
+      },
+      { career_game_progress: { data: replacement } },
+    );
+
+    for (const attempt of [choose, acknowledge]) {
+      expect(attempt.result.status).toBe(409);
+      expect(JSON.parse(attempt.result.body)).toEqual({ kind: 'conflict' });
+      expect(attempt.mock.rpcCalls('persist_career_game_action')).toHaveLength(0);
+    }
   });
 
   it('resets through an identity/version/revision CAS and surfaces ABA conflicts', async () => {

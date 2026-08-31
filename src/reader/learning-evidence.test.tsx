@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { LearningEvidenceProvider } from '../lib/learning/LearningEvidenceContext'
@@ -52,6 +52,20 @@ describe('Library chapter-open learning evidence', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: '依頼と締めの表現' })).toBeInTheDocument()
     expect(evidenceRepository.recordChapterOpened).not.toHaveBeenCalled()
+  })
+
+  it('does not create a second opening when auth refreshes the same user identity', async () => {
+    const evidenceRepository: LibraryLearningEvidenceRepository = {
+      recordChapterOpened: vi.fn().mockResolvedValue(undefined),
+    }
+    const { authClient } = renderReader(user, evidenceRepository)
+
+    await waitFor(() => expect(evidenceRepository.recordChapterOpened).toHaveBeenCalledTimes(1))
+    await act(async () => {
+      authClient.emitAuthStateChange({ ...user })
+    })
+
+    expect(evidenceRepository.recordChapterOpened).toHaveBeenCalledTimes(1)
   })
 
   it('does not interrupt reading when best-effort evidence recording fails', async () => {

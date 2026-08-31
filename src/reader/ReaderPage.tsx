@@ -27,13 +27,14 @@ function ReaderNotFound({ message }: { message: string }) {
 function ChapterLearningEvidence({ bookId, chapterId }: { bookId: string; chapterId: string }) {
   const { user, loading } = useAuth()
   const repository = useLearningEvidenceRepository()
+  const userId = user?.id
 
   useEffect(() => {
-    if (loading || !user || !repository) return
+    if (loading || !userId || !repository) return
     void repository.recordChapterOpened({ bookId, chapterId }).catch(() => {
       // Learning evidence is best effort and must never interrupt the Reader.
     })
-  }, [loading, user, repository, bookId, chapterId])
+  }, [loading, userId, repository, bookId, chapterId])
 
   return null
 }

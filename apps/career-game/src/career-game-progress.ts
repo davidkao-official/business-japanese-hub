@@ -30,11 +30,13 @@ export interface CareerGameProgressRepository {
     contentVersion: number,
     sceneId: string,
     choiceId: string,
+    checkpointId: string,
     expectedRevision: number,
   ): Promise<CareerGameProgressResponse>
   acknowledge(
     scenarioId: string,
     contentVersion: number,
+    checkpointId: string,
     expectedRevision: number,
   ): Promise<CareerGameProgressResponse>
   reset(
@@ -214,17 +216,31 @@ export function createCareerGameProgressRepository(
     load: (scenarioId, contentVersion) => invoke({ action: 'load', scenarioId, contentVersion }),
     start: (scenarioId, contentVersion) =>
       invoke({ action: 'start', scenarioId, contentVersion }),
-    choose: (scenarioId, contentVersion, sceneId, choiceId, expectedRevision) =>
+    choose: (
+      scenarioId,
+      contentVersion,
+      sceneId,
+      choiceId,
+      checkpointId,
+      expectedRevision,
+    ) =>
       invoke({
         action: 'choose',
         scenarioId,
         contentVersion,
         sceneId,
         choiceId,
+        checkpointId,
         expectedRevision,
       }),
-    acknowledge: (scenarioId, contentVersion, expectedRevision) =>
-      invoke({ action: 'acknowledge', scenarioId, contentVersion, expectedRevision }),
+    acknowledge: (scenarioId, contentVersion, checkpointId, expectedRevision) =>
+      invoke({
+        action: 'acknowledge',
+        scenarioId,
+        contentVersion,
+        checkpointId,
+        expectedRevision,
+      }),
     reset: (scenarioId, contentVersion, storedVersion, checkpointId, expectedRevision) =>
       invoke({
         action: 'reset',

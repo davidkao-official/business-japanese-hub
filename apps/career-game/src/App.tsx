@@ -411,7 +411,9 @@ export default function App({ progressRepository }: AppProps) {
     }
     if (resolved.kind !== 'progress') return false
     setClientUpdateRequired(null)
+    setResetRequired(null)
     setRemoteCheckpoint(resolved.checkpoint)
+    setSourceStatus('ready')
     moveTo(resolved.model, message)
     return true
   }
@@ -485,6 +487,7 @@ export default function App({ progressRepository }: AppProps) {
             scenario.contentVersion,
             currentScene.id,
             choiceId,
+            remoteCheckpoint.checkpointId,
             remoteCheckpoint.revision,
           ),
         '判断の結果と解説を表示しました。',
@@ -522,6 +525,7 @@ export default function App({ progressRepository }: AppProps) {
           progressRepository!.acknowledge(
             scenario.id,
             scenario.contentVersion,
+            remoteCheckpoint.checkpointId,
             remoteCheckpoint.revision,
           ),
         model.gameState.status === 'completed'

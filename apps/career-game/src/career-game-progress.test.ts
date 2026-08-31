@@ -40,9 +40,15 @@ describe('Career Game progress repository', () => {
       scenario.contentVersion,
       'file-one-greeting',
       'greeting-concise-choice',
+      CHECKPOINT_ID,
       4,
     )
-    await repository.acknowledge(scenario.id, scenario.contentVersion, 5)
+    await repository.acknowledge(
+      scenario.id,
+      scenario.contentVersion,
+      CHECKPOINT_ID,
+      5,
+    )
     await repository.reset(
       scenario.id,
       scenario.contentVersion,
@@ -60,12 +66,14 @@ describe('Career Game progress repository', () => {
         contentVersion: 1,
         sceneId: 'file-one-greeting',
         choiceId: 'greeting-concise-choice',
+        checkpointId: CHECKPOINT_ID,
         expectedRevision: 4,
       },
       {
         action: 'acknowledge',
         scenarioId: 'rookie-survival',
         contentVersion: 1,
+        checkpointId: CHECKPOINT_ID,
         expectedRevision: 5,
       },
       {

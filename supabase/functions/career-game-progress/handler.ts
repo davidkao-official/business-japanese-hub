@@ -28,12 +28,14 @@ type ProgressAction =
       contentVersion: number;
       sceneId: string;
       choiceId: string;
+      checkpointId: string;
       expectedRevision: number;
     }
   | {
       action: 'acknowledge';
       scenarioId: string;
       contentVersion: number;
+      checkpointId: string;
       expectedRevision: number;
     }
   | {
@@ -120,11 +122,14 @@ function parseAction(bodyText: string): ProgressAction | null {
           'contentVersion',
           'sceneId',
           'choiceId',
+          'checkpointId',
           'expectedRevision',
         ]) &&
           isPositiveInteger(input.contentVersion) &&
           isBoundedContentId(input.sceneId) &&
           isBoundedContentId(input.choiceId) &&
+          typeof input.checkpointId === 'string' &&
+          UUID.test(input.checkpointId) &&
           isPositiveInteger(input.expectedRevision)
         ? {
             action: 'choose',
@@ -132,17 +137,27 @@ function parseAction(bodyText: string): ProgressAction | null {
             contentVersion: input.contentVersion,
             sceneId: input.sceneId,
             choiceId: input.choiceId,
+            checkpointId: input.checkpointId,
             expectedRevision: input.expectedRevision,
           }
         : null;
     case 'acknowledge':
-      return hasExactKeys(input, ['action', 'scenarioId', 'contentVersion', 'expectedRevision']) &&
+      return hasExactKeys(input, [
+          'action',
+          'scenarioId',
+          'contentVersion',
+          'checkpointId',
+          'expectedRevision',
+        ]) &&
           isPositiveInteger(input.contentVersion) &&
+          typeof input.checkpointId === 'string' &&
+          UUID.test(input.checkpointId) &&
           isPositiveInteger(input.expectedRevision)
         ? {
             action: 'acknowledge',
             scenarioId: input.scenarioId,
             contentVersion: input.contentVersion,
+            checkpointId: input.checkpointId,
             expectedRevision: input.expectedRevision,
           }
         : null;
@@ -417,7 +432,9 @@ export async function handleCareerGameProgress(
       row.pending_outcome_id,
     );
   }
-  if (action.expectedRevision !== row.revision) return conflict();
+  if (action.checkpointId !== row.attempt_id || action.expectedRevision !== row.revision) {
+    return conflict();
+  }
 
   if (action.action === 'acknowledge') {
     if (row.pending_outcome_id === null) return badRequest('no pending outcome to acknowledge');
@@ -427,7 +444,7 @@ export async function handleCareerGameProgress(
         scenario,
         state: row.state,
         pendingOutcomeId: null,
-        attemptId: row.attempt_id,
+        attemptId: action.checkpointId,
         expectedRevision: row.revision,
         completedAt: row.completed_at,
       });
@@ -459,7 +476,7 @@ export async function handleCareerGameProgress(
       scenario,
       state: advanced.state,
       pendingOutcomeId: advanced.outcome.id,
-      attemptId: row.attempt_id,
+      attemptId: action.checkpointId,
       expectedRevision: row.revision,
       completedAt,
       outcome: advanced.outcome,
