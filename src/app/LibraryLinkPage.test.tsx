@@ -41,4 +41,14 @@ describe('Library stable-link route', () => {
       '/library',
     )
   })
+
+  it.each([
+    '?bookId=book-sample-bj-email&chapterId=',
+    '?bookId=book-sample-bj-email&chapterId=bm-ch-3&blockId=',
+  ])('rejects a present-but-empty target id: %s', (search) => {
+    renderRoute(search)
+
+    expect(screen.getByRole('heading', { name: '関連する読書が見つかりません' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('resolved location')).not.toBeInTheDocument()
+  })
 })

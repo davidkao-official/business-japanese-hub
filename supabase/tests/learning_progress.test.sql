@@ -1,6 +1,6 @@
 begin;
 
-select plan(48);
+select plan(50);
 
 select ok(
   has_table_privilege('authenticated', 'public.career_game_progress', 'select'),
@@ -312,6 +312,24 @@ select is(
   ),
   0,
   'Library evidence event replay is idempotent'
+);
+select is(
+  public.record_library_learning_evidence(
+    '57000000-0000-0000-0000-000000000001', 'Book/Stable:1', 'book@release-1',
+    'Chapter_A', '57300000-0000-4000-8000-000000000002',
+    array['workplace-greeting', 'error-reporting']
+  ),
+  0,
+  'a fresh client event id cannot duplicate the same Library exposure'
+);
+select is(
+  public.record_library_learning_evidence(
+    '57000000-0000-0000-0000-000000000002', 'Book/Stable:1', 'book@release-1',
+    'Chapter_A', '57300000-0000-4000-8000-000000000002',
+    array['workplace-greeting', 'error-reporting']
+  ),
+  2,
+  'the Library exposure boundary remains scoped to one user'
 );
 select is(
   (select count(*) from public.learning_evidence

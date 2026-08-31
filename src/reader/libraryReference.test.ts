@@ -25,6 +25,11 @@ describe('stable Library reference resolution', () => {
   it.each([
     [{ bookId: '' }, 'book-not-found'],
     [{ bookId: 'missing' }, 'book-not-found'],
+    [{ bookId: 'book-sample-bj-email', chapterId: '' }, 'invalid-reference'],
+    [
+      { bookId: 'book-sample-bj-email', chapterId: 'bm-ch-3', blockId: '' },
+      'invalid-reference',
+    ],
     [{ bookId: 'book-sample-bj-email', chapterId: 'missing' }, 'chapter-not-found'],
     [{ bookId: 'book-sample-bj-email', blockId: 'bm-ch3-blk-01' }, 'invalid-reference'],
     [

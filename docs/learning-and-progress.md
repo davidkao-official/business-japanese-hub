@@ -101,6 +101,9 @@ user/scenario 的目前 progress，保留已發生的 evidence。Reset 還必須
 | Career Game | `outcome_reached` | Scenario id + content version + Outcome id | authored `strong` / `mixed` / `risky` |
 
 `source_event_id` 使 retry idempotent；DB uniqueness 防止同一 logical action 重複寫入。
+Library 的 `chapter_opened` 另以 user + release + chapter + skill 作 durable exposure boundary，
+因此 browser 即使提供新的 event UUID，也不能為同一內容製造無限 evidence row；新 release
+與另一位 user 仍是獨立 exposure。
 所有 recorded time 都由 server 產生。合法但沒有 `skillTags` 的 Game outcome 仍會正常
 持久化 progress，只是不製造 evidence row 或 quality metadata。這一版沒有 derived
 summary UI，因此刻意不建立
@@ -134,8 +137,9 @@ Game 的 `libraryLinks` 只攜帶 stable Book/Chapter/Block ids。canonical Libr
 `/library-link` route 由目前 released catalog 解析成 slug route；未知／被移除／不相符的
 target 顯示 unavailable surface，不 crash、不猜 fallback。有效 block target 在 client-side
 route 完成且 readable block mount 後 scroll 並 focus 該 stable fragment；未 mount 的 gated
-target 不會洩漏內容。Game 只產生 canonical Library origin link；Library 不依賴 Game runtime
-availability。
+target 不會洩漏內容。明確出現但為空的 Chapter/Block query id 視為 invalid reference，不得
+降級成 Book/Chapter fallback。Game 只產生 canonical Library origin link；Library 不依賴
+Game runtime availability。
 
 Library evidence function沿用 canonical `PUBLIC_SITE_URL` exact-origin CORS。Career Game
 function只接受 dedicated optional `CAREER_GAME_SITE_URL` exact origin；未設定時 browser

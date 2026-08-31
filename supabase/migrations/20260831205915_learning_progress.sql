@@ -124,6 +124,15 @@ create table public.learning_evidence (
 create index learning_evidence_user_recorded_idx
   on public.learning_evidence (user_id, recorded_at desc);
 
+-- Library `chapter_opened` is exposure evidence, not an unbounded client event
+-- stream. A new client UUID cannot manufacture another row for the same
+-- user/release/chapter/skill; a new release or another user remains distinct.
+create unique index learning_evidence_library_exposure_unique
+  on public.learning_evidence (
+    user_id, source_content_id, source_content_version, source_unit_id, skill_id
+  )
+  where source_product = 'library' and evidence_kind = 'chapter_opened';
+
 alter table public.learning_skill enable row level security;
 alter table public.career_game_progress enable row level security;
 alter table public.learning_evidence enable row level security;
@@ -285,7 +294,7 @@ begin
     p_user_id, skill_id, 'library', 'chapter_opened', p_book_id,
     p_release_id, p_chapter_id, null, p_source_event_id
   from unnest(p_skill_ids) as skill_id
-  on conflict (user_id, source_product, source_event_id, skill_id) do nothing;
+  on conflict do nothing;
 
   get diagnostics v_inserted = row_count;
   return v_inserted;

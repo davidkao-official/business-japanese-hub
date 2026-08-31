@@ -21,6 +21,9 @@ export function resolveLibraryReference(
   reference: LibraryReference,
 ): LibraryReferenceResolution {
   if (!reference.bookId) return { kind: 'unavailable', reason: 'book-not-found' }
+  if (reference.chapterId === '' || reference.blockId === '') {
+    return { kind: 'unavailable', reason: 'invalid-reference' }
+  }
   if (reference.blockId && !reference.chapterId) {
     return { kind: 'unavailable', reason: 'invalid-reference' }
   }
