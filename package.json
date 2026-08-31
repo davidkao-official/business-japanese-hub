@@ -23,11 +23,14 @@
     "workflow:validate": "tsx scripts/validate.ts",
     "workflow:preview": "tsx scripts/preview.ts",
     "workflow:publish": "tsx scripts/publish.ts",
-    "workflow:verify-releases": "tsx scripts/verify-releases.ts",
+    "workflow:verify-releases": "tsx scripts/verify-releases.ts && tsx scripts/verify-learning-catalog.ts",
+    "workflow:update-learning-catalog": "tsx scripts/update-learning-catalog.ts",
+    "workflow:verify-learning-catalog": "tsx scripts/verify-learning-catalog.ts",
     "workflow:rollback": "tsx scripts/rollback.ts"
   },
   "dependencies": {
     "@business-japanese-hub/career-game": "workspace:*",
+    "@business-japanese-hub/learning": "workspace:*",
     "@business-japanese-hub/platform-auth": "workspace:*",
     "@supabase/supabase-js": "^2.112.3",
     "react": "^19.2.8",

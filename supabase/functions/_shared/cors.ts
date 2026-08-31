@@ -21,6 +21,20 @@ function configuredPublicOrigin(env: Env): string | null {
   }
 }
 
+function configuredExactOrigin(raw: string | undefined): string | null {
+  if (!raw?.trim()) return null;
+  try {
+    const url = new URL(raw);
+    const localHttp = url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname);
+    if ((url.protocol !== 'https:' && !localHttp) || url.username || url.password || url.search || url.hash) {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
 function corsHeaders(origin: string, methods: readonly string[]): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': origin,
@@ -48,6 +62,14 @@ export function browserCors(
   env: Env,
   allowedMethods: readonly string[],
 ): BrowserCorsDecision {
+  return exactOriginCors(request, configuredPublicOrigin(env), allowedMethods);
+}
+
+function exactOriginCors(
+  request: HandlerRequest,
+  expectedOrigin: string | null,
+  allowedMethods: readonly string[],
+): BrowserCorsDecision {
   const origin = headerValue(request.headers, 'origin');
   if (!origin) {
     return request.method.toUpperCase() === 'OPTIONS'
@@ -55,7 +77,6 @@ export function browserCors(
       : { headers: {} };
   }
 
-  const expectedOrigin = configuredPublicOrigin(env);
   if (!expectedOrigin || origin !== expectedOrigin) {
     return { response: forbidden('origin not allowed'), headers: {} };
   }
@@ -79,6 +100,20 @@ export function browserCors(
 
   const preflightHeaders = corsHeaders(expectedOrigin, normalizedMethods);
   return { response: { status: 200, headers: preflightHeaders, body: '' }, headers };
+}
+
+/**
+ * Exact-origin CORS for the separately deployed Career Game frontend. The
+ * hostname remains intentionally optional: browser traffic fails closed until
+ * CAREER_GAME_SITE_URL is explicitly configured, while trusted no-Origin
+ * callers remain supported.
+ */
+export function careerGameCors(
+  request: HandlerRequest,
+  env: Env,
+  allowedMethods: readonly string[],
+): BrowserCorsDecision {
+  return exactOriginCors(request, configuredExactOrigin(env.careerGameSiteUrl), allowedMethods);
 }
 
 /** Merge CORS headers without mutating the handler's server-authoritative result. */

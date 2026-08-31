@@ -44,6 +44,30 @@ function removeQuietly(scenario: Scenario, storage: GameSessionStorage): void {
   }
 }
 
+/** Replay-valid parser shared by anonymous and authenticated persistence adapters. */
+export function parseGameSessionSnapshot(
+  scenario: Scenario,
+  value: unknown,
+): GameSessionSnapshot | null {
+  if (!isRecord(value)) return null
+
+  const hasPending = Object.hasOwn(value, 'pendingOutcomeId')
+  if (!hasExactKeys(value, hasPending ? ['state', 'pendingOutcomeId'] : ['state'])) return null
+  if (!isGameStateValid(scenario, value.state)) return null
+
+  if (hasPending) {
+    if (
+      typeof value.pendingOutcomeId !== 'string' ||
+      !pendingOutcomeIsConsistent(scenario, value.state, value.pendingOutcomeId)
+    ) {
+      return null
+    }
+    return { state: value.state, pendingOutcomeId: value.pendingOutcomeId }
+  }
+
+  return { state: value.state }
+}
+
 export function gameSessionStorageKey(scenario: Scenario): string {
   return `${STORAGE_PREFIX}.${scenario.slug}@${scenario.contentVersion}`
 }
@@ -59,34 +83,10 @@ export function loadGameSession(
       removeQuietly(scenario, storage)
       return null
     }
-    const parsed: unknown = JSON.parse(raw)
-    if (!isRecord(parsed)) {
-      removeQuietly(scenario, storage)
-      return null
-    }
-
-    const hasPending = Object.hasOwn(parsed, 'pendingOutcomeId')
-    if (!hasExactKeys(parsed, hasPending ? ['state', 'pendingOutcomeId'] : ['state'])) {
-      removeQuietly(scenario, storage)
-      return null
-    }
-    if (!isGameStateValid(scenario, parsed.state)) {
-      removeQuietly(scenario, storage)
-      return null
-    }
-
-    if (hasPending) {
-      if (
-        typeof parsed.pendingOutcomeId !== 'string' ||
-        !pendingOutcomeIsConsistent(scenario, parsed.state, parsed.pendingOutcomeId)
-      ) {
-        removeQuietly(scenario, storage)
-        return null
-      }
-      return { state: parsed.state, pendingOutcomeId: parsed.pendingOutcomeId }
-    }
-
-    return { state: parsed.state }
+    const snapshot = parseGameSessionSnapshot(scenario, JSON.parse(raw))
+    if (snapshot) return snapshot
+    removeQuietly(scenario, storage)
+    return null
   } catch {
     removeQuietly(scenario, storage)
     return null

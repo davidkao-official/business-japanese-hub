@@ -55,6 +55,11 @@ export interface Env {
   orderEmailFrom: string | undefined;
   /** Canonical public origin used to build Library and policy links. */
   publicSiteUrl: string | undefined;
+  /**
+   * Optional exact Career Game browser origin. Undefined deliberately keeps
+   * cross-origin Game requests closed until that product's hostname is chosen.
+   */
+  careerGameSiteUrl: string | undefined;
   /** Public support address shown in transactional email and used as Reply-To. */
   supportEmail: string | undefined;
   /** Legal seller display name shown on the receipt; never inferred in code. */
@@ -132,6 +137,7 @@ export function readEnvFrom(reader: EnvReader): Env {
     resendApiKey: reader.get('RESEND_API_KEY'),
     orderEmailFrom: reader.get('ORDER_EMAIL_FROM'),
     publicSiteUrl: reader.get('PUBLIC_SITE_URL'),
+    careerGameSiteUrl: reader.get('CAREER_GAME_SITE_URL'),
     supportEmail: reader.get('SUPPORT_EMAIL'),
     legalSellerName: reader.get('LEGAL_SELLER_NAME'),
     fundingReconCsv: reader.get('FUNDING_RECON_CSV'),

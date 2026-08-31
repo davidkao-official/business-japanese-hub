@@ -7,6 +7,7 @@ import {
   type Choice,
   type GameState,
 } from '@business-japanese-hub/career-game'
+import { validateLearningSkillIds } from '@business-japanese-hub/learning'
 import { describe, expect, it } from 'vitest'
 import { rookieSurvivalScenario } from './rookie-survival'
 
@@ -36,6 +37,20 @@ describe('新人社員生存戦 scenario content', () => {
     expect(rookieSurvivalScenario.libraryLinks).toEqual(
       expect.arrayContaining([expect.objectContaining({ bookId: 'book-meeting-japanese' })]),
     )
+  })
+
+  it('uses only unique shared learning skill IDs at concrete content seams', () => {
+    const authoredSkillTags = [
+      { source: rookieSurvivalScenario.id, value: rookieSurvivalScenario.skillTags },
+      ...rookieSurvivalScenario.outcomes.map((outcome) => ({
+        source: outcome.id,
+        value: outcome.skillTags,
+      })),
+    ]
+
+    for (const { source, value } of authoredSkillTags) {
+      expect(validateLearningSkillIds(value), source).toEqual({ ok: true, value })
+    }
   })
 
   it('runs a strong path through all five files and completes deterministically', () => {

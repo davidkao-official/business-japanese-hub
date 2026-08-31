@@ -5,7 +5,7 @@
 ```text
 books/<slug>/
   book.json      ← 書籍內容（純 JSON，內容模型 Book → Chapter → ContentBlock）
-  manifest.json  ← 介面層元資料（含 preview boundary；不屬於內容 schema）
+  manifest.json  ← 介面層元資料（preview boundary、learning association；不屬於內容 schema）
   assets/        ← 書的圖片素材（引用路徑 /assets/books/<slug>/...）
 ```
 
@@ -22,9 +22,10 @@ books/<slug>/
 - **驗證**：`pnpm workflow:validate`
 - **預覽**：`pnpm workflow:preview`（輸出到 gitignored `content-dist/preview/`）
 - **出版**：`pnpm workflow:publish [--slug=<slug>]`
+- **更新 learning registry**：`pnpm workflow:update-learning-catalog`
 - **authoritative price dry run**：`pnpm exec tsx scripts/update-catalog.ts --slug=<slug> --dry-run`
 - **回滾**：`pnpm workflow:rollback --slug=<slug> [--to=<snapshotId>]`
 
 完整說明（含 authoring 格式、資產規則、版本／回滾、CMS 遷移路徑、#5 整合介面）見 [`docs/authoring.md`](../docs/authoring.md)。
 
-`workflow:publish` 會產生並要求 commit `content-dist/` 的 content-addressed release。Vite 與 server catalog sync 都讀取同一份 `current.json`；依 snapshot 的 `catalog.order` 排序、綁定 preview boundary 與打包 release assets。新增一般書籍仍只需內容資料、publish artifact 與 assets，不需修改 platform code。
+`workflow:publish` 會產生並要求 commit `content-dist/` 的 content-addressed release。Vite 與 server catalog sync 都讀取同一份 `current.json`；依 snapshot 的 `catalog.order` 排序、綁定 preview boundary 與打包 release assets。若 manifest 宣告 chapter learning associations，publish 後再執行 `workflow:update-learning-catalog` 並 commit deterministic `content-dist/learning-catalog.json`。新增一般書籍仍只需內容／manifest 資料、generated artifacts 與 assets，不需修改 platform code。

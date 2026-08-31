@@ -216,6 +216,7 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
     resendApiKey: 'test-resend-api-key',
     orderEmailFrom: 'Business Japanese Hub <receipts@example.com>',
     publicSiteUrl: 'https://business-japanese.example',
+    careerGameSiteUrl: 'https://game.business-japanese.example',
     supportEmail: 'support@example.com',
     legalSellerName: 'Example Seller',
     fundingReconCsv: undefined,

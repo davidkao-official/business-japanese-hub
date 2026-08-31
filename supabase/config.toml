@@ -33,6 +33,12 @@ verify_jwt = true
 [functions.finance]
 verify_jwt = true
 
+[functions.career-game-progress]
+verify_jwt = true
+
+[functions.library-learning-evidence]
+verify_jwt = true
+
 [functions.repair-reconcile]
 verify_jwt = false
 

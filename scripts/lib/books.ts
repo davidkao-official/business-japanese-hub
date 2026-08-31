@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PreviewBoundary } from '../../src/authoring/preview';
 import type { ContentIssue } from '../../src/content/validate';
+import type { LearningSkillId } from '@business-japanese-hub/learning';
 
 /** Absolute path to the repository root (three levels up from scripts/lib/). */
 export function repoRoot(): string {
@@ -43,6 +44,8 @@ export interface BookManifest {
   catalog?: { order?: number };
   /** Preview boundary — where the free preview ends. */
   preview?: { boundary?: PreviewBoundary };
+  /** Optional stable Chapter.id → shared learning-skill associations. */
+  learning?: { chapters?: Record<string, LearningSkillId[]> };
   /** Free-form notes; ignored by the pipeline. */
   notes?: string;
 }

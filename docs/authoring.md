@@ -10,7 +10,7 @@ MVP 的設計目標是「最小成本、適合重複出版書籍」：不是完�
 
 ```text
 books/<slug>/book.json      ← 書籍內容（純 JSON，內容模型）
-books/<slug>/manifest.json  ← 介面層元資料（catalog order + preview boundary）
+books/<slug>/manifest.json  ← 介面層元資料（catalog order + preview boundary + learning refs）
 books/<slug>/assets/**      ← 書的圖片素材
 
             │ pnpm workflow:validate（驗證每一本書）
@@ -28,6 +28,10 @@ books/<slug>/assets/**      ← 書的圖片素材
   content-dist/books/<slug>/history.json    ← 出版紀錄（append-only）
   content-dist/assets/books/<slug>/**      ← 目前出版版本的素材（publish／rollback 重建）
   content-dist/assets/snapshots/<slug>/<snapshotId>/**  ← 每版不可變素材快照（rollback 來源）
+
+            │ pnpm workflow:update-learning-catalog（manifest refs + current releases）
+            ▼
+  content-dist/learning-catalog.json       ← stable learning refs + release/access metadata
 
             │ pnpm workflow:rollback（需要時）
             ▼
@@ -56,7 +60,7 @@ books/<slug>/assets/**      ← 書的圖片素材
 ```text
 books/my-book/
   book.json          ← 必填。書籍內容（結構見下）
-  manifest.json      ← 建議。介面層元資料（含 preview boundary）
+  manifest.json      ← 建議。介面層元資料（含 preview boundary／learning refs）
   assets/            ← 可選。書的圖片素材（.png/.jpg，參考 §4 資產規則）
 ```
 
@@ -129,6 +133,11 @@ books/my-book/
   "preview": {
     "boundary": { "kind": "chapter", "chapterId": "ch-1" }
   },
+  "learning": {
+    "chapters": {
+      "ch-1": ["workplace-greeting"]
+    }
+  },
   "notes": "自由填寫的備註；管線會忽略它。"
 }
 ```
@@ -136,7 +145,10 @@ books/my-book/
 - `book`：指到書內容檔的相對路徑（預設 `./book.json`）。
 - `catalog.order`：非負整數，控制 Storefront 的編輯排序；數字較小者在前。未填的書排在有明確順序的書之後。
 - `preview.boundary`：免費預覽的終點。詳見 §3.3。
+- `learning.chapters`：選用。以 stable `Chapter.id` 對應小型 shared learning skill ids；只能使用 `@business-japanese-hub/learning` 目前 catalog 中的 ids，且同一陣列不得重複。這是 evidence association metadata，不代表 completion 或 mastery。
 - `notes`：給人類看的備註，不影響任何管線。
+
+Learning association 不寫進 Book schema，也不要求為 metadata-only 變更重發 immutable Book snapshot。`pnpm workflow:update-learning-catalog` 會把 manifest association 與目前已出版的 `current.json` ids／release／preview access 合併成 `content-dist/learning-catalog.json`；未知 chapter／skill、重複 skill 或 stale artifact 會讓 build 失敗。新章節必須先正常 publish 成 current release，才能被 registry 接受。
 
 ---
 
@@ -276,8 +288,9 @@ pnpm workflow:rollback --slug=keigo-essentials --to=<完整 snapshot id>
 2. `pnpm workflow:validate`（確認合法）→ `pnpm workflow:preview`（確認界線正確）。
 3. `pnpm workflow:publish --slug=<slug>` → 產生新 revision，`current.json` 更新。
 4. 檢查並 commit `content-dist/books/**` 與 `content-dist/assets/**` 的 release diff。
-5. `pnpm exec tsx scripts/update-catalog.ts --slug=<slug> --dry-run` 驗證 authoritative amount、currency 與 revision。
-6. production deploy 先以 service-role 執行 catalog sync（移除 `--dry-run`），再部署同一 commit 的 web build。full sync 會先刪除 free、unpublished、removed 與其他 stale rows，再 upsert paid rows；任何 snapshot 驗證錯誤都在 DB mutation 前中止。
+5. `pnpm workflow:update-learning-catalog` 更新並 commit deterministic learning registry（即使該書沒有 association，也會登錄 released refs／access）。
+6. `pnpm exec tsx scripts/update-catalog.ts --slug=<slug> --dry-run` 驗證 authoritative amount、currency 與 revision。
+7. production deploy 先以 service-role 執行 catalog sync（移除 `--dry-run`），再部署同一 commit 的 web build。full sync 會先刪除 free、unpublished、removed 與其他 stale rows，再 upsert paid rows；任何 snapshot 驗證錯誤都在 DB mutation 前中止。
 
 ---
 
@@ -329,7 +342,8 @@ gate 的規則保持**單一**：未解鎖只允許 manifest 所定義的 previe
 | `pnpm workflow:validate` | 內容模型合法性（`validateBook` on 每一本書） | **每次改 book.json 後，出版前必做** |
 | `pnpm workflow:preview` | 預覽 boundary 是否可解析、paidStart 是否正確 | 出版前 |
 | `pnpm workflow:publish` | 全目錄先驗證，不合法直接中止 | 審查通過後 |
-| `pnpm workflow:verify-releases` | current、immutable snapshot、history、assets 與 content hash 完全一致 | commit／deploy 前 |
+| `pnpm workflow:verify-releases` | current、immutable snapshot、history、assets、content hash 與 learning registry 完全一致 | commit／deploy 前 |
+| `pnpm workflow:update-learning-catalog` | 由 manifests + current releases 重建 stable learning refs／chapter access | publish 或 learning metadata 變更後 |
 | `pnpm exec tsx scripts/update-catalog.ts --slug=<slug> --dry-run` | authoritative minor amount、currency、revision | publish 後、production 寫入前 |
 | `pnpm workflow:rollback` | 回滾目標存在、可回到前一版 | 需要時 |
 
@@ -351,6 +365,7 @@ pnpm workflow:preview           # 檢查 paidStart 是否正確
 
 # 4. 出版
 pnpm workflow:publish --slug=my-book
+pnpm workflow:update-learning-catalog
 
 # 5. 驗證 authoritative server catalog row
 pnpm exec tsx scripts/update-catalog.ts --slug=my-book --dry-run

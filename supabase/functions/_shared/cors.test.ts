@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Env } from './env.ts';
-import { browserCors, withCorsHeaders } from './cors.ts';
+import { browserCors, careerGameCors, withCorsHeaders } from './cors.ts';
 import { toResponse } from './deno.ts';
 import { jsonResult, type HandlerRequest } from './http.ts';
 
@@ -110,5 +110,28 @@ describe('browser CORS policy', () => {
 
   it('allows non-browser server calls without adding CORS headers', () => {
     expect(browserCors(request('GET'), ENV, ['GET'])).toEqual({ headers: {} });
+  });
+
+  it('uses only the dedicated exact Career Game origin and fails closed when undecided', () => {
+    const configured = careerGameCors(
+      request('POST', { origin: 'https://game.example.com' }),
+      { ...ENV, careerGameSiteUrl: 'https://game.example.com/play' },
+      ['POST'],
+    );
+    const libraryOrigin = careerGameCors(
+      request('POST', { origin: 'https://davidkao-official.github.io' }),
+      { ...ENV, careerGameSiteUrl: 'https://game.example.com/play' },
+      ['POST'],
+    );
+    const undecided = careerGameCors(
+      request('POST', { origin: 'https://game.example.com' }),
+      { ...ENV, careerGameSiteUrl: undefined },
+      ['POST'],
+    );
+    expect(configured.response).toBeUndefined();
+    expect(configured.headers['Access-Control-Allow-Origin']).toBe('https://game.example.com');
+    expect(libraryOrigin.response?.status).toBe(403);
+    expect(undecided.response?.status).toBe(403);
+    expect(careerGameCors(request('POST'), ENV, ['POST'])).toEqual({ headers: {} });
   });
 });
