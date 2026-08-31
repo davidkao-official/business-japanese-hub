@@ -6,6 +6,15 @@ import { join } from 'node:path';
 import { verifyDeployment } from '../scripts/lib/deployment-smoke';
 import { resolveDeploymentBase } from '../vite.config';
 
+function responseAt(url: string, body: string, contentType: string, status = 200): Response {
+  const response = new Response(body, {
+    status,
+    headers: { 'content-type': contentType },
+  })
+  Object.defineProperty(response, 'url', { value: url })
+  return response
+}
+
 /**
  * Deployment contract regression guard.
  *
@@ -56,44 +65,168 @@ describe('deployment base contract', () => {
     }
   });
 
-  it('smokes the Cloudflare root, assets, Book route, and purchase-result route', async () => {
-    const html = '<script type="module" src="/assets/app.js"></script>';
+  it('smokes the Library root, typed assets, and representative free, paid, and stable-link routes', async () => {
+    const baseUrl = 'https://business-japanese-hub.pages.dev/'
+    const html = [
+      '<!doctype html>',
+      '<html><head>',
+      '<meta name="description" content="ビジネスシーンで役立つ日本語を学ぶためのプラットフォームです。">',
+      '<title>ビジネス日本語ハブ</title>',
+      '<link rel="stylesheet" href="/assets/app.css">',
+      '<script type="module" src="/assets/app.js"></script>',
+      '</head><body><div id="root"></div></body></html>',
+    ].join('')
     const fetcher = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
-      if (url.endsWith('/assets/app.js')) return new Response('export {}', { status: 200 });
-      if (url.includes('/books/') || url.includes('/purchase/result')) {
-        return new Response(html, { status: 200 });
+      if (url.endsWith('/assets/app.js')) {
+        return responseAt(url, 'export {}', 'text/javascript; charset=utf-8')
       }
-      return new Response(html, { status: 200 });
-    });
+      if (url.endsWith('/assets/app.css')) return responseAt(url, '', 'text/css')
+      return responseAt(url, html, 'text/html; charset=utf-8')
+    })
 
-    await verifyDeployment('https://business-japanese-hub.pages.dev/', {
+    await verifyDeployment(baseUrl, {
       attempts: 1,
       fetcher,
+      product: 'library',
       retryDelayMs: 0,
-    });
+    })
 
-    expect(fetcher).toHaveBeenCalledWith(new URL('https://business-japanese-hub.pages.dev/'));
+    expect(fetcher).toHaveBeenCalledWith(new URL(baseUrl))
     expect(fetcher).toHaveBeenCalledWith(
-      new URL('https://business-japanese-hub.pages.dev/books/deployment-smoke'),
-    );
+      new URL('books/keigo-essentials', baseUrl),
+    )
+    expect(fetcher).toHaveBeenCalledWith(
+      new URL('books/keigo-essentials/read/keigo-basics', baseUrl),
+    )
+    expect(fetcher).toHaveBeenCalledWith(new URL('books/meeting-japanese', baseUrl))
+    expect(fetcher).toHaveBeenCalledWith(
+      new URL('books/meeting-japanese/read/meeting-purpose', baseUrl),
+    )
     expect(fetcher).toHaveBeenCalledWith(
       new URL(
-        'https://business-japanese-hub.pages.dev/purchase/result?order=deployment-smoke',
+        'library-link?bookId=book-sample-bj-keigo&chapterId=ch-2',
+        baseUrl,
       ),
-    );
-  });
+    )
+  })
+
+  it('smokes the Career Game root, stable case, and graceful unknown-case fallback', async () => {
+    const baseUrl = 'https://business-japanese-career-game.pages.dev/'
+    const html = [
+      '<!doctype html>',
+      '<html><head>',
+      '<meta name="description" content="日本の職場を舞台に判断と結果を振り返る、Business Japanese Hub の職場シミュレーション。">',
+      '<title>キャリアゲーム | Business Japanese Hub</title>',
+      '<script type="module" src="/assets/game.js"></script>',
+      '</head><body><div id="root"></div></body></html>',
+    ].join('')
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/assets/game.js')) {
+        return responseAt(url, 'export {}', 'application/javascript')
+      }
+      return responseAt(url, html, 'text/html; charset=utf-8')
+    })
+
+    await verifyDeployment(baseUrl, {
+      attempts: 1,
+      fetcher,
+      product: 'career-game',
+      retryDelayMs: 0,
+    })
+
+    expect(fetcher).toHaveBeenCalledWith(new URL(baseUrl))
+    expect(fetcher).toHaveBeenCalledWith(new URL('cases/rookie-survival', baseUrl))
+    expect(fetcher).toHaveBeenCalledWith(
+      new URL('case-link?scenarioId=rookie-survival', baseUrl),
+    )
+    expect(fetcher).toHaveBeenCalledWith(new URL('cases/unknown-case', baseUrl))
+  })
+
+  it('rejects the wrong application shell at the deployment root', async () => {
+    const html = [
+      '<!doctype html><html><head>',
+      '<meta name="description" content="日本の職場を舞台に判断と結果を振り返る、Business Japanese Hub の職場シミュレーション。">',
+      '<title>キャリアゲーム | Business Japanese Hub</title>',
+      '<script type="module" src="/assets/game.js"></script>',
+      '</head><body><div id="root"></div></body></html>',
+    ].join('')
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/assets/game.js')) {
+        return responseAt(url, 'export {}', 'application/javascript')
+      }
+      return responseAt(url, html, 'text/html')
+    })
+
+    await expect(
+      verifyDeployment('https://business-japanese-hub.pages.dev/', {
+        attempts: 1,
+        fetcher,
+        product: 'library',
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(/Library.*fingerprint|fingerprint.*Library/i)
+  })
+
+  it('requires the product-specific document title', async () => {
+    const html = [
+      '<meta name="description" content="ビジネスシーンで役立つ日本語を学ぶためのプラットフォームです。">',
+      '<title>Wrong product</title>',
+      '<script type="module" src="/assets/app.js"></script>',
+    ].join('')
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/assets/app.js')) {
+        return responseAt(url, 'export {}', 'application/javascript')
+      }
+      return responseAt(url, html, 'text/html')
+    })
+
+    await expect(
+      verifyDeployment('https://business-japanese-hub.pages.dev/', {
+        attempts: 1,
+        fetcher,
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(/Library.*title|title.*Library/i)
+  })
+
+  it('requires an HTML content type for the application shell', async () => {
+    const html = [
+      '<meta name="description" content="ビジネスシーンで役立つ日本語を学ぶためのプラットフォームです。">',
+      '<title>ビジネス日本語ハブ</title>',
+      '<script type="module" src="/assets/app.js"></script>',
+    ].join('')
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/assets/app.js')) {
+        return responseAt(url, 'export {}', 'application/javascript')
+      }
+      return responseAt(url, html, 'text/plain')
+    })
+
+    await expect(
+      verifyDeployment('https://business-japanese-hub.pages.dev/', {
+        attempts: 1,
+        fetcher,
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(/root.*content-type/i)
+  })
 
   it('fails the deployment smoke check when a built asset is unavailable', async () => {
-    const html = '<link rel="stylesheet" href="/assets/app.css">';
+    const html = [
+      '<meta name="description" content="ビジネスシーンで役立つ日本語を学ぶためのプラットフォームです。">',
+      '<title>ビジネス日本語ハブ</title>',
+      '<link rel="stylesheet" href="/assets/app.css">',
+    ].join('')
     const fetcher = vi.fn(async (input: string | URL | Request) => {
-      const url = String(input);
-      if (url.endsWith('/assets/app.css')) return new Response('missing', { status: 404 });
-      if (url.includes('/books/') || url.includes('/purchase/result')) {
-        return new Response(html, { status: 200 });
-      }
-      return new Response(html, { status: 200 });
-    });
+      const url = String(input)
+      if (url.endsWith('/assets/app.css')) return responseAt(url, 'missing', 'text/plain', 404)
+      return responseAt(url, html, 'text/html')
+    })
 
     await expect(
       verifyDeployment('https://business-japanese-hub.pages.dev/', {
@@ -103,6 +236,133 @@ describe('deployment base contract', () => {
       }),
     ).rejects.toThrow('asset');
   });
+
+  it('rejects an HTML fallback served in place of a built asset', async () => {
+    const html = [
+      '<meta name="description" content="ビジネスシーンで役立つ日本語を学ぶためのプラットフォームです。">',
+      '<title>ビジネス日本語ハブ</title>',
+      '<link rel="stylesheet" href="/assets/app.css">',
+    ].join('')
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      return responseAt(url, html, 'text/html')
+    })
+
+    await expect(
+      verifyDeployment('https://business-japanese-hub.pages.dev/', {
+        attempts: 1,
+        fetcher,
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(/asset.*content-type/i)
+  })
+
+  it('requires each built asset type to match its file extension', async () => {
+    const html = [
+      '<meta name="description" content="ビジネスシーンで役立つ日本語を学ぶためのプラットフォームです。">',
+      '<title>ビジネス日本語ハブ</title>',
+      '<script type="module" src="/assets/app.js"></script>',
+    ].join('')
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/assets/app.js')) return responseAt(url, 'body {}', 'text/css')
+      return responseAt(url, html, 'text/html')
+    })
+
+    await expect(
+      verifyDeployment('https://business-japanese-hub.pages.dev/', {
+        attempts: 1,
+        fetcher,
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(/asset.*content-type/i)
+  })
+
+  it('rejects a direct route that changes the requested URL', async () => {
+    const baseUrl = 'https://business-japanese-career-game.pages.dev/'
+    const html = [
+      '<meta name="description" content="日本の職場を舞台に判断と結果を振り返る、Business Japanese Hub の職場シミュレーション。">',
+      '<title>キャリアゲーム | Business Japanese Hub</title>',
+      '<script type="module" src="/assets/game.js"></script>',
+    ].join('')
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/assets/game.js')) {
+        return responseAt(url, 'export {}', 'application/javascript')
+      }
+      if (url.endsWith('/cases/rookie-survival')) {
+        return responseAt(baseUrl, html, 'text/html')
+      }
+      return responseAt(url, html, 'text/html')
+    })
+
+    await expect(
+      verifyDeployment(baseUrl, {
+        attempts: 1,
+        fetcher,
+        product: 'career-game',
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(/direct route.*URL|URL.*direct route/i)
+  })
+
+  it('requires direct routes to return an HTML SPA shell', async () => {
+    const baseUrl = 'https://business-japanese-career-game.pages.dev/'
+    const html = [
+      '<meta name="description" content="日本の職場を舞台に判断と結果を振り返る、Business Japanese Hub の職場シミュレーション。">',
+      '<title>キャリアゲーム | Business Japanese Hub</title>',
+      '<script type="module" src="/assets/game.js"></script>',
+    ].join('')
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/assets/game.js')) {
+        return responseAt(url, 'export {}', 'application/javascript')
+      }
+      const contentType = url.endsWith('/cases/rookie-survival') ? 'text/plain' : 'text/html'
+      return responseAt(url, html, contentType)
+    })
+
+    await expect(
+      verifyDeployment(baseUrl, {
+        attempts: 1,
+        fetcher,
+        product: 'career-game',
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(/direct route.*content-type/i)
+  })
+
+  it('allows HTTP only for loopback built-preview smoke servers', async () => {
+    const baseUrl = 'http://127.0.0.1:4173/'
+    const html = [
+      '<meta name="description" content="ビジネスシーンで役立つ日本語を学ぶためのプラットフォームです。">',
+      '<title>ビジネス日本語ハブ</title>',
+      '<script type="module" src="/assets/app.js"></script>',
+    ].join('')
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/assets/app.js')) {
+        return responseAt(url, 'export {}', 'text/javascript')
+      }
+      return responseAt(url, html, 'text/html')
+    })
+
+    await expect(
+      verifyDeployment(baseUrl, {
+        attempts: 1,
+        fetcher,
+        retryDelayMs: 0,
+      }),
+    ).resolves.toBeUndefined()
+
+    await expect(
+      verifyDeployment('http://localhost:4173/', {
+        attempts: 1,
+        fetcher,
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow('clean HTTPS URL or an HTTP 127.0.0.1 URL')
+  })
 
   it('synchronizes theme-color meta tags with the tokens.css background tokens', async () => {
     const outDir = mkdtempSync(join(tmpdir(), 'bjh-theme-color-'));

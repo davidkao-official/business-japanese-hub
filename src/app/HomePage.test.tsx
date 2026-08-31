@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { vi } from 'vitest'
 import { renderWithAppProviders } from '../test/appProviders'
 import { HomePage } from './HomePage'
+
+function clickWithoutNavigation(link: HTMLElement) {
+  link.addEventListener('click', (event) => event.preventDefault(), { once: true })
+  fireEvent.click(link)
+}
 
 describe('storefront', () => {
   it('features the commercial Book and lists both free Books as a compact shelf', async () => {
@@ -32,5 +38,45 @@ describe('storefront', () => {
     await waitFor(() => expect(screen.getAllByText('無料')).toHaveLength(2))
     expect(screen.queryByText('¥880')).not.toBeInTheDocument()
     expect(screen.queryByText('¥660')).not.toBeInTheDocument()
+  })
+
+  it('offers a quiet stable link to the current playable Case and tracks its use', () => {
+    const track = vi.fn()
+    renderWithAppProviders(<HomePage analytics={{ track }} />)
+
+    const link = screen.getByRole('link', { name: 'ケースをプレイ' })
+    expect(link).toHaveAttribute(
+      'href',
+      'https://business-japanese-career-game.pages.dev/case-link?scenarioId=rookie-survival',
+    )
+
+    clickWithoutNavigation(link)
+
+    expect(track).toHaveBeenCalledExactlyOnceWith({
+      event: 'cross_product_link_clicked',
+      scenarioId: 'rookie-survival',
+      direction: 'library_to_career_game',
+    })
+  })
+
+  it('uses the public Career Game origin override without letting analytics block the link', () => {
+    const analytics = {
+      track: vi.fn(() => {
+        throw new Error('analytics unavailable')
+      }),
+    }
+    renderWithAppProviders(
+      <HomePage
+        analytics={analytics}
+        careerGameOriginValue="https://game-preview.example.jp"
+      />,
+    )
+
+    const link = screen.getByRole('link', { name: 'ケースをプレイ' })
+    expect(link).toHaveAttribute(
+      'href',
+      'https://game-preview.example.jp/case-link?scenarioId=rookie-survival',
+    )
+    expect(() => clickWithoutNavigation(link)).not.toThrow()
   })
 })

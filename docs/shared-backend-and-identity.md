@@ -71,16 +71,26 @@ device. They are not an account-wide "sign out everywhere" control. As with any
 JWT session, an already issued access token cannot be revoked before its expiry;
 server authorization must continue to validate it rather than trust UI state.
 
-The only canonical production frontend origin currently decided is the Library
-at `https://business-japanese-hub.pages.dev/`. Career Game's production hostname
-and routing belong to #60. This implementation does not create cross-domain SSO,
-add OAuth, widen payment Edge Function CORS, or change `PUBLIC_SITE_URL`.
+The two canonical production frontend origins are:
+
+```text
+Library      https://business-japanese-hub.pages.dev/
+Career Game  https://business-japanese-career-game.pages.dev/
+```
+
+#60 deliberately uses separate Cloudflare Pages projects so either frontend can
+deploy or roll back without replacing the other artifact. Browser storage is
+therefore origin-isolated: both products resolve the same durable `auth.users`
+identity, but a user signs in separately on each origin. This does not create
+cross-domain SSO, add OAuth, widen payment Edge Function CORS, or change
+`PUBLIC_SITE_URL`.
 
 Career Game exposes existing-account email/password sign-in and sign-out only.
-It does not create accounts or initiate redirect-based auth. If #60 later assigns
-a separate production origin, Supabase Auth Site URL／redirect allow-lists and
-email-link behavior must be reviewed explicitly; that decision must remain
-coordinated with the canonical Library origin and deployment runbook.
+It does not create accounts or initiate redirect-based auth, so the current Game
+flow has no redirect target. Supabase Auth Site URL remains the canonical Library
+origin for Library signup confirmation/default email redirects. A future
+redirect-based Career Game flow must add the exact Game origin to the allow-list
+as an explicit reviewed change; wildcard preview origins are not allowed.
 
 ## 5. Product and operational isolation
 
@@ -92,6 +102,9 @@ coordinated with the canonical Library origin and deployment runbook.
 - Shared styles are semantic design tokens, not shared product UI. Account
   presentation remains product-owned in each frontend.
 - No shared asset service, audit table or generalized telemetry schema exists.
+  #60 adds only a strict product-validation event vocabulary written to sanitized
+  Edge Function logs; it stores no user identity, session, authored content or
+  arbitrary payload and is never an authorization or commerce signal.
   Supabase request/auth evidence and existing payment/order identifiers remain
   the authoritative operational sources. Logs must not include tokens, passwords,
   secrets or raw provider error details shown to users.
@@ -108,4 +121,4 @@ Before extending this boundary:
 4. keep all service-role/provider secrets and authoritative writes server-only;
 5. prove anonymous Library and Career Game paths still work;
 6. re-run Library auth, entitlement, payment and finance regressions; and
-7. do not infer #59 commerce or #60 routing decisions from shared identity.
+7. do not infer #59 commerce from the separate-origin routing decision.

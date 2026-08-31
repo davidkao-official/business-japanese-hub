@@ -10,6 +10,7 @@ Business Japanese Hub 是 shared、web-first 的 business-Japanese 平台，服�
 - **[`docs/platform-architecture.md`](docs/platform-architecture.md)** — Library + Career Game bounded contexts、shared platform 邊界與 dependency direction。
 - **[`docs/shared-backend-and-identity.md`](docs/shared-backend-and-identity.md)** — 兩個 frontends 共用的 Supabase identity、origin/session topology、client/server secret boundary 與 product data isolation。
 - **[`docs/learning-and-progress.md`](docs/learning-and-progress.md)** — bounded shared skill/evidence seam、Library reading／Career Game progress isolation、authenticated resume、version/reset 與 RLS contract。
+- **[`docs/product-validation-analytics.md`](docs/product-validation-analytics.md)** — #60 的小型 Career Game funnel／cross-product movement event vocabulary、privacy 與 trust boundary。
 - **[`docs/content-model.md`](docs/content-model.md)** — Library 內容資料模型。`Book → Chapter → ContentBlock` 的具體定義與結構；不是 Career Game schema。
 - **[`docs/ui-ux-research.md`](docs/ui-ux-research.md)** — UI/UX 設計方向研究（canonical）。`Quiet Editorial Modernism` 設計方向、日本文排版規格、design tokens、content-block rendering grammar、anti-patterns，以及 Universal Reader 的 measurable baseline。
 - **[`docs/authoring.md`](docs/authoring.md)** — 作者出版工作流。作者（非工程師）如何新增／編輯書籍、驗證、預覽、出版、版本／回滾。
@@ -45,7 +46,7 @@ Business Japanese Hub 是 shared、web-first 的 business-Japanese 平台，服�
 | `pnpm build:career-game` | 只 build Career Game 至 `dist-career-game/` |
 | `pnpm build` | 驗證 released Books、typecheck 全部 projects，依序 build 兩個 frontends |
 
-這個 topology 沒有新增第二 backend；兩個產品仍共用既有 Supabase modular monolith。Career Game production hostname／routing 由 #60 決定，目前的 `dist-career-game/` 不代表 production deployment target。
+這個 topology 沒有新增第二 backend；兩個產品仍共用既有 Supabase modular monolith。#60 將兩個 artifacts 分別部署為 root-hosted Cloudflare Pages projects，避免 gateway/path multiplexing，並保留獨立 deploy／rollback。
 
 ## 關鍵決策摘要
 
@@ -60,12 +61,12 @@ Business Japanese Hub 是 shared、web-first 的 business-Japanese 平台，服�
 
 ## 部署
 
-- **Canonical Library／Paid Launch frontend**：`https://business-japanese-hub.pages.dev/`（Cloudflare Pages）。GitHub Pages 不是 deployment target；Career Game production hostname 尚未決定。
-- **Production build**：`pnpm build` 會驗證並 build 兩個 frontends；Cloudflare Pages 仍只上傳 canonical Library artifact `dist/`。Career Game 的 `dist-career-game/` 是獨立、非 production-routing 的 build artifact。Cloudflare Pages 使用 origin root `/`，因此 Library production 不設定 `DEPLOY_BASE_PATH`。
+- **Canonical frontends**：Library／Paid Launch 是 `https://business-japanese-hub.pages.dev/`；Career Game 是 `https://business-japanese-career-game.pages.dev/`。兩者都是獨立 Cloudflare Pages projects；GitHub Pages 不是 deployment target。
+- **Production build**：`pnpm build` 會驗證並 build 兩個 frontends；Library project 上傳 `dist/`，Career Game project 上傳 `dist-career-game/`。兩個 Pages projects 都使用 origin root `/`，不產生 top-level `404.html`，並可各自 deploy／rollback。
 - **Cloudflare Pages Git integration**：production branch 使用 `main`；每次 production branch 更新由 Cloudflare 重新 build/deploy。GitHub Actions `.github/workflows/ci.yml` 獨立負責 typecheck / lint / test / build quality gate。
 - **SPA routing**：不要產生 GitHub Pages 式的頂層 `404.html`。Cloudflare Pages 在沒有頂層 `404.html` 時會把未命中 static asset 的路徑交給 SPA root，讓 `BrowserRouter` deep links 可直接載入。
-- **Frontend production variables**：Cloudflare Pages environment 設定 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`，以及需要時的 `VITE_EDGE_FUNCTIONS_BASE_URL`。後端 `PUBLIC_SITE_URL` 必須與 canonical frontend origin 一致：`https://business-japanese-hub.pages.dev/`。
+- **Frontend production variables**：兩個 Pages projects 使用相同 public `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY` 與需要時的 `VITE_EDGE_FUNCTIONS_BASE_URL`。Library 另設 `VITE_CAREER_GAME_ORIGIN`，Career Game 設 `VITE_LIBRARY_ORIGIN`。後端 `PUBLIC_SITE_URL` 保持 Library origin；`CAREER_GAME_SITE_URL` 使用 exact Game origin，絕不加入 payment CORS。
 - **Public catalog 模式**：未設定 Supabase 環境變數時，平台只提供 free/public books 的匿名閱讀；paid purchase fail closed。Paid Launch production 必須設定 Supabase 與 server-only payment/compliance integrations，才會啟用 account／persistence／purchase 功能。
-- **Production smoke**：`pnpm exec tsx scripts/smoke-deployment.ts https://business-japanese-hub.pages.dev/`。
+- **Production smoke**：執行 `pnpm smoke:deployment:production`，或分別執行 `pnpm smoke:deployment https://business-japanese-hub.pages.dev/ library` 與 `pnpm smoke:deployment https://business-japanese-career-game.pages.dev/ career-game`。
 
 更多細節請見 [product contract](docs/product-contract.md) 與 [production deployment runbook](docs/deployment.md)。

@@ -1,9 +1,11 @@
 import '@testing-library/jest-dom/vitest'
+import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { applyChoice, createInitialState } from '@business-japanese-hub/career-game'
 import { AuthProvider } from '@business-japanese-hub/platform-auth'
 import type { AuthClient, SessionUser } from '@business-japanese-hub/platform-auth'
+import type { ValidationAnalytics } from '@business-japanese-hub/validation-analytics'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import type {
@@ -29,6 +31,8 @@ function createRepository(
 function renderGame(
   session: SessionUser | null = null,
   progressRepository?: CareerGameProgressRepository,
+  analytics?: ValidationAnalytics,
+  strict = false,
 ) {
   const authClient: AuthClient = {
     getSession: vi.fn().mockResolvedValue(session),
@@ -40,14 +44,27 @@ function renderGame(
     onAuthStateChange: vi.fn(() => () => {}),
   }
 
+  const game = (
+    <AuthProvider authClient={authClient}>
+      <App
+        scenario={rookieSurvivalScenario}
+        progressRepository={progressRepository}
+        analytics={analytics}
+      />
+    </AuthProvider>
+  )
+
   return {
     ...render(
-      <AuthProvider authClient={authClient}>
-        <App progressRepository={progressRepository} />
-      </AuthProvider>,
+      strict ? <StrictMode>{game}</StrictMode> : game,
     ),
     authClient,
   }
+}
+
+function createAnalytics(): { analytics: ValidationAnalytics; track: ReturnType<typeof vi.fn> } {
+  const track = vi.fn()
+  return { analytics: { track }, track }
 }
 
 async function startCase() {
@@ -57,6 +74,11 @@ async function startCase() {
 function chooseFirstOption() {
   const choices = screen.getByRole('group', { name: 'あなたの判断' })
   fireEvent.click(within(choices).getAllByRole('button')[0]!)
+}
+
+function clickWithoutNavigation(link: HTMLElement) {
+  link.addEventListener('click', (event) => event.preventDefault(), { once: true })
+  fireEvent.click(link)
 }
 
 describe('Career Game playable slice', () => {
@@ -112,7 +134,8 @@ describe('Career Game playable slice', () => {
   })
 
   it('plays the five-file golden path through consequence feedback and completion', async () => {
-    renderGame()
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
     await startCase()
 
     for (let file = 1; file <= 5; file += 1) {
@@ -135,6 +158,16 @@ describe('Career Game playable slice', () => {
     const saved = loadGameSession(rookieSurvivalScenario, window.localStorage)
     expect(saved?.state.status).toBe('completed')
     expect(saved?.state.history).toHaveLength(5)
+    expect(track.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'case_viewed', scenarioId: 'rookie-survival' },
+      { event: 'case_started', scenarioId: 'rookie-survival' },
+      ...Array.from({ length: 5 }, () => ({
+        event: 'case_outcome',
+        scenarioId: 'rookie-survival',
+        outcomeCategory: 'strong',
+      })),
+      { event: 'case_completed', scenarioId: 'rookie-survival' },
+    ])
   })
 
   it('restores pending consequence feedback after a reload', async () => {
@@ -166,7 +199,8 @@ describe('Career Game playable slice', () => {
   })
 
   it('commits a rapid repeated choice only once', async () => {
-    renderGame()
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
     await startCase()
     const choices = screen.getByRole('group', { name: 'あなたの判断' })
     const choice = within(choices).getAllByRole('button')[0]!
@@ -176,10 +210,14 @@ describe('Career Game playable slice', () => {
 
     const saved = loadGameSession(rookieSurvivalScenario, window.localStorage)
     expect(saved?.state.history).toHaveLength(1)
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'case_outcome'),
+    ).toHaveLength(1)
   })
 
   it('clears the checkpoint and returns to the case file on replay', async () => {
-    renderGame()
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
     await startCase()
 
     for (let file = 1; file <= 5; file += 1) {
@@ -192,6 +230,101 @@ describe('Career Game playable slice', () => {
     fireEvent.click(screen.getByRole('button', { name: 'もう一度プレイ' }))
     expect(screen.getByRole('heading', { level: 1, name: '新人社員生存戦' })).toBeInTheDocument()
     expect(loadGameSession(rookieSurvivalScenario, window.localStorage)).toBeNull()
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'case_replayed'),
+    ).toEqual([[{ event: 'case_replayed', scenarioId: 'rookie-survival' }]])
+  })
+
+  it('tracks a Case view once through the development StrictMode effect cycle', async () => {
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics, true)
+
+    expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
+    ).toEqual([[{ event: 'case_viewed', scenarioId: 'rookie-survival' }]])
+  })
+
+  it('tracks a new Case view after a real page-surface remount', async () => {
+    const { analytics, track } = createAnalytics()
+    const first = renderGame(null, undefined, analytics, true)
+    expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    first.unmount()
+
+    renderGame(null, undefined, analytics, true)
+    expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
+    ).toEqual([
+      [{ event: 'case_viewed', scenarioId: 'rookie-survival' }],
+      [{ event: 'case_viewed', scenarioId: 'rookie-survival' }],
+    ])
+  })
+
+  it('tracks ordinary Game-to-Library links without changing their cross-origin hrefs', async () => {
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
+
+    const productSwitch = await screen.findByRole('link', { name: /Library/ })
+    expect(productSwitch).toHaveAttribute('href', 'https://business-japanese-hub.pages.dev/')
+    clickWithoutNavigation(productSwitch)
+
+    await startCase()
+    chooseFirstOption()
+    const relatedReading = screen.getByRole('link', { name: 'Libraryで関連内容を読む' })
+    expect(relatedReading).toHaveAttribute(
+      'href',
+      'https://business-japanese-hub.pages.dev/library-link?bookId=book-sample-bj-keigo&chapterId=ch-2',
+    )
+    clickWithoutNavigation(relatedReading)
+
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
+    ).toEqual([
+      [
+        {
+          event: 'cross_product_link_clicked',
+          scenarioId: 'rookie-survival',
+          direction: 'career_game_to_library',
+        },
+      ],
+      [
+        {
+          event: 'cross_product_link_clicked',
+          scenarioId: 'rookie-survival',
+          direction: 'career_game_to_library',
+        },
+      ],
+    ])
+  })
+
+  it('keeps anonymous play available when analytics throws', async () => {
+    const analytics: ValidationAnalytics = {
+      track: vi.fn(() => {
+        throw new Error('analytics unavailable')
+      }),
+    }
+    renderGame(null, undefined, analytics)
+
+    await startCase()
+    expect(screen.getByRole('heading', { name: '配属初日の挨拶' })).toBeInTheDocument()
+    chooseFirstOption()
+    expect(screen.getByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
+  })
+
+  it('does not count restored completed guest state as a new completion', async () => {
+    saveGameSession(
+      rookieSurvivalScenario,
+      { state: completedRemoteProgress().snapshot.state },
+      window.localStorage,
+    )
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
+
+    expect(await screen.findByRole('heading', { name: 'ケース完了' })).toBeInTheDocument()
+    expect(track.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'case_viewed', scenarioId: 'rookie-survival' },
+    ])
   })
 
   it('restores the shared account identity while keeping progress device-local', async () => {
@@ -356,13 +489,17 @@ describe('authenticated Career Game progress', () => {
 
   it('restores pending remote feedback and links to the stable Library resolver', async () => {
     const repository = createRepository({ load: vi.fn().mockResolvedValue(firstRemoteProgress()) })
-    renderGame(signedIn, repository)
+    const { analytics, track } = createAnalytics()
+    renderGame(signedIn, repository, analytics)
 
     expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Libraryで関連内容を読む' })).toHaveAttribute(
       'href',
       'https://business-japanese-hub.pages.dev/library-link?bookId=book-sample-bj-keigo&chapterId=ch-2',
     )
+    expect(track.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'case_viewed', scenarioId: 'rookie-survival' },
+    ])
   })
 
   it('never writes authenticated actions to guest local storage', async () => {
@@ -376,15 +513,19 @@ describe('authenticated Career Game progress', () => {
       snapshot: { state: initial },
     }
     const repository = createRepository({ start: vi.fn().mockResolvedValue(started) })
+    const { analytics, track } = createAnalytics()
     const setItem = vi.spyOn(Storage.prototype, 'setItem')
     const removeItem = vi.spyOn(Storage.prototype, 'removeItem')
-    renderGame(signedIn, repository)
+    renderGame(signedIn, repository, analytics)
 
     await startCase()
 
     expect(await screen.findByRole('heading', { name: '配属初日の挨拶' })).toBeInTheDocument()
     expect(setItem).not.toHaveBeenCalled()
     expect(removeItem).not.toHaveBeenCalled()
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'case_started'),
+    ).toEqual([[{ event: 'case_started', scenarioId: 'rookie-survival' }]])
     setItem.mockRestore()
     removeItem.mockRestore()
   })
@@ -463,18 +604,28 @@ describe('authenticated Career Game progress', () => {
 
   it('uses the loaded progress checkpoint identity for a successful replay reset', async () => {
     const reset = vi.fn().mockResolvedValue({ kind: 'none' })
+    const { analytics, track } = createAnalytics()
     renderGame(
       signedIn,
       createRepository({
         load: vi.fn().mockResolvedValue(completedRemoteProgress(9)),
         reset,
       }),
+      analytics,
     )
 
-    fireEvent.click(await screen.findByRole('button', { name: 'もう一度プレイ' }))
+    const replay = await screen.findByRole('button', { name: 'もう一度プレイ' })
+    expect(track.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'case_viewed', scenarioId: 'rookie-survival' },
+    ])
+    fireEvent.click(replay)
 
     expect(reset).toHaveBeenCalledWith('rookie-survival', 1, 1, CHECKPOINT_ID, 9)
     expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    expect(track.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'case_viewed', scenarioId: 'rookie-survival' },
+      { event: 'case_replayed', scenarioId: 'rookie-survival' },
+    ])
   })
 
   it('offers load retry without falling back to guest state', async () => {
@@ -500,7 +651,8 @@ describe('authenticated Career Game progress', () => {
     const repository = createRepository({
       start: vi.fn().mockRejectedValue(new Error('private backend trace')),
     })
-    renderGame(signedIn, repository)
+    const { analytics, track } = createAnalytics()
+    renderGame(signedIn, repository, analytics)
     await startCase()
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -509,6 +661,9 @@ describe('authenticated Career Game progress', () => {
     expect(screen.queryByText(/private backend/)).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'ケースを開始' })).toBeEnabled()
+    expect(track.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'case_viewed', scenarioId: 'rookie-survival' },
+    ])
   })
 
   it('ignores a late authenticated load after signing out', async () => {
@@ -545,7 +700,8 @@ describe('authenticated Career Game progress', () => {
       }),
       choose,
     })
-    renderGame(signedIn, repository)
+    const { analytics, track } = createAnalytics()
+    renderGame(signedIn, repository, analytics)
     const choice = within(await screen.findByRole('group', { name: 'あなたの判断' }))
       .getAllByRole('button')[0]!
 
@@ -563,6 +719,43 @@ describe('authenticated Career Game progress', () => {
     )
     await act(async () => resolveChoose(firstRemoteProgress(5)))
     expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'case_outcome'),
+    ).toEqual([
+      [
+        {
+          event: 'case_outcome',
+          scenarioId: 'rookie-survival',
+          outcomeCategory: 'strong',
+        },
+      ],
+    ])
+  })
+
+  it('does not count a failed authenticated choice as an outcome', async () => {
+    const initial = createInitialState(rookieSurvivalScenario)
+    const repository = createRepository({
+      load: vi.fn().mockResolvedValue({
+        kind: 'progress',
+        scenarioId: rookieSurvivalScenario.id,
+        contentVersion: 1,
+        checkpointId: CHECKPOINT_ID,
+        revision: 4,
+        snapshot: { state: initial },
+      }),
+      choose: vi.fn().mockRejectedValue(new Error('private backend trace')),
+    })
+    const { analytics, track } = createAnalytics()
+    renderGame(signedIn, repository, analytics)
+    const choice = within(await screen.findByRole('group', { name: 'あなたの判断' }))
+      .getAllByRole('button')[0]!
+
+    fireEvent.click(choice)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '進行を同期できませんでした。もう一度お試しください。',
+    )
+    expect(track.mock.calls.some(([event]) => event.event === 'case_outcome')).toBe(false)
   })
 
   it('shows a non-destructive update surface for a newer server and never offers reset', async () => {

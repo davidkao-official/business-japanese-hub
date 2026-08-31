@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Env } from './env.ts';
-import { browserCors, careerGameCors, withCorsHeaders } from './cors.ts';
+import {
+  browserCors,
+  careerGameCors,
+  productAnalyticsCors,
+  withCorsHeaders,
+} from './cors.ts';
 import { toResponse } from './deno.ts';
 import { jsonResult, type HandlerRequest } from './http.ts';
 
@@ -133,5 +138,69 @@ describe('browser CORS policy', () => {
     expect(libraryOrigin.response?.status).toBe(403);
     expect(undecided.response?.status).toBe(403);
     expect(careerGameCors(request('POST'), ENV, ['POST'])).toEqual({ headers: {} });
+  });
+});
+
+describe('product analytics CORS policy', () => {
+  const analyticsEnv = {
+    ...ENV,
+    publicSiteUrl: 'https://business-japanese-hub.pages.dev/',
+    careerGameSiteUrl: 'https://career-game.pages.dev/play',
+  } as Env;
+
+  it.each([
+    'https://business-japanese-hub.pages.dev',
+    'https://career-game.pages.dev',
+  ])('allows the exact configured product origin %s', (origin) => {
+    const decision = productAnalyticsCors(
+      request('POST', { origin }),
+      analyticsEnv,
+      ['POST'],
+    );
+    expect(decision.response).toBeUndefined();
+    expect(decision.headers).toEqual({
+      'Access-Control-Allow-Origin': origin,
+      Vary: 'Origin',
+    });
+  });
+
+  it('answers an allowed preflight without a wildcard or credentials', () => {
+    const decision = productAnalyticsCors(
+      request('OPTIONS', {
+        origin: 'https://career-game.pages.dev',
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type',
+      }),
+      analyticsEnv,
+      ['POST'],
+    );
+    expect(decision.response?.status).toBe(200);
+    expect(decision.response?.headers?.['Access-Control-Allow-Origin']).toBe(
+      'https://career-game.pages.dev',
+    );
+    expect(decision.response?.headers?.['Access-Control-Allow-Origin']).not.toBe('*');
+    expect(decision.response?.headers?.['Access-Control-Allow-Credentials']).toBeUndefined();
+  });
+
+  it('fails closed for absent, unconfigured, or invalid origins', () => {
+    const absent = productAnalyticsCors(request('POST'), analyticsEnv, ['POST']);
+    const unconfigured = productAnalyticsCors(
+      request('POST', { origin: 'https://attacker.example' }),
+      analyticsEnv,
+      ['POST'],
+    );
+    const invalidConfiguration = productAnalyticsCors(
+      request('POST', { origin: 'https://career-game.pages.dev' }),
+      {
+        ...analyticsEnv,
+        publicSiteUrl: 'javascript:alert(1)',
+        careerGameSiteUrl: 'http://career-game.pages.dev',
+      },
+      ['POST'],
+    );
+
+    expect(absent.response?.status).toBe(403);
+    expect(unconfigured.response?.status).toBe(403);
+    expect(invalidConfiguration.response?.status).toBe(403);
   });
 });

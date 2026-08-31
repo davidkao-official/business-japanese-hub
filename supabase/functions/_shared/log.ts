@@ -1,16 +1,17 @@
 /**
- * Sanitized operational logger (decision-record §15).
+ * Sanitized operational logger (payment decision-record §15).
  *
- * Logs may contain ONLY: local order/payment ids, provider, MerchantTradeNo /
- * TradeNo (when available), normalized state, RtnCode, callback/event
- * fingerprint, verification/reconciliation result, and timestamps. Provider
- * secrets (HashKey / HashIV / MerchantID), tokens, and card data are never
- * logged — `sanitize` drops any field whose key looks sensitive as defense in
- * depth, independent of callers.
+ * The default payments namespace may contain ONLY: local order/payment ids,
+ * provider, MerchantTradeNo / TradeNo (when available), normalized state,
+ * RtnCode, callback/event fingerprint, verification/reconciliation result, and
+ * timestamps. Provider secrets (HashKey / HashIV / MerchantID), tokens, and
+ * card data are never logged — `sanitize` drops any field whose key looks
+ * sensitive as defense in depth, independent of callers.
  *
+ * Product-specific callers remain responsible for a narrow field allowlist.
  * The `Logger` interface is the injectable seam; tests use plain `vi.fn()`
- * objects. `createSanitizedLogger` is the production implementation wired in the
- * Deno entry.
+ * objects. `createSanitizedLogger` is the production implementation wired in
+ * each Deno entry. Its namespace defaults to `payments` for compatibility.
  */
 
 export interface Logger {
@@ -20,6 +21,7 @@ export interface Logger {
 }
 
 const SENSITIVE_KEY = /(hashkey|hashiv|hash_?key|hash_?iv|secret|token|password|card|pan|cvv|authorization|checkmac)/i;
+const LOG_NAMESPACE = /^[a-z][a-z0-9-]{0,63}$/;
 
 /** Drop fields whose key looks sensitive; keep the rest verbatim. */
 export function sanitizeFields(fields: Record<string, unknown>): Record<string, unknown> {
@@ -30,16 +32,25 @@ export function sanitizeFields(fields: Record<string, unknown>): Record<string, 
   return out;
 }
 
-function line(level: string, fields: Record<string, unknown>, message: string | undefined): string {
+function line(
+  namespace: string,
+  level: string,
+  fields: Record<string, unknown>,
+  message: string | undefined,
+): string {
   const safe = sanitizeFields(fields);
   const serialized = Object.keys(safe).length > 0 ? ` ${JSON.stringify(safe)}` : '';
-  return `[payments] ${new Date().toISOString()} ${level}${message ? ` ${message}` : ''}${serialized}`;
+  return `[${namespace}] ${new Date().toISOString()} ${level}${message ? ` ${message}` : ''}${serialized}`;
 }
 
-export function createSanitizedLogger(write: (text: string) => void = console.log): Logger {
+export function createSanitizedLogger(
+  write: (text: string) => void = console.log,
+  namespace = 'payments',
+): Logger {
+  const safeNamespace = LOG_NAMESPACE.test(namespace) ? namespace : 'payments';
   return {
-    info: (fields, message) => write(line('info', fields, message)),
-    warn: (fields, message) => write(line('warn', fields, message)),
-    error: (fields, message) => write(line('error', fields, message)),
+    info: (fields, message) => write(line(safeNamespace, 'info', fields, message)),
+    warn: (fields, message) => write(line(safeNamespace, 'warn', fields, message)),
+    error: (fields, message) => write(line(safeNamespace, 'error', fields, message)),
   };
 }

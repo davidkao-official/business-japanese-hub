@@ -9,14 +9,19 @@ import {
   type GameState,
   type MeterDefinition,
   type Outcome,
+  type Scenario,
 } from '@business-japanese-hub/career-game'
 import { useAuth } from '@business-japanese-hub/platform-auth'
+import {
+  noopValidationAnalytics,
+  type ValidationAnalytics,
+  type ValidationAnalyticsEvent,
+} from '@business-japanese-hub/validation-analytics'
 import { AccountControl } from './AccountControl'
 import type {
   CareerGameProgressRepository,
   CareerGameProgressResponse,
 } from './career-game-progress'
-import { rookieSurvivalScenario as scenario } from './content/rookie-survival'
 import {
   clearGameSession,
   loadGameSession,
@@ -25,6 +30,8 @@ import {
   type GameSessionSnapshot,
   type GameSessionStorage,
 } from './game-session'
+import { libraryLinkHref } from './library-links'
+import { ProductHeader } from './ProductHeader'
 
 type View = 'intro' | 'playing' | 'feedback' | 'complete'
 
@@ -35,7 +42,10 @@ interface AppModel {
 }
 
 export interface AppProps {
+  scenario: Scenario
   progressRepository?: CareerGameProgressRepository
+  analytics?: ValidationAnalytics
+  libraryOriginValue?: unknown
 }
 
 type SourceStatus =
@@ -57,8 +67,6 @@ interface RemoteCheckpoint {
   revision: number
 }
 
-const CANONICAL_LIBRARY_ORIGIN = 'https://business-japanese-hub.pages.dev'
-
 const categoryLabels: Record<Outcome['category'], string> = {
   strong: '効果的な判断',
   mixed: '状況次第の判断',
@@ -73,7 +81,7 @@ function getBrowserStorage(): GameSessionStorage | undefined {
   }
 }
 
-function initialModel(storage: GameSessionStorage | undefined): AppModel {
+function initialModel(scenario: Scenario, storage: GameSessionStorage | undefined): AppModel {
   const restored = storage ? loadGameSession(scenario, storage) : null
   if (!restored) {
     return { view: 'intro', gameState: createInitialState(scenario) }
@@ -105,35 +113,12 @@ function modelFromSnapshot(snapshot: GameSessionSnapshot): AppModel {
   }
 }
 
-function libraryOrigin(environmentValue: unknown): string {
-  if (typeof environmentValue !== 'string') return CANONICAL_LIBRARY_ORIGIN
+function trackSafely(analytics: ValidationAnalytics, event: ValidationAnalyticsEvent): void {
   try {
-    const candidate = new URL(environmentValue)
-    const safeProtocol =
-      candidate.protocol === 'https:' ||
-      (candidate.protocol === 'http:' &&
-        (candidate.hostname === 'localhost' || candidate.hostname === '127.0.0.1'))
-    if (
-      !safeProtocol ||
-      candidate.username ||
-      candidate.password ||
-      candidate.search ||
-      candidate.hash ||
-      (candidate.pathname !== '/' && candidate.pathname !== '')
-    ) {
-      return CANONICAL_LIBRARY_ORIGIN
-    }
-    return candidate.origin
+    analytics.track(event)
   } catch {
-    return CANONICAL_LIBRARY_ORIGIN
+    // Product navigation and play remain available if analytics is unavailable.
   }
-}
-
-function libraryLinkHref(link: NonNullable<Outcome['libraryLinks']>[number]): string {
-  const parameters = new URLSearchParams({ bookId: link.bookId })
-  if (link.chapterId) parameters.set('chapterId', link.chapterId)
-  if (link.blockId) parameters.set('blockId', link.blockId)
-  return `${libraryOrigin(import.meta.env.VITE_LIBRARY_ORIGIN)}/library-link?${parameters}`
 }
 
 function formatFileNumber(value: number): string {
@@ -181,7 +166,7 @@ function ProgressRail({
   )
 }
 
-function MeterReadout({ gameState }: { gameState: GameState }) {
+function MeterReadout({ scenario, gameState }: { scenario: Scenario; gameState: GameState }) {
   if (!scenario.meters?.length) return null
   return (
     <div className="meter-readout" aria-label="現在の状態">
@@ -212,7 +197,10 @@ type ResolvedRemoteResponse =
   | { kind: 'client-update-required'; currentVersion: number }
   | { kind: 'conflict' }
 
-function resolveRemoteResponse(response: CareerGameProgressResponse): ResolvedRemoteResponse {
+function resolveRemoteResponse(
+  scenario: Scenario,
+  response: CareerGameProgressResponse,
+): ResolvedRemoteResponse {
   if (response.kind === 'none') {
     return {
       kind: 'none',
@@ -266,10 +254,15 @@ function resolveRemoteResponse(response: CareerGameProgressResponse): ResolvedRe
   }
 }
 
-export default function App({ progressRepository }: AppProps) {
+export default function App({
+  scenario,
+  progressRepository,
+  analytics = noopValidationAnalytics,
+  libraryOriginValue = import.meta.env.VITE_LIBRARY_ORIGIN,
+}: AppProps) {
   const { loading: authLoading, user } = useAuth()
   const storage = useMemo(() => getBrowserStorage(), [])
-  const [model, setModel] = useState<AppModel>(() => initialModel(storage))
+  const [model, setModel] = useState<AppModel>(() => initialModel(scenario, storage))
   const [announcement, setAnnouncement] = useState('')
   const [manageFocus, setManageFocus] = useState(false)
   const [sourceStatus, setSourceStatus] = useState<SourceStatus>('auth-loading')
@@ -282,14 +275,16 @@ export default function App({ progressRepository }: AppProps) {
   const [actionError, setActionError] = useState(false)
   const sourceEpoch = useRef(0)
   const actionInFlight = useRef(false)
+  const trackedTransitions = useRef(new Set<string>())
+  const viewedScenario = useRef<string | null>(null)
   const viewHeading = useRef<HTMLHeadingElement>(null)
   const authenticatedUserId = user?.id
   const usesRemoteProgress = Boolean(authenticatedUserId && progressRepository)
   const desiredSourceKey = authLoading
     ? 'auth-loading'
     : usesRemoteProgress
-      ? `remote:${authenticatedUserId}`
-      : 'guest'
+      ? `remote:${authenticatedUserId}:${scenario.id}@${scenario.contentVersion}`
+      : `guest:${scenario.id}@${scenario.contentVersion}`
   const visibleSourceStatus: SourceStatus =
     activeSourceKey === desiredSourceKey
       ? sourceStatus
@@ -299,7 +294,7 @@ export default function App({ progressRepository }: AppProps) {
 
   const decisions = useMemo(
     () => scenario.scenes.filter((scene): scene is DecisionScene => scene.kind === 'decision'),
-    [],
+    [scenario],
   )
   const currentScene = getCurrentScene(scenario, model.gameState)
   const availableChoices = getAvailableChoices(scenario, model.gameState)
@@ -313,6 +308,16 @@ export default function App({ progressRepository }: AppProps) {
     model.view === 'feedback' || model.view === 'complete'
       ? Math.max(1, completedFiles)
       : Math.min(decisions.length, completedFiles + 1)
+
+  useEffect(() => {
+    if (viewedScenario.current === scenario.id) return
+    viewedScenario.current = scenario.id
+    trackSafely(analytics, { event: 'case_viewed', scenarioId: scenario.id })
+  }, [analytics, scenario.id])
+
+  useEffect(() => {
+    trackedTransitions.current.clear()
+  }, [scenario.id, scenario.contentVersion])
 
   useEffect(() => {
     const epoch = sourceEpoch.current + 1
@@ -336,7 +341,7 @@ export default function App({ progressRepository }: AppProps) {
 
       if (!authenticatedUserId || !progressRepository) {
         setRemoteCheckpoint(null)
-        setModel(initialModel(storage))
+        setModel(initialModel(scenario, storage))
         setSourceStatus('ready')
         setActiveSourceKey(desiredSourceKey)
         return
@@ -347,7 +352,7 @@ export default function App({ progressRepository }: AppProps) {
       try {
         const response = await progressRepository.load(scenario.id, scenario.contentVersion)
         if (!active || sourceEpoch.current !== epoch) return
-        const resolved = resolveRemoteResponse(response)
+        const resolved = resolveRemoteResponse(scenario, response)
         if (resolved.kind === 'conflict') {
           setSourceStatus('load-error')
           return
@@ -377,7 +382,7 @@ export default function App({ progressRepository }: AppProps) {
     })()
 
     return () => { active = false }
-  }, [authLoading, authenticatedUserId, desiredSourceKey, progressRepository, storage])
+  }, [authLoading, authenticatedUserId, desiredSourceKey, progressRepository, scenario, storage])
 
   useEffect(() => {
     if (!manageFocus) return
@@ -390,14 +395,31 @@ export default function App({ progressRepository }: AppProps) {
     setModel(next)
   }
 
-  function adoptRemoteProgress(response: CareerGameProgressResponse, message: string): boolean {
-    const resolved = resolveRemoteResponse(response)
+  function trackTransition(key: string, event: ValidationAnalyticsEvent): void {
+    if (trackedTransitions.current.has(key)) return
+    trackedTransitions.current.add(key)
+    trackSafely(analytics, event)
+  }
+
+  function trackGameToLibrary(): void {
+    trackSafely(analytics, {
+      event: 'cross_product_link_clicked',
+      scenarioId: scenario.id,
+      direction: 'career_game_to_library',
+    })
+  }
+
+  function adoptRemoteProgress(
+    response: CareerGameProgressResponse,
+    message: string,
+  ): 'progress' | 'reset-required' | 'client-update-required' | false {
+    const resolved = resolveRemoteResponse(scenario, response)
     if (resolved.kind === 'client-update-required') {
       setClientUpdateRequired(resolved)
       setResetRequired(null)
       setRemoteCheckpoint(null)
       setSourceStatus('client-update-required')
-      return true
+      return 'client-update-required'
     }
     if (resolved.kind === 'reset-required') {
       setResetRequired(resolved.requirement)
@@ -407,7 +429,7 @@ export default function App({ progressRepository }: AppProps) {
         revision: resolved.requirement.revision,
       })
       setSourceStatus('reset-required')
-      return true
+      return 'reset-required'
     }
     if (resolved.kind !== 'progress') return false
     setClientUpdateRequired(null)
@@ -415,12 +437,15 @@ export default function App({ progressRepository }: AppProps) {
     setRemoteCheckpoint(resolved.checkpoint)
     setSourceStatus('ready')
     moveTo(resolved.model, message)
-    return true
+    return 'progress'
   }
 
   function runRemoteProgressAction(
     request: () => Promise<CareerGameProgressResponse>,
     message: string,
+    onProgress?: (
+      progress: Extract<ResolvedRemoteResponse, { kind: 'progress' }>,
+    ) => void,
   ) {
     if (!progressRepository || actionInFlight.current) return
     const epoch = sourceEpoch.current
@@ -434,7 +459,7 @@ export default function App({ progressRepository }: AppProps) {
         if (response.kind === 'conflict') {
           const latest = await progressRepository.load(scenario.id, scenario.contentVersion)
           if (sourceEpoch.current !== epoch) return
-          const resolved = resolveRemoteResponse(latest)
+          const resolved = resolveRemoteResponse(scenario, latest)
           if (resolved.kind === 'none') {
             setRemoteCheckpoint(null)
             moveTo(resolved.model, '最新の進行を読み込みました。')
@@ -445,7 +470,12 @@ export default function App({ progressRepository }: AppProps) {
           }
           return
         }
-        if (!adoptRemoteProgress(response, message)) throw new Error('unexpected progress response')
+        const adopted = adoptRemoteProgress(response, message)
+        if (!adopted) throw new Error('unexpected progress response')
+        if (adopted === 'progress' && onProgress) {
+          const resolved = resolveRemoteResponse(scenario, response)
+          if (resolved.kind === 'progress') onProgress(resolved)
+        }
       })
       .catch(() => {
         if (sourceEpoch.current === epoch) setActionError(true)
@@ -463,12 +493,25 @@ export default function App({ progressRepository }: AppProps) {
       runRemoteProgressAction(
         () => progressRepository!.start(scenario.id, scenario.contentVersion),
         'FILE 01を開始しました。',
+        (progress) => {
+          if (progress.model.view !== 'playing' || progress.model.gameState.history.length !== 0) {
+            return
+          }
+          trackedTransitions.current.clear()
+          trackTransition(`started:${progress.checkpoint.checkpointId}`, {
+            event: 'case_started',
+            scenarioId: scenario.id,
+          })
+        },
       )
       return
     }
+    if (trackedTransitions.current.has('started:guest')) return
     const gameState = createInitialState(scenario)
     if (storage) saveGameSession(scenario, { state: gameState }, storage)
+    trackedTransitions.current.clear()
     moveTo({ view: 'playing', gameState }, 'FILE 01を開始しました。')
+    trackTransition('started:guest', { event: 'case_started', scenarioId: scenario.id })
   }
 
   function selectChoice(event: MouseEvent<HTMLButtonElement>) {
@@ -480,6 +523,13 @@ export default function App({ progressRepository }: AppProps) {
         setActionError(true)
         return
       }
+      const transitionKey = [
+        'outcome',
+        remoteCheckpoint.checkpointId,
+        remoteCheckpoint.revision,
+        currentScene.id,
+        choiceId,
+      ].join(':')
       runRemoteProgressAction(
         () =>
           progressRepository!.choose(
@@ -491,9 +541,30 @@ export default function App({ progressRepository }: AppProps) {
             remoteCheckpoint.revision,
           ),
         '判断の結果と解説を表示しました。',
+        (progress) => {
+          const outcome = progress.model.pendingOutcomeId
+            ? scenario.outcomes.find(
+                (candidate) => candidate.id === progress.model.pendingOutcomeId,
+              )
+            : undefined
+          if (progress.model.view !== 'feedback' || !outcome) return
+          trackTransition(transitionKey, {
+            event: 'case_outcome',
+            scenarioId: scenario.id,
+            outcomeCategory: outcome.category,
+          })
+        },
       )
       return
     }
+    const transitionKey = [
+      'outcome',
+      'guest',
+      model.gameState.history.length,
+      currentScene.id,
+      choiceId,
+    ].join(':')
+    if (trackedTransitions.current.has(transitionKey)) return
     const result = applyChoice(scenario, model.gameState, {
       scenarioId: scenario.id,
       contentVersion: scenario.contentVersion,
@@ -512,6 +583,11 @@ export default function App({ progressRepository }: AppProps) {
       { view: 'feedback', gameState: result.state, pendingOutcomeId: result.outcome.id },
       `${categoryLabels[result.outcome.category]}。結果と解説を表示しました。`,
     )
+    trackTransition(transitionKey, {
+      event: 'case_outcome',
+      scenarioId: scenario.id,
+      outcomeCategory: result.outcome.category,
+    })
   }
 
   function continueAfterFeedback() {
@@ -531,6 +607,13 @@ export default function App({ progressRepository }: AppProps) {
         model.gameState.status === 'completed'
           ? '五つのファイルを完了しました。'
           : `FILE ${formatFileNumber(model.gameState.history.length + 1)}へ進みました。`,
+        (progress) => {
+          if (progress.model.view !== 'complete') return
+          trackTransition(
+            `completed:${progress.checkpoint.checkpointId}:${progress.checkpoint.revision}`,
+            { event: 'case_completed', scenarioId: scenario.id },
+          )
+        },
       )
       return
     }
@@ -542,9 +625,16 @@ export default function App({ progressRepository }: AppProps) {
         ? '五つのファイルを完了しました。'
         : `FILE ${formatFileNumber(model.gameState.history.length + 1)}へ進みました。`,
     )
+    if (view === 'complete') {
+      trackTransition(`completed:guest:${model.gameState.history.length}`, {
+        event: 'case_completed',
+        scenarioId: scenario.id,
+      })
+    }
   }
 
   function replayCase() {
+    const replayedCompletedCase = visibleSourceStatus === 'ready' && model.view === 'complete'
     if (usesRemoteProgress) {
       if (!progressRepository || actionInFlight.current) return
       const checkpoint = remoteCheckpoint
@@ -569,7 +659,7 @@ export default function App({ progressRepository }: AppProps) {
           if (response.kind === 'conflict') {
             const latest = await progressRepository.load(scenario.id, scenario.contentVersion)
             if (sourceEpoch.current !== epoch) return
-            const resolved = resolveRemoteResponse(latest)
+            const resolved = resolveRemoteResponse(scenario, latest)
             if (resolved.kind === 'none') {
               setResetRequired(null)
               setRemoteCheckpoint(null)
@@ -595,10 +685,17 @@ export default function App({ progressRepository }: AppProps) {
           setClientUpdateRequired(null)
           setRemoteCheckpoint(null)
           setSourceStatus('ready')
+          trackedTransitions.current.clear()
           moveTo(
             { view: 'intro', gameState: createInitialState(scenario) },
             '記録をリセットしました。ケースを最初から開始できます。',
           )
+          if (replayedCompletedCase) {
+            trackTransition(
+              `replayed:${checkpoint.checkpointId}:${checkpoint.revision}`,
+              { event: 'case_replayed', scenarioId: scenario.id },
+            )
+          }
         })
         .catch(() => {
           if (sourceEpoch.current === epoch) setActionError(true)
@@ -611,11 +708,17 @@ export default function App({ progressRepository }: AppProps) {
         })
       return
     }
+    const replayKey = `replayed:guest:${model.gameState.history.length}`
+    if (replayedCompletedCase && trackedTransitions.current.has(replayKey)) return
     if (storage) clearGameSession(scenario, storage)
+    trackedTransitions.current.clear()
     moveTo(
       { view: 'intro', gameState: createInitialState(scenario) },
       '記録をリセットしました。ケースを最初から開始できます。',
     )
+    if (replayedCompletedCase) {
+      trackTransition(replayKey, { event: 'case_replayed', scenarioId: scenario.id })
+    }
   }
 
   function retryRemoteLoad() {
@@ -628,7 +731,7 @@ export default function App({ progressRepository }: AppProps) {
       .load(scenario.id, scenario.contentVersion)
       .then((response) => {
         if (sourceEpoch.current !== epoch) return
-        const resolved = resolveRemoteResponse(response)
+        const resolved = resolveRemoteResponse(scenario, response)
         if (resolved.kind === 'conflict') throw new Error('unexpected load conflict')
         if (resolved.kind === 'client-update-required') {
           setClientUpdateRequired(resolved)
@@ -919,7 +1022,10 @@ export default function App({ progressRepository }: AppProps) {
         {pendingOutcome.libraryLinks?.[0] ? (
           <aside className="library-follow-up" aria-label="関連するLibraryコンテンツ">
             <p className="section-label">Continue learning</p>
-            <a href={libraryLinkHref(pendingOutcome.libraryLinks[0])}>
+            <a
+              href={libraryLinkHref(pendingOutcome.libraryLinks[0], libraryOriginValue)}
+              onClick={trackGameToLibrary}
+            >
               Libraryで関連内容を読む
               <span aria-hidden="true">→</span>
             </a>
@@ -1021,15 +1127,11 @@ export default function App({ progressRepository }: AppProps) {
         本文へスキップ
       </a>
 
-      <header className="career-game-header">
-        <div className="career-game-brand">
-          <span className="career-game-brand__product" lang="en">
-            Career Game
-          </span>
-          <span className="career-game-brand__platform">Business Japanese Hub</span>
-        </div>
-        <AccountControl remotePersistenceAvailable={Boolean(progressRepository)} />
-      </header>
+      <ProductHeader
+        libraryOriginValue={libraryOriginValue}
+        onLibraryClick={trackGameToLibrary}
+        account={<AccountControl remotePersistenceAvailable={Boolean(progressRepository)} />}
+      />
 
       <p className="sr-only" aria-live="polite" aria-atomic="true">
         {announcement}
@@ -1055,7 +1157,7 @@ export default function App({ progressRepository }: AppProps) {
               completedFiles={progressCompletedFiles}
             />
             <div className="game-stage">
-              <MeterReadout gameState={model.gameState} />
+              <MeterReadout scenario={scenario} gameState={model.gameState} />
               {model.view === 'playing' ? renderScene() : null}
               {model.view === 'feedback' ? renderFeedback() : null}
               {model.view === 'complete' ? renderCompletion() : null}
