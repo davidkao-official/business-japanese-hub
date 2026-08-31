@@ -132,8 +132,10 @@ Browser 沒有 INSERT／UPDATE／DELETE grant；RLS owner policy 使用
 
 Game 的 `libraryLinks` 只攜帶 stable Book/Chapter/Block ids。canonical Library 的
 `/library-link` route 由目前 released catalog 解析成 slug route；未知／被移除／不相符的
-target 顯示 unavailable surface，不 crash、不猜 fallback。Game 只產生 canonical Library
-origin link；Library 不依賴 Game runtime availability。
+target 顯示 unavailable surface，不 crash、不猜 fallback。有效 block target 在 client-side
+route 完成且 readable block mount 後 scroll 並 focus 該 stable fragment；未 mount 的 gated
+target 不會洩漏內容。Game 只產生 canonical Library origin link；Library 不依賴 Game runtime
+availability。
 
 Library evidence function沿用 canonical `PUBLIC_SITE_URL` exact-origin CORS。Career Game
 function只接受 dedicated optional `CAREER_GAME_SITE_URL` exact origin；未設定時 browser
