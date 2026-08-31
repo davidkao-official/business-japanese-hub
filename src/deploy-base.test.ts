@@ -109,6 +109,9 @@ describe('deployment base contract', () => {
         baseUrl,
       ),
     )
+    expect(fetcher).toHaveBeenCalledWith(
+      new URL('purchase/result?order=deployment-smoke', baseUrl),
+    )
   })
 
   it('smokes the Career Game root, stable case, and graceful unknown-case fallback', async () => {

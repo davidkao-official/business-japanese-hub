@@ -16,6 +16,7 @@ import { careerGameCaseLinkHref } from '../lib/cross-product/careerGame'
 
 const CURRENT_PLAYABLE_SCENARIO_ID = 'rookie-survival'
 const browserValidationAnalytics = createBrowserValidationAnalytics({
+  functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
 })
 

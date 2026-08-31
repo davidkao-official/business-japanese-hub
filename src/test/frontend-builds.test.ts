@@ -8,6 +8,7 @@ const libraryOutput = join(process.cwd(), 'dist')
 const careerGameOutput = join(process.cwd(), 'dist-career-game')
 const publicSupabaseUrl = 'https://shared-browser-config.supabase.co'
 const publicSupabaseKey = 'public-anon-key-sentinel'
+const publicFunctionsBaseUrl = 'https://functions-public-config.example/functions/v1'
 const publicLibraryOrigin = 'https://library-public-config.example'
 const publicCareerGameOrigin = 'https://career-game-public-config.example'
 const serverSecretNames = [
@@ -38,6 +39,7 @@ const buildEnvironment = {
   ...process.env,
   VITE_SUPABASE_URL: publicSupabaseUrl,
   VITE_SUPABASE_ANON_KEY: publicSupabaseKey,
+  VITE_EDGE_FUNCTIONS_BASE_URL: publicFunctionsBaseUrl,
   VITE_LIBRARY_ORIGIN: publicLibraryOrigin,
   VITE_CAREER_GAME_ORIGIN: publicCareerGameOrigin,
   ...Object.fromEntries(serverSecretNames.map((name, index) => [name, serverSecretValues[index]])),
@@ -148,6 +150,7 @@ describe('dual-frontend build topology', () => {
 
       expect(artifact).toContain(publicSupabaseUrl)
       expect(artifact).toContain(publicSupabaseKey)
+      expect(artifact).toContain(publicFunctionsBaseUrl)
       for (const secret of serverSecretValues) expect(artifact).not.toContain(secret)
       for (const secretName of serverSecretNames) expect(artifact).not.toContain(secretName)
     }

@@ -17,6 +17,7 @@ const createProgressRepository = progressClient
       createCareerGameProgressRepository(progressClient, scenario)
   : undefined
 const analytics = createBrowserValidationAnalytics({
+  functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
 })
 const root = document.getElementById('root')

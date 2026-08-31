@@ -22,6 +22,7 @@ const SMOKE_CONTRACTS: Record<DeploymentProduct, DeploymentSmokeContract> = {
       'books/meeting-japanese',
       'books/meeting-japanese/read/meeting-purpose',
       'library-link?bookId=book-sample-bj-keigo&chapterId=ch-2',
+      'purchase/result?order=deployment-smoke',
     ],
     fingerprint: 'ビジネスシーンで役立つ日本語を学ぶためのプラットフォームです。',
     label: 'Library',
