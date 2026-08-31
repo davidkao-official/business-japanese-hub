@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
+  LEARNING_EVIDENCE_REFERENCE_MAX_LENGTH,
   validateLearningSkillIds,
   type LearningSkillId,
 } from '@business-japanese-hub/learning';
@@ -58,6 +59,21 @@ function requireNonEmptyString(
   return value;
 }
 
+function learningEvidenceReferenceProblem(value: unknown): string | null {
+  if (typeof value !== 'string' || value.length === 0) return 'must be a non-empty string';
+  if (value.length > LEARNING_EVIDENCE_REFERENCE_MAX_LENGTH) {
+    return `must be at most ${LEARNING_EVIDENCE_REFERENCE_MAX_LENGTH} characters`;
+  }
+  if (value.trim() !== value) return 'must not have leading or trailing whitespace';
+  return null;
+}
+
+function requireLearningEvidenceReference(value: unknown, path: string): string {
+  const problem = learningEvidenceReferenceProblem(value);
+  if (problem) throw new Error(`${path} ${problem}`);
+  return value as string;
+}
+
 function releaseSlugs(root: string): string[] {
   const releasesRoot = join(root, 'content-dist', 'books');
   if (!existsSync(releasesRoot)) return [];
@@ -81,7 +97,10 @@ function readPublishedRelease(root: string, slug: string): PublishedRelease {
     throw new Error(`${displayPath} preview.chapters must be an array`);
   }
 
-  const descriptorId = requireNonEmptyString(raw.descriptor.id, `${displayPath} descriptor.id`);
+  const descriptorId = requireLearningEvidenceReference(
+    raw.descriptor.id,
+    `${displayPath} descriptor.id`,
+  );
   const descriptorSlug = requireNonEmptyString(raw.descriptor.slug, `${displayPath} descriptor.slug`);
   if (descriptorSlug !== slug) {
     throw new Error(`${displayPath} descriptor.slug must equal "${slug}"`);
@@ -90,7 +109,7 @@ function readPublishedRelease(root: string, slug: string): PublishedRelease {
     throw new Error(`${displayPath} descriptor.id must begin with "${slug}@"`);
   }
 
-  const bookId = requireNonEmptyString(raw.book.id, `${displayPath} book.id`);
+  const bookId = requireLearningEvidenceReference(raw.book.id, `${displayPath} book.id`);
   const bookSlug = requireNonEmptyString(raw.book.slug, `${displayPath} book.slug`);
   if (bookSlug !== slug) throw new Error(`${displayPath} book.slug must equal "${slug}"`);
   if (!Array.isArray(raw.book.chapters)) {
@@ -102,7 +121,7 @@ function readPublishedRelease(root: string, slug: string): PublishedRelease {
   const chapters = raw.book.chapters.map((chapter, index): PublishedChapter => {
     const chapterPath = `${displayPath} book.chapters[${index}]`;
     if (!isRecord(chapter)) throw new Error(`${chapterPath} must be an object`);
-    const id = requireNonEmptyString(chapter.id, `${chapterPath}.id`);
+    const id = requireLearningEvidenceReference(chapter.id, `${chapterPath}.id`);
     const chapterSlug = requireNonEmptyString(chapter.slug, `${chapterPath}.slug`);
     if (seenChapterIds.has(id)) throw new Error(`${displayPath} has duplicate chapter id "${id}"`);
     if (seenChapterSlugs.has(chapterSlug)) {
@@ -215,18 +234,22 @@ function validateCommittedArtifact(raw: unknown): string | null {
   for (const [bookIndex, book] of raw.books.entries()) {
     const bookPath = `books[${bookIndex}]`;
     if (!isRecord(book) || !Array.isArray(book.chapters)) return `${bookPath} must contain chapters`;
-    for (const key of ['bookId', 'bookSlug', 'releaseId'] as const) {
+    for (const key of ['bookSlug'] as const) {
       if (typeof book[key] !== 'string' || book[key].length === 0) {
         return `${bookPath}.${key} must be a non-empty string`;
       }
     }
+    for (const key of ['bookId', 'releaseId'] as const) {
+      const problem = learningEvidenceReferenceProblem(book[key]);
+      if (problem) return `${bookPath}.${key} ${problem}`;
+    }
     for (const [chapterIndex, chapter] of book.chapters.entries()) {
       const chapterPath = `${bookPath}.chapters[${chapterIndex}]`;
       if (!isRecord(chapter)) return `${chapterPath} must be an object`;
-      for (const key of ['chapterId', 'chapterSlug'] as const) {
-        if (typeof chapter[key] !== 'string' || chapter[key].length === 0) {
-          return `${chapterPath}.${key} must be a non-empty string`;
-        }
+      const chapterIdProblem = learningEvidenceReferenceProblem(chapter.chapterId);
+      if (chapterIdProblem) return `${chapterPath}.chapterId ${chapterIdProblem}`;
+      if (typeof chapter.chapterSlug !== 'string' || chapter.chapterSlug.length === 0) {
+        return `${chapterPath}.chapterSlug must be a non-empty string`;
       }
       if (chapter.access !== 'public' && chapter.access !== 'entitled') {
         return `${chapterPath}.access must be "public" or "entitled"`;

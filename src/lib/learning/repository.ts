@@ -5,5 +5,5 @@ export interface RecordChapterOpenedInput {
 
 /** Library-owned write seam; identity and skills are always server-derived. */
 export interface LibraryLearningEvidenceRepository {
-  recordChapterOpened(input: RecordChapterOpenedInput): Promise<void>
+  recordChapterOpened(input: RecordChapterOpenedInput, localIdentityScope: string): Promise<void>
 }

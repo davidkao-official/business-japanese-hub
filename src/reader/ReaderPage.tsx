@@ -31,7 +31,7 @@ function ChapterLearningEvidence({ bookId, chapterId }: { bookId: string; chapte
 
   useEffect(() => {
     if (loading || !userId || !repository) return
-    void repository.recordChapterOpened({ bookId, chapterId }).catch(() => {
+    void repository.recordChapterOpened({ bookId, chapterId }, userId).catch(() => {
       // Learning evidence is best effort and must never interrupt the Reader.
     })
   }, [loading, userId, repository, bookId, chapterId])

@@ -174,6 +174,31 @@ describe('Library learning catalog', () => {
     expect(() => buildLearningCatalog(root)).toThrow(reason);
   });
 
+  it.each([
+    {
+      name: 'book id',
+      options: { bookId: 'b'.repeat(129) },
+      reason:
+        'content-dist/books/alpha/current.json book.id must be at most 128 characters',
+    },
+    {
+      name: 'release id',
+      options: { releaseId: `alpha@${'r'.repeat(123)}` },
+      reason:
+        'content-dist/books/alpha/current.json descriptor.id must be at most 128 characters',
+    },
+    {
+      name: 'chapter id',
+      options: { chapters: [{ id: 'c'.repeat(129), slug: 'opening' }] },
+      reason:
+        'content-dist/books/alpha/current.json book.chapters[0].id must be at most 128 characters',
+    },
+  ])('rejects an oversized evidence $name during catalog generation', ({ options, reason }) => {
+    const root = fixtureRoot();
+    addRelease(root, 'alpha', options);
+    expect(() => buildLearningCatalog(root)).toThrow(reason);
+  });
+
   it('writes the canonical artifact and detects stale or malformed committed content', () => {
     const root = fixtureRoot();
     addRelease(root, 'alpha', {

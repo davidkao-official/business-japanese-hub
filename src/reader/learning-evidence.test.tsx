@@ -36,10 +36,13 @@ describe('Library chapter-open learning evidence', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: '依頼と締めの表現' })).toBeInTheDocument()
     await waitFor(() =>
-      expect(evidenceRepository.recordChapterOpened).toHaveBeenCalledWith({
-        bookId: 'book-sample-bj-email',
-        chapterId: 'bm-ch-3',
-      }),
+      expect(evidenceRepository.recordChapterOpened).toHaveBeenCalledWith(
+        {
+          bookId: 'book-sample-bj-email',
+          chapterId: 'bm-ch-3',
+        },
+        'u-learning',
+      ),
     )
   })
 

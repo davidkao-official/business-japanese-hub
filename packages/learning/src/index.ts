@@ -30,6 +30,9 @@ export type LearningSkill = (typeof LEARNING_SKILLS)[number];
 export type LearningSkillId = LearningSkill['id'];
 export type LearningSkillCategory = LearningSkill['category'];
 
+/** Matches the durable evidence columns and Edge request/catalog boundary. */
+export const LEARNING_EVIDENCE_REFERENCE_MAX_LENGTH = 128;
+
 export const LEARNING_SKILL_IDS: readonly LearningSkillId[] = LEARNING_SKILLS.map(
   ({ id }) => id,
 );

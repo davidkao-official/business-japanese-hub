@@ -43,7 +43,8 @@ Library skill association 寫在 `books/<slug>/manifest.json` 的
 `content-dist/books/*/current.json` 產生 deterministic
 `content-dist/learning-catalog.json`。每個 released Book/Chapter 都帶 stable id、目前
 release id、route slug 與 skill ids；沒有 timestamp 或內容原文。build verification
-拒絕未知 Book/Chapter、未知或重複 skill，以及 stale artifact。新書只需內容、manifest
+拒絕未知 Book/Chapter、未知或重複 skill、超過 durable evidence boundary 128 字元或前後
+帶空白的 Book/Chapter/release reference，以及 stale artifact。新書只需內容、manifest
 metadata 與既有 generation workflow，不需增加 platform code branch。
 
 Library 的 evidence 語意只有 `chapter_opened`：已驗證 user 開啟一個實際可閱讀章節後，
@@ -51,7 +52,8 @@ Library adapter 送出 `{bookId, chapterId, eventId}`。Edge Function 以 commit
 驗證 reference、derive release id、chapter access 與 skill ids；`access: entitled` 的章節
 還必須找到該 verified user 的 active Book entitlement，不能只靠合法 id 偽造已閱讀。
 Browser 不提供可信 user、skill、release、access 或 timestamp。匿名閱讀完全不呼叫此
-API，且 evidence failure 不得中斷 Reader。
+API，且 evidence failure 不得中斷 Reader。Browser 內 pending request 的重複 effect 只以
+local stable user identity 分流；該 identity 永不送往 Edge，也不參與 server authorization。
 
 ## 3. Authenticated Career Game progress
 
@@ -107,7 +109,8 @@ model。未來只有在有實際 consumer 與 documented deterministic rule 時�
 
 Library 的一次 `chapter_opened` 以「當前 stable user id + 當前 Book/Chapter mount」為前端
 觸發邊界；Supabase token refresh 即使產生新 user object，也不得在章節沒有重新開啟時
-製造第二個 event。
+製造第二個 event；相反地，前一位 user 的 write 尚未完成時切換帳號，不得吞掉新 user
+的 opening。
 
 ## 5. Authorization
 

@@ -1,5 +1,8 @@
 import { authenticateBearer } from '../_shared/auth.ts';
-import { validateLearningSkillIds } from '@business-japanese-hub/learning';
+import {
+  LEARNING_EVIDENCE_REFERENCE_MAX_LENGTH,
+  validateLearningSkillIds,
+} from '@business-japanese-hub/learning';
 import type { DbClient } from '../_shared/db.ts';
 import {
   badRequest,
@@ -43,7 +46,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isIdentifier(value: unknown): value is string {
-  return typeof value === 'string' && value.length <= 128 && value.trim().length > 0;
+  return typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= LEARNING_EVIDENCE_REFERENCE_MAX_LENGTH &&
+    value.trim() === value;
 }
 
 function parseRequest(bodyText: string): { bookId: string; chapterId: string; eventId: string } | null {
@@ -68,9 +74,7 @@ function validCatalog(value: unknown): value is LibraryLearningCatalog {
     if (
       !isRecord(book) ||
       !isIdentifier(book.bookId) ||
-      typeof book.releaseId !== 'string' ||
-      book.releaseId.length === 0 ||
-      book.releaseId.length > 128 ||
+      !isIdentifier(book.releaseId) ||
       !Array.isArray(book.chapters) ||
       bookIds.has(book.bookId)
     ) {

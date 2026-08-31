@@ -229,6 +229,48 @@ describe('library-learning-evidence handler', () => {
     expect(mock.rpcCalls('record_library_learning_evidence')).toHaveLength(0);
   });
 
+  it.each([
+    {
+      name: 'book id',
+      catalog: {
+        schemaVersion: 1,
+        books: [{ ...catalog.books[0], bookId: 'b'.repeat(129) }],
+      },
+    },
+    {
+      name: 'release id',
+      catalog: {
+        schemaVersion: 1,
+        books: [{ ...catalog.books[0], releaseId: 'r'.repeat(129) }],
+      },
+    },
+    {
+      name: 'chapter id',
+      catalog: {
+        schemaVersion: 1,
+        books: [
+          {
+            ...catalog.books[0],
+            chapters: [{ ...catalog.books[0]!.chapters[0], chapterId: 'c'.repeat(129) }],
+          },
+        ],
+      },
+    },
+  ])('fails closed when the authoritative $name exceeds the durable limit', async ({ catalog }) => {
+    const { mock, deps } = setup();
+    const result = await handleLibraryLearningEvidence(
+      handlerRequest(
+        'POST',
+        'https://test.supabase.co/functions/v1/library-learning-evidence',
+        JSON.stringify({ bookId: 'book-a', chapterId: 'chapter-one', eventId: EVENT_ID }),
+        bearerHeaders('jwt-1'),
+      ),
+      { ...deps, catalog: catalog as LibraryLearningCatalog },
+    );
+    expect(result.status).toBe(500);
+    expect(mock.rpcCalls('record_library_learning_evidence')).toHaveLength(0);
+  });
+
   it('reports an idempotent replay as zero new rows', async () => {
     const { result } = await call(
       { bookId: 'book-a', chapterId: 'chapter-one', eventId: EVENT_ID },
