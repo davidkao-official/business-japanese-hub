@@ -29,7 +29,7 @@ The root build now validates both frontend boundaries in one checkout:
 
 ```text
 pnpm build
-├── verify committed Library Book releases
+├── verify committed Library Book releases and learning catalog
 ├── typecheck all projects
 ├── build Library → dist/
 └── build Career Game → dist-career-game/
@@ -52,6 +52,8 @@ Frontend production environment variables:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - optional `VITE_EDGE_FUNCTIONS_BASE_URL` (otherwise derived from the Supabase URL)
+- optional Career Game `VITE_LIBRARY_ORIGIN` for an explicitly reviewed
+  non-production preview; omission uses the canonical Library origin
 
 Both frontend builds consume the same repository-root public Supabase values;
 Career Game's Vite config sets `envDir` accordingly. Only `VITE_` values are
@@ -77,6 +79,15 @@ users may reauthenticate against the same `auth.users` identity; cross-origin
 session sharing is not assumed. Review redirects explicitly rather than widening
 payment CORS or changing `PUBLIC_SITE_URL`. See
 `docs/shared-backend-and-identity.md` for the full session matrix.
+
+The authenticated `career-game-progress` function has its own optional exact
+`CAREER_GAME_SITE_URL` CORS seam. Leave it unset while the Career Game production
+origin is undecided: browser calls then fail closed, while the independently
+buildable anonymous experience remains device-local. Once #60 provides an
+approved origin, set that exact origin and its matching public Supabase values;
+do not add it to payment CORS or repurpose `PUBLIC_SITE_URL`. The
+`library-learning-evidence` function continues to use the canonical Library
+`PUBLIC_SITE_URL` and independently verifies paid-chapter entitlement.
 If a custom domain later becomes canonical, update Cloudflare, `PUBLIC_SITE_URL`,
 Auth redirects, CORS evidence, payment return URLs, email links, and this runbook
 together rather than running two canonical origins.
@@ -148,6 +159,10 @@ For the smallest first-revenue profile, enable PayPal/USD plus Resend only:
 - `LEGAL_SELLER_NAME`
 - generated `SCHEDULED_JOB_SECRET`
 
+`CAREER_GAME_SITE_URL` is deliberately optional and is not a paid-launch secret
+or a reason to choose a Career Game hostname here. If it is absent,
+`career-game-progress` rejects browser-origin requests by design.
+
 Supabase supplies `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Never expose a
 service-role / secret key in Cloudflare Pages, GitHub repository variables, or
 client code.
@@ -204,7 +219,9 @@ supabase db push --linked
 supabase functions deploy --project-ref <production-project-ref>
 ```
 
-Deploy using the JWT settings committed in `supabase/config.toml`.
+Deploy using the JWT settings committed in `supabase/config.toml`. Both
+`career-game-progress` and `library-learning-evidence` require verified JWTs;
+their service-role persistence RPCs are not browser-executable.
 
 ### 2.6 Configure scheduled jobs
 

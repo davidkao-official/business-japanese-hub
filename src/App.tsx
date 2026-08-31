@@ -8,6 +8,7 @@ import {
 import { BookPage } from './app/BookPage'
 import { HomePage } from './app/HomePage'
 import { LibraryPage } from './app/LibraryPage'
+import { LibraryLinkPage } from './app/LibraryLinkPage'
 import { NotFoundPage } from './app/NotFoundPage'
 import { PurchaseResultPage } from './app/PurchaseResultPage'
 import { LegalIndexPage } from './app/legal/LegalIndexPage'
@@ -21,6 +22,9 @@ import { PurchaseProvider } from './lib/purchase/PurchaseContext'
 import { createCheckoutPurchaseExecutor } from './lib/purchase/executor'
 import { configureEdgeFunctionsAuth } from './lib/purchase/executor'
 import type { UserStateRepository } from './lib/persistence/repository'
+import { LearningEvidenceProvider } from './lib/learning/LearningEvidenceContext'
+import type { LibraryLearningEvidenceRepository } from './lib/learning/repository'
+import { SupabaseLibraryLearningEvidenceRepository } from './lib/learning/supabase'
 
 /**
  * Platform bootstrap: one Supabase client (when the environment is configured)
@@ -31,6 +35,7 @@ import type { UserStateRepository } from './lib/persistence/repository'
 function createAppServices(): {
   authClient: AuthClient
   repository: UserStateRepository | null
+  learningEvidenceRepository: LibraryLearningEvidenceRepository | null
   getAccessToken: () => Promise<string | null>
 } {
   const platform = createBrowserPlatformServices('library')
@@ -39,6 +44,7 @@ function createAppServices(): {
     return {
       authClient: platform.authClient,
       repository: null,
+      learningEvidenceRepository: null,
       getAccessToken: async () => null,
     }
   }
@@ -51,6 +57,7 @@ function createAppServices(): {
   return {
     authClient: platform.authClient,
     repository: new SupabaseUserStateRepository(client),
+    learningEvidenceRepository: new SupabaseLibraryLearningEvidenceRepository(client),
     getAccessToken: async () => (await client.auth.getSession()).data.session?.access_token ?? null,
   }
 }
@@ -72,27 +79,30 @@ export default function App() {
   return (
     <AppearanceProvider>
       <AuthProvider authClient={services.authClient}>
-        <UserStateProvider repository={services.repository}>
-          <PurchaseProvider executor={purchaseExecutor}>
-            <BrowserRouter basename={routerBasename}>
-              <Routes>
-                <Route element={<Layout />}>
-                  <Route index element={<HomePage />} />
-                  <Route path="library" element={<LibraryPage />} />
-                  <Route path="books/:slug" element={<BookPage />} />
-                  <Route path="purchase/result" element={<PurchaseResultPage />} />
-                  <Route path="legal" element={<LegalIndexPage />} />
-                  <Route path="legal/:slug" element={<LegalPage />} />
-                  <Route path="*" element={<NotFoundPage />} />
-                </Route>
-                {/* The reader is an immersive surface — it renders OUTSIDE the site
-                    chrome (no Header/Footer) and owns the whole viewport. */}
-                <Route path="books/:slug/read" element={<ReaderPage />} />
-                <Route path="books/:slug/read/:chapterSlug" element={<ReaderPage />} />
-              </Routes>
-            </BrowserRouter>
-          </PurchaseProvider>
-        </UserStateProvider>
+        <LearningEvidenceProvider repository={services.learningEvidenceRepository}>
+          <UserStateProvider repository={services.repository}>
+            <PurchaseProvider executor={purchaseExecutor}>
+              <BrowserRouter basename={routerBasename}>
+                <Routes>
+                  <Route element={<Layout />}>
+                    <Route index element={<HomePage />} />
+                    <Route path="library" element={<LibraryPage />} />
+                    <Route path="library-link" element={<LibraryLinkPage />} />
+                    <Route path="books/:slug" element={<BookPage />} />
+                    <Route path="purchase/result" element={<PurchaseResultPage />} />
+                    <Route path="legal" element={<LegalIndexPage />} />
+                    <Route path="legal/:slug" element={<LegalPage />} />
+                    <Route path="*" element={<NotFoundPage />} />
+                  </Route>
+                  {/* The reader is an immersive surface — it renders OUTSIDE the site
+                      chrome (no Header/Footer) and owns the whole viewport. */}
+                  <Route path="books/:slug/read" element={<ReaderPage />} />
+                  <Route path="books/:slug/read/:chapterSlug" element={<ReaderPage />} />
+                </Routes>
+              </BrowserRouter>
+            </PurchaseProvider>
+          </UserStateProvider>
+        </LearningEvidenceProvider>
       </AuthProvider>
     </AppearanceProvider>
   )

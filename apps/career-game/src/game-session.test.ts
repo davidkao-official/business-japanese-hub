@@ -9,6 +9,7 @@ import {
   clearGameSession,
   gameSessionStorageKey,
   loadGameSession,
+  parseGameSessionSnapshot,
   saveGameSession,
 } from './game-session'
 
@@ -48,6 +49,23 @@ describe('versioned anonymous game session', () => {
       state: result.state,
       pendingOutcomeId: result.outcome.id,
     })
+  })
+
+  it('uses the same strict snapshot parser for non-local persistence', () => {
+    const result = firstTransition()
+
+    expect(
+      parseGameSessionSnapshot(rookieSurvivalScenario, {
+        state: result.state,
+        pendingOutcomeId: result.outcome.id,
+      }),
+    ).toEqual({ state: result.state, pendingOutcomeId: result.outcome.id })
+    expect(
+      parseGameSessionSnapshot(rookieSurvivalScenario, {
+        state: result.state,
+        pendingOutcomeId: 'forged-outcome',
+      }),
+    ).toBeNull()
   })
 
   it('fails closed and removes malformed, stale, or inconsistent checkpoints', () => {

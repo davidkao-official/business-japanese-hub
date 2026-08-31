@@ -56,6 +56,10 @@ export interface AppStrings {
     loadFailed: string
     retry: string
   }
+  libraryLink: {
+    title: string
+    message: string
+  }
   book: {
     title: string
     lead: string
@@ -265,6 +269,10 @@ const ja: AppStrings = {
     loading: '読み込み中…',
     loadFailed: 'ライブラリの読み込み中にエラーが発生しました。',
     retry: '再試行',
+  },
+  libraryLink: {
+    title: '関連する読書が見つかりません',
+    message: 'この関連コンテンツは、現在のライブラリでは利用できません。',
   },
   book: {
     title: '書籍詳細',
@@ -478,6 +486,10 @@ const en: AppStrings = {
     loadFailed: 'Something went wrong while loading your library.',
     retry: 'Retry',
   },
+  libraryLink: {
+    title: 'Related reading is unavailable',
+    message: 'This related content is not available in the current Library catalog.',
+  },
   book: {
     title: 'Book Details',
     lead: 'Details for this book are coming soon.',
@@ -689,6 +701,10 @@ const zhTW: AppStrings = {
     loading: '載入中…',
     loadFailed: '載入書庫時發生錯誤。',
     retry: '重試',
+  },
+  libraryLink: {
+    title: '找不到相關讀物',
+    message: '此相關內容目前不在書庫目錄中。',
   },
   book: {
     title: '書籍詳情',

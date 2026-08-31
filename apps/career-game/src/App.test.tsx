@@ -1,14 +1,35 @@
 import '@testing-library/jest-dom/vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { applyChoice, createInitialState } from '@business-japanese-hub/career-game'
 import { AuthProvider } from '@business-japanese-hub/platform-auth'
 import type { AuthClient, SessionUser } from '@business-japanese-hub/platform-auth'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
+import type {
+  CareerGameProgressRepository,
+  CareerGameProgressResponse,
+} from './career-game-progress'
 import { rookieSurvivalScenario } from './content/rookie-survival'
-import { loadGameSession } from './game-session'
+import { loadGameSession, saveGameSession } from './game-session'
 
-function renderGame(session: SessionUser | null = null) {
+function createRepository(
+  overrides: Partial<CareerGameProgressRepository> = {},
+): CareerGameProgressRepository {
+  return {
+    load: vi.fn().mockResolvedValue({ kind: 'none' }),
+    start: vi.fn().mockResolvedValue({ kind: 'none' }),
+    choose: vi.fn().mockResolvedValue({ kind: 'none' }),
+    acknowledge: vi.fn().mockResolvedValue({ kind: 'none' }),
+    reset: vi.fn().mockResolvedValue({ kind: 'none' }),
+    ...overrides,
+  }
+}
+
+function renderGame(
+  session: SessionUser | null = null,
+  progressRepository?: CareerGameProgressRepository,
+) {
   const authClient: AuthClient = {
     getSession: vi.fn().mockResolvedValue(session),
     signInWithPassword: vi.fn().mockResolvedValue({
@@ -22,15 +43,15 @@ function renderGame(session: SessionUser | null = null) {
   return {
     ...render(
       <AuthProvider authClient={authClient}>
-        <App />
+        <App progressRepository={progressRepository} />
       </AuthProvider>,
     ),
     authClient,
   }
 }
 
-function startCase() {
-  fireEvent.click(screen.getByRole('button', { name: 'ケースを開始' }))
+async function startCase() {
+  fireEvent.click(await screen.findByRole('button', { name: 'ケースを開始' }))
 }
 
 function chooseFirstOption() {
@@ -43,27 +64,27 @@ describe('Career Game playable slice', () => {
     window.localStorage.clear()
   })
 
-  it('introduces the anonymous free case on its own semantic product surface', () => {
+  it('introduces the anonymous free case on its own semantic product surface', async () => {
     renderGame()
 
     expect(screen.getByRole('banner')).toBeInTheDocument()
     expect(screen.getByRole('main')).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { level: 1, name: '新人社員生存戦' }),
+      await screen.findByRole('heading', { level: 1, name: '新人社員生存戦' }),
     ).toBeInTheDocument()
     expect(screen.getByText('Workplace simulation')).toHaveAttribute('lang', 'en')
     expect(screen.getByText('無料・ゲストプレイ')).toBeInTheDocument()
     expect(
       screen.getByText(/判断するたびに、その場の結果と職場語用論の解説を確認/),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'ケースを開始' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: 'ケースを開始' })).toBeEnabled()
   })
 
   it('supports keyboard activation and moves focus across each case view', async () => {
     const user = userEvent.setup()
     renderGame()
 
-    const startButton = screen.getByRole('button', { name: 'ケースを開始' })
+    const startButton = await screen.findByRole('button', { name: 'ケースを開始' })
     startButton.focus()
     await user.keyboard('{Enter}')
     expect(screen.getByRole('heading', { name: '配属初日の挨拶' })).toHaveFocus()
@@ -90,9 +111,9 @@ describe('Career Game playable slice', () => {
     }
   })
 
-  it('plays the five-file golden path through consequence feedback and completion', () => {
+  it('plays the five-file golden path through consequence feedback and completion', async () => {
     renderGame()
-    startCase()
+    await startCase()
 
     for (let file = 1; file <= 5; file += 1) {
       expect(screen.getByText(`FILE ${String(file).padStart(2, '0')} / 05`)).toBeInTheDocument()
@@ -116,37 +137,37 @@ describe('Career Game playable slice', () => {
     expect(saved?.state.history).toHaveLength(5)
   })
 
-  it('restores pending consequence feedback after a reload', () => {
+  it('restores pending consequence feedback after a reload', async () => {
     const firstRender = renderGame()
-    startCase()
+    await startCase()
     chooseFirstOption()
     expect(screen.getByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
     firstRender.unmount()
 
     renderGame()
-    expect(screen.getByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
     expect(screen.getByText('FILE 01 / 05')).toBeInTheDocument()
     expect(document.querySelector('[aria-current="step"]')).toHaveTextContent('配属初日の挨拶')
     fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
     expect(screen.getByText('FILE 02 / 05')).toBeInTheDocument()
   })
 
-  it('resumes the next file after feedback has been acknowledged', () => {
+  it('resumes the next file after feedback has been acknowledged', async () => {
     const firstRender = renderGame()
-    startCase()
+    await startCase()
     chooseFirstOption()
     fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
     expect(screen.getByRole('heading', { name: '曖昧な依頼を受ける' })).toBeInTheDocument()
     firstRender.unmount()
 
     renderGame()
-    expect(screen.getByRole('heading', { name: '曖昧な依頼を受ける' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '曖昧な依頼を受ける' })).toBeInTheDocument()
     expect(screen.getByText('FILE 02 / 05')).toBeInTheDocument()
   })
 
-  it('commits a rapid repeated choice only once', () => {
+  it('commits a rapid repeated choice only once', async () => {
     renderGame()
-    startCase()
+    await startCase()
     const choices = screen.getByRole('group', { name: 'あなたの判断' })
     const choice = within(choices).getAllByRole('button')[0]!
 
@@ -157,9 +178,9 @@ describe('Career Game playable slice', () => {
     expect(saved?.state.history).toHaveLength(1)
   })
 
-  it('clears the checkpoint and returns to the case file on replay', () => {
+  it('clears the checkpoint and returns to the case file on replay', async () => {
     renderGame()
-    startCase()
+    await startCase()
 
     for (let file = 1; file <= 5; file += 1) {
       chooseFirstOption()
@@ -178,13 +199,13 @@ describe('Career Game playable slice', () => {
 
     expect(await screen.findByText('shared@example.com')).toBeInTheDocument()
     expect(screen.getByText('進行はこの端末にのみ保存されます')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'ケースを開始' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: 'ケースを開始' })).toBeEnabled()
   })
 
   it('signs into an existing shared account without blocking guest play', async () => {
     const { authClient } = renderGame()
 
-    fireEvent.click(screen.getByRole('button', { name: '共通アカウントでログイン' }))
+    fireEvent.click(await screen.findByRole('button', { name: '共通アカウントでログイン' }))
     fireEvent.change(screen.getByLabelText('メールアドレス'), {
       target: { value: ' shared@example.com ' },
     })
@@ -205,7 +226,7 @@ describe('Career Game playable slice', () => {
     const { authClient } = renderGame({ id: 'shared-user', email: 'shared@example.com' })
 
     expect(await screen.findByText('shared@example.com')).toBeInTheDocument()
-    startCase()
+    await startCase()
     expect(loadGameSession(rookieSurvivalScenario, window.localStorage)).not.toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'ログアウト' }))
 
@@ -220,7 +241,7 @@ describe('Career Game playable slice', () => {
       new Error('provider trace for private@example.com'),
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '共通アカウントでログイン' }))
+    fireEvent.click(await screen.findByRole('button', { name: '共通アカウントでログイン' }))
     fireEvent.change(screen.getByLabelText('メールアドレス'), {
       target: { value: 'private@example.com' },
     })
@@ -234,5 +255,396 @@ describe('Career Game playable slice', () => {
     )
     expect(screen.queryByText(/provider trace/)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'ケースを開始' })).toBeEnabled()
+  })
+})
+
+const CHECKPOINT_ID = '11111111-1111-4111-8111-111111111111'
+
+function firstRemoteProgress(revision = 2): Extract<CareerGameProgressResponse, { kind: 'progress' }> {
+  const state = createInitialState(rookieSurvivalScenario)
+  const firstScene = rookieSurvivalScenario.scenes.find((scene) => scene.id === state.currentSceneId)
+  if (!firstScene || firstScene.kind !== 'decision') throw new Error('expected decision')
+  const choice = firstScene.choices[0]!
+  const result = applyChoice(rookieSurvivalScenario, state, {
+    scenarioId: rookieSurvivalScenario.id,
+    contentVersion: rookieSurvivalScenario.contentVersion,
+    sceneId: firstScene.id,
+    choiceId: choice.id,
+  })
+  if (result.kind !== 'advanced') throw new Error(result.kind)
+  return {
+    kind: 'progress',
+    scenarioId: rookieSurvivalScenario.id,
+    contentVersion: rookieSurvivalScenario.contentVersion,
+    checkpointId: CHECKPOINT_ID,
+    revision,
+    snapshot: { state: result.state, pendingOutcomeId: result.outcome.id },
+  }
+}
+
+function completedRemoteProgress(
+  revision = 9,
+): Extract<CareerGameProgressResponse, { kind: 'progress' }> {
+  let state = createInitialState(rookieSurvivalScenario)
+  for (let index = 0; index < 5; index += 1) {
+    const scene = rookieSurvivalScenario.scenes.find(
+      (candidate) => candidate.id === state.currentSceneId,
+    )
+    if (!scene || scene.kind !== 'decision') throw new Error('expected decision')
+    const choice = scene.choices[0]!
+    const result = applyChoice(rookieSurvivalScenario, state, {
+      scenarioId: rookieSurvivalScenario.id,
+      contentVersion: rookieSurvivalScenario.contentVersion,
+      sceneId: scene.id,
+      choiceId: choice.id,
+    })
+    if (result.kind !== 'advanced' && result.kind !== 'completed') throw new Error(result.kind)
+    state = result.state
+  }
+  return {
+    kind: 'progress',
+    scenarioId: rookieSurvivalScenario.id,
+    contentVersion: 1,
+    checkpointId: CHECKPOINT_ID,
+    revision,
+    snapshot: { state },
+  }
+}
+
+describe('authenticated Career Game progress', () => {
+  const signedIn = { id: 'shared-user', email: 'shared@example.com' }
+
+  beforeEach(() => {
+    window.localStorage.clear()
+  })
+
+  it('uses an empty remote account without importing or changing a guest checkpoint', async () => {
+    const guestState = createInitialState(rookieSurvivalScenario)
+    saveGameSession(rookieSurvivalScenario, { state: guestState }, window.localStorage)
+    const storageKey = 'business-japanese-hub.career-game.rookie-survival@1'
+    const before = window.localStorage.getItem(storageKey)
+    const repository = createRepository()
+
+    renderGame(signedIn, repository)
+
+    expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    expect(repository.load).toHaveBeenCalledWith('rookie-survival', 1)
+    expect(window.localStorage.getItem(storageKey)).toBe(before)
+    expect(screen.getByText('進行は共通アカウントに保存されます')).toBeInTheDocument()
+  })
+
+  it('swaps between untouched guest and remote sources on sign-in and sign-out', async () => {
+    const repository = createRepository()
+    const { authClient } = renderGame(null, repository)
+    await startCase()
+    expect(screen.getByRole('heading', { name: '配属初日の挨拶' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '共通アカウントでログイン' }))
+    fireEvent.change(screen.getByLabelText('メールアドレス'), {
+      target: { value: 'shared@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('パスワード'), {
+      target: { value: 'correct-password' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'ログイン' }))
+
+    expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'ログアウト' }))
+    expect(await screen.findByRole('heading', { name: '配属初日の挨拶' })).toBeInTheDocument()
+    expect(authClient.signOut).toHaveBeenCalledOnce()
+  })
+
+  it('restores pending remote feedback and links to the stable Library resolver', async () => {
+    const repository = createRepository({ load: vi.fn().mockResolvedValue(firstRemoteProgress()) })
+    renderGame(signedIn, repository)
+
+    expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Libraryで関連内容を読む' })).toHaveAttribute(
+      'href',
+      'https://business-japanese-hub.pages.dev/library-link?bookId=book-sample-bj-keigo&chapterId=ch-2',
+    )
+  })
+
+  it('never writes authenticated actions to guest local storage', async () => {
+    const initial = createInitialState(rookieSurvivalScenario)
+    const started: CareerGameProgressResponse = {
+      kind: 'progress',
+      scenarioId: rookieSurvivalScenario.id,
+      contentVersion: rookieSurvivalScenario.contentVersion,
+      checkpointId: CHECKPOINT_ID,
+      revision: 1,
+      snapshot: { state: initial },
+    }
+    const repository = createRepository({ start: vi.fn().mockResolvedValue(started) })
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    const removeItem = vi.spyOn(Storage.prototype, 'removeItem')
+    renderGame(signedIn, repository)
+
+    await startCase()
+
+    expect(await screen.findByRole('heading', { name: '配属初日の挨拶' })).toBeInTheDocument()
+    expect(setItem).not.toHaveBeenCalled()
+    expect(removeItem).not.toHaveBeenCalled()
+    setItem.mockRestore()
+    removeItem.mockRestore()
+  })
+
+  it('shows a deterministic reset surface for mismatched remote progress', async () => {
+    const repository = createRepository({
+      load: vi.fn().mockResolvedValue({
+        kind: 'reset-required',
+        reason: 'content-version-mismatch',
+        currentVersion: 1,
+        storedVersion: 2,
+        checkpointId: CHECKPOINT_ID,
+        revision: 7,
+      }),
+    })
+    renderGame(signedIn, repository)
+
+    expect(await screen.findByRole('heading', { name: '進行をリセットしてください' })).toBeInTheDocument()
+    expect(screen.getByText(/ケース内容が更新されたため/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '保存済み進行をリセット' })).toBeEnabled()
+  })
+
+  it('keeps reset-required state when reset fails and permits retry', async () => {
+    const reset = vi.fn().mockRejectedValue(new Error('private trace'))
+    const repository = createRepository({
+      load: vi.fn().mockResolvedValue({
+        kind: 'reset-required',
+        reason: 'invalid-persisted-progress',
+        currentVersion: 1,
+        storedVersion: 1,
+        checkpointId: CHECKPOINT_ID,
+        revision: 7,
+      }),
+      reset,
+    })
+    renderGame(signedIn, repository)
+    fireEvent.click(await screen.findByRole('button', { name: '保存済み進行をリセット' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '進行を同期できませんでした。もう一度お試しください。',
+    )
+    expect(screen.getByRole('heading', { name: '進行をリセットしてください' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '保存済み進行をリセット' })).toBeEnabled()
+    expect(reset).toHaveBeenCalledWith('rookie-survival', 1, 1, CHECKPOINT_ID, 7)
+  })
+
+  it('leaves reset mode after a CAS conflict loads a replacement checkpoint', async () => {
+    const replacementCheckpointId = '22222222-2222-4222-8222-222222222222'
+    const replacement = {
+      ...firstRemoteProgress(1),
+      checkpointId: replacementCheckpointId,
+    }
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce({
+        kind: 'reset-required',
+        reason: 'invalid-persisted-progress',
+        currentVersion: 1,
+        storedVersion: 1,
+        checkpointId: CHECKPOINT_ID,
+        revision: 7,
+      } satisfies CareerGameProgressResponse)
+      .mockResolvedValueOnce(replacement)
+    const reset = vi.fn().mockResolvedValue({ kind: 'conflict' })
+    renderGame(signedIn, createRepository({ load, reset }))
+
+    fireEvent.click(await screen.findByRole('button', { name: '保存済み進行をリセット' }))
+
+    expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '進行をリセットしてください' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '保存済み進行をリセット' })).not.toBeInTheDocument()
+    expect(reset).toHaveBeenCalledTimes(1)
+    expect(reset).toHaveBeenCalledWith('rookie-survival', 1, 1, CHECKPOINT_ID, 7)
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses the loaded progress checkpoint identity for a successful replay reset', async () => {
+    const reset = vi.fn().mockResolvedValue({ kind: 'none' })
+    renderGame(
+      signedIn,
+      createRepository({
+        load: vi.fn().mockResolvedValue(completedRemoteProgress(9)),
+        reset,
+      }),
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'もう一度プレイ' }))
+
+    expect(reset).toHaveBeenCalledWith('rookie-survival', 1, 1, CHECKPOINT_ID, 9)
+    expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+  })
+
+  it('offers load retry without falling back to guest state', async () => {
+    const load = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('private trace'))
+      .mockResolvedValueOnce({ kind: 'none' })
+    saveGameSession(
+      rookieSurvivalScenario,
+      { state: createInitialState(rookieSurvivalScenario) },
+      window.localStorage,
+    )
+    renderGame(signedIn, createRepository({ load }))
+
+    expect(await screen.findByRole('heading', { name: '進行を読み込めませんでした' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '配属初日の挨拶' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '再読み込み' }))
+    expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    expect(load).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the current safe model and shows a generic retryable action error', async () => {
+    const repository = createRepository({
+      start: vi.fn().mockRejectedValue(new Error('private backend trace')),
+    })
+    renderGame(signedIn, repository)
+    await startCase()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '進行を同期できませんでした。もう一度お試しください。',
+    )
+    expect(screen.queryByText(/private backend/)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ケースを開始' })).toBeEnabled()
+  })
+
+  it('ignores a late authenticated load after signing out', async () => {
+    let resolveLoad: (value: CareerGameProgressResponse) => void = () => {}
+    const load = vi.fn().mockImplementation(
+      () => new Promise<CareerGameProgressResponse>((resolve) => { resolveLoad = resolve }),
+    )
+    const { authClient } = renderGame(signedIn, createRepository({ load }))
+    expect(await screen.findByText('shared@example.com')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'ログアウト' }))
+    expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+
+    await act(async () => resolveLoad(firstRemoteProgress()))
+
+    expect(authClient.signOut).toHaveBeenCalledOnce()
+    expect(screen.getByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '判断の結果' })).not.toBeInTheDocument()
+  })
+
+  it('serializes rapid authenticated choices against one revision', async () => {
+    const initial = createInitialState(rookieSurvivalScenario)
+    let resolveChoose: (value: CareerGameProgressResponse) => void = () => {}
+    const choose = vi.fn().mockImplementation(
+      () => new Promise<CareerGameProgressResponse>((resolve) => { resolveChoose = resolve }),
+    )
+    const repository = createRepository({
+      load: vi.fn().mockResolvedValue({
+        kind: 'progress',
+        scenarioId: rookieSurvivalScenario.id,
+        contentVersion: 1,
+        checkpointId: CHECKPOINT_ID,
+        revision: 4,
+        snapshot: { state: initial },
+      }),
+      choose,
+    })
+    renderGame(signedIn, repository)
+    const choice = within(await screen.findByRole('group', { name: 'あなたの判断' }))
+      .getAllByRole('button')[0]!
+
+    fireEvent.click(choice)
+    fireEvent.click(choice)
+
+    expect(choose).toHaveBeenCalledOnce()
+    expect(choose).toHaveBeenCalledWith(
+      'rookie-survival',
+      1,
+      'file-one-greeting',
+      'greeting-concise-choice',
+      CHECKPOINT_ID,
+      4,
+    )
+    await act(async () => resolveChoose(firstRemoteProgress(5)))
+    expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
+  })
+
+  it('shows a non-destructive update surface for a newer server and never offers reset', async () => {
+    const reset = vi.fn()
+    const repository = createRepository({
+      load: vi.fn().mockResolvedValue({
+        kind: 'client-update-required',
+        currentVersion: 2,
+      }),
+      reset,
+    })
+
+    renderGame(signedIn, repository)
+
+    expect(await screen.findByRole('heading', { name: 'アプリを更新してください' })).toBeInTheDocument()
+    expect(screen.getByText(/サーバー上の最新版は v2/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'ページを再読み込み' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: '保存済み進行をリセット' })).not.toBeInTheDocument()
+    expect(reset).not.toHaveBeenCalled()
+  })
+
+  it('stops on a client update response during play without resetting the checkpoint', async () => {
+    const initial = createInitialState(rookieSurvivalScenario)
+    const reset = vi.fn()
+    const choose = vi.fn().mockResolvedValue({
+      kind: 'client-update-required',
+      currentVersion: 2,
+    })
+    renderGame(
+      signedIn,
+      createRepository({
+        load: vi.fn().mockResolvedValue({
+          kind: 'progress',
+          scenarioId: rookieSurvivalScenario.id,
+          contentVersion: 1,
+          checkpointId: CHECKPOINT_ID,
+          revision: 4,
+          snapshot: { state: initial },
+        }),
+        choose,
+        reset,
+      }),
+    )
+    const choice = within(await screen.findByRole('group', { name: 'あなたの判断' }))
+      .getAllByRole('button')[0]!
+
+    fireEvent.click(choice)
+
+    expect(await screen.findByRole('heading', { name: 'アプリを更新してください' })).toBeInTheDocument()
+    expect(reset).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: '保存済み進行をリセット' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      label: 'mismatched progress',
+      response: {
+        ...firstRemoteProgress(),
+        contentVersion: 2,
+      } satisfies CareerGameProgressResponse,
+    },
+    {
+      label: 'mismatched reset requirement',
+      response: {
+        kind: 'reset-required',
+        reason: 'content-version-mismatch',
+        currentVersion: 2,
+        storedVersion: 1,
+        checkpointId: CHECKPOINT_ID,
+        revision: 8,
+      } satisfies CareerGameProgressResponse,
+    },
+  ])('treats $label as client/server skew without deleting progress', async ({ response }) => {
+    const reset = vi.fn()
+    renderGame(
+      signedIn,
+      createRepository({ load: vi.fn().mockResolvedValue(response), reset }),
+    )
+
+    expect(await screen.findByRole('heading', { name: 'アプリを更新してください' })).toBeInTheDocument()
+    expect(screen.getByText(/サーバー上の最新版は v2/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '保存済み進行をリセット' })).not.toBeInTheDocument()
+    expect(reset).not.toHaveBeenCalled()
   })
 })

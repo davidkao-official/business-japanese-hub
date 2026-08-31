@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "books": [
+    {
+      "bookId": "book-sample-bj-email",
+      "bookSlug": "email-manners",
+      "releaseId": "email-manners@e1-r1-d3680cfbef17",
+      "chapters": [
+        {
+          "chapterId": "bm-ch-1",
+          "chapterSlug": "email-basics",
+          "access": "public",
+          "skillIds": []
+        },
+        {
+          "chapterId": "bm-ch-2",
+          "chapterSlug": "subject-and-opening",
+          "access": "public",
+          "skillIds": []
+        },
+        {
+          "chapterId": "bm-ch-3",
+          "chapterSlug": "requests-and-closings",
+          "access": "public",
+          "skillIds": [
+            "request-clarification"
+          ]
+        }
+      ]
+    },
+    {
+      "bookId": "book-sample-bj-keigo",
+      "bookSlug": "keigo-essentials",
+      "releaseId": "keigo-essentials@e1-r1-5a21f380dd97",
+      "chapters": [
+        {
+          "chapterId": "ch-1",
+          "chapterSlug": "keigo-basics",
+          "access": "public",
+          "skillIds": []
+        },
+        {
+          "chapterId": "ch-2",
+          "chapterSlug": "keigo-in-meetings",
+          "access": "public",
+          "skillIds": [
+            "workplace-greeting"
+          ]
+        },
+        {
+          "chapterId": "ch-3",
+          "chapterSlug": "practice",
+          "access": "public",
+          "skillIds": []
+        }
+      ]
+    },
+    {
+      "bookId": "book-meeting-japanese",
+      "bookSlug": "meeting-japanese",
+      "releaseId": "meeting-japanese@e1-r1-c6dba80886a2",
+      "chapters": [
+        {
+          "chapterId": "mj-ch-1",
+          "chapterSlug": "meeting-purpose",
+          "access": "public",
+          "skillIds": []
+        },
+        {
+          "chapterId": "mj-ch-02",
+          "chapterSlug": "enter-the-conversation",
+          "access": "entitled",
+          "skillIds": []
+        },
+        {
+          "chapterId": "mj-ch-03",
+          "chapterSlug": "state-an-opinion",
+          "access": "entitled",
+          "skillIds": []
+        },
+        {
+          "chapterId": "mj-ch-04",
+          "chapterSlug": "handle-disagreement",
+          "access": "entitled",
+          "skillIds": [
+            "meeting-disagreement"
+          ]
+        },
+        {
+          "chapterId": "mj-ch-05",
+          "chapterSlug": "deepen-with-questions",
+          "access": "entitled",
+          "skillIds": []
+        },
+        {
+          "chapterId": "mj-ch-06",
+          "chapterSlug": "build-consensus",
+          "access": "entitled",
+          "skillIds": []
+        },
+        {
+          "chapterId": "mj-ch-07",
+          "chapterSlug": "online-meetings",
+          "access": "entitled",
+          "skillIds": []
+        },
+        {
+          "chapterId": "mj-ch-08",
+          "chapterSlug": "turn-decisions-into-action",
+          "access": "entitled",
+          "skillIds": []
+        }
+      ]
+    }
+  ]
+}

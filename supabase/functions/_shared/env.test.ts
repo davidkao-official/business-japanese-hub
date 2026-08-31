@@ -88,6 +88,7 @@ describe('readEnvFrom — provider-scoped config seam (#21)', () => {
       RESEND_API_KEY: 're_secret',
       ORDER_EMAIL_FROM: 'Receipts <receipts@example.com>',
       PUBLIC_SITE_URL: 'https://example.com',
+      CAREER_GAME_SITE_URL: 'https://game.example.com',
       SUPPORT_EMAIL: 'support@example.com',
       LEGAL_SELLER_NAME: 'Example Seller',
     }));
@@ -96,8 +97,13 @@ describe('readEnvFrom — provider-scoped config seam (#21)', () => {
       resendApiKey: 're_secret',
       orderEmailFrom: 'Receipts <receipts@example.com>',
       publicSiteUrl: 'https://example.com',
+      careerGameSiteUrl: 'https://game.example.com',
       supportEmail: 'support@example.com',
       legalSellerName: 'Example Seller',
     });
+  });
+
+  it('keeps the undecided Career Game browser origin optional', () => {
+    expect(readEnvFrom(readerFrom(BASE)).careerGameSiteUrl).toBeUndefined();
   });
 });

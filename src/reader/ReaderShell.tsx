@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { useLocation } from 'react-router-dom'
 import type { Book, Chapter, VocabularyBlock } from '../content/types'
 import { useStrings } from '../i18n/strings'
 import { canRead, type PreviewBoundary } from '../lib/entitlement'
@@ -86,6 +87,7 @@ export function ReaderShell({
   const strings = useStrings()
   const contentRef = useRef<HTMLElement>(null)
   const isDesktop = useMediaQuery('(min-width: 64rem)')
+  const { hash } = useLocation()
 
   const [settings, setSettings] = useState<ReaderSettings>(initialReaderSettings)
   const [tocOpen, setTocOpen] = useState(false)
@@ -122,6 +124,25 @@ export function ReaderShell({
     [store, book.id],
   )
   const progress = useReadingPosition(book, chapter, contentRef, onAnchorChange)
+
+  // React Router's client-side navigation does not perform the browser's native
+  // fragment scroll. Consume a resolved block fragment after readable blocks
+  // mount, then place keyboard focus at the same stable target.
+  useEffect(() => {
+    if (!hash.startsWith('#') || hash.length === 1) return
+    let targetId: string
+    try {
+      targetId = decodeURIComponent(hash.slice(1))
+    } catch {
+      return
+    }
+    if (!targetId.startsWith('block-')) return
+
+    const target = document.getElementById(targetId)
+    if (!target || !contentRef.current?.contains(target)) return
+    target.scrollIntoView({ block: 'start' })
+    target.focus({ preventScroll: true })
+  }, [hash, book.id, chapter.id, visibleBlocks])
 
   // #5 persistence seam: exercise load on mount (no-op store; #7 resumes).
   useEffect(() => {

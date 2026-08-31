@@ -3,7 +3,11 @@ import type { FormEvent } from 'react'
 import { useAuth } from '@business-japanese-hub/platform-auth'
 
 /** Career-Game-owned presentation over the shared account identity. */
-export function AccountControl() {
+export function AccountControl({
+  remotePersistenceAvailable = false,
+}: {
+  remotePersistenceAvailable?: boolean
+}) {
   const { signIn, signOut, user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [status, setStatus] = useState<
@@ -83,7 +87,11 @@ export function AccountControl() {
     <div className="career-game-account">
       <span>共通アカウント</span>
       <strong>{user.email ?? user.id}</strong>
-      <small>進行はこの端末にのみ保存されます</small>
+      <small>
+        {remotePersistenceAvailable
+          ? '進行は共通アカウントに保存されます'
+          : '進行はこの端末にのみ保存されます'}
+      </small>
       {status === 'sign-out-failed' ? (
         <small className="career-game-login__error" role="alert">
           ログアウトできませんでした。もう一度お試しください。

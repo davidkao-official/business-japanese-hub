@@ -7,5 +7,10 @@
       "chapterId": "mj-ch-1"
     }
   },
+  "learning": {
+    "chapters": {
+      "mj-ch-04": ["meeting-disagreement"]
+    }
+  },
   "notes": "第1章を無料プレビューとして公開し、第2章以降は購入者に提供する。"
 }

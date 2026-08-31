@@ -12,10 +12,11 @@
 
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { sampleBook } from '../content/fixtures/sample-book'
 import type { Chapter } from '../content/types'
 import { BookPage } from '../app/BookPage'
+import { LibraryLinkPage } from '../app/LibraryLinkPage'
 import { BlockRenderer } from './BlockRenderer'
 import { ReaderPage } from './ReaderPage'
 import { ReaderShell } from './ReaderShell'
@@ -49,6 +50,7 @@ function renderReaderRoutes(initialEntry: string, options: { owned?: boolean } =
     : null
   return renderWithAppProviders(
     <Routes>
+      <Route path="/library-link" element={<LibraryLinkPage />} />
       <Route path="/books/:slug" element={<BookPage />} />
       <Route path="/books/:slug/read" element={<ReaderPage />} />
       <Route path="/books/:slug/read/:chapterSlug" element={<ReaderPage />} />
@@ -385,6 +387,40 @@ describe('mobile chrome', () => {
 })
 
 describe('navigation', () => {
+  it('scrolls and focuses a resolved cross-product block after client navigation', async () => {
+    const scrollDescriptor = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollIntoView',
+    )
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    })
+
+    try {
+      const chapter = sampleBook.chapters[0]
+      const block = chapter.blocks[1]
+      renderReaderRoutes(
+        `/library-link?bookId=${sampleBook.id}&chapterId=${chapter.id}&blockId=${block.id}`,
+      )
+
+      const target = await waitFor(() => {
+        const element = document.getElementById(`block-${block.id}`)
+        expect(element).not.toBeNull()
+        return element!
+      })
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' }))
+      expect(target).toHaveFocus()
+    } finally {
+      if (scrollDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', scrollDescriptor)
+      } else {
+        delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView
+      }
+    }
+  })
+
   it('redirects /read to the first chapter', async () => {
     renderReaderRoutes('/books/keigo-essentials/read')
     expect(

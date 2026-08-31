@@ -9,6 +9,7 @@ Business Japanese Hub 是 shared、web-first 的 business-Japanese 平台，服�
 - **[`docs/product-contract.md`](docs/product-contract.md)** — durable product contract。產品定位、受眾、商業模型、平台 abstraction、P0 優先級、payment 決策、MVP non-goals 的 canonical source of truth。
 - **[`docs/platform-architecture.md`](docs/platform-architecture.md)** — Library + Career Game bounded contexts、shared platform 邊界與 dependency direction。
 - **[`docs/shared-backend-and-identity.md`](docs/shared-backend-and-identity.md)** — 兩個 frontends 共用的 Supabase identity、origin/session topology、client/server secret boundary 與 product data isolation。
+- **[`docs/learning-and-progress.md`](docs/learning-and-progress.md)** — bounded shared skill/evidence seam、Library reading／Career Game progress isolation、authenticated resume、version/reset 與 RLS contract。
 - **[`docs/content-model.md`](docs/content-model.md)** — Library 內容資料模型。`Book → Chapter → ContentBlock` 的具體定義與結構；不是 Career Game schema。
 - **[`docs/ui-ux-research.md`](docs/ui-ux-research.md)** — UI/UX 設計方向研究（canonical）。`Quiet Editorial Modernism` 設計方向、日本文排版規格、design tokens、content-block rendering grammar、anti-patterns，以及 Universal Reader 的 measurable baseline。
 - **[`docs/authoring.md`](docs/authoring.md)** — 作者出版工作流。作者（非工程師）如何新增／編輯書籍、驗證、預覽、出版、版本／回滾。

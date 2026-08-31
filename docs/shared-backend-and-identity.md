@@ -28,14 +28,13 @@ production hostname 或第二套 backend。
 | Anonymous Library | public catalog／free reading | none required | catalog/access rules fail closed for paid content |
 | Authenticated Library | Supabase Auth + existing Library repositories | Book entitlement、reading state、bookmark | existing owner-scoped RLS; verified server events alone grant paid ownership |
 | Anonymous Career Game | local scenario runtime + `localStorage` checkpoint | none | no Supabase data path |
-| Authenticated Career Game | Supabase Auth only | **none yet**; checkpoint remains device-local | no Library repository、Book entitlement、payment or finance access |
+| Authenticated Career Game | Supabase Auth + product-owned progress Edge Function | server-authoritative scenario/version checkpoint；shared skill evidence | owner-select RLS；actions由 verified JWT + authoritative scenario 驅動；no Library repository、Book entitlement、payment or finance access |
 | Payment／finance／email operations | Supabase Edge Functions or operator-only server tooling | existing commerce/compliance records | service-role or DB-backed operator role; never browser claims |
 
-Issue #55 introduces no table, RPC, Edge Function or RLS path. Therefore it does
-not invent four-role SQL tests. Any later Career Game persistence path (owned by
-#57) must ship its migration and explicit anonymous／owner／unrelated user／
-privileged-role coverage together. A finance role remains an ordinary user for
-Career Game data unless a separate, evidence-backed contract says otherwise.
+Issue #57 新增的 bounded progress/evidence contract 與 role matrix 見
+[`learning-and-progress.md`](learning-and-progress.md)。其 migration 與 SQL tests 必須一起
+覆蓋 anonymous／owner／unrelated user／service role；finance role 對這些資料仍是 ordinary
+owner-scoped user。
 
 ## 3. Browser configuration and secret boundary
 
@@ -87,8 +86,9 @@ coordinated with the canonical Library origin and deployment runbook.
 
 - Library retains `Book → Chapter → ContentBlock`, Book entitlement, Reader state
   and all payment-provider boundaries.
-- Career Game retains scenario/runtime/checkpoint semantics. Auth does not turn a
-  local checkpoint into durable progression; #57 owns that consumer-driven seam.
+- Career Game retains scenario/runtime/checkpoint semantics. #57 只為 authenticated
+  consumer 加入 product-owned durable progression；anonymous local checkpoint 不 import、
+  merge 或轉成 shared UI state。
 - Shared styles are semantic design tokens, not shared product UI. Account
   presentation remains product-owned in each frontend.
 - No shared asset service, audit table or generalized telemetry schema exists.

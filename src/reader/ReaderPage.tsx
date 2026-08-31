@@ -1,5 +1,6 @@
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
+import { useAuth } from '@business-japanese-hub/platform-auth'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { getBookBySlug, getCatalogEntry } from './catalog'
 import { useStrings } from '../i18n/strings'
@@ -8,6 +9,7 @@ import { ReaderGate } from './ReaderGate'
 import { canRead } from '../lib/entitlement'
 import { offersPreview, tierOf, toChapterOrderRefs } from '../lib/bookAccess'
 import { useBookState, useSaveReadingState } from '../lib/persistence/useBookState'
+import { useLearningEvidenceRepository } from '../lib/learning/LearningEvidenceContext'
 import type { ReadingPositionStore } from './readingPosition'
 
 function ReaderNotFound({ message }: { message: string }) {
@@ -20,6 +22,21 @@ function ReaderNotFound({ message }: { message: string }) {
       </Link>
     </section>
   )
+}
+
+function ChapterLearningEvidence({ bookId, chapterId }: { bookId: string; chapterId: string }) {
+  const { user, loading } = useAuth()
+  const repository = useLearningEvidenceRepository()
+  const userId = user?.id
+
+  useEffect(() => {
+    if (loading || !userId || !repository) return
+    void repository.recordChapterOpened({ bookId, chapterId }, userId).catch(() => {
+      // Learning evidence is best effort and must never interrupt the Reader.
+    })
+  }, [loading, userId, repository, bookId, chapterId])
+
+  return null
 }
 
 /**
@@ -104,14 +121,17 @@ export function ReaderPage() {
       return <ReaderGate book={book} hasPreview={hasPreview} />
     }
     return (
-      <ReaderShell
-        key={book.id}
-        book={book}
-        chapter={chapter}
-        store={store}
-        owned={owned}
-        previewBoundary={previewBoundary}
-      />
+      <>
+        <ChapterLearningEvidence bookId={book.id} chapterId={chapter.id} />
+        <ReaderShell
+          key={book.id}
+          book={book}
+          chapter={chapter}
+          store={store}
+          owned={owned}
+          previewBoundary={previewBoundary}
+        />
+      </>
     )
   }
 
