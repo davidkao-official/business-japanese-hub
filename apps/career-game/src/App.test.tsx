@@ -102,6 +102,35 @@ function createBranchingScenario(): Scenario {
 
 const branchingScenario = createBranchingScenario()
 
+function createTerminalStartScenario(): Scenario {
+  const terminal = rookieSurvivalScenario.scenes.find((scene) => scene.kind === 'terminal')
+  const outcome = rookieSurvivalScenario.outcomes[0]
+  if (!terminal || terminal.kind !== 'terminal' || !outcome) {
+    throw new Error('expected a terminal scene and an outcome')
+  }
+
+  return {
+    ...rookieSurvivalScenario,
+    id: 'terminal-start',
+    slug: 'terminal-start',
+    title: '開始時点で完了するケース',
+    summary: '開始シーンが完了画面である有効な回帰テスト用ケース。',
+    startSceneId: terminal.id,
+    scenes: [terminal],
+    // V1 requires a bounded outcome catalog even when the start scene is terminal.
+    outcomes: [
+      {
+        ...outcome,
+        id: 'terminal-start-placeholder-outcome',
+        effects: [],
+        nextSceneId: terminal.id,
+      },
+    ],
+  }
+}
+
+const terminalStartScenario = createTerminalStartScenario()
+
 const skipThenContinueScenario: Scenario = {
   schemaVersion: 1,
   id: 'skip-then-continue',
@@ -331,6 +360,37 @@ describe('Career Game playable slice', () => {
     expect(await screen.findByRole('heading', { name: '繰り返して完了するケース' })).toBeInTheDocument()
     expect(screen.getByText('経路により変動')).toBeInTheDocument()
     expect(screen.queryByText(/^\d+ files$/)).not.toBeInTheDocument()
+  })
+
+  it('moves a valid terminal-start guest case directly from intro to completion', async () => {
+    expect(validateScenario(terminalStartScenario)).toEqual({
+      ok: true,
+      value: terminalStartScenario,
+    })
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics, false, terminalStartScenario)
+
+    expect(
+      await screen.findByRole('heading', { name: '開始時点で完了するケース' }),
+    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(track.mock.calls.map(([event]) => event)).toEqual([
+        { event: 'case_viewed', scenarioId: 'terminal-start' },
+      ])
+    })
+    await startCase()
+
+    const completion = await screen.findByRole('heading', { level: 1, name: 'ケース完了' })
+    await waitFor(() => expect(completion).toHaveFocus())
+    expect(screen.getByText('ケースを開始し、完了画面を表示しました。')).toBeInTheDocument()
+    expect(screen.getByText('0 / 0')).toBeInTheDocument()
+    const saved = loadGameSession(terminalStartScenario, window.localStorage)
+    expect(saved?.state.status).toBe('completed')
+    expect(saved?.state.history).toHaveLength(0)
+    expect(track.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'case_viewed', scenarioId: 'terminal-start' },
+      { event: 'case_started', scenarioId: 'terminal-start' },
+    ])
   })
 
   it('uses the required prompt as the heading and rail label for an untitled decision', async () => {
@@ -887,6 +947,45 @@ describe('authenticated Career Game progress', () => {
 
   beforeEach(() => {
     window.localStorage.clear()
+  })
+
+  it('moves an accepted terminal-start remote case directly to completion', async () => {
+    const state = createInitialState(terminalStartScenario)
+    expect(state.status).toBe('completed')
+    const repository = createRepository({
+      start: vi.fn().mockResolvedValue({
+        kind: 'progress',
+        scenarioId: terminalStartScenario.id,
+        contentVersion: terminalStartScenario.contentVersion,
+        checkpointId: CHECKPOINT_ID,
+        revision: 1,
+        snapshot: { state },
+      }),
+    })
+    const { analytics, track } = createAnalytics()
+    renderGame(signedIn, repository, analytics, false, terminalStartScenario)
+
+    expect(
+      await screen.findByRole('heading', { name: '開始時点で完了するケース' }),
+    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(track.mock.calls.map(([event]) => event)).toEqual([
+        { event: 'case_viewed', scenarioId: 'terminal-start' },
+      ])
+    })
+    await startCase()
+
+    const completion = await screen.findByRole('heading', { level: 1, name: 'ケース完了' })
+    await waitFor(() => expect(completion).toHaveFocus())
+    expect(screen.getByText('ケースを開始し、完了画面を表示しました。')).toBeInTheDocument()
+    expect(repository.start).toHaveBeenCalledWith('terminal-start', 1)
+    expect(repository.acknowledge).not.toHaveBeenCalled()
+    expect(loadGameSession(terminalStartScenario, window.localStorage)).toBeNull()
+    expect(window.localStorage).toHaveLength(0)
+    expect(track.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'case_viewed', scenarioId: 'terminal-start' },
+      { event: 'case_started', scenarioId: 'terminal-start' },
+    ])
   })
 
   it('announces only the completed authenticated path when a branch skips a decision', async () => {

@@ -593,12 +593,20 @@ export default function App({
   }
 
   function startCase() {
+    const gameState = createInitialState(scenario)
+    const startsComplete = gameState.status === 'completed'
+    const startAnnouncement = startsComplete
+      ? 'ケースを開始し、完了画面を表示しました。'
+      : 'FILE 01を開始しました。'
     if (usesRemoteProgress) {
       runRemoteProgressAction(
         () => progressRepository!.start(scenario.id, scenario.contentVersion),
-        'FILE 01を開始しました。',
+        startAnnouncement,
         (progress) => {
-          if (progress.model.view !== 'playing' || progress.model.gameState.history.length !== 0) {
+          if (
+            (progress.model.view !== 'playing' && progress.model.view !== 'complete') ||
+            progress.model.gameState.history.length !== 0
+          ) {
             return
           }
           trackedTransitions.current.clear()
@@ -611,10 +619,9 @@ export default function App({
       return
     }
     if (trackedTransitions.current.has('started:guest')) return
-    const gameState = createInitialState(scenario)
     if (storage) saveGameSession(scenario, { state: gameState }, storage)
     trackedTransitions.current.clear()
-    moveTo({ view: 'playing', gameState }, 'FILE 01を開始しました。')
+    moveTo({ view: startsComplete ? 'complete' : 'playing', gameState }, startAnnouncement)
     trackTransition('started:guest', { event: 'case_started', scenarioId: scenario.id })
   }
 
