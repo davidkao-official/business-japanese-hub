@@ -448,6 +448,23 @@ Inspect finance state, payment events, outbox state, scheduler health, and logs.
   normal revert PR to the last known-good commit. Cloudflare deployment history
   is an emergency surface only; reconcile `main` immediately afterward so Git
   remains canonical. Preview deployments are not production rollback targets.
+  A revert to a commit from before the named deploy scripts existed is also a
+  Pages-settings compatibility change: a project whose build command still
+  names an absent script will fail before it can produce an artifact. Before
+  deploying such a revert, either retain `build:library:deploy` and
+  `build:career-game:deploy` as compatibility shims in the revert PR, or move
+  each Pages project temporarily to its equivalent product-only inline command:
+
+  ```text
+  Library      pnpm workflow:verify-releases && pnpm exec tsc -p tsconfig.app.json && pnpm build:library
+  Career Game  pnpm exec tsc -p tsconfig.career-game.json && pnpm build:career-game
+  ```
+
+  Change one project, deploy the intended Git SHA, and run its production smoke
+  before changing the other. Restore the canonical named command with the same
+  one-project-at-a-time deploy-and-smoke sequence once `main` contains the
+  script again. Never leave Pages configured to invoke a command absent from the
+  deployed revision.
 - **Edge Functions:** inspect Supabase Edge Function logs. A function-only
   rollback may redeploy a known-good Git SHA only after confirming compatibility
   with the current forward-only database schema.

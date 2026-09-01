@@ -13,6 +13,7 @@ import {
 } from '@business-japanese-hub/career-game'
 import { useAuth } from '@business-japanese-hub/platform-auth'
 import {
+  createCrossProductMovementDeduper,
   noopValidationAnalytics,
   type ValidationAnalytics,
   type ValidationAnalyticsEvent,
@@ -304,7 +305,7 @@ export default function App({
   const actionInFlight = useRef(false)
   const trackedTransitions = useRef(new Set<string>())
   const viewedScenario = useRef<string | null>(null)
-  const pageReplacingLibraryMovementTracked = useRef(false)
+  const libraryMovementDeduper = useRef(createCrossProductMovementDeduper())
   const viewHeading = useRef<HTMLHeadingElement>(null)
   const authenticatedUserId = user?.id
   const usesRemoteProgress = Boolean(authenticatedUserId && progressRepository)
@@ -497,10 +498,10 @@ export default function App({
 
   function trackGameToLibrary(event: MouseEvent<HTMLAnchorElement>): void {
     const keepsPageMounted = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
-    if (!keepsPageMounted) {
-      if (pageReplacingLibraryMovementTracked.current) return
-      pageReplacingLibraryMovementTracked.current = true
-    }
+    if (!libraryMovementDeduper.current.shouldTrack(
+      keepsPageMounted,
+      event.currentTarget.href,
+    )) return
     trackSafely(analytics, {
       event: 'cross_product_link_clicked',
       scenarioId: scenario.id,

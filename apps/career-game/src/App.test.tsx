@@ -673,21 +673,36 @@ describe('Career Game playable slice', () => {
     ])
   })
 
-  it('tracks later genuine movements after modified clicks keep the Game mounted', async () => {
+  it('deduplicates rapid modified activation per link and tracks later genuine movements', async () => {
     const { analytics, track } = createAnalytics()
     renderGame(null, undefined, analytics)
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000)
 
-    const productSwitch = await screen.findByRole('link', { name: /Library/ })
-    clickWithoutNavigation(productSwitch, { metaKey: true })
-    clickWithoutNavigation(productSwitch, { ctrlKey: true })
+    try {
+      const productSwitch = await screen.findByRole('link', { name: /Library/ })
+      clickWithoutNavigation(productSwitch, { metaKey: true })
+      clickWithoutNavigation(productSwitch, { metaKey: true })
 
-    await startCase()
-    chooseFirstOption()
-    clickWithoutNavigation(screen.getByRole('link', { name: 'Libraryで関連内容を読む' }))
+      await startCase()
+      chooseFirstOption()
+      const relatedReading = screen.getByRole('link', { name: 'Libraryで関連内容を読む' })
+      clickWithoutNavigation(relatedReading, { ctrlKey: true })
+      clickWithoutNavigation(relatedReading, { ctrlKey: true })
 
-    expect(
-      track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
-    ).toHaveLength(3)
+      expect(
+        track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
+      ).toHaveLength(2)
+
+      clock.mockReturnValue(1_500)
+      clickWithoutNavigation(productSwitch, { metaKey: true })
+      clickWithoutNavigation(relatedReading, { ctrlKey: true })
+
+      expect(
+        track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
+      ).toHaveLength(4)
+    } finally {
+      clock.mockRestore()
+    }
   })
 
   it('keeps anonymous play available when analytics throws', async () => {

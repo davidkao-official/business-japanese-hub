@@ -80,15 +80,24 @@ describe('storefront', () => {
     expect(() => clickWithoutNavigation(link)).not.toThrow()
   })
 
-  it('tracks later genuine movements after modified clicks keep the page mounted', () => {
+  it('deduplicates rapid modified activation and tracks later genuine movements', () => {
     const track = vi.fn()
     renderWithAppProviders(<HomePage analytics={{ track }} />)
     const link = screen.getByRole('link', { name: 'ケースをプレイ' })
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000)
 
-    clickWithoutNavigation(link, { metaKey: true })
-    clickWithoutNavigation(link, { ctrlKey: true })
-    clickWithoutNavigation(link)
+    try {
+      clickWithoutNavigation(link, { metaKey: true })
+      clickWithoutNavigation(link, { metaKey: true })
+      expect(track).toHaveBeenCalledTimes(1)
 
-    expect(track).toHaveBeenCalledTimes(3)
+      clock.mockReturnValue(1_500)
+      clickWithoutNavigation(link, { metaKey: true })
+      clickWithoutNavigation(link)
+
+      expect(track).toHaveBeenCalledTimes(3)
+    } finally {
+      clock.mockRestore()
+    }
   })
 })

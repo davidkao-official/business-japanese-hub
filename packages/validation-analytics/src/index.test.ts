@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  CROSS_PRODUCT_MOVEMENT_DEBOUNCE_MS,
   createBrowserValidationAnalytics,
+  createCrossProductMovementDeduper,
   noopValidationAnalytics,
   type ValidationAnalyticsEvent,
   type ValidationAnalyticsFetcher,
@@ -11,6 +13,27 @@ const EVENT_ID = '018f1f58-6f58-4b6c-8f93-a4d8da5711d0'
 function createFetcher() {
   return vi.fn<ValidationAnalyticsFetcher>(() => Promise.resolve({ ok: true }))
 }
+
+describe('cross-product movement deduplication', () => {
+  it('suppresses a repeated page-preserving gesture but allows later or distinct targets', () => {
+    let currentTime = 1_000
+    const deduper = createCrossProductMovementDeduper(() => currentTime)
+
+    expect(deduper.shouldTrack(true, 'product-home')).toBe(true)
+    expect(deduper.shouldTrack(true, 'product-home')).toBe(false)
+    expect(deduper.shouldTrack(true, 'related-reference')).toBe(true)
+
+    currentTime += CROSS_PRODUCT_MOVEMENT_DEBOUNCE_MS
+    expect(deduper.shouldTrack(true, 'product-home')).toBe(true)
+  })
+
+  it('permits only the first page-replacing movement for a mounted surface', () => {
+    const deduper = createCrossProductMovementDeduper()
+
+    expect(deduper.shouldTrack(false, 'product-home')).toBe(true)
+    expect(deduper.shouldTrack(false, 'related-reference')).toBe(false)
+  })
+})
 
 describe('browser validation analytics', () => {
   it('posts an exact UUID-tagged event with keepalive and returns immediately', () => {

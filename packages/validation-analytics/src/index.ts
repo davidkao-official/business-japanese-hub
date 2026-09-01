@@ -104,6 +104,39 @@ export interface ValidationAnalytics {
   track(event: ValidationAnalyticsEvent): void
 }
 
+export const CROSS_PRODUCT_MOVEMENT_DEBOUNCE_MS = 500
+
+export interface CrossProductMovementDeduper {
+  shouldTrack(keepsPageMounted: boolean, targetKey: string): boolean
+}
+
+export function createCrossProductMovementDeduper(
+  now: () => number = () => Date.now(),
+  debounceMs = CROSS_PRODUCT_MOVEMENT_DEBOUNCE_MS,
+): CrossProductMovementDeduper {
+  let pageReplacingMovementTracked = false
+  const pagePreservingMovementTimes = new Map<string, number>()
+
+  return {
+    shouldTrack(keepsPageMounted, targetKey): boolean {
+      if (!keepsPageMounted) {
+        if (pageReplacingMovementTracked) return false
+        pageReplacingMovementTracked = true
+        return true
+      }
+
+      const currentTime = now()
+      const previousTime = pagePreservingMovementTimes.get(targetKey)
+      if (previousTime !== undefined) {
+        const elapsed = currentTime - previousTime
+        if (elapsed >= 0 && elapsed < debounceMs) return false
+      }
+      pagePreservingMovementTimes.set(targetKey, currentTime)
+      return true
+    },
+  }
+}
+
 export const noopValidationAnalytics: ValidationAnalytics = Object.freeze({
   track(): void {},
 })

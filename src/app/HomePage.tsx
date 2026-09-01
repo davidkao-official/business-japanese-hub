@@ -2,6 +2,7 @@ import { useRef, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   createBrowserValidationAnalytics,
+  createCrossProductMovementDeduper,
   type ValidationAnalytics,
 } from '@business-japanese-hub/validation-analytics'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
@@ -38,15 +39,15 @@ export function HomePage({
   const entries = listCatalogEntries()
   const featured = entries[0]
   const rest = entries.slice(1)
-  const pageReplacingCareerGameMovementTracked = useRef(false)
+  const careerGameMovementDeduper = useRef(createCrossProductMovementDeduper())
   useDocumentTitle(strings.home.title)
 
   function trackCareerGameLink(event: MouseEvent<HTMLAnchorElement>): void {
     const keepsPageMounted = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
-    if (!keepsPageMounted) {
-      if (pageReplacingCareerGameMovementTracked.current) return
-      pageReplacingCareerGameMovementTracked.current = true
-    }
+    if (!careerGameMovementDeduper.current.shouldTrack(
+      keepsPageMounted,
+      event.currentTarget.href,
+    )) return
     try {
       analytics.track({
         event: 'cross_product_link_clicked',
