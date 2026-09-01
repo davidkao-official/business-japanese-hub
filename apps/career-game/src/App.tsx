@@ -296,6 +296,14 @@ export default function App({
     () => scenario.scenes.filter((scene): scene is DecisionScene => scene.kind === 'decision'),
     [scenario],
   )
+  const completedPathDecisions = useMemo(() => {
+    const decisionsById = new Map(decisions.map((decision) => [decision.id, decision]))
+    return model.gameState.history.flatMap((record) => {
+      const decision = decisionsById.get(record.sceneId)
+      return decision ? [decision] : []
+    })
+  }, [decisions, model.gameState.history])
+  const progressDecisions = model.view === 'complete' ? completedPathDecisions : decisions
   const completedAnnouncement = `ケース内のファイル${model.gameState.history.length}件を完了しました。`
   const currentScene = getCurrentScene(scenario, model.gameState)
   const availableChoices = getAvailableChoices(scenario, model.gameState)
@@ -1080,7 +1088,7 @@ export default function App({
         <div className="result-ledger" aria-label="プレイ結果">
           <div>
             <span>完了ファイル</span>
-            <strong>{model.gameState.history.length} / {decisions.length}</strong>
+            <strong>{model.gameState.history.length} / {completedPathDecisions.length}</strong>
           </div>
           {(scenario.meters ?? []).map((meter) => (
             <div key={meter.id}>
@@ -1153,7 +1161,7 @@ export default function App({
         {showGameLayout ? (
           <div className="game-layout">
             <ProgressRail
-              decisions={decisions}
+              decisions={progressDecisions}
               activeFile={activeFile}
               completedFiles={progressCompletedFiles}
             />

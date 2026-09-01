@@ -120,6 +120,15 @@ function clickWithoutNavigation(link: HTMLElement) {
   fireEvent.click(link)
 }
 
+function expectCompletedBranchPath() {
+  const progress = screen.getByRole('navigation', { name: 'ケース進行' })
+  expect(within(progress).getAllByRole('listitem')).toHaveLength(1)
+  expect(within(progress).getByText('配属初日の挨拶')).toBeInTheDocument()
+  expect(within(progress).queryByText('曖昧な依頼を受ける')).not.toBeInTheDocument()
+  expect(within(progress).getByText('済')).toBeInTheDocument()
+  expect(screen.getByText('1 / 1')).toBeInTheDocument()
+}
+
 describe('Career Game playable slice', () => {
   beforeEach(() => {
     window.localStorage.clear()
@@ -218,6 +227,7 @@ describe('Career Game playable slice', () => {
     expect(branchingScenario.scenes.filter((scene) => scene.kind === 'decision')).toHaveLength(2)
     expect(loadGameSession(branchingScenario, window.localStorage)?.state.history).toHaveLength(1)
     expect(screen.getByText('ケース内のファイル1件を完了しました。')).toBeInTheDocument()
+    expectCompletedBranchPath()
   })
 
   it('restores pending consequence feedback after a reload', async () => {
@@ -537,6 +547,7 @@ describe('authenticated Career Game progress', () => {
     fireEvent.click(await screen.findByRole('button', { name: '結果を見る' }))
 
     expect(await screen.findByText('ケース内のファイル1件を完了しました。')).toBeInTheDocument()
+    expectCompletedBranchPath()
   })
 
   it('uses an empty remote account without importing or changing a guest checkpoint', async () => {
