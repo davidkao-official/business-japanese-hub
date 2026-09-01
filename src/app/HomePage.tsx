@@ -169,7 +169,7 @@ function FeaturedBook({ entry }: { entry: CatalogEntry }) {
 
 function PublicProfiles() {
   return (
-    <div id="profiles">
+    <div className="page" id="profiles">
       <PublicProfileBlock id="founder-profile" profile={FOUNDER_PROFILE} />
       <PublicProfileBlock id="author-profile" profile={AUTHOR_PROFILE} />
     </div>
@@ -178,7 +178,7 @@ function PublicProfiles() {
 
 function PublicProfileBlock({ id, profile }: { id: string; profile: PublicProfile }) {
   return (
-    <article aria-labelledby={id}>
+    <article className="page" aria-labelledby={id}>
       <h2 className="section-title" id={id}>
         {profile.heading}
       </h2>
