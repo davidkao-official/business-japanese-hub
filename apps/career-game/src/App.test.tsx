@@ -67,30 +67,39 @@ function renderGame(
   }
 }
 
-function createSingleDecisionScenario(): Scenario {
-  const decision = rookieSurvivalScenario.scenes.find(
-    (scene) => scene.id === rookieSurvivalScenario.startSceneId,
-  )
+function createBranchingScenario(): Scenario {
+  const decisions = rookieSurvivalScenario.scenes.filter(
+    (scene) => scene.kind === 'decision',
+  ).slice(0, 2)
+  const [firstDecision, secondDecision] = decisions
   const terminal = rookieSurvivalScenario.scenes.find((scene) => scene.kind === 'terminal')
-  if (!decision || decision.kind !== 'decision' || !terminal || terminal.kind !== 'terminal') {
-    throw new Error('expected a decision and terminal scene')
+  if (!firstDecision || !secondDecision || !terminal || terminal.kind !== 'terminal') {
+    throw new Error('expected two decisions and a terminal scene')
   }
-  const outcomeIds = new Set(decision.choices.map((choice) => choice.outcomeId))
+  const firstOutcomeIds = new Set(firstDecision.choices.map((choice) => choice.outcomeId))
+  const secondOutcomeIds = new Set(secondDecision.choices.map((choice) => choice.outcomeId))
+  const directCompletionOutcomeId = firstDecision.choices[0]!.outcomeId
 
   return {
     ...rookieSurvivalScenario,
-    id: 'single-file-case',
-    slug: 'single-file-case',
-    title: '単一ファイルケース',
-    summary: '一つの判断で完了する回帰テスト用ケース。',
-    scenes: [decision, terminal],
+    id: 'branching-case',
+    slug: 'branching-case',
+    title: '分岐ケース',
+    summary: '選択によって一件または二件の判断で完了する回帰テスト用ケース。',
+    scenes: [firstDecision, secondDecision, terminal],
     outcomes: rookieSurvivalScenario.outcomes
-      .filter((outcome) => outcomeIds.has(outcome.id))
-      .map((outcome) => ({ ...outcome, nextSceneId: terminal.id })),
+      .filter((outcome) => firstOutcomeIds.has(outcome.id) || secondOutcomeIds.has(outcome.id))
+      .map((outcome) => ({
+        ...outcome,
+        nextSceneId:
+          outcome.id === directCompletionOutcomeId || secondOutcomeIds.has(outcome.id)
+            ? terminal.id
+            : secondDecision.id,
+      })),
   }
 }
 
-const singleDecisionScenario = createSingleDecisionScenario()
+const branchingScenario = createBranchingScenario()
 
 function createAnalytics(): { analytics: ValidationAnalytics; track: ReturnType<typeof vi.fn> } {
   const track = vi.fn()
@@ -200,12 +209,14 @@ describe('Career Game playable slice', () => {
     ])
   })
 
-  it('announces the supplied scenario decision count after guest completion', async () => {
-    renderGame(null, undefined, undefined, false, singleDecisionScenario)
+  it('announces only the completed guest path when a branch skips a decision', async () => {
+    renderGame(null, undefined, undefined, false, branchingScenario)
     await startCase()
     chooseFirstOption()
     fireEvent.click(screen.getByRole('button', { name: '結果を見る' }))
 
+    expect(branchingScenario.scenes.filter((scene) => scene.kind === 'decision')).toHaveLength(2)
+    expect(loadGameSession(branchingScenario, window.localStorage)?.state.history).toHaveLength(1)
     expect(screen.getByText('ケース内のファイル1件を完了しました。')).toBeInTheDocument()
   })
 
@@ -490,23 +501,25 @@ describe('authenticated Career Game progress', () => {
     window.localStorage.clear()
   })
 
-  it('announces the supplied scenario decision count after authenticated completion', async () => {
-    const initial = createInitialState(singleDecisionScenario)
-    const decision = singleDecisionScenario.scenes.find(
+  it('announces only the completed authenticated path when a branch skips a decision', async () => {
+    const initial = createInitialState(branchingScenario)
+    const decision = branchingScenario.scenes.find(
       (scene) => scene.id === initial.currentSceneId,
     )
     if (!decision || decision.kind !== 'decision') throw new Error('expected decision')
-    const result = applyChoice(singleDecisionScenario, initial, {
-      scenarioId: singleDecisionScenario.id,
-      contentVersion: singleDecisionScenario.contentVersion,
+    const result = applyChoice(branchingScenario, initial, {
+      scenarioId: branchingScenario.id,
+      contentVersion: branchingScenario.contentVersion,
       sceneId: decision.id,
       choiceId: decision.choices[0]!.id,
     })
     if (result.kind !== 'completed') throw new Error('expected completion')
+    expect(branchingScenario.scenes.filter((scene) => scene.kind === 'decision')).toHaveLength(2)
+    expect(result.state.history).toHaveLength(1)
     const completedProgress = {
       kind: 'progress' as const,
-      scenarioId: singleDecisionScenario.id,
-      contentVersion: singleDecisionScenario.contentVersion,
+      scenarioId: branchingScenario.id,
+      contentVersion: branchingScenario.contentVersion,
       checkpointId: CHECKPOINT_ID,
       revision: 3,
       snapshot: { state: result.state },
@@ -520,7 +533,7 @@ describe('authenticated Career Game progress', () => {
       acknowledge: vi.fn().mockResolvedValue(completedProgress),
     })
 
-    renderGame(signedIn, repository, undefined, false, singleDecisionScenario)
+    renderGame(signedIn, repository, undefined, false, branchingScenario)
     fireEvent.click(await screen.findByRole('button', { name: '結果を見る' }))
 
     expect(await screen.findByText('ケース内のファイル1件を完了しました。')).toBeInTheDocument()

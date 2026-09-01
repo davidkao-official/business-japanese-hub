@@ -296,7 +296,7 @@ export default function App({
     () => scenario.scenes.filter((scene): scene is DecisionScene => scene.kind === 'decision'),
     [scenario],
   )
-  const completedAnnouncement = `ケース内のファイル${decisions.length}件を完了しました。`
+  const completedAnnouncement = `ケース内のファイル${model.gameState.history.length}件を完了しました。`
   const currentScene = getCurrentScene(scenario, model.gameState)
   const availableChoices = getAvailableChoices(scenario, model.gameState)
   const pendingOutcome = model.pendingOutcomeId
