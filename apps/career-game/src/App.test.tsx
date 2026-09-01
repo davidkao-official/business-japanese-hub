@@ -2,7 +2,11 @@ import '@testing-library/jest-dom/vitest'
 import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { applyChoice, createInitialState } from '@business-japanese-hub/career-game'
+import {
+  applyChoice,
+  createInitialState,
+  type Scenario,
+} from '@business-japanese-hub/career-game'
 import { AuthProvider } from '@business-japanese-hub/platform-auth'
 import type { AuthClient, SessionUser } from '@business-japanese-hub/platform-auth'
 import type { ValidationAnalytics } from '@business-japanese-hub/validation-analytics'
@@ -33,6 +37,7 @@ function renderGame(
   progressRepository?: CareerGameProgressRepository,
   analytics?: ValidationAnalytics,
   strict = false,
+  scenario: Scenario = rookieSurvivalScenario,
 ) {
   const authClient: AuthClient = {
     getSession: vi.fn().mockResolvedValue(session),
@@ -47,7 +52,7 @@ function renderGame(
   const game = (
     <AuthProvider authClient={authClient}>
       <App
-        scenario={rookieSurvivalScenario}
+        scenario={scenario}
         progressRepository={progressRepository}
         analytics={analytics}
       />
@@ -61,6 +66,31 @@ function renderGame(
     authClient,
   }
 }
+
+function createSingleDecisionScenario(): Scenario {
+  const decision = rookieSurvivalScenario.scenes.find(
+    (scene) => scene.id === rookieSurvivalScenario.startSceneId,
+  )
+  const terminal = rookieSurvivalScenario.scenes.find((scene) => scene.kind === 'terminal')
+  if (!decision || decision.kind !== 'decision' || !terminal || terminal.kind !== 'terminal') {
+    throw new Error('expected a decision and terminal scene')
+  }
+  const outcomeIds = new Set(decision.choices.map((choice) => choice.outcomeId))
+
+  return {
+    ...rookieSurvivalScenario,
+    id: 'single-file-case',
+    slug: 'single-file-case',
+    title: '単一ファイルケース',
+    summary: '一つの判断で完了する回帰テスト用ケース。',
+    scenes: [decision, terminal],
+    outcomes: rookieSurvivalScenario.outcomes
+      .filter((outcome) => outcomeIds.has(outcome.id))
+      .map((outcome) => ({ ...outcome, nextSceneId: terminal.id })),
+  }
+}
+
+const singleDecisionScenario = createSingleDecisionScenario()
 
 function createAnalytics(): { analytics: ValidationAnalytics; track: ReturnType<typeof vi.fn> } {
   const track = vi.fn()
@@ -168,6 +198,15 @@ describe('Career Game playable slice', () => {
       })),
       { event: 'case_completed', scenarioId: 'rookie-survival' },
     ])
+  })
+
+  it('announces the supplied scenario decision count after guest completion', async () => {
+    renderGame(null, undefined, undefined, false, singleDecisionScenario)
+    await startCase()
+    chooseFirstOption()
+    fireEvent.click(screen.getByRole('button', { name: '結果を見る' }))
+
+    expect(screen.getByText('ケース内のファイル1件を完了しました。')).toBeInTheDocument()
   })
 
   it('restores pending consequence feedback after a reload', async () => {
@@ -449,6 +488,42 @@ describe('authenticated Career Game progress', () => {
 
   beforeEach(() => {
     window.localStorage.clear()
+  })
+
+  it('announces the supplied scenario decision count after authenticated completion', async () => {
+    const initial = createInitialState(singleDecisionScenario)
+    const decision = singleDecisionScenario.scenes.find(
+      (scene) => scene.id === initial.currentSceneId,
+    )
+    if (!decision || decision.kind !== 'decision') throw new Error('expected decision')
+    const result = applyChoice(singleDecisionScenario, initial, {
+      scenarioId: singleDecisionScenario.id,
+      contentVersion: singleDecisionScenario.contentVersion,
+      sceneId: decision.id,
+      choiceId: decision.choices[0]!.id,
+    })
+    if (result.kind !== 'completed') throw new Error('expected completion')
+    const completedProgress = {
+      kind: 'progress' as const,
+      scenarioId: singleDecisionScenario.id,
+      contentVersion: singleDecisionScenario.contentVersion,
+      checkpointId: CHECKPOINT_ID,
+      revision: 3,
+      snapshot: { state: result.state },
+    }
+    const repository = createRepository({
+      load: vi.fn().mockResolvedValue({
+        ...completedProgress,
+        revision: 2,
+        snapshot: { state: result.state, pendingOutcomeId: result.outcome.id },
+      }),
+      acknowledge: vi.fn().mockResolvedValue(completedProgress),
+    })
+
+    renderGame(signedIn, repository, undefined, false, singleDecisionScenario)
+    fireEvent.click(await screen.findByRole('button', { name: '結果を見る' }))
+
+    expect(await screen.findByText('ケース内のファイル1件を完了しました。')).toBeInTheDocument()
   })
 
   it('uses an empty remote account without importing or changing a guest checkpoint', async () => {

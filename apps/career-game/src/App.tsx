@@ -296,6 +296,7 @@ export default function App({
     () => scenario.scenes.filter((scene): scene is DecisionScene => scene.kind === 'decision'),
     [scenario],
   )
+  const completedAnnouncement = `ケース内のファイル${decisions.length}件を完了しました。`
   const currentScene = getCurrentScene(scenario, model.gameState)
   const availableChoices = getAvailableChoices(scenario, model.gameState)
   const pendingOutcome = model.pendingOutcomeId
@@ -603,9 +604,9 @@ export default function App({
             scenario.contentVersion,
             remoteCheckpoint.checkpointId,
             remoteCheckpoint.revision,
-          ),
+        ),
         model.gameState.status === 'completed'
-          ? '五つのファイルを完了しました。'
+          ? completedAnnouncement
           : `FILE ${formatFileNumber(model.gameState.history.length + 1)}へ進みました。`,
         (progress) => {
           if (progress.model.view !== 'complete') return
@@ -622,7 +623,7 @@ export default function App({
     moveTo(
       { view, gameState: model.gameState },
       view === 'complete'
-        ? '五つのファイルを完了しました。'
+        ? completedAnnouncement
         : `FILE ${formatFileNumber(model.gameState.history.length + 1)}へ進みました。`,
     )
     if (view === 'complete') {
