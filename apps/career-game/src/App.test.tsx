@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event'
 import {
   applyChoice,
   createInitialState,
+  validateScenario,
   type Scenario,
 } from '@business-japanese-hub/career-game'
 import { AuthProvider } from '@business-japanese-hub/platform-auth'
@@ -100,6 +101,174 @@ function createBranchingScenario(): Scenario {
 }
 
 const branchingScenario = createBranchingScenario()
+
+const skipThenContinueScenario: Scenario = {
+  schemaVersion: 1,
+  id: 'skip-then-continue',
+  slug: 'skip-then-continue',
+  contentVersion: 1,
+  locale: 'ja-JP',
+  title: '途中を飛ばすケース',
+  summary: '分岐で代替ファイルを飛ばし、その先の判断を続ける回帰テスト用ケース。',
+  startSceneId: 'first-decision',
+  characters: [],
+  scenes: [
+    {
+      id: 'first-decision',
+      kind: 'decision',
+      title: '最初の判断',
+      context: '二つの進行先から選ぶ。',
+      prompt: 'どちらへ進む？',
+      choices: [
+        { id: 'skip-middle', label: '代替ファイルを飛ばす', outcomeId: 'skip-middle-outcome' },
+        { id: 'visit-middle', label: '代替ファイルへ進む', outcomeId: 'visit-middle-outcome' },
+      ],
+    },
+    {
+      id: 'alternate-decision',
+      kind: 'decision',
+      title: '代替の判断',
+      context: 'もう一つの分岐だけで訪れる。',
+      prompt: 'ケースを終える？',
+      choices: [
+        {
+          id: 'finish-alternate',
+          label: '代替経路を完了する',
+          outcomeId: 'finish-alternate-outcome',
+        },
+        {
+          id: 'finish-alternate-too',
+          label: '別の方法で完了する',
+          outcomeId: 'finish-alternate-outcome',
+        },
+      ],
+    },
+    {
+      id: 'final-decision',
+      kind: 'decision',
+      title: '最後の判断',
+      context: '飛ばした先で最後の判断をする。',
+      prompt: 'ケースを終える？',
+      choices: [
+        { id: 'finish-final', label: 'ケースを完了する', outcomeId: 'finish-final-outcome' },
+        {
+          id: 'finish-final-too',
+          label: '別の対応で完了する',
+          outcomeId: 'finish-final-outcome',
+        },
+      ],
+    },
+    {
+      id: 'complete',
+      kind: 'terminal',
+      title: '完了',
+      context: '分岐した経路を完了した。',
+      completion: { title: 'ケース完了', summary: '選んだ経路だけを記録した。' },
+    },
+  ],
+  outcomes: [
+    {
+      id: 'skip-middle-outcome',
+      category: 'strong',
+      consequence: '代替ファイルを飛ばした。',
+      feedback: '選んだ分岐の先へ進む。',
+      recommendedExpression: '次の判断へ進みます。',
+      acceptableAlternatives: [],
+      effects: [],
+      nextSceneId: 'final-decision',
+    },
+    {
+      id: 'visit-middle-outcome',
+      category: 'mixed',
+      consequence: '代替ファイルへ進んだ。',
+      feedback: 'もう一つの有効な分岐を選んだ。',
+      recommendedExpression: '代替案を確認します。',
+      acceptableAlternatives: [],
+      effects: [],
+      nextSceneId: 'alternate-decision',
+    },
+    {
+      id: 'finish-alternate-outcome',
+      category: 'mixed',
+      consequence: '代替経路を完了した。',
+      feedback: 'この経路も終端へ到達する。',
+      recommendedExpression: '対応を完了します。',
+      acceptableAlternatives: [],
+      effects: [],
+      nextSceneId: 'complete',
+    },
+    {
+      id: 'finish-final-outcome',
+      category: 'strong',
+      consequence: '選んだ経路を完了した。',
+      feedback: '飛ばしたファイルを進行表示に含めない。',
+      recommendedExpression: 'この経路を完了します。',
+      acceptableAlternatives: [],
+      effects: [],
+      nextSceneId: 'complete',
+    },
+  ],
+}
+
+const loopingScenario: Scenario = {
+  schemaVersion: 1,
+  id: 'loop-then-complete',
+  slug: 'loop-then-complete',
+  contentVersion: 1,
+  locale: 'ja-JP',
+  title: '繰り返して完了するケース',
+  summary: '同じ判断を再訪してから完了する回帰テスト用ケース。',
+  startSceneId: 'repeated-decision',
+  characters: [],
+  flags: [{ id: 'may-finish', label: '完了できる', initial: false }],
+  scenes: [
+    {
+      id: 'repeated-decision',
+      kind: 'decision',
+      title: '繰り返す判断',
+      context: '一度確認すると完了を選べる。',
+      prompt: '次にどうする？',
+      choices: [
+        { id: 'repeat-once', label: 'もう一度確認する', outcomeId: 'repeat-once-outcome' },
+        {
+          id: 'finish-loop',
+          label: 'ケースを完了する',
+          outcomeId: 'finish-loop-outcome',
+          conditions: [{ kind: 'flagEquals', flagId: 'may-finish', value: true }],
+        },
+      ],
+    },
+    {
+      id: 'complete',
+      kind: 'terminal',
+      title: '完了',
+      context: '同じ判断を再訪して完了した。',
+      completion: { title: 'ケース完了', summary: '二回の訪問を個別に記録した。' },
+    },
+  ],
+  outcomes: [
+    {
+      id: 'repeat-once-outcome',
+      category: 'mixed',
+      consequence: '同じ判断へ戻った。',
+      feedback: '再確認後は完了を選べる。',
+      recommendedExpression: 'もう一度確認します。',
+      acceptableAlternatives: [],
+      effects: [{ kind: 'setFlag', flagId: 'may-finish', value: true }],
+      nextSceneId: 'repeated-decision',
+    },
+    {
+      id: 'finish-loop-outcome',
+      category: 'strong',
+      consequence: '確認を終えて完了した。',
+      feedback: '再訪した判断も個別の履歴として残る。',
+      recommendedExpression: '確認を完了します。',
+      acceptableAlternatives: [],
+      effects: [],
+      nextSceneId: 'complete',
+    },
+  ],
+}
 
 function createAnalytics(): { analytics: ValidationAnalytics; track: ReturnType<typeof vi.fn> } {
   const track = vi.fn()
@@ -228,6 +397,113 @@ describe('Career Game playable slice', () => {
     expect(loadGameSession(branchingScenario, window.localStorage)?.state.history).toHaveLength(1)
     expect(screen.getByText('ケース内のファイル1件を完了しました。')).toBeInTheDocument()
     expectCompletedBranchPath()
+  })
+
+  it('keeps the actual branch path active when play skips an alternate decision', async () => {
+    expect(validateScenario(skipThenContinueScenario)).toEqual({
+      ok: true,
+      value: skipThenContinueScenario,
+    })
+    renderGame(null, undefined, undefined, false, skipThenContinueScenario)
+    await startCase()
+
+    fireEvent.click(screen.getByRole('button', { name: /代替ファイルを飛ばす/ }))
+    let progress = screen.getByRole('navigation', { name: 'ケース進行' })
+    let files = within(progress).getAllByRole('listitem')
+    expect(files).toHaveLength(2)
+    expect(files[0]).toHaveAttribute('data-state', 'active')
+    expect(files[0]).toHaveAttribute('aria-current', 'step')
+    expect(files[0]).toHaveTextContent('最初の判断')
+    expect(files[1]).toHaveAttribute('data-state', 'pending')
+    expect(files[1]).toHaveTextContent('最後の判断')
+    expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
+    expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
+    expect(screen.getByText('FILE 01 / 02')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
+    expect(screen.getByRole('heading', { level: 1, name: '最後の判断' })).toBeInTheDocument()
+    progress = screen.getByRole('navigation', { name: 'ケース進行' })
+    files = within(progress).getAllByRole('listitem')
+    expect(files).toHaveLength(2)
+    expect(files[0]).toHaveAttribute('data-state', 'complete')
+    expect(files[0]).toHaveTextContent('最初の判断')
+    expect(files[1]).toHaveAttribute('data-state', 'active')
+    expect(files[1]).toHaveAttribute('aria-current', 'step')
+    expect(files[1]).toHaveTextContent('最後の判断')
+    expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
+    expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
+    expect(screen.getByText('FILE 02 / 02')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /ケースを完了する/ }))
+    progress = screen.getByRole('navigation', { name: 'ケース進行' })
+    files = within(progress).getAllByRole('listitem')
+    expect(files).toHaveLength(2)
+    expect(files[0]).toHaveAttribute('data-state', 'complete')
+    expect(files[1]).toHaveAttribute('data-state', 'active')
+    expect(files[1]).toHaveTextContent('最後の判断')
+    expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
+    expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
+    expect(screen.getByText('FILE 02 / 02')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '結果を見る' }))
+    progress = screen.getByRole('navigation', { name: 'ケース進行' })
+    files = within(progress).getAllByRole('listitem')
+    expect(files).toHaveLength(2)
+    expect(files.every((file) => file.dataset.state === 'complete')).toBe(true)
+    expect(within(progress).queryByRole('listitem', { current: 'step' })).not.toBeInTheDocument()
+    expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+  })
+
+  it('tracks repeated decision visits through play, feedback, and completion', async () => {
+    expect(validateScenario(loopingScenario)).toEqual({ ok: true, value: loopingScenario })
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    try {
+      renderGame(null, undefined, undefined, false, loopingScenario)
+      await startCase()
+      fireEvent.click(screen.getByRole('button', { name: /もう一度確認する/ }))
+
+      let progress = screen.getByRole('navigation', { name: 'ケース進行' })
+      let files = within(progress).getAllByRole('listitem')
+      expect(files).toHaveLength(2)
+      expect(files[0]).toHaveAttribute('data-state', 'active')
+      expect(files[1]).toHaveAttribute('data-state', 'pending')
+      expect(within(progress).getAllByText('繰り返す判断')).toHaveLength(2)
+      expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
+      expect(screen.getByText('FILE 01 / 02')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
+      expect(screen.getByText('FILE 02 / 02')).toBeInTheDocument()
+      progress = screen.getByRole('navigation', { name: 'ケース進行' })
+      files = within(progress).getAllByRole('listitem')
+      expect(files).toHaveLength(2)
+      expect(files[0]).toHaveAttribute('data-state', 'complete')
+      expect(files[1]).toHaveAttribute('data-state', 'active')
+      expect(files[1]).toHaveAttribute('aria-current', 'step')
+      expect(within(progress).getAllByText('繰り返す判断')).toHaveLength(2)
+      expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
+
+      fireEvent.click(screen.getByRole('button', { name: /ケースを完了する/ }))
+      progress = screen.getByRole('navigation', { name: 'ケース進行' })
+      files = within(progress).getAllByRole('listitem')
+      expect(files).toHaveLength(2)
+      expect(files[0]).toHaveAttribute('data-state', 'complete')
+      expect(files[1]).toHaveAttribute('data-state', 'active')
+      expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
+      expect(screen.getByText('FILE 02 / 02')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: '結果を見る' }))
+      progress = screen.getByRole('navigation', { name: 'ケース進行' })
+      files = within(progress).getAllByRole('listitem')
+      expect(files).toHaveLength(2)
+      expect(files.every((file) => file.dataset.state === 'complete')).toBe(true)
+      expect(within(progress).queryByRole('listitem', { current: 'step' })).not.toBeInTheDocument()
+      expect(screen.getByText('2 / 2')).toBeInTheDocument()
+      expect(consoleError).not.toHaveBeenCalled()
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 
   it('restores pending consequence feedback after a reload', async () => {

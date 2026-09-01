@@ -133,30 +133,57 @@ function meterEffectLabel(outcome: Outcome, meter: MeterDefinition): string | un
   return `${meter.label} ${amount > 0 ? '+' : ''}${amount}`
 }
 
-function ProgressRail({
-  decisions,
-  activeFile,
-  completedFiles,
-}: {
-  decisions: DecisionScene[]
-  activeFile: number
-  completedFiles: number
-}) {
+type ProgressRailState = 'complete' | 'active' | 'pending'
+
+interface ProgressRailEntry {
+  key: string
+  scene: DecisionScene
+  state: ProgressRailState
+}
+
+function fixedDecisionPath(scenario: Scenario): DecisionScene[] | undefined {
+  const scenesById = new Map(scenario.scenes.map((scene) => [scene.id, scene]))
+  const outcomesById = new Map(scenario.outcomes.map((outcome) => [outcome.id, outcome]))
+  const visited = new Set<string>()
+  const path: DecisionScene[] = []
+  let scene = scenesById.get(scenario.startSceneId)
+
+  while (scene?.kind === 'decision') {
+    if (visited.has(scene.id)) return undefined
+    visited.add(scene.id)
+    path.push(scene)
+
+    const nextSceneIds = new Set(
+      scene.choices.map((choice) => outcomesById.get(choice.outcomeId)?.nextSceneId),
+    )
+    if (nextSceneIds.size !== 1) return undefined
+    const nextSceneId = nextSceneIds.values().next().value
+    if (!nextSceneId) return undefined
+    scene = scenesById.get(nextSceneId)
+  }
+
+  return scene?.kind === 'terminal' ? path : undefined
+}
+
+function ProgressRail({ entries }: { entries: ProgressRailEntry[] }) {
   return (
     <nav className="case-progress" aria-label="ケース進行">
       <p className="case-progress__label" lang="en">
         Case record
       </p>
       <ol>
-        {decisions.map((scene, index) => {
+        {entries.map((entry, index) => {
           const file = index + 1
-          const state = file <= completedFiles ? 'complete' : file === activeFile ? 'active' : 'pending'
           return (
-            <li key={scene.id} data-state={state} aria-current={state === 'active' ? 'step' : undefined}>
+            <li
+              key={entry.key}
+              data-state={entry.state}
+              aria-current={entry.state === 'active' ? 'step' : undefined}
+            >
               <span className="case-progress__number">{formatFileNumber(file)}</span>
-              <span className="case-progress__title">{scene.title}</span>
+              <span className="case-progress__title">{entry.scene.title}</span>
               <span className="case-progress__state">
-                {state === 'complete' ? '済' : state === 'active' ? '現在' : '未'}
+                {entry.state === 'complete' ? '済' : entry.state === 'active' ? '現在' : '未'}
               </span>
             </li>
           )
@@ -296,27 +323,78 @@ export default function App({
     () => scenario.scenes.filter((scene): scene is DecisionScene => scene.kind === 'decision'),
     [scenario],
   )
-  const completedPathDecisions = useMemo(() => {
+  const pathVisits = useMemo(() => {
     const decisionsById = new Map(decisions.map((decision) => [decision.id, decision]))
-    return model.gameState.history.flatMap((record) => {
+    return model.gameState.history.flatMap((record, index) => {
       const decision = decisionsById.get(record.sceneId)
-      return decision ? [decision] : []
+      return decision ? [{ key: `visit:${index}:${decision.id}`, scene: decision }] : []
     })
   }, [decisions, model.gameState.history])
-  const progressDecisions = model.view === 'complete' ? completedPathDecisions : decisions
+  const linearDecisionPath = useMemo(() => fixedDecisionPath(scenario), [scenario])
   const completedAnnouncement = `ケース内のファイル${model.gameState.history.length}件を完了しました。`
   const currentScene = getCurrentScene(scenario, model.gameState)
+  const progressEntries = useMemo<ProgressRailEntry[]>(() => {
+    const historyLength = model.gameState.history.length
+    if (linearDecisionPath) {
+      return linearDecisionPath.map((scene, index) => {
+        const file = index + 1
+        const state =
+          model.view === 'complete' ||
+          (model.view === 'playing' && file <= historyLength) ||
+          (model.view === 'feedback' && file < historyLength)
+            ? 'complete'
+            : (model.view === 'playing' && file === historyLength + 1) ||
+                (model.view === 'feedback' && file === historyLength)
+              ? 'active'
+              : 'pending'
+        return { key: `linear:${index}:${scene.id}`, scene, state }
+      })
+    }
+
+    const entries: ProgressRailEntry[] = pathVisits.map((visit, index) => ({
+      ...visit,
+      state:
+        model.view === 'complete' ||
+        model.view === 'playing' ||
+        index < pathVisits.length - 1
+          ? 'complete'
+          : 'active',
+    }))
+    if (currentScene?.kind === 'decision' && model.view === 'playing') {
+      entries.push({
+        key: `visit:${historyLength}:${currentScene.id}`,
+        scene: currentScene,
+        state: 'active',
+      })
+    } else if (
+      currentScene?.kind === 'decision' &&
+      model.view === 'feedback' &&
+      model.gameState.status === 'playing'
+    ) {
+      entries.push({
+        key: `visit:${historyLength}:${currentScene.id}`,
+        scene: currentScene,
+        state: 'pending',
+      })
+    }
+    return entries
+  }, [
+    currentScene,
+    linearDecisionPath,
+    model.gameState.history.length,
+    model.gameState.status,
+    model.view,
+    pathVisits,
+  ])
   const availableChoices = getAvailableChoices(scenario, model.gameState)
   const pendingOutcome = model.pendingOutcomeId
     ? scenario.outcomes.find((outcome) => outcome.id === model.pendingOutcomeId)
     : undefined
-  const completedFiles = model.gameState.history.length
-  const progressCompletedFiles =
-    model.view === 'feedback' ? Math.max(0, completedFiles - 1) : completedFiles
-  const activeFile =
-    model.view === 'feedback' || model.view === 'complete'
-      ? Math.max(1, completedFiles)
-      : Math.min(decisions.length, completedFiles + 1)
+  const activeFile = Math.max(
+    1,
+    progressEntries.findIndex((entry) => entry.state === 'active') + 1,
+  )
+  const displayedFileCount = Math.max(1, progressEntries.length)
 
   useEffect(() => {
     if (viewedScenario.current === scenario.id) return
@@ -907,7 +985,7 @@ export default function App({
       <article className="case-sheet scene-sheet" aria-labelledby="scene-title">
         <header className="case-sheet__header">
           <p className="file-index">
-            FILE {formatFileNumber(activeFile)} / {formatFileNumber(decisions.length)}
+            FILE {formatFileNumber(activeFile)} / {formatFileNumber(displayedFileCount)}
           </p>
           <p className="case-sheet__context">{currentScene.context}</p>
           <h1 id="scene-title" ref={viewHeading} tabIndex={-1}>
@@ -982,7 +1060,7 @@ export default function App({
       >
         <header className="case-sheet__header">
           <p className="file-index">
-            FILE {formatFileNumber(activeFile)} / {formatFileNumber(decisions.length)}
+            FILE {formatFileNumber(activeFile)} / {formatFileNumber(displayedFileCount)}
           </p>
           <p className="case-sheet__context">{sourceScene?.title}</p>
           <h1 id="feedback-title" ref={viewHeading} tabIndex={-1}>
@@ -1088,7 +1166,7 @@ export default function App({
         <div className="result-ledger" aria-label="プレイ結果">
           <div>
             <span>完了ファイル</span>
-            <strong>{model.gameState.history.length} / {completedPathDecisions.length}</strong>
+            <strong>{model.gameState.history.length} / {pathVisits.length}</strong>
           </div>
           {(scenario.meters ?? []).map((meter) => (
             <div key={meter.id}>
@@ -1160,11 +1238,7 @@ export default function App({
         {visibleSourceStatus === 'ready' && model.view === 'intro' ? renderIntro() : null}
         {showGameLayout ? (
           <div className="game-layout">
-            <ProgressRail
-              decisions={progressDecisions}
-              activeFile={activeFile}
-              completedFiles={progressCompletedFiles}
-            />
+            <ProgressRail entries={progressEntries} />
             <div className="game-stage">
               <MeterReadout scenario={scenario} gameState={model.gameState} />
               {model.view === 'playing' ? renderScene() : null}
