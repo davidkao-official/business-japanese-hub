@@ -12,9 +12,8 @@ import { BookActions } from '../components/BookActions'
 import { BookCard } from '../components/BookCard'
 import { BookCover } from '../components/BookCover'
 import { Price } from '../components/Price'
-import { careerGameCaseLinkHref } from '../lib/cross-product/careerGame'
+import { careerGameHomeHref } from '../lib/cross-product/careerGame'
 
-const CURRENT_PLAYABLE_SCENARIO_ID = 'rookie-survival'
 const browserValidationAnalytics = createBrowserValidationAnalytics({
   functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
@@ -44,7 +43,6 @@ export function HomePage({
     try {
       analytics.track({
         event: 'cross_product_link_clicked',
-        scenarioId: CURRENT_PLAYABLE_SCENARIO_ID,
         direction: 'library_to_career_game',
       })
     } catch {
@@ -69,10 +67,7 @@ export function HomePage({
         </div>
         <a
           className="btn btn--ghost career-game-callout__link"
-          href={careerGameCaseLinkHref(
-            CURRENT_PLAYABLE_SCENARIO_ID,
-            careerGameOriginValue,
-          )}
+          href={careerGameHomeHref(careerGameOriginValue)}
           onClick={trackCareerGameLink}
         >
           {strings.storefront.playCase}

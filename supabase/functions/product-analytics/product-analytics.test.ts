@@ -63,6 +63,26 @@ describe('product validation analytics handler', () => {
     expect(log.info).not.toHaveBeenCalled()
   })
 
+  it.each([
+    {
+      eventId: EVENT_ID,
+      event: 'cross_product_link_clicked',
+      direction: 'library_to_career_game',
+    },
+    {
+      eventId: EVENT_ID,
+      event: 'cross_product_link_clicked',
+      scenarioId: 'rookie-survival',
+      direction: 'career_game_to_library',
+    },
+  ])('accepts the exact direction-specific cross-product shape', (event) => {
+    const log = fakeLogger()
+    const result = handleProductAnalytics(request(event), { log })
+
+    expect(result.status).toBe(202)
+    expect(log.info).toHaveBeenCalledWith(event, 'validation event accepted')
+  })
+
   it('rejects declared or actual bodies above the small analytics cap', () => {
     const log = fakeLogger()
     const actual = handleProductAnalytics(
@@ -142,6 +162,17 @@ describe('product validation analytics handler', () => {
       event: 'cross_product_link_clicked',
       scenarioId: 'rookie-survival',
       direction: 'library_to_game',
+    },
+    {
+      eventId: EVENT_ID,
+      event: 'cross_product_link_clicked',
+      scenarioId: 'rookie-survival',
+      direction: 'library_to_career_game',
+    },
+    {
+      eventId: EVENT_ID,
+      event: 'cross_product_link_clicked',
+      direction: 'career_game_to_library',
     },
   ])('rejects values outside the exact event allowlist: $event', (body) => {
     const log = fakeLogger()

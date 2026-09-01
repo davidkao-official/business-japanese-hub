@@ -10,8 +10,12 @@ export type ValidationAnalyticsEvent =
     }
   | {
       event: 'cross_product_link_clicked'
+      direction: 'library_to_career_game'
+    }
+  | {
+      event: 'cross_product_link_clicked'
       scenarioId: string
-      direction: 'library_to_career_game' | 'career_game_to_library'
+      direction: 'career_game_to_library'
     }
 
 export type RecordedValidationAnalyticsEvent = ValidationAnalyticsEvent & {
@@ -49,7 +53,21 @@ function parseEventWithPrefix(
   value: unknown,
   prefixKeys: readonly string[],
 ): ValidationAnalyticsEvent | null {
-  if (!isRecord(value) || !isScenarioId(value.scenarioId)) return null
+  if (!isRecord(value)) return null
+  if (value.event === 'cross_product_link_clicked') {
+    if (value.direction === 'library_to_career_game') {
+      return hasExactKeys(value, [...prefixKeys, 'event', 'direction'])
+        ? { event: value.event, direction: value.direction }
+        : null
+    }
+    if (value.direction === 'career_game_to_library' && isScenarioId(value.scenarioId)) {
+      return hasExactKeys(value, [...prefixKeys, 'event', 'scenarioId', 'direction'])
+        ? { event: value.event, scenarioId: value.scenarioId, direction: value.direction }
+        : null
+    }
+    return null
+  }
+  if (!isScenarioId(value.scenarioId)) return null
   if (typeof value.event === 'string' && SIMPLE_CASE_EVENTS.has(value.event)) {
     return hasExactKeys(value, [...prefixKeys, 'event', 'scenarioId'])
       ? { event: value.event as 'case_viewed' | 'case_started' | 'case_completed' | 'case_replayed', scenarioId: value.scenarioId }
@@ -65,13 +83,6 @@ function parseEventWithPrefix(
           scenarioId: value.scenarioId,
           outcomeCategory: value.outcomeCategory,
         }
-      : null
-  }
-  if (value.event === 'cross_product_link_clicked') {
-    return hasExactKeys(value, [...prefixKeys, 'event', 'scenarioId', 'direction'])
-      && (value.direction === 'library_to_career_game'
-        || value.direction === 'career_game_to_library')
-      ? { event: value.event, scenarioId: value.scenarioId, direction: value.direction }
       : null
   }
   return null

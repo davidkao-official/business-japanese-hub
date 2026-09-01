@@ -40,21 +40,20 @@ describe('storefront', () => {
     expect(screen.queryByText('¥660')).not.toBeInTheDocument()
   })
 
-  it('offers a quiet stable link to the current playable Case and tracks its use', () => {
+  it('offers a quiet content-neutral link to the Game-owned default and tracks its use', () => {
     const track = vi.fn()
     renderWithAppProviders(<HomePage analytics={{ track }} />)
 
     const link = screen.getByRole('link', { name: 'ケースをプレイ' })
     expect(link).toHaveAttribute(
       'href',
-      'https://business-japanese-career-game.pages.dev/case-link?scenarioId=rookie-survival',
+      'https://business-japanese-career-game.pages.dev/',
     )
 
     clickWithoutNavigation(link)
 
     expect(track).toHaveBeenCalledExactlyOnceWith({
       event: 'cross_product_link_clicked',
-      scenarioId: 'rookie-survival',
       direction: 'library_to_career_game',
     })
   })
@@ -75,7 +74,7 @@ describe('storefront', () => {
     const link = screen.getByRole('link', { name: 'ケースをプレイ' })
     expect(link).toHaveAttribute(
       'href',
-      'https://game-preview.example.jp/case-link?scenarioId=rookie-survival',
+      'https://game-preview.example.jp/',
     )
     expect(() => clickWithoutNavigation(link)).not.toThrow()
   })

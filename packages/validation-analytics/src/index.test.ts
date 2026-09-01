@@ -81,6 +81,26 @@ describe('browser validation analytics', () => {
     })
   })
 
+  it('does not make Library depend on a Game content id for product-home movement', () => {
+    const fetcher = createFetcher()
+    const analytics = createBrowserValidationAnalytics({
+      functionsBaseUrl: 'https://project.supabase.co/functions/v1',
+      fetcher,
+      createEventId: () => EVENT_ID,
+    })
+
+    analytics.track({
+      event: 'cross_product_link_clicked',
+      direction: 'library_to_career_game',
+    })
+
+    expect(JSON.parse(fetcher.mock.calls[0]![1]!.body as string)).toEqual({
+      eventId: EVENT_ID,
+      event: 'cross_product_link_clicked',
+      direction: 'library_to_career_game',
+    })
+  })
+
   it.each(['case_viewed', 'case_completed', 'case_replayed'] as const)(
     'supports the exact simple case event %s',
     (event) => {
@@ -179,6 +199,15 @@ describe('browser validation analytics', () => {
       event: 'cross_product_link_clicked',
       scenarioId: 'rookie-survival',
       direction: 'unknown',
+    })
+    trackUnknown({
+      event: 'cross_product_link_clicked',
+      scenarioId: 'rookie-survival',
+      direction: 'library_to_career_game',
+    })
+    trackUnknown({
+      event: 'cross_product_link_clicked',
+      direction: 'career_game_to_library',
     })
 
     expect(fetcher).not.toHaveBeenCalled()

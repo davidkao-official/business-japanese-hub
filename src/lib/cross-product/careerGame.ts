@@ -35,3 +35,7 @@ export function careerGameCaseLinkHref(
   const parameters = new URLSearchParams({ scenarioId })
   return `${resolveCareerGameOrigin(environmentValue)}/case-link?${parameters}`
 }
+
+export function careerGameHomeHref(environmentValue: unknown): string {
+  return `${resolveCareerGameOrigin(environmentValue)}/`
+}

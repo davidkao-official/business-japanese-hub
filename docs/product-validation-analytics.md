@@ -23,12 +23,17 @@ sanitized structured function logs。它不新增 vendor、warehouse、browser-r
 | `case_outcome` | `eventId`, `scenarioId`, `outcomeCategory` | 一次有效 choice 已到達 `strong`／`mixed`／`risky` outcome |
 | `case_completed` | `eventId`, `scenarioId` | final feedback 已 acknowledge，且本次 attempt 進入 complete |
 | `case_replayed` | `eventId`, `scenarioId` | completed attempt 的 reset 成功並回到 Case intro |
-| `cross_product_link_clicked` | `eventId`, `scenarioId`, `direction` | 使用者啟動 `library_to_career_game` 或 `career_game_to_library` movement |
+| `cross_product_link_clicked` | `eventId`, `direction`; `scenarioId` only for `career_game_to_library` | 使用者啟動 `library_to_career_game` 或 `career_game_to_library` movement；Library product-home link 不持有 Game content id |
 
 `eventId` 是 client 產生的 UUID，只用來在 log export／query 中 `distinct` 去除同一 logical
 event 的重複 delivery。Server 使用自己的 timestamp。禁止 user id、email、account/session／
 attempt／checkpoint id、choice、原文、feedback、URL、referrer、client timestamp、任意
 properties 或 payment／entitlement data。
+
+`library_to_career_game` 指向 Game-owned product root，刻意不帶 `scenarioId`；Game 可獨立更換
+default Case。`career_game_to_library` 從已解析的 Case surface 出發，因此保留該 Case 的
+`scenarioId` 作 bounded attribution。Library 若未來新增 content-specific contextual link，目標
+必須來自獨立 metadata／stable resolver contract，不得在 generic platform CTA hard-code Game content。
 
 ## 3. Delivery and privacy
 
