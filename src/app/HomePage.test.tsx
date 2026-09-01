@@ -29,6 +29,33 @@ describe('storefront', () => {
     })
   })
 
+  it('renders the approved founder and author profiles on the public storefront', () => {
+    renderWithAppProviders(<HomePage />)
+
+    expect(screen.getByRole('heading', { name: '創辦人｜David Kao' })).toBeInTheDocument()
+    expect(screen.getByText('高中時期通過 JLPT N1')).toBeInTheDocument()
+    expect(screen.getByText('通過台灣國家考試，取得日語導遊、日語領隊資格')).toBeInTheDocument()
+    expect(screen.getByText('大學期間累積日文家教及中日口譯經驗')).toBeInTheDocument()
+    expect(screen.getByText('於日本取得 MBA（工商管理碩士）')).toBeInTheDocument()
+    expect(screen.getByText('四大日本法人 Business Consultant 經歷')).toBeInTheDocument()
+    expect(screen.getByText('透過日本高度人才制度取得日本永久居留資格')).toBeInTheDocument()
+    expect(screen.getByText('繁體中文｜日本語｜English')).toBeInTheDocument()
+
+    expect(
+      screen.getByRole('heading', { name: '作者｜塔奇巧克力（TachikoChoko）' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText('曾於直播平台「初樂（TrueLoveLive）」擔任後端工程師')).toBeInTheDocument()
+    expect(screen.getByText('曾於冰角工作室擔任後端 Lead，主要負責後端系統開發')).toBeInTheDocument()
+    expect(
+      screen.getByText('長期關注資料庫效能優化、查詢速度與系統架構等後端工程議題'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('名字中的「塔奇」取自《攻殼機動隊》的塔奇克馬')).toBeInTheDocument()
+    expect(screen.getByText('現居東京，並於東京的語言學校學習日文')).toBeInTheDocument()
+    expect(
+      screen.getByText('以工程師與日語學習者的雙重視角，參與 Business Japanese Hub 的產品與技術開發'),
+    ).toBeInTheDocument()
+  })
+
   it('shows authoritative USD pricing plus purchase and preview actions for the paid feature', async () => {
     renderWithAppProviders(<HomePage />)
 
