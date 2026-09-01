@@ -1,19 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   CANONICAL_CAREER_GAME_ORIGIN,
-  careerGameCaseLinkHref,
   careerGameHomeHref,
   resolveCareerGameOrigin,
 } from './careerGame'
 
 describe('Library Career Game links', () => {
-  it('uses the canonical Game origin and stable scenario-id resolver', () => {
+  it('uses the canonical Game origin for the content-neutral product link', () => {
     expect(resolveCareerGameOrigin(undefined)).toBe(CANONICAL_CAREER_GAME_ORIGIN)
     expect(careerGameHomeHref(undefined)).toBe(
       'https://business-japanese-career-game.pages.dev/',
-    )
-    expect(careerGameCaseLinkHref('rookie survival', undefined)).toBe(
-      'https://business-japanese-career-game.pages.dev/case-link?scenarioId=rookie+survival',
     )
   })
 
