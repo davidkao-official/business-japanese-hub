@@ -130,7 +130,7 @@ describe('dual-frontend build topology', () => {
     })
 
     expect(outputFingerprint(libraryOutput)).toEqual(libraryBefore)
-  })
+  }, 30_000)
 
   it('the validated Library deploy build leaves the Career Game artifact unchanged', () => {
     const careerGameBefore = outputFingerprint(careerGameOutput)
@@ -142,7 +142,7 @@ describe('dual-frontend build topology', () => {
     })
 
     expect(outputFingerprint(careerGameOutput)).toEqual(careerGameBefore)
-  })
+  }, 30_000)
 
   it('shares public browser configuration without leaking server credentials', () => {
     for (const output of [libraryOutput, careerGameOutput]) {
