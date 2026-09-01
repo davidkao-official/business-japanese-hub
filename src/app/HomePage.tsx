@@ -15,6 +15,11 @@ import { BookCard } from '../components/BookCard'
 import { BookCover } from '../components/BookCover'
 import { Price } from '../components/Price'
 import { careerGameHomeHref } from '../lib/cross-product/careerGame'
+import {
+  AUTHOR_PROFILE,
+  FOUNDER_PROFILE,
+  type PublicProfile,
+} from './storefrontProfiles'
 
 const browserValidationAnalytics = createBrowserValidationAnalytics({
   functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,
@@ -99,6 +104,8 @@ export function HomePage({
           </ul>
         </section>
       )}
+
+      <PublicProfiles />
     </section>
   )
 }
@@ -156,6 +163,42 @@ function FeaturedBook({ entry }: { entry: CatalogEntry }) {
           {strings.storefront.viewDetails}
         </Link>
       </div>
+    </article>
+  )
+}
+
+function PublicProfiles() {
+  return (
+    <div className="page" id="profiles">
+      <PublicProfileBlock id="founder-profile" profile={FOUNDER_PROFILE} />
+      <PublicProfileBlock id="author-profile" profile={AUTHOR_PROFILE} />
+    </div>
+  )
+}
+
+function PublicProfileBlock({ id, profile }: { id: string; profile: PublicProfile }) {
+  return (
+    <article className="page" aria-labelledby={id} lang={profile.language}>
+      <h2 className="section-title" id={id}>
+        {profile.heading}
+      </h2>
+      <ul className="page">
+        {profile.credentials.map((credential) => (
+          <li key={credential}>{credential}</li>
+        ))}
+      </ul>
+      {profile.languages && (
+        <p>
+          <strong lang="en">Languages</strong>
+          <br />
+          {profile.languages.map((language, index) => (
+            <span key={language.label}>
+              {index > 0 && <span aria-hidden="true">｜</span>}
+              <span lang={language.language}>{language.label}</span>
+            </span>
+          ))}
+        </p>
+      )}
     </article>
   )
 }
