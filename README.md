@@ -62,7 +62,7 @@ Business Japanese Hub 是 shared、web-first 的 business-Japanese 平台，服�
 ## 部署
 
 - **Canonical frontends**：Library／Paid Launch 是 `https://business-japanese-hub.pages.dev/`；Career Game 是 `https://business-japanese-career-game.pages.dev/`。兩者都是獨立 Cloudflare Pages projects；GitHub Pages 不是 deployment target。
-- **Production build**：`pnpm build` 會驗證並 build 兩個 frontends；Library project 上傳 `dist/`，Career Game project 上傳 `dist-career-game/`。兩個 Pages projects 都使用 origin root `/`，不產生 top-level `404.html`，並可各自 deploy／rollback。
+- **Production build**：GitHub CI 的 `pnpm build` 會驗證並 build 兩個 frontends；Cloudflare Pages 則使用 product-only validated commands（Library：`pnpm workflow:verify-releases && pnpm exec tsc -p tsconfig.app.json && pnpm build:library`；Career Game：`pnpm exec tsc -p tsconfig.career-game.json && pnpm build:career-game`），分別上傳 `dist/` 與 `dist-career-game/`。兩個 Pages projects 都使用 origin root `/`，不產生 top-level `404.html`，且任一產品的 build failure 不會阻塞另一產品 deploy／rollback。
 - **Cloudflare Pages Git integration**：production branch 使用 `main`；每次 production branch 更新由 Cloudflare 重新 build/deploy。GitHub Actions `.github/workflows/ci.yml` 獨立負責 typecheck / lint / test / build quality gate。
 - **SPA routing**：不要產生 GitHub Pages 式的頂層 `404.html`。Cloudflare Pages 在沒有頂層 `404.html` 時會把未命中 static asset 的路徑交給 SPA root，讓 `BrowserRouter` deep links 可直接載入。
 - **Frontend production variables**：兩個 Pages projects 使用相同 public `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY` 與需要時的 `VITE_EDGE_FUNCTIONS_BASE_URL`。Library 另設 `VITE_CAREER_GAME_ORIGIN`，Career Game 設 `VITE_LIBRARY_ORIGIN`。後端 `PUBLIC_SITE_URL` 保持 Library origin；`CAREER_GAME_SITE_URL` 使用 exact Game origin，絕不加入 payment CORS。

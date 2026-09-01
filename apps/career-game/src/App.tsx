@@ -397,10 +397,11 @@ export default function App({
   const displayedFileCount = Math.max(1, progressEntries.length)
 
   useEffect(() => {
+    if (visibleSourceStatus !== 'ready') return
     if (viewedScenario.current === scenario.id) return
     viewedScenario.current = scenario.id
     trackSafely(analytics, { event: 'case_viewed', scenarioId: scenario.id })
-  }, [analytics, scenario.id])
+  }, [analytics, scenario.id, visibleSourceStatus])
 
   useEffect(() => {
     trackedTransitions.current.clear()

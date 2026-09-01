@@ -23,16 +23,19 @@ production branch `main` and repository root as the build root:
 
 | Pages project | Build command | Output | Root/base |
 | --- | --- | --- | --- |
-| `business-japanese-hub` | `pnpm build` | `dist` | repository root / `/` |
-| `business-japanese-career-game` | `pnpm build:career-game` | `dist-career-game` | repository root / `/` |
+| `business-japanese-hub` | `pnpm workflow:verify-releases && pnpm exec tsc -p tsconfig.app.json && pnpm build:library` | `dist` | repository root / `/` |
+| `business-japanese-career-game` | `pnpm exec tsc -p tsconfig.career-game.json && pnpm build:career-game` | `dist-career-game` | repository root / `/` |
 
 The existing Library project and URL are preserved. The second project avoids a
 custom gateway/path multiplexer and provides a separate deployment history and
-rollback surface. A push may build both projects, but either artifact can be
-rolled back without replacing the other or changing shared platform data.
+rollback surface. Each Pages project validates and builds only its own product,
+so a product-specific build failure cannot block the counterpart's deployment.
+Either artifact can also be rolled back without replacing the other or changing
+shared platform data.
 `DEPLOY_BASE_PATH` remains unset for Library; Career Game also builds for `/`.
 
-The root build now validates both frontend boundaries in one checkout:
+GitHub CI retains the combined root build as the cross-product gate for every
+pull request and `main` push:
 
 ```text
 pnpm build

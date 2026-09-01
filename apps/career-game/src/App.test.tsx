@@ -1008,18 +1008,23 @@ describe('authenticated Career Game progress', () => {
       .fn()
       .mockRejectedValueOnce(new Error('private trace'))
       .mockResolvedValueOnce({ kind: 'none' })
+    const { analytics, track } = createAnalytics()
     saveGameSession(
       rookieSurvivalScenario,
       { state: createInitialState(rookieSurvivalScenario) },
       window.localStorage,
     )
-    renderGame(signedIn, createRepository({ load }))
+    renderGame(signedIn, createRepository({ load }), analytics)
 
     expect(await screen.findByRole('heading', { name: '進行を読み込めませんでした' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '配属初日の挨拶' })).not.toBeInTheDocument()
+    expect(track.mock.calls.some(([event]) => event.event === 'case_viewed')).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: '再読み込み' }))
     expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
     expect(load).toHaveBeenCalledTimes(2)
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
+    ).toEqual([[{ event: 'case_viewed', scenarioId: 'rookie-survival' }]])
   })
 
   it('keeps the current safe model and shows a generic retryable action error', async () => {
