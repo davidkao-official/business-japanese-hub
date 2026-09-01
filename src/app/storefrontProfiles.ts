@@ -1,8 +1,13 @@
+export interface PublicProfileLanguage {
+  label: string
+  language: 'zh-TW' | 'ja' | 'en'
+}
+
 export interface PublicProfile {
   heading: string
   credentials: readonly string[]
   language: 'zh-TW'
-  languages?: readonly string[]
+  languages?: readonly PublicProfileLanguage[]
 }
 
 /**
@@ -20,7 +25,11 @@ export const FOUNDER_PROFILE: PublicProfile = {
     '透過日本高度人才制度取得日本永久居留資格',
   ],
   language: 'zh-TW',
-  languages: ['繁體中文', '日本語', 'English'],
+  languages: [
+    { label: '繁體中文', language: 'zh-TW' },
+    { label: '日本語', language: 'ja' },
+    { label: 'English', language: 'en' },
+  ],
 }
 
 export const AUTHOR_PROFILE: PublicProfile = {
