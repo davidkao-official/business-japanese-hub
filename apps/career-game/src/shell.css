@@ -609,6 +609,11 @@ button {
   min-width: 0;
 }
 
+.game-layout--without-progress .game-stage {
+  width: 100%;
+  margin-inline: auto;
+}
+
 .meter-readout {
   display: flex;
   justify-content: flex-end;
@@ -1098,6 +1103,10 @@ button {
     grid-template-columns: calc(var(--space-9) * 2.5) minmax(0, 1fr);
     align-items: start;
     gap: var(--space-7);
+  }
+
+  .game-layout--without-progress {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .case-progress {

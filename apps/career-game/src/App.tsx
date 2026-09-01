@@ -1265,8 +1265,12 @@ export default function App({
         ) : null}
         {visibleSourceStatus === 'ready' && model.view === 'intro' ? renderIntro() : null}
         {showGameLayout ? (
-          <div className="game-layout">
-            <ProgressRail entries={progressEntries} />
+          <div
+            className={`game-layout${
+              progressEntries.length === 0 ? ' game-layout--without-progress' : ''
+            }`}
+          >
+            {progressEntries.length > 0 ? <ProgressRail entries={progressEntries} /> : null}
             <div className="game-stage">
               <MeterReadout scenario={scenario} gameState={model.gameState} />
               {model.view === 'playing' ? renderScene() : null}
