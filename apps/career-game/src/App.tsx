@@ -394,7 +394,9 @@ export default function App({
     1,
     progressEntries.findIndex((entry) => entry.state === 'active') + 1,
   )
-  const displayedFileCount = Math.max(1, progressEntries.length)
+  const fileIndexLabel = linearDecisionPath
+    ? `FILE ${formatFileNumber(activeFile)} / ${formatFileNumber(linearDecisionPath.length)}`
+    : `FILE ${formatFileNumber(activeFile)}`
 
   useEffect(() => {
     if (visibleSourceStatus !== 'ready') return
@@ -986,7 +988,7 @@ export default function App({
       <article className="case-sheet scene-sheet" aria-labelledby="scene-title">
         <header className="case-sheet__header">
           <p className="file-index">
-            FILE {formatFileNumber(activeFile)} / {formatFileNumber(displayedFileCount)}
+            {fileIndexLabel}
           </p>
           <p className="case-sheet__context">{currentScene.context}</p>
           <h1 id="scene-title" ref={viewHeading} tabIndex={-1}>
@@ -1061,7 +1063,7 @@ export default function App({
       >
         <header className="case-sheet__header">
           <p className="file-index">
-            FILE {formatFileNumber(activeFile)} / {formatFileNumber(displayedFileCount)}
+            {fileIndexLabel}
           </p>
           <p className="case-sheet__context">{sourceScene?.title}</p>
           <h1 id="feedback-title" ref={viewHeading} tabIndex={-1}>

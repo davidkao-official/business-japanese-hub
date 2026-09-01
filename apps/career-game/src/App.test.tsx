@@ -406,6 +406,8 @@ describe('Career Game playable slice', () => {
     })
     renderGame(null, undefined, undefined, false, skipThenContinueScenario)
     await startCase()
+    expect(screen.getByText('FILE 01')).toBeInTheDocument()
+    expect(screen.queryByText(/^FILE 01 \/ /)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /代替ファイルを飛ばす/ }))
     let progress = screen.getByRole('navigation', { name: 'ケース進行' })
@@ -418,7 +420,7 @@ describe('Career Game playable slice', () => {
     expect(files[1]).toHaveTextContent('最後の判断')
     expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
     expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
-    expect(screen.getByText('FILE 01 / 02')).toBeInTheDocument()
+    expect(screen.getByText('FILE 01')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
     expect(screen.getByRole('heading', { level: 1, name: '最後の判断' })).toBeInTheDocument()
@@ -432,7 +434,7 @@ describe('Career Game playable slice', () => {
     expect(files[1]).toHaveTextContent('最後の判断')
     expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
     expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
-    expect(screen.getByText('FILE 02 / 02')).toBeInTheDocument()
+    expect(screen.getByText('FILE 02')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /ケースを完了する/ }))
     progress = screen.getByRole('navigation', { name: 'ケース進行' })
@@ -443,7 +445,7 @@ describe('Career Game playable slice', () => {
     expect(files[1]).toHaveTextContent('最後の判断')
     expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
     expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
-    expect(screen.getByText('FILE 02 / 02')).toBeInTheDocument()
+    expect(screen.getByText('FILE 02')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '結果を見る' }))
     progress = screen.getByRole('navigation', { name: 'ケース進行' })
@@ -462,6 +464,8 @@ describe('Career Game playable slice', () => {
     try {
       renderGame(null, undefined, undefined, false, loopingScenario)
       await startCase()
+      expect(screen.getByText('FILE 01')).toBeInTheDocument()
+      expect(screen.queryByText(/^FILE 01 \/ /)).not.toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: /もう一度確認する/ }))
 
       let progress = screen.getByRole('navigation', { name: 'ケース進行' })
@@ -471,10 +475,10 @@ describe('Career Game playable slice', () => {
       expect(files[1]).toHaveAttribute('data-state', 'pending')
       expect(within(progress).getAllByText('繰り返す判断')).toHaveLength(2)
       expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
-      expect(screen.getByText('FILE 01 / 02')).toBeInTheDocument()
+      expect(screen.getByText('FILE 01')).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
-      expect(screen.getByText('FILE 02 / 02')).toBeInTheDocument()
+      expect(screen.getByText('FILE 02')).toBeInTheDocument()
       progress = screen.getByRole('navigation', { name: 'ケース進行' })
       files = within(progress).getAllByRole('listitem')
       expect(files).toHaveLength(2)
@@ -491,7 +495,7 @@ describe('Career Game playable slice', () => {
       expect(files[0]).toHaveAttribute('data-state', 'complete')
       expect(files[1]).toHaveAttribute('data-state', 'active')
       expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
-      expect(screen.getByText('FILE 02 / 02')).toBeInTheDocument()
+      expect(screen.getByText('FILE 02')).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('button', { name: '結果を見る' }))
       progress = screen.getByRole('navigation', { name: 'ケース進行' })
