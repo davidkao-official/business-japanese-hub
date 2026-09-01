@@ -44,6 +44,8 @@ Business Japanese Hub 是 shared、web-first 的 business-Japanese 平台，服�
 | `pnpm preview:career-game` | 預覽 Career Game build |
 | `pnpm build:library` | 只 build Library 至 `dist/` |
 | `pnpm build:career-game` | 只 build Career Game 至 `dist-career-game/` |
+| `pnpm build:library:deploy` | 驗證並 build Cloudflare Pages 的 Library artifact |
+| `pnpm build:career-game:deploy` | 驗證並 build Cloudflare Pages 的 Career Game artifact |
 | `pnpm build` | 驗證 released Books、typecheck 全部 projects，依序 build 兩個 frontends |
 
 這個 topology 沒有新增第二 backend；兩個產品仍共用既有 Supabase modular monolith。#60 將兩個 artifacts 分別部署為 root-hosted Cloudflare Pages projects，避免 gateway/path multiplexing，並保留獨立 deploy／rollback。
@@ -62,7 +64,7 @@ Business Japanese Hub 是 shared、web-first 的 business-Japanese 平台，服�
 ## 部署
 
 - **Canonical frontends**：Library／Paid Launch 是 `https://business-japanese-hub.pages.dev/`；Career Game 是 `https://business-japanese-career-game.pages.dev/`。兩者都是獨立 Cloudflare Pages projects；GitHub Pages 不是 deployment target。
-- **Production build**：GitHub CI 的 `pnpm build` 會驗證並 build 兩個 frontends；Cloudflare Pages 則使用 product-only validated commands（Library：`pnpm workflow:verify-releases && pnpm exec tsc -p tsconfig.app.json && pnpm build:library`；Career Game：`pnpm exec tsc -p tsconfig.career-game.json && pnpm build:career-game`），分別上傳 `dist/` 與 `dist-career-game/`。兩個 Pages projects 都使用 origin root `/`，不產生 top-level `404.html`，且任一產品的 build failure 不會阻塞另一產品 deploy／rollback。
+- **Production build**：GitHub CI 的 `pnpm build` 會驗證並 build 兩個 frontends；Cloudflare Pages 則分別使用 canonical product-only commands `pnpm build:library:deploy` 與 `pnpm build:career-game:deploy`，上傳 `dist/` 與 `dist-career-game/`。兩個 Pages projects 都使用 origin root `/`，不產生 top-level `404.html`，且任一產品的 build failure 不會阻塞另一產品 deploy／rollback；`src/test/frontend-builds.test.ts` 直接驗證這兩個 deploy commands 的 artifact isolation。
 - **Cloudflare Pages Git integration**：production branch 使用 `main`；每次 production branch 更新由 Cloudflare 重新 build/deploy。GitHub Actions `.github/workflows/ci.yml` 獨立負責 typecheck / lint / test / build quality gate。
 - **SPA routing**：不要產生 GitHub Pages 式的頂層 `404.html`。Cloudflare Pages 在沒有頂層 `404.html` 時會把未命中 static asset 的路徑交給 SPA root，讓 `BrowserRouter` deep links 可直接載入。
 - **Frontend production variables**：兩個 Pages projects 使用相同 public `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY` 與需要時的 `VITE_EDGE_FUNCTIONS_BASE_URL`。Library 另設 `VITE_CAREER_GAME_ORIGIN`，Career Game 設 `VITE_LIBRARY_ORIGIN`。後端 `PUBLIC_SITE_URL` 保持 Library origin；`CAREER_GAME_SITE_URL` 使用 exact Game origin，絕不加入 payment CORS。

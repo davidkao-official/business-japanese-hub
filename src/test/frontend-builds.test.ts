@@ -120,10 +120,10 @@ describe('dual-frontend build topology', () => {
     expect(outputFingerprint(libraryOutput)).not.toEqual(outputFingerprint(careerGameOutput))
   })
 
-  it('a Career Game rebuild leaves the Library artifact byte-for-byte unchanged', () => {
+  it('the validated Career Game deploy build leaves the Library artifact unchanged', () => {
     const libraryBefore = outputFingerprint(libraryOutput)
 
-    execFileSync('pnpm', ['build:career-game'], {
+    execFileSync('pnpm', ['build:career-game:deploy'], {
       cwd: process.cwd(),
       env: buildEnvironment,
       stdio: 'pipe',
@@ -132,10 +132,10 @@ describe('dual-frontend build topology', () => {
     expect(outputFingerprint(libraryOutput)).toEqual(libraryBefore)
   })
 
-  it('a Library rebuild leaves the Career Game artifact byte-for-byte unchanged', () => {
+  it('the validated Library deploy build leaves the Career Game artifact unchanged', () => {
     const careerGameBefore = outputFingerprint(careerGameOutput)
 
-    execFileSync('pnpm', ['build:library'], {
+    execFileSync('pnpm', ['build:library:deploy'], {
       cwd: process.cwd(),
       env: buildEnvironment,
       stdio: 'pipe',
