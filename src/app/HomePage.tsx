@@ -192,9 +192,9 @@ function PublicProfileBlock({ id, profile }: { id: string; profile: PublicProfil
           <strong lang="en">Languages</strong>
           <br />
           {profile.languages.map((language, index) => (
-            <span key={language.label} lang={language.language}>
-              {index > 0 && '｜'}
-              {language.label}
+            <span key={language.label}>
+              {index > 0 && <span aria-hidden="true">｜</span>}
+              <span lang={language.language}>{language.label}</span>
             </span>
           ))}
         </p>
