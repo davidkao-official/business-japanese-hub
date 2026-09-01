@@ -32,8 +32,8 @@ export const FOUNDER_PROFILE: PublicProfile = {
   ],
 }
 
-export const AUTHOR_PROFILE: PublicProfile = {
-  heading: '作者｜塔奇巧克力（TachikoChoko）',
+export const COFOUNDER_PROFILE: PublicProfile = {
+  heading: '共同創辦人｜塔奇巧克力（TachikoChoko）',
   credentials: [
     '曾於直播平台「初樂（TrueLoveLive）」擔任後端工程師',
     '曾於冰角工作室擔任後端 Lead，主要負責後端系統開發',
