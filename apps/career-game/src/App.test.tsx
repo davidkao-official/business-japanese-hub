@@ -594,25 +594,34 @@ describe('Career Game playable slice', () => {
     renderGame(null, undefined, analytics, true)
 
     expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
-    expect(
-      track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
-    ).toEqual([[{ event: 'case_viewed', scenarioId: 'rookie-survival' }]])
+    await waitFor(() => {
+      expect(
+        track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
+      ).toEqual([[{ event: 'case_viewed', scenarioId: 'rookie-survival' }]])
+    })
   })
 
   it('tracks a new Case view after a real page-surface remount', async () => {
     const { analytics, track } = createAnalytics()
     const first = renderGame(null, undefined, analytics, true)
     expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
+      ).toEqual([[{ event: 'case_viewed', scenarioId: 'rookie-survival' }]])
+    })
     first.unmount()
 
     renderGame(null, undefined, analytics, true)
     expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
-    expect(
-      track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
-    ).toEqual([
-      [{ event: 'case_viewed', scenarioId: 'rookie-survival' }],
-      [{ event: 'case_viewed', scenarioId: 'rookie-survival' }],
-    ])
+    await waitFor(() => {
+      expect(
+        track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
+      ).toEqual([
+        [{ event: 'case_viewed', scenarioId: 'rookie-survival' }],
+        [{ event: 'case_viewed', scenarioId: 'rookie-survival' }],
+      ])
+    })
   })
 
   it('tracks rapid Game-to-Library product-switch activation only once', async () => {
@@ -921,9 +930,11 @@ describe('authenticated Career Game progress', () => {
       'href',
       'https://business-japanese-hub.pages.dev/library-link?bookId=book-sample-bj-keigo&chapterId=ch-2',
     )
-    expect(track.mock.calls.map(([event]) => event)).toEqual([
-      { event: 'case_viewed', scenarioId: 'rookie-survival' },
-    ])
+    await waitFor(() => {
+      expect(track.mock.calls.map(([event]) => event)).toEqual([
+        { event: 'case_viewed', scenarioId: 'rookie-survival' },
+      ])
+    })
   })
 
   it('never writes authenticated actions to guest local storage', async () => {
@@ -1039,9 +1050,11 @@ describe('authenticated Career Game progress', () => {
     )
 
     const replay = await screen.findByRole('button', { name: 'もう一度プレイ' })
-    expect(track.mock.calls.map(([event]) => event)).toEqual([
-      { event: 'case_viewed', scenarioId: 'rookie-survival' },
-    ])
+    await waitFor(() => {
+      expect(track.mock.calls.map(([event]) => event)).toEqual([
+        { event: 'case_viewed', scenarioId: 'rookie-survival' },
+      ])
+    })
     fireEvent.click(replay)
 
     expect(reset).toHaveBeenCalledWith('rookie-survival', 1, 1, CHECKPOINT_ID, 9)
@@ -1071,9 +1084,11 @@ describe('authenticated Career Game progress', () => {
     fireEvent.click(screen.getByRole('button', { name: '再読み込み' }))
     expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
     expect(load).toHaveBeenCalledTimes(2)
-    expect(
-      track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
-    ).toEqual([[{ event: 'case_viewed', scenarioId: 'rookie-survival' }]])
+    await waitFor(() => {
+      expect(
+        track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
+      ).toEqual([[{ event: 'case_viewed', scenarioId: 'rookie-survival' }]])
+    })
   })
 
   it('keeps the current safe model and shows a generic retryable action error', async () => {
@@ -1090,9 +1105,11 @@ describe('authenticated Career Game progress', () => {
     expect(screen.queryByText(/private backend/)).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'ケースを開始' })).toBeEnabled()
-    expect(track.mock.calls.map(([event]) => event)).toEqual([
-      { event: 'case_viewed', scenarioId: 'rookie-survival' },
-    ])
+    await waitFor(() => {
+      expect(track.mock.calls.map(([event]) => event)).toEqual([
+        { event: 'case_viewed', scenarioId: 'rookie-survival' },
+      ])
+    })
   })
 
   it('ignores a late authenticated load after signing out', async () => {
