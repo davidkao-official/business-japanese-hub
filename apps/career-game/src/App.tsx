@@ -304,7 +304,7 @@ export default function App({
   const actionInFlight = useRef(false)
   const trackedTransitions = useRef(new Set<string>())
   const viewedScenario = useRef<string | null>(null)
-  const libraryMovementTracked = useRef(false)
+  const pageReplacingLibraryMovementTracked = useRef(false)
   const viewHeading = useRef<HTMLHeadingElement>(null)
   const authenticatedUserId = user?.id
   const usesRemoteProgress = Boolean(authenticatedUserId && progressRepository)
@@ -495,9 +495,12 @@ export default function App({
     trackSafely(analytics, event)
   }
 
-  function trackGameToLibrary(): void {
-    if (libraryMovementTracked.current) return
-    libraryMovementTracked.current = true
+  function trackGameToLibrary(event: MouseEvent<HTMLAnchorElement>): void {
+    const keepsPageMounted = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+    if (!keepsPageMounted) {
+      if (pageReplacingLibraryMovementTracked.current) return
+      pageReplacingLibraryMovementTracked.current = true
+    }
     trackSafely(analytics, {
       event: 'cross_product_link_clicked',
       scenarioId: scenario.id,

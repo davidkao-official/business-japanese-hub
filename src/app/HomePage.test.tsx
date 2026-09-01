@@ -4,9 +4,9 @@ import { vi } from 'vitest'
 import { renderWithAppProviders } from '../test/appProviders'
 import { HomePage } from './HomePage'
 
-function clickWithoutNavigation(link: HTMLElement) {
+function clickWithoutNavigation(link: HTMLElement, init: MouseEventInit = {}) {
   link.addEventListener('click', (event) => event.preventDefault(), { once: true })
-  fireEvent.click(link)
+  fireEvent.click(link, init)
 }
 
 describe('storefront', () => {
@@ -78,5 +78,17 @@ describe('storefront', () => {
       'https://game-preview.example.jp/',
     )
     expect(() => clickWithoutNavigation(link)).not.toThrow()
+  })
+
+  it('tracks later genuine movements after modified clicks keep the page mounted', () => {
+    const track = vi.fn()
+    renderWithAppProviders(<HomePage analytics={{ track }} />)
+    const link = screen.getByRole('link', { name: 'ケースをプレイ' })
+
+    clickWithoutNavigation(link, { metaKey: true })
+    clickWithoutNavigation(link, { ctrlKey: true })
+    clickWithoutNavigation(link)
+
+    expect(track).toHaveBeenCalledTimes(3)
   })
 })

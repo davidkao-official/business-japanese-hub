@@ -284,9 +284,9 @@ function chooseFirstOption() {
   fireEvent.click(within(choices).getAllByRole('button')[0]!)
 }
 
-function clickWithoutNavigation(link: HTMLElement) {
+function clickWithoutNavigation(link: HTMLElement, init: MouseEventInit = {}) {
   link.addEventListener('click', (event) => event.preventDefault(), { once: true })
-  fireEvent.click(link)
+  fireEvent.click(link, init)
 }
 
 function expectCompletedBranchPath() {
@@ -662,6 +662,23 @@ describe('Career Game playable slice', () => {
         },
       ],
     ])
+  })
+
+  it('tracks later genuine movements after modified clicks keep the Game mounted', async () => {
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
+
+    const productSwitch = await screen.findByRole('link', { name: /Library/ })
+    clickWithoutNavigation(productSwitch, { metaKey: true })
+    clickWithoutNavigation(productSwitch, { ctrlKey: true })
+
+    await startCase()
+    chooseFirstOption()
+    clickWithoutNavigation(screen.getByRole('link', { name: 'Libraryで関連内容を読む' }))
+
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
+    ).toHaveLength(3)
   })
 
   it('keeps anonymous play available when analytics throws', async () => {

@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
   createBrowserValidationAnalytics,
@@ -38,12 +38,15 @@ export function HomePage({
   const entries = listCatalogEntries()
   const featured = entries[0]
   const rest = entries.slice(1)
-  const careerGameMovementTracked = useRef(false)
+  const pageReplacingCareerGameMovementTracked = useRef(false)
   useDocumentTitle(strings.home.title)
 
-  function trackCareerGameLink(): void {
-    if (careerGameMovementTracked.current) return
-    careerGameMovementTracked.current = true
+  function trackCareerGameLink(event: MouseEvent<HTMLAnchorElement>): void {
+    const keepsPageMounted = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+    if (!keepsPageMounted) {
+      if (pageReplacingCareerGameMovementTracked.current) return
+      pageReplacingCareerGameMovementTracked.current = true
+    }
     try {
       analytics.track({
         event: 'cross_product_link_clicked',

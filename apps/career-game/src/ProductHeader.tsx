@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { MouseEventHandler, ReactNode } from 'react'
 import { libraryHomeHref } from './library-links'
 
 export function ProductHeader({
@@ -8,7 +8,7 @@ export function ProductHeader({
 }: {
   account?: ReactNode
   libraryOriginValue: unknown
-  onLibraryClick?: () => void
+  onLibraryClick?: MouseEventHandler<HTMLAnchorElement>
 }) {
   return (
     <header className="career-game-header">
