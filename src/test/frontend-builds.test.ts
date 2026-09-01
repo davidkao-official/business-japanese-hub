@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 
@@ -121,27 +121,43 @@ describe('dual-frontend build topology', () => {
   })
 
   it('the validated Career Game deploy build leaves the Library artifact unchanged', () => {
+    const sentinelPath = join(libraryOutput, '.career-game-deploy-must-not-touch-library')
+    const sentinel = 'Library deploy-isolation sentinel'
+    writeFileSync(sentinelPath, sentinel)
     const libraryBefore = outputFingerprint(libraryOutput)
 
-    execFileSync('pnpm', ['build:career-game:deploy'], {
-      cwd: process.cwd(),
-      env: buildEnvironment,
-      stdio: 'pipe',
-    })
+    try {
+      execFileSync('pnpm', ['build:career-game:deploy'], {
+        cwd: process.cwd(),
+        env: buildEnvironment,
+        stdio: 'pipe',
+      })
 
-    expect(outputFingerprint(libraryOutput)).toEqual(libraryBefore)
+      expect(readFileSync(sentinelPath, 'utf8')).toBe(sentinel)
+      expect(outputFingerprint(libraryOutput)).toEqual(libraryBefore)
+    } finally {
+      rmSync(sentinelPath, { force: true })
+    }
   }, 30_000)
 
   it('the validated Library deploy build leaves the Career Game artifact unchanged', () => {
+    const sentinelPath = join(careerGameOutput, '.library-deploy-must-not-touch-career-game')
+    const sentinel = 'Career Game deploy-isolation sentinel'
+    writeFileSync(sentinelPath, sentinel)
     const careerGameBefore = outputFingerprint(careerGameOutput)
 
-    execFileSync('pnpm', ['build:library:deploy'], {
-      cwd: process.cwd(),
-      env: buildEnvironment,
-      stdio: 'pipe',
-    })
+    try {
+      execFileSync('pnpm', ['build:library:deploy'], {
+        cwd: process.cwd(),
+        env: buildEnvironment,
+        stdio: 'pipe',
+      })
 
-    expect(outputFingerprint(careerGameOutput)).toEqual(careerGameBefore)
+      expect(readFileSync(sentinelPath, 'utf8')).toBe(sentinel)
+      expect(outputFingerprint(careerGameOutput)).toEqual(careerGameBefore)
+    } finally {
+      rmSync(sentinelPath, { force: true })
+    }
   }, 30_000)
 
   it('shares public browser configuration without leaking server credentials', () => {
