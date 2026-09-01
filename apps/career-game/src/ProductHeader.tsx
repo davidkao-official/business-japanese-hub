@@ -20,7 +20,11 @@ export function ProductHeader({
       </div>
       <div className="career-game-header__actions">
         <nav className="product-switch" aria-label="プロダクト">
-          <a href={libraryHomeHref(libraryOriginValue)} onClick={onLibraryClick}>
+          <a
+            href={libraryHomeHref(libraryOriginValue)}
+            onClick={onLibraryClick}
+            onAuxClick={onLibraryClick}
+          >
             <span lang="en">Library</span>
             <span className="product-switch__context">読む・調べる</span>
           </a>

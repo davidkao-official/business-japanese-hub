@@ -43,7 +43,10 @@ export function HomePage({
   useDocumentTitle(strings.home.title)
 
   function trackCareerGameLink(event: MouseEvent<HTMLAnchorElement>): void {
-    const keepsPageMounted = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+    const isAuxiliaryClick = event.type === 'auxclick'
+    if (isAuxiliaryClick ? event.button !== 1 : event.button !== 0) return
+    const keepsPageMounted =
+      isAuxiliaryClick || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
     if (!careerGameMovementDeduper.current.shouldTrack(
       keepsPageMounted,
       event.currentTarget.href,
@@ -77,6 +80,7 @@ export function HomePage({
           className="btn btn--ghost career-game-callout__link"
           href={careerGameHomeHref(careerGameOriginValue)}
           onClick={trackCareerGameLink}
+          onAuxClick={trackCareerGameLink}
         >
           {strings.storefront.playCase}
           <span aria-hidden="true">→</span>

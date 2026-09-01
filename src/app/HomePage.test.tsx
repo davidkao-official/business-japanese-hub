@@ -9,6 +9,14 @@ function clickWithoutNavigation(link: HTMLElement, init: MouseEventInit = {}) {
   fireEvent.click(link, init)
 }
 
+function auxiliaryClickWithoutNavigation(link: HTMLElement, button = 1) {
+  link.addEventListener('auxclick', (event) => event.preventDefault(), { once: true })
+  fireEvent(
+    link,
+    new MouseEvent('auxclick', { bubbles: true, cancelable: true, button }),
+  )
+}
+
 describe('storefront', () => {
   it('features the commercial Book and lists both free Books as a compact shelf', async () => {
     renderWithAppProviders(<HomePage />)
@@ -99,5 +107,20 @@ describe('storefront', () => {
     } finally {
       clock.mockRestore()
     }
+  })
+
+  it('tracks middle-button movement without counting duplicate or context-menu gestures', () => {
+    const track = vi.fn()
+    renderWithAppProviders(<HomePage analytics={{ track }} />)
+    const link = screen.getByRole('link', { name: 'ケースをプレイ' })
+
+    auxiliaryClickWithoutNavigation(link)
+    auxiliaryClickWithoutNavigation(link)
+    auxiliaryClickWithoutNavigation(link, 2)
+
+    expect(track).toHaveBeenCalledExactlyOnceWith({
+      event: 'cross_product_link_clicked',
+      direction: 'library_to_career_game',
+    })
   })
 })

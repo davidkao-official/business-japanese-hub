@@ -501,7 +501,10 @@ export default function App({
   }
 
   function trackGameToLibrary(event: MouseEvent<HTMLAnchorElement>): void {
-    const keepsPageMounted = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+    const isAuxiliaryClick = event.type === 'auxclick'
+    if (isAuxiliaryClick ? event.button !== 1 : event.button !== 0) return
+    const keepsPageMounted =
+      isAuxiliaryClick || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
     if (!libraryMovementDeduper.current.shouldTrack(
       keepsPageMounted,
       event.currentTarget.href,
@@ -970,10 +973,6 @@ export default function App({
               <dd>{caseFileSummary}</dd>
             </div>
             <div>
-              <dt>所要時間</dt>
-              <dd>約 8–10 分</dd>
-            </div>
-            <div>
               <dt>アクセス</dt>
               <dd>無料・登録不要</dd>
             </div>
@@ -1138,6 +1137,7 @@ export default function App({
             <a
               href={libraryLinkHref(pendingOutcome.libraryLinks[0], libraryOriginValue)}
               onClick={trackGameToLibrary}
+              onAuxClick={trackGameToLibrary}
             >
               Libraryで関連内容を読む
               <span aria-hidden="true">→</span>
@@ -1202,20 +1202,22 @@ export default function App({
           ))}
         </div>
 
-        <section className="judgment-summary" aria-labelledby="judgment-summary-title">
-          <p className="section-label" id="judgment-summary-title">
-            判断の内訳
-          </p>
-          <ul>
-            {(Object.keys(categoryLabels) as Outcome['category'][]).map((category) => (
-              <li key={category}>
-                <span>{categoryLabels[category]}</span>
-                <strong>{categoryCounts[category]}</strong>
-              </li>
-            ))}
-          </ul>
-          <p>同じ場面でも、関係性や状況によって最善の言い方は変わる。別の選択も試してみよう。</p>
-        </section>
+        {model.gameState.history.length > 0 ? (
+          <section className="judgment-summary" aria-labelledby="judgment-summary-title">
+            <p className="section-label" id="judgment-summary-title">
+              判断の内訳
+            </p>
+            <ul>
+              {(Object.keys(categoryLabels) as Outcome['category'][]).map((category) => (
+                <li key={category}>
+                  <span>{categoryLabels[category]}</span>
+                  <strong>{categoryCounts[category]}</strong>
+                </li>
+              ))}
+            </ul>
+            <p>同じ場面でも、関係性や状況によって最善の言い方は変わる。別の選択も試してみよう。</p>
+          </section>
+        ) : null}
 
         <div className="sheet-actions">
           <button

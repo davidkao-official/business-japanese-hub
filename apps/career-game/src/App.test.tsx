@@ -318,6 +318,14 @@ function clickWithoutNavigation(link: HTMLElement, init: MouseEventInit = {}) {
   fireEvent.click(link, init)
 }
 
+function auxiliaryClickWithoutNavigation(link: HTMLElement, button = 1) {
+  link.addEventListener('auxclick', (event) => event.preventDefault(), { once: true })
+  fireEvent(
+    link,
+    new MouseEvent('auxclick', { bubbles: true, cancelable: true, button }),
+  )
+}
+
 function expectCompletedBranchPath() {
   const progress = screen.getByRole('navigation', { name: 'ケース進行' })
   expect(within(progress).getAllByRole('listitem')).toHaveLength(1)
@@ -384,6 +392,8 @@ describe('Career Game playable slice', () => {
     await waitFor(() => expect(completion).toHaveFocus())
     expect(screen.getByText('ケースを開始し、完了画面を表示しました。')).toBeInTheDocument()
     expect(screen.getByText('0 / 0')).toBeInTheDocument()
+    expect(screen.queryByText('判断の内訳')).not.toBeInTheDocument()
+    expect(screen.queryByText(/別の選択も試してみよう/)).not.toBeInTheDocument()
     const saved = loadGameSession(terminalStartScenario, window.localStorage)
     expect(saved?.state.status).toBe('completed')
     expect(saved?.state.history).toHaveLength(0)
@@ -391,6 +401,16 @@ describe('Career Game playable slice', () => {
       { event: 'case_viewed', scenarioId: 'terminal-start' },
       { event: 'case_started', scenarioId: 'terminal-start' },
     ])
+  })
+
+  it('does not invent a duration for a catalog-supplied scenario', async () => {
+    renderGame(null, undefined, undefined, false, terminalStartScenario)
+
+    expect(
+      await screen.findByRole('heading', { name: '開始時点で完了するケース' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('所要時間')).not.toBeInTheDocument()
+    expect(screen.queryByText('約 8–10 分')).not.toBeInTheDocument()
   })
 
   it('uses the required prompt as the heading and rail label for an untitled decision', async () => {
@@ -752,6 +772,41 @@ describe('Career Game playable slice', () => {
     expect(
       track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
     ).toEqual([
+      [
+        {
+          event: 'cross_product_link_clicked',
+          scenarioId: 'rookie-survival',
+          direction: 'career_game_to_library',
+        },
+      ],
+    ])
+  })
+
+  it('tracks middle-button movement for both Game-to-Library targets', async () => {
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
+
+    const productSwitch = await screen.findByRole('link', { name: /Library/ })
+    auxiliaryClickWithoutNavigation(productSwitch)
+    auxiliaryClickWithoutNavigation(productSwitch)
+
+    await startCase()
+    chooseFirstOption()
+    const relatedReading = screen.getByRole('link', { name: 'Libraryで関連内容を読む' })
+    auxiliaryClickWithoutNavigation(relatedReading)
+    auxiliaryClickWithoutNavigation(relatedReading)
+    auxiliaryClickWithoutNavigation(relatedReading, 2)
+
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
+    ).toEqual([
+      [
+        {
+          event: 'cross_product_link_clicked',
+          scenarioId: 'rookie-survival',
+          direction: 'career_game_to_library',
+        },
+      ],
       [
         {
           event: 'cross_product_link_clicked',
