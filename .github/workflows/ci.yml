@@ -60,6 +60,9 @@ jobs:
       - name: Build Library and Career Game frontends
         run: pnpm build
 
+      - name: Smoke built Library and Career Game frontends
+        run: pnpm smoke:built-frontends
+
       - name: Start clean local database
         run: supabase db start
 

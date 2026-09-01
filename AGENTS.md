@@ -28,7 +28,7 @@
 - **Design tokens**：`src/styles/tokens.css` — 設計 token（色彩、排版、間距、陰影等）集中在此，UI 樣式一律引用 tokens，不散落 magic values。
 - **Web app**：`src/` — React + TypeScript + Vite 的應用主體。
 
-> 不要從本文件推導新的 monorepo folders、Career Game production hostname 或 DB schema；這些不是目前已定案的 contract。
+> 不要從本文件推導新的 monorepo folders 或 DB schema。Career Game production hostname 已由 #60 定案，見下方 deployment contract。
 
 ## 未來 agents 必須遵守的規則
 
@@ -41,7 +41,8 @@
 - 不要引入 subscription-first 商業模式，不要以 AI 作為主要產品 abstraction，不為 MVP non-goals（見 product contract §13）投入實作。
 - Payment implementation（#9）以 `docs/payments/decision-record.md` 為唯一 contract；payment architecture 為 provider-neutral，ECPay（綠界）只是第一支 TWD adapter。Provider-specific mechanics 不得污染 Book / Reader / Library / Entitlement architecture；paid ownership 只能由 verified authoritative server event 驅動。所有 payment `/api/*` endpoints 都必須在 server-only execution boundary 執行（Supabase Edge Functions，見 decision-record §3.5）；client 永不可提供可信 amount/currency，server 以 authoritative catalog price seam 取價（見 §8.3）。
 - **Canonical Library／Paid Launch production frontend 是 Cloudflare Pages**：`https://business-japanese-hub.pages.dev/`。GitHub Pages 不是 deployment target，也不得重新引入其 project-path build、`404.html` artifact 或 deployment workflow，除非先有新的明確 deployment 決策。
-- 這個 canonical origin 是現有 Library／Paid Launch frontend contract；Career Game production hostname 尚未決定，不得猜測。
+- **Canonical Career Game production frontend 也是獨立 Cloudflare Pages project**：`https://business-japanese-career-game.pages.dev/`。兩個 root-hosted SPA artifacts 可獨立 deploy／rollback；不得用 custom gateway 或 path multiplexing 把它們重新綁在一起。
+- Library 的 `PUBLIC_SITE_URL`／payment CORS 保持只指向 Library origin；Career Game 只使用 dedicated `CAREER_GAME_SITE_URL`。分離 origins 不共享 browser session，使用者以同一個 Supabase account 在 Career Game 重新登入；不得為此新增 cross-domain SSO 或放寬 payment CORS。
 - 與 `docs/product-contract.md` 衝突的實作方向應被視為錯誤，先釐清再動手。
 
 ## 當前階段：Paid Launch／first revenue
@@ -63,6 +64,7 @@
 - `docs/platform-architecture.md` — Library + Career Game bounded contexts、shared platform 與 dependency direction。
 - `docs/shared-backend-and-identity.md` — shared Supabase identity、origin/session topology、browser/server secret boundary 與 data-access isolation。
 - `docs/learning-and-progress.md` — Library／Career Game 的 bounded shared skill/evidence seam、authenticated Game resume、version/reset 與 RLS contract。
+- `docs/product-validation-analytics.md` — #60 的 bounded analytics event vocabulary、privacy 與 non-authoritative trust boundary。
 - `docs/content-model.md` — Library 內容資料模型（`Book → Chapter → ContentBlock` 的具體定義；不是 Career Game schema）。
 - `docs/payments/decision-record.md` — canonical payment decision record（provider-neutral payment architecture 的唯一規範來源；6 頁初版研究已 SUPERSEDED，見 `docs/payments/research-v1-superseded.md`）。
 - `docs/accounts-and-entitlement.md` — accounts / ownership / reading-state persistence 契約。

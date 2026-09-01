@@ -1,4 +1,10 @@
+import { useRef, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
+import {
+  createBrowserValidationAnalytics,
+  createCrossProductMovementDeduper,
+  type ValidationAnalytics,
+} from '@business-japanese-hub/validation-analytics'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { listCatalogEntries, type CatalogEntry } from '../reader/catalog'
 import { useStrings } from '../i18n/strings'
@@ -8,18 +14,52 @@ import { BookActions } from '../components/BookActions'
 import { BookCard } from '../components/BookCard'
 import { BookCover } from '../components/BookCover'
 import { Price } from '../components/Price'
+import { careerGameHomeHref } from '../lib/cross-product/careerGame'
+
+const browserValidationAnalytics = createBrowserValidationAnalytics({
+  functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+})
+
+export interface HomePageProps {
+  analytics?: ValidationAnalytics
+  careerGameOriginValue?: unknown
+}
 
 /**
  * Storefront — the platform's editorial surface (docs/ui-ux-research.md §4.1).
  * The first catalog entry is the editorial feature; the rest form the compact
  * book shelf. Book-agnostic: only catalog data, never a first-book branch.
  */
-export function HomePage() {
+export function HomePage({
+  analytics = browserValidationAnalytics,
+  careerGameOriginValue = import.meta.env.VITE_CAREER_GAME_ORIGIN,
+}: HomePageProps = {}) {
   const strings = useStrings()
   const entries = listCatalogEntries()
   const featured = entries[0]
   const rest = entries.slice(1)
+  const careerGameMovementDeduper = useRef(createCrossProductMovementDeduper())
   useDocumentTitle(strings.home.title)
+
+  function trackCareerGameLink(event: MouseEvent<HTMLAnchorElement>): void {
+    const isAuxiliaryClick = event.type === 'auxclick'
+    if (isAuxiliaryClick ? event.button !== 1 : event.button !== 0) return
+    const keepsPageMounted =
+      isAuxiliaryClick || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+    if (!careerGameMovementDeduper.current.shouldTrack(
+      keepsPageMounted,
+      event.currentTarget.href,
+    )) return
+    try {
+      analytics.track({
+        event: 'cross_product_link_clicked',
+        direction: 'library_to_career_game',
+      })
+    } catch {
+      // The ordinary cross-origin link remains usable if analytics is unavailable.
+    }
+  }
 
   return (
     <section className="page" aria-labelledby="home-title">
@@ -29,6 +69,23 @@ export function HomePage() {
       <p className="page__lead">{strings.home.lead}</p>
 
       {featured && <FeaturedBook entry={featured} />}
+
+      <aside className="career-game-callout" aria-labelledby="career-game-callout-title">
+        <div className="career-game-callout__copy">
+          <p className="career-game-callout__kicker">{strings.storefront.practiceKicker}</p>
+          <h2 id="career-game-callout-title">{strings.storefront.practiceTitle}</h2>
+          <p>{strings.storefront.practiceLead}</p>
+        </div>
+        <a
+          className="btn btn--ghost career-game-callout__link"
+          href={careerGameHomeHref(careerGameOriginValue)}
+          onClick={trackCareerGameLink}
+          onAuxClick={trackCareerGameLink}
+        >
+          {strings.storefront.playCase}
+          <span aria-hidden="true">→</span>
+        </a>
+      </aside>
 
       {rest.length > 0 && (
         <section className="storefront-catalog" aria-labelledby="catalog-title">

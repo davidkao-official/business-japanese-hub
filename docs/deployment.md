@@ -4,12 +4,13 @@ This runbook keeps the public frontend deployable while payment, entitlement,
 auth, legal, email, refund, and reconciliation paths remain server-authoritative
 and fail closed.
 
-## 1. Canonical frontend: Cloudflare Pages
+## 1. Canonical frontends: two Cloudflare Pages projects
 
-The canonical production frontend is:
+The canonical production frontends are:
 
 ```text
-https://business-japanese-hub.pages.dev/
+Library      https://business-japanese-hub.pages.dev/
+Career Game  https://business-japanese-career-game.pages.dev/
 ```
 
 GitHub Pages is **not** a deployment target for this project. Do not reintroduce
@@ -17,15 +18,28 @@ a repository project-path build, a copied top-level `404.html`, or a GitHub Page
 deploy workflow unless a later explicit deployment decision supersedes this
 runbook.
 
-Cloudflare Pages is connected to the repository and should use:
+Both projects use the same repository and committed `pnpm` version, with
+production branch `main` and repository root as the build root:
 
-- production branch: `main`
-- package manager: the committed `pnpm` version
-- build command: `pnpm build`
-- build output directory: `dist`
-- `DEPLOY_BASE_PATH`: unset, so Vite builds for `/`
+| Pages project | Build command | Output | Root/base |
+| --- | --- | --- | --- |
+| `business-japanese-hub` | `pnpm build:library:deploy` | `dist` | repository root / `/` |
+| `business-japanese-career-game` | `pnpm build:career-game:deploy` | `dist-career-game` | repository root / `/` |
 
-The root build now validates both frontend boundaries in one checkout:
+The existing Library project and URL are preserved. The second project avoids a
+custom gateway/path multiplexer and provides a separate deployment history and
+rollback surface. Each Pages project validates and builds only its own product,
+so a product-specific build failure cannot block the counterpart's deployment.
+Either artifact can also be rolled back without replacing the other or changing
+shared platform data.
+`DEPLOY_BASE_PATH` remains unset for Library; Career Game also builds for `/`.
+The named deploy scripts are the canonical Pages command contract and are
+exercised by `src/test/frontend-builds.test.ts`. The Library command verifies
+released Books and the Library TypeScript graph before building; the Game
+command verifies the Career Game TypeScript graph before building.
+
+GitHub CI retains the combined root build as the cross-product gate for every
+pull request and `main` push:
 
 ```text
 pnpm build
@@ -35,12 +49,12 @@ pnpm build
 └── build Career Game → dist-career-game/
 ```
 
-Cloudflare Pages must continue to upload **only `dist/`**. The separate
-`dist-career-game/` artifact proves that Career Game is independently
-buildable; it has no production hostname or routing contract yet. That decision
-is deferred to #60. Do not add a second Pages project, change `PUBLIC_SITE_URL`,
-or infer production routing from the Career Game artifact without that explicit
-decision.
+Each project uploads only its own artifact. Neither output may contain a
+top-level `404.html`: Cloudflare then serves the corresponding SPA root for an
+unmatched history route. Library owns its Book/Reader routes; Career Game owns
+`/cases/:slug` and its stable `/case-link?scenarioId=...` resolver. Unknown or
+removed stable targets render the owning product's unavailable surface rather
+than redirecting to unrelated content.
 
 Cloudflare Pages treats a project without a top-level `404.html` as a SPA and
 serves the root application for unmatched history routes. The production build
@@ -52,8 +66,8 @@ Frontend production environment variables:
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_ANON_KEY`
 - optional `VITE_EDGE_FUNCTIONS_BASE_URL` (otherwise derived from the Supabase URL)
-- optional Career Game `VITE_LIBRARY_ORIGIN` for an explicitly reviewed
-  non-production preview; omission uses the canonical Library origin
+- Library `VITE_CAREER_GAME_ORIGIN=https://business-japanese-career-game.pages.dev/`
+- Career Game `VITE_LIBRARY_ORIGIN=https://business-japanese-hub.pages.dev/`
 
 Both frontend builds consume the same repository-root public Supabase values;
 Career Game's Vite config sets `envDir` accordingly. Only `VITE_` values are
@@ -72,35 +86,55 @@ set:
 PUBLIC_SITE_URL=https://business-japanese-hub.pages.dev/
 ```
 
-Keep Supabase Auth Site URL / redirect allow-list aligned with that same origin.
-Career Game currently supports existing-account password login without an auth
-redirect and has no production origin. If #60 later assigns a separate origin,
-users may reauthenticate against the same `auth.users` identity; cross-origin
-session sharing is not assumed. Review redirects explicitly rather than widening
-payment CORS or changing `PUBLIC_SITE_URL`. See
-`docs/shared-backend-and-identity.md` for the full session matrix.
+Keep Supabase Auth Site URL aligned with the Library origin. Career Game supports
+existing-account password login without an auth redirect. Because the products
+have separate origins, browser session storage is intentionally isolated: users
+reauthenticate with the same `auth.users` identity on Career Game. Do not add
+cross-origin SSO, widen payment CORS, or change `PUBLIC_SITE_URL`. A future
+redirect-based Game flow must explicitly allow-list only the exact Game origin.
+See `docs/shared-backend-and-identity.md` for the full session matrix.
 
-The authenticated `career-game-progress` function has its own optional exact
-`CAREER_GAME_SITE_URL` CORS seam. Leave it unset while the Career Game production
-origin is undecided: browser calls then fail closed, while the independently
-buildable anonymous experience remains device-local. Once #60 provides an
-approved origin, set that exact origin and its matching public Supabase values;
-do not add it to payment CORS or repurpose `PUBLIC_SITE_URL`. The
+The authenticated `career-game-progress` function has its own exact
+`CAREER_GAME_SITE_URL` CORS seam. Set it to
+`https://business-japanese-career-game.pages.dev/` for production; if absent or
+different, authenticated Game persistence fails closed while anonymous play
+remains device-local. Do not add the Game origin to payment CORS or repurpose
+`PUBLIC_SITE_URL`. The
 `library-learning-evidence` function continues to use the canonical Library
-`PUBLIC_SITE_URL` and independently verifies paid-chapter entitlement.
+`PUBLIC_SITE_URL` and independently verifies paid-chapter entitlement. The
+anonymous `product-analytics` function accepts either exact product origin and
+only the bounded vocabulary in `docs/product-validation-analytics.md`; its logs
+are never identity, progress, payment or entitlement evidence.
 If a custom domain later becomes canonical, update Cloudflare, `PUBLIC_SITE_URL`,
 Auth redirects, CORS evidence, payment return URLs, email links, and this runbook
 together rather than running two canonical origins.
 
-After any production frontend deployment, run:
+Before opening a PR, build and smoke both served artifacts from one checkout:
 
 ```bash
-pnpm exec tsx scripts/smoke-deployment.ts https://business-japanese-hub.pages.dev/
+pnpm build
+pnpm smoke:built-frontends
 ```
 
-The smoke verifies the root document, emitted assets, and direct SPA routes.
+After a product preview or production deployment, run its profile-specific
+smoke. The Library smoke covers representative free, paid/gated, purchase-result
+and stable-reference routes; the Career Game smoke covers its root, stable Case
+route and graceful unknown Case:
+
+```bash
+pnpm smoke:deployment https://business-japanese-hub.pages.dev/ library
+pnpm smoke:deployment https://business-japanese-career-game.pages.dev/ career-game
+```
+
+The smoke verifies product identity, HTML/content types, emitted assets, direct
+SPA routes and that deep-link requests were not redirected to another URL.
 The commercial Book itself should additionally be checked manually through its
 current catalog route as part of the paid golden path.
+
+Cloudflare PR previews use dynamic origins. They are valid for anonymous UI,
+route/reload and cross-link QA, but authenticated Edge Functions remain exact-
+origin and fail closed on arbitrary preview hosts. Do not introduce wildcard
+CORS merely to make a preview session persistent.
 
 The product contract explicitly accepts that static web Book content can be
 inspected in the browser bundle (`docs/accounts-and-entitlement.md` §7).
@@ -155,13 +189,16 @@ For the smallest first-revenue profile, enable PayPal/USD plus Resend only:
 - `RESEND_API_KEY`
 - verified `ORDER_EMAIL_FROM`
 - `PUBLIC_SITE_URL=https://business-japanese-hub.pages.dev/`
+- `CAREER_GAME_SITE_URL=https://business-japanese-career-game.pages.dev/`
 - `SUPPORT_EMAIL`
 - `LEGAL_SELLER_NAME`
 - generated `SCHEDULED_JOB_SECRET`
 
-`CAREER_GAME_SITE_URL` is deliberately optional and is not a paid-launch secret
-or a reason to choose a Career Game hostname here. If it is absent,
-`career-game-progress` rejects browser-origin requests by design.
+`CAREER_GAME_SITE_URL` is not a payment-provider secret and never changes
+`PUBLIC_SITE_URL`. It is required only when authenticated Career Game persistence
+and product validation are activated at the canonical Game origin; if absent,
+those browser-origin requests fail closed without affecting anonymous play or the
+Library paid path.
 
 Supabase supplies `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Never expose a
 service-role / secret key in Cloudflare Pages, GitHub repository variables, or
@@ -222,6 +259,9 @@ supabase functions deploy --project-ref <production-project-ref>
 Deploy using the JWT settings committed in `supabase/config.toml`. Both
 `career-game-progress` and `library-learning-evidence` require verified JWTs;
 their service-role persistence RPCs are not browser-executable.
+`product-analytics` deliberately uses `verify_jwt=false` for anonymous Phase A
+events, validates an exact non-authoritative vocabulary, and writes only
+sanitized logs.
 
 ### 2.6 Configure scheduled jobs
 
@@ -287,6 +327,11 @@ Configure Supabase Auth Site URL and redirect allow-list for:
 ```text
 https://business-japanese-hub.pages.dev/
 ```
+
+Current Career Game authentication is password-based and does not initiate a
+redirect, so no Game redirect entry is needed. A future redirect flow must add
+only `https://business-japanese-career-game.pages.dev/`; dynamic Pages preview
+wildcards are not permitted.
 
 Configure the PayPal production webhook as:
 
@@ -382,21 +427,44 @@ Cloudflare Storefront
 Also exercise duplicate/replayed webhook evidence. Do not mark a gate passed
 without external evidence.
 
-After the transaction, rerun:
+After the transaction, rerun both product smokes:
 
 ```bash
-pnpm exec tsx scripts/smoke-deployment.ts https://business-japanese-hub.pages.dev/
+pnpm smoke:deployment:production
 ```
 
 Inspect finance state, payment events, outbox state, scheduler health, and logs.
 
 ## 5. Rollback and observability
 
-- **Cloudflare Pages:** production is sourced from `main`. Prefer a normal revert
-  PR to the last known-good commit, allowing Cloudflare Git integration to build
-  and deploy the reviewed state. Cloudflare deployment history may be used as an
-  emergency frontend rollback surface, but repository `main` must still be
-  reconciled immediately afterward so Git remains canonical.
+- **Cloudflare Pages / Library:** use the `business-japanese-hub` production
+  history to roll back only `dist/`, then smoke both products and the cross-links.
+- **Cloudflare Pages / Career Game:** use the
+  `business-japanese-career-game` production history to roll back only
+  `dist-career-game/`. Do not roll back the shared database merely because the
+  Game UI rolled back; its version/CAS contract must fail closed against an
+  incompatible authoritative scenario.
+- **Repository reconciliation:** production is sourced from `main`. Prefer a
+  normal revert PR to the last known-good commit. Cloudflare deployment history
+  is an emergency surface only; reconcile `main` immediately afterward so Git
+  remains canonical. Preview deployments are not production rollback targets.
+  A revert to a commit from before the named deploy scripts existed is also a
+  Pages-settings compatibility change: a project whose build command still
+  names an absent script will fail before it can produce an artifact. Before
+  deploying such a revert, either retain `build:library:deploy` and
+  `build:career-game:deploy` as compatibility shims in the revert PR, or move
+  each Pages project temporarily to its equivalent product-only inline command:
+
+  ```text
+  Library      pnpm workflow:verify-releases && pnpm exec tsc -p tsconfig.app.json && pnpm build:library
+  Career Game  pnpm exec tsc -p tsconfig.career-game.json && pnpm build:career-game
+  ```
+
+  Change one project, deploy the intended Git SHA, and run its production smoke
+  before changing the other. Restore the canonical named command with the same
+  one-project-at-a-time deploy-and-smoke sequence once `main` contains the
+  script again. Never leave Pages configured to invoke a command absent from the
+  deployed revision.
 - **Edge Functions:** inspect Supabase Edge Function logs. A function-only
   rollback may redeploy a known-good Git SHA only after confirming compatibility
   with the current forward-only database schema.

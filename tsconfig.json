@@ -6,6 +6,7 @@
     { "path": "./packages/career-game/tsconfig.json" },
     { "path": "./packages/learning/tsconfig.json" },
     { "path": "./packages/platform-auth/tsconfig.json" },
+    { "path": "./packages/validation-analytics/tsconfig.json" },
     { "path": "./tsconfig.node.json" },
     { "path": "./tsconfig.scripts.json" }
   ]

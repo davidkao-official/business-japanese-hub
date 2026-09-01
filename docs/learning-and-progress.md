@@ -142,6 +142,7 @@ target 不會洩漏內容。明確出現但為空的 Chapter/Block query id 視�
 Game runtime availability。
 
 Library evidence function沿用 canonical `PUBLIC_SITE_URL` exact-origin CORS。Career Game
-function只接受 dedicated optional `CAREER_GAME_SITE_URL` exact origin；未設定時 browser
-request fail closed。這個 env seam 不決定 #60 的 production hostname，也不修改 payment
-CORS 或 `PUBLIC_SITE_URL`。
+function只接受 dedicated `CAREER_GAME_SITE_URL` exact origin；production 設為
+`https://business-japanese-career-game.pages.dev/`，未設定時 browser request fail closed。
+這個 env seam 不修改 payment CORS 或 `PUBLIC_SITE_URL`；動態 Cloudflare preview origins
+也不會被 wildcard 放行，因此 preview 的 authenticated persistence 預設 fail closed。

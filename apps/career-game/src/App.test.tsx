@@ -1,9 +1,16 @@
 import '@testing-library/jest-dom/vitest'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { StrictMode } from 'react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { applyChoice, createInitialState } from '@business-japanese-hub/career-game'
+import {
+  applyChoice,
+  createInitialState,
+  validateScenario,
+  type Scenario,
+} from '@business-japanese-hub/career-game'
 import { AuthProvider } from '@business-japanese-hub/platform-auth'
 import type { AuthClient, SessionUser } from '@business-japanese-hub/platform-auth'
+import type { ValidationAnalytics } from '@business-japanese-hub/validation-analytics'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import type {
@@ -29,6 +36,9 @@ function createRepository(
 function renderGame(
   session: SessionUser | null = null,
   progressRepository?: CareerGameProgressRepository,
+  analytics?: ValidationAnalytics,
+  strict = false,
+  scenario: Scenario = rookieSurvivalScenario,
 ) {
   const authClient: AuthClient = {
     getSession: vi.fn().mockResolvedValue(session),
@@ -40,14 +50,258 @@ function renderGame(
     onAuthStateChange: vi.fn(() => () => {}),
   }
 
+  const game = (
+    <AuthProvider authClient={authClient}>
+      <App
+        scenario={scenario}
+        progressRepository={progressRepository}
+        analytics={analytics}
+      />
+    </AuthProvider>
+  )
+
   return {
     ...render(
-      <AuthProvider authClient={authClient}>
-        <App progressRepository={progressRepository} />
-      </AuthProvider>,
+      strict ? <StrictMode>{game}</StrictMode> : game,
     ),
     authClient,
   }
+}
+
+function createBranchingScenario(): Scenario {
+  const decisions = rookieSurvivalScenario.scenes.filter(
+    (scene) => scene.kind === 'decision',
+  ).slice(0, 2)
+  const [firstDecision, secondDecision] = decisions
+  const terminal = rookieSurvivalScenario.scenes.find((scene) => scene.kind === 'terminal')
+  if (!firstDecision || !secondDecision || !terminal || terminal.kind !== 'terminal') {
+    throw new Error('expected two decisions and a terminal scene')
+  }
+  const firstOutcomeIds = new Set(firstDecision.choices.map((choice) => choice.outcomeId))
+  const secondOutcomeIds = new Set(secondDecision.choices.map((choice) => choice.outcomeId))
+  const directCompletionOutcomeId = firstDecision.choices[0]!.outcomeId
+
+  return {
+    ...rookieSurvivalScenario,
+    id: 'branching-case',
+    slug: 'branching-case',
+    title: '分岐ケース',
+    summary: '選択によって一件または二件の判断で完了する回帰テスト用ケース。',
+    scenes: [firstDecision, secondDecision, terminal],
+    outcomes: rookieSurvivalScenario.outcomes
+      .filter((outcome) => firstOutcomeIds.has(outcome.id) || secondOutcomeIds.has(outcome.id))
+      .map((outcome) => ({
+        ...outcome,
+        nextSceneId:
+          outcome.id === directCompletionOutcomeId || secondOutcomeIds.has(outcome.id)
+            ? terminal.id
+            : secondDecision.id,
+      })),
+  }
+}
+
+const branchingScenario = createBranchingScenario()
+
+function createTerminalStartScenario(): Scenario {
+  const terminal = rookieSurvivalScenario.scenes.find((scene) => scene.kind === 'terminal')
+  const outcome = rookieSurvivalScenario.outcomes[0]
+  if (!terminal || terminal.kind !== 'terminal' || !outcome) {
+    throw new Error('expected a terminal scene and an outcome')
+  }
+
+  return {
+    ...rookieSurvivalScenario,
+    id: 'terminal-start',
+    slug: 'terminal-start',
+    title: '開始時点で完了するケース',
+    summary: '開始シーンが完了画面である有効な回帰テスト用ケース。',
+    startSceneId: terminal.id,
+    scenes: [terminal],
+    // V1 requires a bounded outcome catalog even when the start scene is terminal.
+    outcomes: [
+      {
+        ...outcome,
+        id: 'terminal-start-placeholder-outcome',
+        effects: [],
+        nextSceneId: terminal.id,
+      },
+    ],
+  }
+}
+
+const terminalStartScenario = createTerminalStartScenario()
+
+const skipThenContinueScenario: Scenario = {
+  schemaVersion: 1,
+  id: 'skip-then-continue',
+  slug: 'skip-then-continue',
+  contentVersion: 1,
+  locale: 'ja-JP',
+  title: '途中を飛ばすケース',
+  summary: '分岐で代替ファイルを飛ばし、その先の判断を続ける回帰テスト用ケース。',
+  startSceneId: 'first-decision',
+  characters: [],
+  scenes: [
+    {
+      id: 'first-decision',
+      kind: 'decision',
+      title: '最初の判断',
+      context: '二つの進行先から選ぶ。',
+      prompt: 'どちらへ進む？',
+      choices: [
+        { id: 'skip-middle', label: '代替ファイルを飛ばす', outcomeId: 'skip-middle-outcome' },
+        { id: 'visit-middle', label: '代替ファイルへ進む', outcomeId: 'visit-middle-outcome' },
+      ],
+    },
+    {
+      id: 'alternate-decision',
+      kind: 'decision',
+      title: '代替の判断',
+      context: 'もう一つの分岐だけで訪れる。',
+      prompt: 'ケースを終える？',
+      choices: [
+        {
+          id: 'finish-alternate',
+          label: '代替経路を完了する',
+          outcomeId: 'finish-alternate-outcome',
+        },
+        {
+          id: 'finish-alternate-too',
+          label: '別の方法で完了する',
+          outcomeId: 'finish-alternate-outcome',
+        },
+      ],
+    },
+    {
+      id: 'final-decision',
+      kind: 'decision',
+      title: '最後の判断',
+      context: '飛ばした先で最後の判断をする。',
+      prompt: 'ケースを終える？',
+      choices: [
+        { id: 'finish-final', label: 'ケースを完了する', outcomeId: 'finish-final-outcome' },
+        {
+          id: 'finish-final-too',
+          label: '別の対応で完了する',
+          outcomeId: 'finish-final-outcome',
+        },
+      ],
+    },
+    {
+      id: 'complete',
+      kind: 'terminal',
+      title: '完了',
+      context: '分岐した経路を完了した。',
+      completion: { title: 'ケース完了', summary: '選んだ経路だけを記録した。' },
+    },
+  ],
+  outcomes: [
+    {
+      id: 'skip-middle-outcome',
+      category: 'strong',
+      consequence: '代替ファイルを飛ばした。',
+      feedback: '選んだ分岐の先へ進む。',
+      recommendedExpression: '次の判断へ進みます。',
+      acceptableAlternatives: [],
+      effects: [],
+      nextSceneId: 'final-decision',
+    },
+    {
+      id: 'visit-middle-outcome',
+      category: 'mixed',
+      consequence: '代替ファイルへ進んだ。',
+      feedback: 'もう一つの有効な分岐を選んだ。',
+      recommendedExpression: '代替案を確認します。',
+      acceptableAlternatives: [],
+      effects: [],
+      nextSceneId: 'alternate-decision',
+    },
+    {
+      id: 'finish-alternate-outcome',
+      category: 'mixed',
+      consequence: '代替経路を完了した。',
+      feedback: 'この経路も終端へ到達する。',
+      recommendedExpression: '対応を完了します。',
+      acceptableAlternatives: [],
+      effects: [],
+      nextSceneId: 'complete',
+    },
+    {
+      id: 'finish-final-outcome',
+      category: 'strong',
+      consequence: '選んだ経路を完了した。',
+      feedback: '飛ばしたファイルを進行表示に含めない。',
+      recommendedExpression: 'この経路を完了します。',
+      acceptableAlternatives: [],
+      effects: [],
+      nextSceneId: 'complete',
+    },
+  ],
+}
+
+const loopingScenario: Scenario = {
+  schemaVersion: 1,
+  id: 'loop-then-complete',
+  slug: 'loop-then-complete',
+  contentVersion: 1,
+  locale: 'ja-JP',
+  title: '繰り返して完了するケース',
+  summary: '同じ判断を再訪してから完了する回帰テスト用ケース。',
+  startSceneId: 'repeated-decision',
+  characters: [],
+  flags: [{ id: 'may-finish', label: '完了できる', initial: false }],
+  scenes: [
+    {
+      id: 'repeated-decision',
+      kind: 'decision',
+      title: '繰り返す判断',
+      context: '一度確認すると完了を選べる。',
+      prompt: '次にどうする？',
+      choices: [
+        { id: 'repeat-once', label: 'もう一度確認する', outcomeId: 'repeat-once-outcome' },
+        {
+          id: 'finish-loop',
+          label: 'ケースを完了する',
+          outcomeId: 'finish-loop-outcome',
+          conditions: [{ kind: 'flagEquals', flagId: 'may-finish', value: true }],
+        },
+      ],
+    },
+    {
+      id: 'complete',
+      kind: 'terminal',
+      title: '完了',
+      context: '同じ判断を再訪して完了した。',
+      completion: { title: 'ケース完了', summary: '二回の訪問を個別に記録した。' },
+    },
+  ],
+  outcomes: [
+    {
+      id: 'repeat-once-outcome',
+      category: 'mixed',
+      consequence: '同じ判断へ戻った。',
+      feedback: '再確認後は完了を選べる。',
+      recommendedExpression: 'もう一度確認します。',
+      acceptableAlternatives: [],
+      effects: [{ kind: 'setFlag', flagId: 'may-finish', value: true }],
+      nextSceneId: 'repeated-decision',
+    },
+    {
+      id: 'finish-loop-outcome',
+      category: 'strong',
+      consequence: '確認を終えて完了した。',
+      feedback: '再訪した判断も個別の履歴として残る。',
+      recommendedExpression: '確認を完了します。',
+      acceptableAlternatives: [],
+      effects: [],
+      nextSceneId: 'complete',
+    },
+  ],
+}
+
+function createAnalytics(): { analytics: ValidationAnalytics; track: ReturnType<typeof vi.fn> } {
+  const track = vi.fn()
+  return { analytics: { track }, track }
 }
 
 async function startCase() {
@@ -57,6 +311,28 @@ async function startCase() {
 function chooseFirstOption() {
   const choices = screen.getByRole('group', { name: 'あなたの判断' })
   fireEvent.click(within(choices).getAllByRole('button')[0]!)
+}
+
+function clickWithoutNavigation(link: HTMLElement, init: MouseEventInit = {}) {
+  link.addEventListener('click', (event) => event.preventDefault(), { once: true })
+  fireEvent.click(link, init)
+}
+
+function auxiliaryClickWithoutNavigation(link: HTMLElement, button = 1) {
+  link.addEventListener('auxclick', (event) => event.preventDefault(), { once: true })
+  fireEvent(
+    link,
+    new MouseEvent('auxclick', { bubbles: true, cancelable: true, button }),
+  )
+}
+
+function expectCompletedBranchPath() {
+  const progress = screen.getByRole('navigation', { name: 'ケース進行' })
+  expect(within(progress).getAllByRole('listitem')).toHaveLength(1)
+  expect(within(progress).getByText('配属初日の挨拶')).toBeInTheDocument()
+  expect(within(progress).queryByText('曖昧な依頼を受ける')).not.toBeInTheDocument()
+  expect(within(progress).getByText('済')).toBeInTheDocument()
+  expect(screen.getByText('1 / 1')).toBeInTheDocument()
 }
 
 describe('Career Game playable slice', () => {
@@ -77,7 +353,95 @@ describe('Career Game playable slice', () => {
     expect(
       screen.getByText(/判断するたびに、その場の結果と職場語用論の解説を確認/),
     ).toBeInTheDocument()
+    expect(screen.getByText('5 files')).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'ケースを開始' })).toBeEnabled()
+  })
+
+  it('does not promise a fixed file count for branching or looping cases', async () => {
+    const branching = renderGame(null, undefined, undefined, false, branchingScenario)
+    expect(await screen.findByRole('heading', { name: '分岐ケース' })).toBeInTheDocument()
+    expect(screen.getByText('経路により変動')).toBeInTheDocument()
+    expect(screen.queryByText(/^\d+ files$/)).not.toBeInTheDocument()
+    branching.unmount()
+
+    renderGame(null, undefined, undefined, false, loopingScenario)
+    expect(await screen.findByRole('heading', { name: '繰り返して完了するケース' })).toBeInTheDocument()
+    expect(screen.getByText('経路により変動')).toBeInTheDocument()
+    expect(screen.queryByText(/^\d+ files$/)).not.toBeInTheDocument()
+  })
+
+  it('moves a valid terminal-start guest case directly from intro to completion', async () => {
+    expect(validateScenario(terminalStartScenario)).toEqual({
+      ok: true,
+      value: terminalStartScenario,
+    })
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics, false, terminalStartScenario)
+
+    expect(
+      await screen.findByRole('heading', { name: '開始時点で完了するケース' }),
+    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(track.mock.calls.map(([event]) => event)).toEqual([
+        { event: 'case_viewed', scenarioId: 'terminal-start' },
+      ])
+    })
+    await startCase()
+
+    const completion = await screen.findByRole('heading', { level: 1, name: 'ケース完了' })
+    await waitFor(() => expect(completion).toHaveFocus())
+    expect(screen.getByText('ケースを開始し、完了画面を表示しました。')).toBeInTheDocument()
+    expect(screen.getByText('0 / 0')).toBeInTheDocument()
+    expect(screen.queryByText('判断の内訳')).not.toBeInTheDocument()
+    expect(screen.queryByText(/別の選択も試してみよう/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'ケース進行' })).not.toBeInTheDocument()
+    expect(completion.closest('.game-layout')).toHaveClass('game-layout--without-progress')
+    const saved = loadGameSession(terminalStartScenario, window.localStorage)
+    expect(saved?.state.status).toBe('completed')
+    expect(saved?.state.history).toHaveLength(0)
+    expect(track.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'case_viewed', scenarioId: 'terminal-start' },
+      { event: 'case_started', scenarioId: 'terminal-start' },
+    ])
+  })
+
+  it('does not invent a duration for a catalog-supplied scenario', async () => {
+    renderGame(null, undefined, undefined, false, terminalStartScenario)
+
+    expect(
+      await screen.findByRole('heading', { name: '開始時点で完了するケース' }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('所要時間')).not.toBeInTheDocument()
+    expect(screen.queryByText('約 8–10 分')).not.toBeInTheDocument()
+  })
+
+  it('uses the required prompt as the heading and rail label for an untitled decision', async () => {
+    const scenario = structuredClone(rookieSurvivalScenario)
+    scenario.id = 'untitled-decision'
+    scenario.slug = 'untitled-decision'
+    const firstDecision = scenario.scenes.find(
+      (scene) => scene.id === scenario.startSceneId && scene.kind === 'decision',
+    )
+    if (!firstDecision || firstDecision.kind !== 'decision') {
+      throw new Error('expected a starting decision scene')
+    }
+    delete firstDecision.title
+    expect(validateScenario(scenario)).toEqual({ ok: true, value: scenario })
+
+    renderGame(null, undefined, undefined, false, scenario)
+    await startCase()
+
+    expect(screen.getByRole('heading', { level: 1, name: firstDecision.prompt })).toHaveFocus()
+    expect(
+      within(screen.getByRole('navigation', { name: 'ケース進行' }))
+        .getByText(firstDecision.prompt),
+    ).toBeInTheDocument()
+
+    chooseFirstOption()
+    expect(
+      within(screen.getByRole('article', { name: '判断の結果' }))
+        .getByText(firstDecision.prompt),
+    ).toBeInTheDocument()
   })
 
   it('supports keyboard activation and moves focus across each case view', async () => {
@@ -112,7 +476,8 @@ describe('Career Game playable slice', () => {
   })
 
   it('plays the five-file golden path through consequence feedback and completion', async () => {
-    renderGame()
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
     await startCase()
 
     for (let file = 1; file <= 5; file += 1) {
@@ -135,6 +500,139 @@ describe('Career Game playable slice', () => {
     const saved = loadGameSession(rookieSurvivalScenario, window.localStorage)
     expect(saved?.state.status).toBe('completed')
     expect(saved?.state.history).toHaveLength(5)
+    expect(track.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'case_viewed', scenarioId: 'rookie-survival' },
+      { event: 'case_started', scenarioId: 'rookie-survival' },
+      ...Array.from({ length: 5 }, () => ({
+        event: 'case_outcome',
+        scenarioId: 'rookie-survival',
+        outcomeCategory: 'strong',
+      })),
+      { event: 'case_completed', scenarioId: 'rookie-survival' },
+    ])
+  })
+
+  it('announces only the completed guest path when a branch skips a decision', async () => {
+    renderGame(null, undefined, undefined, false, branchingScenario)
+    await startCase()
+    chooseFirstOption()
+    fireEvent.click(screen.getByRole('button', { name: '結果を見る' }))
+
+    expect(branchingScenario.scenes.filter((scene) => scene.kind === 'decision')).toHaveLength(2)
+    expect(loadGameSession(branchingScenario, window.localStorage)?.state.history).toHaveLength(1)
+    expect(screen.getByText('ケース内のファイル1件を完了しました。')).toBeInTheDocument()
+    expectCompletedBranchPath()
+  })
+
+  it('keeps the actual branch path active when play skips an alternate decision', async () => {
+    expect(validateScenario(skipThenContinueScenario)).toEqual({
+      ok: true,
+      value: skipThenContinueScenario,
+    })
+    renderGame(null, undefined, undefined, false, skipThenContinueScenario)
+    await startCase()
+    expect(screen.getByText('FILE 01')).toBeInTheDocument()
+    expect(screen.queryByText(/^FILE 01 \/ /)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /代替ファイルを飛ばす/ }))
+    let progress = screen.getByRole('navigation', { name: 'ケース進行' })
+    let files = within(progress).getAllByRole('listitem')
+    expect(files).toHaveLength(2)
+    expect(files[0]).toHaveAttribute('data-state', 'active')
+    expect(files[0]).toHaveAttribute('aria-current', 'step')
+    expect(files[0]).toHaveTextContent('最初の判断')
+    expect(files[1]).toHaveAttribute('data-state', 'pending')
+    expect(files[1]).toHaveTextContent('最後の判断')
+    expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
+    expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
+    expect(screen.getByText('FILE 01')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
+    expect(screen.getByRole('heading', { level: 1, name: '最後の判断' })).toBeInTheDocument()
+    progress = screen.getByRole('navigation', { name: 'ケース進行' })
+    files = within(progress).getAllByRole('listitem')
+    expect(files).toHaveLength(2)
+    expect(files[0]).toHaveAttribute('data-state', 'complete')
+    expect(files[0]).toHaveTextContent('最初の判断')
+    expect(files[1]).toHaveAttribute('data-state', 'active')
+    expect(files[1]).toHaveAttribute('aria-current', 'step')
+    expect(files[1]).toHaveTextContent('最後の判断')
+    expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
+    expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
+    expect(screen.getByText('FILE 02')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /ケースを完了する/ }))
+    progress = screen.getByRole('navigation', { name: 'ケース進行' })
+    files = within(progress).getAllByRole('listitem')
+    expect(files).toHaveLength(2)
+    expect(files[0]).toHaveAttribute('data-state', 'complete')
+    expect(files[1]).toHaveAttribute('data-state', 'active')
+    expect(files[1]).toHaveTextContent('最後の判断')
+    expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
+    expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
+    expect(screen.getByText('FILE 02')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '結果を見る' }))
+    progress = screen.getByRole('navigation', { name: 'ケース進行' })
+    files = within(progress).getAllByRole('listitem')
+    expect(files).toHaveLength(2)
+    expect(files.every((file) => file.dataset.state === 'complete')).toBe(true)
+    expect(within(progress).queryByRole('listitem', { current: 'step' })).not.toBeInTheDocument()
+    expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
+    expect(screen.getByText('2 / 2')).toBeInTheDocument()
+  })
+
+  it('tracks repeated decision visits through play, feedback, and completion', async () => {
+    expect(validateScenario(loopingScenario)).toEqual({ ok: true, value: loopingScenario })
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    try {
+      renderGame(null, undefined, undefined, false, loopingScenario)
+      await startCase()
+      expect(screen.getByText('FILE 01')).toBeInTheDocument()
+      expect(screen.queryByText(/^FILE 01 \/ /)).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: /もう一度確認する/ }))
+
+      let progress = screen.getByRole('navigation', { name: 'ケース進行' })
+      let files = within(progress).getAllByRole('listitem')
+      expect(files).toHaveLength(2)
+      expect(files[0]).toHaveAttribute('data-state', 'active')
+      expect(files[1]).toHaveAttribute('data-state', 'pending')
+      expect(within(progress).getAllByText('繰り返す判断')).toHaveLength(2)
+      expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
+      expect(screen.getByText('FILE 01')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
+      expect(screen.getByText('FILE 02')).toBeInTheDocument()
+      progress = screen.getByRole('navigation', { name: 'ケース進行' })
+      files = within(progress).getAllByRole('listitem')
+      expect(files).toHaveLength(2)
+      expect(files[0]).toHaveAttribute('data-state', 'complete')
+      expect(files[1]).toHaveAttribute('data-state', 'active')
+      expect(files[1]).toHaveAttribute('aria-current', 'step')
+      expect(within(progress).getAllByText('繰り返す判断')).toHaveLength(2)
+      expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
+
+      fireEvent.click(screen.getByRole('button', { name: /ケースを完了する/ }))
+      progress = screen.getByRole('navigation', { name: 'ケース進行' })
+      files = within(progress).getAllByRole('listitem')
+      expect(files).toHaveLength(2)
+      expect(files[0]).toHaveAttribute('data-state', 'complete')
+      expect(files[1]).toHaveAttribute('data-state', 'active')
+      expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
+      expect(screen.getByText('FILE 02')).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole('button', { name: '結果を見る' }))
+      progress = screen.getByRole('navigation', { name: 'ケース進行' })
+      files = within(progress).getAllByRole('listitem')
+      expect(files).toHaveLength(2)
+      expect(files.every((file) => file.dataset.state === 'complete')).toBe(true)
+      expect(within(progress).queryByRole('listitem', { current: 'step' })).not.toBeInTheDocument()
+      expect(screen.getByText('2 / 2')).toBeInTheDocument()
+      expect(consoleError).not.toHaveBeenCalled()
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 
   it('restores pending consequence feedback after a reload', async () => {
@@ -166,7 +664,8 @@ describe('Career Game playable slice', () => {
   })
 
   it('commits a rapid repeated choice only once', async () => {
-    renderGame()
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
     await startCase()
     const choices = screen.getByRole('group', { name: 'あなたの判断' })
     const choice = within(choices).getAllByRole('button')[0]!
@@ -176,10 +675,14 @@ describe('Career Game playable slice', () => {
 
     const saved = loadGameSession(rookieSurvivalScenario, window.localStorage)
     expect(saved?.state.history).toHaveLength(1)
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'case_outcome'),
+    ).toHaveLength(1)
   })
 
   it('clears the checkpoint and returns to the case file on replay', async () => {
-    renderGame()
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
     await startCase()
 
     for (let file = 1; file <= 5; file += 1) {
@@ -192,6 +695,191 @@ describe('Career Game playable slice', () => {
     fireEvent.click(screen.getByRole('button', { name: 'もう一度プレイ' }))
     expect(screen.getByRole('heading', { level: 1, name: '新人社員生存戦' })).toBeInTheDocument()
     expect(loadGameSession(rookieSurvivalScenario, window.localStorage)).toBeNull()
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'case_replayed'),
+    ).toEqual([[{ event: 'case_replayed', scenarioId: 'rookie-survival' }]])
+  })
+
+  it('tracks a Case view once through the development StrictMode effect cycle', async () => {
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics, true)
+
+    expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
+      ).toEqual([[{ event: 'case_viewed', scenarioId: 'rookie-survival' }]])
+    })
+  })
+
+  it('tracks a new Case view after a real page-surface remount', async () => {
+    const { analytics, track } = createAnalytics()
+    const first = renderGame(null, undefined, analytics, true)
+    expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
+      ).toEqual([[{ event: 'case_viewed', scenarioId: 'rookie-survival' }]])
+    })
+    first.unmount()
+
+    renderGame(null, undefined, analytics, true)
+    expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(
+        track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
+      ).toEqual([
+        [{ event: 'case_viewed', scenarioId: 'rookie-survival' }],
+        [{ event: 'case_viewed', scenarioId: 'rookie-survival' }],
+      ])
+    })
+  })
+
+  it('tracks rapid Game-to-Library product-switch activation only once', async () => {
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
+
+    const productSwitch = await screen.findByRole('link', { name: /Library/ })
+    expect(productSwitch).toHaveAttribute('href', 'https://business-japanese-hub.pages.dev/')
+    clickWithoutNavigation(productSwitch)
+    clickWithoutNavigation(productSwitch)
+
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
+    ).toEqual([
+      [
+        {
+          event: 'cross_product_link_clicked',
+          scenarioId: 'rookie-survival',
+          direction: 'career_game_to_library',
+        },
+      ],
+    ])
+  })
+
+  it('tracks rapid contextual Game-to-Library activation only once', async () => {
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
+
+    await startCase()
+    chooseFirstOption()
+    const relatedReading = screen.getByRole('link', { name: 'Libraryで関連内容を読む' })
+    expect(relatedReading).toHaveAttribute(
+      'href',
+      'https://business-japanese-hub.pages.dev/library-link?bookId=book-sample-bj-keigo&chapterId=ch-2',
+    )
+    clickWithoutNavigation(relatedReading)
+    clickWithoutNavigation(relatedReading)
+
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
+    ).toEqual([
+      [
+        {
+          event: 'cross_product_link_clicked',
+          scenarioId: 'rookie-survival',
+          direction: 'career_game_to_library',
+        },
+      ],
+    ])
+  })
+
+  it('tracks middle-button movement for both Game-to-Library targets', async () => {
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
+
+    const productSwitch = await screen.findByRole('link', { name: /Library/ })
+    auxiliaryClickWithoutNavigation(productSwitch)
+    auxiliaryClickWithoutNavigation(productSwitch)
+
+    await startCase()
+    chooseFirstOption()
+    const relatedReading = screen.getByRole('link', { name: 'Libraryで関連内容を読む' })
+    auxiliaryClickWithoutNavigation(relatedReading)
+    auxiliaryClickWithoutNavigation(relatedReading)
+    auxiliaryClickWithoutNavigation(relatedReading, 2)
+
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
+    ).toEqual([
+      [
+        {
+          event: 'cross_product_link_clicked',
+          scenarioId: 'rookie-survival',
+          direction: 'career_game_to_library',
+        },
+      ],
+      [
+        {
+          event: 'cross_product_link_clicked',
+          scenarioId: 'rookie-survival',
+          direction: 'career_game_to_library',
+        },
+      ],
+    ])
+  })
+
+  it('deduplicates rapid modified activation per link and tracks later genuine movements', async () => {
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+
+    try {
+      const productSwitch = await screen.findByRole('link', { name: /Library/ })
+      clickWithoutNavigation(productSwitch, { metaKey: true })
+      clickWithoutNavigation(productSwitch, { metaKey: true })
+
+      await startCase()
+      chooseFirstOption()
+      const relatedReading = screen.getByRole('link', { name: 'Libraryで関連内容を読む' })
+      clickWithoutNavigation(relatedReading, { ctrlKey: true })
+      clickWithoutNavigation(relatedReading, { ctrlKey: true })
+
+      expect(
+        track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
+      ).toHaveLength(2)
+
+      clock.mockReturnValue(1_500)
+      clickWithoutNavigation(productSwitch, { metaKey: true })
+      clickWithoutNavigation(relatedReading, { ctrlKey: true })
+
+      expect(
+        track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
+      ).toHaveLength(4)
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('keeps anonymous play available when analytics throws', async () => {
+    const analytics: ValidationAnalytics = {
+      track: vi.fn(() => {
+        throw new Error('analytics unavailable')
+      }),
+    }
+    renderGame(null, undefined, analytics)
+
+    await startCase()
+    expect(screen.getByRole('heading', { name: '配属初日の挨拶' })).toBeInTheDocument()
+    chooseFirstOption()
+    expect(screen.getByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
+  })
+
+  it('does not count restored completed guest state as a new completion', async () => {
+    saveGameSession(
+      rookieSurvivalScenario,
+      { state: completedRemoteProgress().snapshot.state },
+      window.localStorage,
+    )
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
+
+    expect(await screen.findByRole('heading', { name: 'ケース完了' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(track.mock.calls.map(([event]) => event)).toEqual([
+        { event: 'case_viewed', scenarioId: 'rookie-survival' },
+      ])
+    })
   })
 
   it('restores the shared account identity while keeping progress device-local', async () => {
@@ -318,6 +1006,85 @@ describe('authenticated Career Game progress', () => {
     window.localStorage.clear()
   })
 
+  it('moves an accepted terminal-start remote case directly to completion', async () => {
+    const state = createInitialState(terminalStartScenario)
+    expect(state.status).toBe('completed')
+    const repository = createRepository({
+      start: vi.fn().mockResolvedValue({
+        kind: 'progress',
+        scenarioId: terminalStartScenario.id,
+        contentVersion: terminalStartScenario.contentVersion,
+        checkpointId: CHECKPOINT_ID,
+        revision: 1,
+        snapshot: { state },
+      }),
+    })
+    const { analytics, track } = createAnalytics()
+    renderGame(signedIn, repository, analytics, false, terminalStartScenario)
+
+    expect(
+      await screen.findByRole('heading', { name: '開始時点で完了するケース' }),
+    ).toBeInTheDocument()
+    await waitFor(() => {
+      expect(track.mock.calls.map(([event]) => event)).toEqual([
+        { event: 'case_viewed', scenarioId: 'terminal-start' },
+      ])
+    })
+    await startCase()
+
+    const completion = await screen.findByRole('heading', { level: 1, name: 'ケース完了' })
+    await waitFor(() => expect(completion).toHaveFocus())
+    expect(screen.getByText('ケースを開始し、完了画面を表示しました。')).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'ケース進行' })).not.toBeInTheDocument()
+    expect(repository.start).toHaveBeenCalledWith('terminal-start', 1)
+    expect(repository.acknowledge).not.toHaveBeenCalled()
+    expect(loadGameSession(terminalStartScenario, window.localStorage)).toBeNull()
+    expect(window.localStorage).toHaveLength(0)
+    expect(track.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'case_viewed', scenarioId: 'terminal-start' },
+      { event: 'case_started', scenarioId: 'terminal-start' },
+    ])
+  })
+
+  it('announces only the completed authenticated path when a branch skips a decision', async () => {
+    const initial = createInitialState(branchingScenario)
+    const decision = branchingScenario.scenes.find(
+      (scene) => scene.id === initial.currentSceneId,
+    )
+    if (!decision || decision.kind !== 'decision') throw new Error('expected decision')
+    const result = applyChoice(branchingScenario, initial, {
+      scenarioId: branchingScenario.id,
+      contentVersion: branchingScenario.contentVersion,
+      sceneId: decision.id,
+      choiceId: decision.choices[0]!.id,
+    })
+    if (result.kind !== 'completed') throw new Error('expected completion')
+    expect(branchingScenario.scenes.filter((scene) => scene.kind === 'decision')).toHaveLength(2)
+    expect(result.state.history).toHaveLength(1)
+    const completedProgress = {
+      kind: 'progress' as const,
+      scenarioId: branchingScenario.id,
+      contentVersion: branchingScenario.contentVersion,
+      checkpointId: CHECKPOINT_ID,
+      revision: 3,
+      snapshot: { state: result.state },
+    }
+    const repository = createRepository({
+      load: vi.fn().mockResolvedValue({
+        ...completedProgress,
+        revision: 2,
+        snapshot: { state: result.state, pendingOutcomeId: result.outcome.id },
+      }),
+      acknowledge: vi.fn().mockResolvedValue(completedProgress),
+    })
+
+    renderGame(signedIn, repository, undefined, false, branchingScenario)
+    fireEvent.click(await screen.findByRole('button', { name: '結果を見る' }))
+
+    expect(await screen.findByText('ケース内のファイル1件を完了しました。')).toBeInTheDocument()
+    expectCompletedBranchPath()
+  })
+
   it('uses an empty remote account without importing or changing a guest checkpoint', async () => {
     const guestState = createInitialState(rookieSurvivalScenario)
     saveGameSession(rookieSurvivalScenario, { state: guestState }, window.localStorage)
@@ -356,13 +1123,19 @@ describe('authenticated Career Game progress', () => {
 
   it('restores pending remote feedback and links to the stable Library resolver', async () => {
     const repository = createRepository({ load: vi.fn().mockResolvedValue(firstRemoteProgress()) })
-    renderGame(signedIn, repository)
+    const { analytics, track } = createAnalytics()
+    renderGame(signedIn, repository, analytics)
 
     expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Libraryで関連内容を読む' })).toHaveAttribute(
       'href',
       'https://business-japanese-hub.pages.dev/library-link?bookId=book-sample-bj-keigo&chapterId=ch-2',
     )
+    await waitFor(() => {
+      expect(track.mock.calls.map(([event]) => event)).toEqual([
+        { event: 'case_viewed', scenarioId: 'rookie-survival' },
+      ])
+    })
   })
 
   it('never writes authenticated actions to guest local storage', async () => {
@@ -376,15 +1149,19 @@ describe('authenticated Career Game progress', () => {
       snapshot: { state: initial },
     }
     const repository = createRepository({ start: vi.fn().mockResolvedValue(started) })
+    const { analytics, track } = createAnalytics()
     const setItem = vi.spyOn(Storage.prototype, 'setItem')
     const removeItem = vi.spyOn(Storage.prototype, 'removeItem')
-    renderGame(signedIn, repository)
+    renderGame(signedIn, repository, analytics)
 
     await startCase()
 
     expect(await screen.findByRole('heading', { name: '配属初日の挨拶' })).toBeInTheDocument()
     expect(setItem).not.toHaveBeenCalled()
     expect(removeItem).not.toHaveBeenCalled()
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'case_started'),
+    ).toEqual([[{ event: 'case_started', scenarioId: 'rookie-survival' }]])
     setItem.mockRestore()
     removeItem.mockRestore()
   })
@@ -463,18 +1240,30 @@ describe('authenticated Career Game progress', () => {
 
   it('uses the loaded progress checkpoint identity for a successful replay reset', async () => {
     const reset = vi.fn().mockResolvedValue({ kind: 'none' })
+    const { analytics, track } = createAnalytics()
     renderGame(
       signedIn,
       createRepository({
         load: vi.fn().mockResolvedValue(completedRemoteProgress(9)),
         reset,
       }),
+      analytics,
     )
 
-    fireEvent.click(await screen.findByRole('button', { name: 'もう一度プレイ' }))
+    const replay = await screen.findByRole('button', { name: 'もう一度プレイ' })
+    await waitFor(() => {
+      expect(track.mock.calls.map(([event]) => event)).toEqual([
+        { event: 'case_viewed', scenarioId: 'rookie-survival' },
+      ])
+    })
+    fireEvent.click(replay)
 
     expect(reset).toHaveBeenCalledWith('rookie-survival', 1, 1, CHECKPOINT_ID, 9)
     expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
+    expect(track.mock.calls.map(([event]) => event)).toEqual([
+      { event: 'case_viewed', scenarioId: 'rookie-survival' },
+      { event: 'case_replayed', scenarioId: 'rookie-survival' },
+    ])
   })
 
   it('offers load retry without falling back to guest state', async () => {
@@ -482,25 +1271,33 @@ describe('authenticated Career Game progress', () => {
       .fn()
       .mockRejectedValueOnce(new Error('private trace'))
       .mockResolvedValueOnce({ kind: 'none' })
+    const { analytics, track } = createAnalytics()
     saveGameSession(
       rookieSurvivalScenario,
       { state: createInitialState(rookieSurvivalScenario) },
       window.localStorage,
     )
-    renderGame(signedIn, createRepository({ load }))
+    renderGame(signedIn, createRepository({ load }), analytics)
 
     expect(await screen.findByRole('heading', { name: '進行を読み込めませんでした' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '配属初日の挨拶' })).not.toBeInTheDocument()
+    expect(track.mock.calls.some(([event]) => event.event === 'case_viewed')).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: '再読み込み' }))
     expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
     expect(load).toHaveBeenCalledTimes(2)
+    await waitFor(() => {
+      expect(
+        track.mock.calls.filter(([event]) => event.event === 'case_viewed'),
+      ).toEqual([[{ event: 'case_viewed', scenarioId: 'rookie-survival' }]])
+    })
   })
 
   it('keeps the current safe model and shows a generic retryable action error', async () => {
     const repository = createRepository({
       start: vi.fn().mockRejectedValue(new Error('private backend trace')),
     })
-    renderGame(signedIn, repository)
+    const { analytics, track } = createAnalytics()
+    renderGame(signedIn, repository, analytics)
     await startCase()
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -509,6 +1306,11 @@ describe('authenticated Career Game progress', () => {
     expect(screen.queryByText(/private backend/)).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'ケースを開始' })).toBeEnabled()
+    await waitFor(() => {
+      expect(track.mock.calls.map(([event]) => event)).toEqual([
+        { event: 'case_viewed', scenarioId: 'rookie-survival' },
+      ])
+    })
   })
 
   it('ignores a late authenticated load after signing out', async () => {
@@ -545,7 +1347,8 @@ describe('authenticated Career Game progress', () => {
       }),
       choose,
     })
-    renderGame(signedIn, repository)
+    const { analytics, track } = createAnalytics()
+    renderGame(signedIn, repository, analytics)
     const choice = within(await screen.findByRole('group', { name: 'あなたの判断' }))
       .getAllByRole('button')[0]!
 
@@ -563,6 +1366,43 @@ describe('authenticated Career Game progress', () => {
     )
     await act(async () => resolveChoose(firstRemoteProgress(5)))
     expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'case_outcome'),
+    ).toEqual([
+      [
+        {
+          event: 'case_outcome',
+          scenarioId: 'rookie-survival',
+          outcomeCategory: 'strong',
+        },
+      ],
+    ])
+  })
+
+  it('does not count a failed authenticated choice as an outcome', async () => {
+    const initial = createInitialState(rookieSurvivalScenario)
+    const repository = createRepository({
+      load: vi.fn().mockResolvedValue({
+        kind: 'progress',
+        scenarioId: rookieSurvivalScenario.id,
+        contentVersion: 1,
+        checkpointId: CHECKPOINT_ID,
+        revision: 4,
+        snapshot: { state: initial },
+      }),
+      choose: vi.fn().mockRejectedValue(new Error('private backend trace')),
+    })
+    const { analytics, track } = createAnalytics()
+    renderGame(signedIn, repository, analytics)
+    const choice = within(await screen.findByRole('group', { name: 'あなたの判断' }))
+      .getAllByRole('button')[0]!
+
+    fireEvent.click(choice)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '進行を同期できませんでした。もう一度お試しください。',
+    )
+    expect(track.mock.calls.some(([event]) => event.event === 'case_outcome')).toBe(false)
   })
 
   it('shows a non-destructive update surface for a newer server and never offers reset', async () => {

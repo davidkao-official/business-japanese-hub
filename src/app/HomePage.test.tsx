@@ -1,7 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { vi } from 'vitest'
 import { renderWithAppProviders } from '../test/appProviders'
 import { HomePage } from './HomePage'
+
+function clickWithoutNavigation(link: HTMLElement, init: MouseEventInit = {}) {
+  link.addEventListener('click', (event) => event.preventDefault(), { once: true })
+  fireEvent.click(link, init)
+}
+
+function auxiliaryClickWithoutNavigation(link: HTMLElement, button = 1) {
+  link.addEventListener('auxclick', (event) => event.preventDefault(), { once: true })
+  fireEvent(
+    link,
+    new MouseEvent('auxclick', { bubbles: true, cancelable: true, button }),
+  )
+}
 
 describe('storefront', () => {
   it('features the commercial Book and lists both free Books as a compact shelf', async () => {
@@ -32,5 +46,81 @@ describe('storefront', () => {
     await waitFor(() => expect(screen.getAllByText('無料')).toHaveLength(2))
     expect(screen.queryByText('¥880')).not.toBeInTheDocument()
     expect(screen.queryByText('¥660')).not.toBeInTheDocument()
+  })
+
+  it('offers a quiet content-neutral link and tracks rapid activation only once', () => {
+    const track = vi.fn()
+    renderWithAppProviders(<HomePage analytics={{ track }} />)
+
+    const link = screen.getByRole('link', { name: 'ケースをプレイ' })
+    expect(link).toHaveAttribute(
+      'href',
+      'https://business-japanese-career-game.pages.dev/',
+    )
+
+    clickWithoutNavigation(link)
+    clickWithoutNavigation(link)
+
+    expect(track).toHaveBeenCalledExactlyOnceWith({
+      event: 'cross_product_link_clicked',
+      direction: 'library_to_career_game',
+    })
+  })
+
+  it('uses the public Career Game origin override without letting analytics block the link', () => {
+    const analytics = {
+      track: vi.fn(() => {
+        throw new Error('analytics unavailable')
+      }),
+    }
+    renderWithAppProviders(
+      <HomePage
+        analytics={analytics}
+        careerGameOriginValue="https://game-preview.example.jp"
+      />,
+    )
+
+    const link = screen.getByRole('link', { name: 'ケースをプレイ' })
+    expect(link).toHaveAttribute(
+      'href',
+      'https://game-preview.example.jp/',
+    )
+    expect(() => clickWithoutNavigation(link)).not.toThrow()
+  })
+
+  it('deduplicates rapid modified activation and tracks later genuine movements', () => {
+    const track = vi.fn()
+    renderWithAppProviders(<HomePage analytics={{ track }} />)
+    const link = screen.getByRole('link', { name: 'ケースをプレイ' })
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+
+    try {
+      clickWithoutNavigation(link, { metaKey: true })
+      clickWithoutNavigation(link, { metaKey: true })
+      expect(track).toHaveBeenCalledTimes(1)
+
+      clock.mockReturnValue(1_500)
+      clickWithoutNavigation(link, { metaKey: true })
+      clickWithoutNavigation(link)
+
+      expect(track).toHaveBeenCalledTimes(3)
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  it('tracks middle-button movement without counting duplicate or context-menu gestures', () => {
+    const track = vi.fn()
+    renderWithAppProviders(<HomePage analytics={{ track }} />)
+    const link = screen.getByRole('link', { name: 'ケースをプレイ' })
+
+    auxiliaryClickWithoutNavigation(link)
+    auxiliaryClickWithoutNavigation(link)
+    auxiliaryClickWithoutNavigation(link, 2)
+
+    expect(track).toHaveBeenCalledExactlyOnceWith({
+      event: 'cross_product_link_clicked',
+      direction: 'library_to_career_game',
+    })
   })
 })

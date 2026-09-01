@@ -39,6 +39,10 @@ export interface AppStrings {
     featured: string
     free: string
     owned: string
+    practiceKicker: string
+    practiceTitle: string
+    practiceLead: string
+    playCase: string
   }
   home: {
     title: string
@@ -253,6 +257,10 @@ const ja: AppStrings = {
     featured: '注目の一冊',
     free: '無料',
     owned: '取得済み',
+    practiceKicker: '実践で試す',
+    practiceTitle: '読んだ知識を、職場の判断へ',
+    practiceLead: 'Career Gameでは、短い職場ケースを通して判断とその結果を体験できます。',
+    playCase: 'ケースをプレイ',
   },
   home: {
     title: 'ビジネス日本語ハブ',
@@ -469,6 +477,10 @@ const en: AppStrings = {
     featured: 'Featured',
     free: 'Free',
     owned: 'Owned',
+    practiceKicker: 'Put it into practice',
+    practiceTitle: 'Turn reading into workplace decisions',
+    practiceLead: 'Career Game lets you make decisions and see their consequences in a short workplace case.',
+    playCase: 'Play the case',
   },
   home: {
     title: 'Business Japanese Hub',
@@ -685,6 +697,10 @@ const zhTW: AppStrings = {
     featured: '主打書籍',
     free: '免費',
     owned: '已擁有',
+    practiceKicker: '實際演練',
+    practiceTitle: '把閱讀知識化為職場判斷',
+    practiceLead: '在 Career Game 的短篇職場個案中做出判斷，並查看其結果。',
+    playCase: '開始個案',
   },
   home: {
     title: '商務日語中心',

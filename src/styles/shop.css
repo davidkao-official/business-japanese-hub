@@ -307,6 +307,57 @@
   font-size: var(--text-sm);
 }
 
+.career-game-callout {
+  display: grid;
+  gap: var(--space-4);
+  align-items: center;
+  padding-block: var(--space-5);
+  border-block-end: var(--stroke-thin) solid var(--color-border);
+}
+
+.career-game-callout__copy {
+  display: grid;
+  gap: var(--space-2);
+  max-width: var(--measure-reading);
+}
+
+.career-game-callout__kicker,
+.career-game-callout h2,
+.career-game-callout p {
+  margin: 0;
+}
+
+.career-game-callout__kicker {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: var(--tracking-wide);
+}
+
+.career-game-callout h2 {
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  line-height: var(--leading-tight);
+}
+
+.career-game-callout__copy > p:last-child {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+}
+
+.career-game-callout__link {
+  justify-self: start;
+  gap: var(--space-4);
+}
+
+@media (min-width: 48rem) {
+  .career-game-callout {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-7);
+  }
+}
+
 .book-card-grid {
   display: grid;
   grid-template-columns: 1fr;

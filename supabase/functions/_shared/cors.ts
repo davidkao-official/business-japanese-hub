@@ -116,6 +116,29 @@ export function careerGameCors(
   return exactOriginCors(request, configuredExactOrigin(env.careerGameSiteUrl), allowedMethods);
 }
 
+/**
+ * Browser-only exact-origin policy for anonymous, non-authoritative product
+ * validation events. Both first-class frontends may emit events, but an absent
+ * Origin or any value outside the two deployment settings fails closed.
+ */
+export function productAnalyticsCors(
+  request: HandlerRequest,
+  env: Env,
+  allowedMethods: readonly string[],
+): BrowserCorsDecision {
+  const origin = headerValue(request.headers, 'origin');
+  if (!origin) return { response: forbidden('origin not allowed'), headers: {} };
+
+  const allowedOrigins = [
+    configuredPublicOrigin(env),
+    configuredExactOrigin(env.careerGameSiteUrl),
+  ].filter((candidate): candidate is string => candidate !== null);
+  if (!allowedOrigins.includes(origin)) {
+    return { response: forbidden('origin not allowed'), headers: {} };
+  }
+  return exactOriginCors(request, origin, allowedMethods);
+}
+
 /** Merge CORS headers without mutating the handler's server-authoritative result. */
 export function withCorsHeaders(
   result: HandlerResult,

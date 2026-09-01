@@ -4,16 +4,22 @@ import {
   AuthProvider,
   createBrowserPlatformServices,
 } from '@business-japanese-hub/platform-auth'
-import App from './App'
+import { createBrowserValidationAnalytics } from '@business-japanese-hub/validation-analytics'
+import { CareerGameRouter } from './CareerGameRouter'
 import { createCareerGameProgressRepository } from './career-game-progress'
-import { rookieSurvivalScenario } from './content/rookie-survival'
 import '../../../src/styles/tokens.css'
 import './shell.css'
 
 const platform = createBrowserPlatformServices('career-game')
-const progressRepository = platform.client
-  ? createCareerGameProgressRepository(platform.client, rookieSurvivalScenario)
+const progressClient = platform.client
+const createProgressRepository = progressClient
+  ? (scenario: Parameters<typeof createCareerGameProgressRepository>[1]) =>
+      createCareerGameProgressRepository(progressClient, scenario)
   : undefined
+const analytics = createBrowserValidationAnalytics({
+  functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+})
 const root = document.getElementById('root')
 
 if (!root) {
@@ -23,7 +29,10 @@ if (!root) {
 createRoot(root).render(
   <StrictMode>
     <AuthProvider authClient={platform.authClient}>
-      <App progressRepository={progressRepository} />
+      <CareerGameRouter
+        createProgressRepository={createProgressRepository}
+        analytics={analytics}
+      />
     </AuthProvider>
   </StrictMode>,
 )
