@@ -1079,7 +1079,9 @@ export default function App({
           <p className="file-index">
             {fileIndexLabel}
           </p>
-          <p className="case-sheet__context">{sourceScene?.title}</p>
+          {sourceScene ? (
+            <p className="case-sheet__context">{decisionSceneLabel(sourceScene)}</p>
+          ) : null}
           <h1 id="feedback-title" ref={viewHeading} tabIndex={-1}>
             判断の結果
           </h1>

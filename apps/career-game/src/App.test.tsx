@@ -354,6 +354,12 @@ describe('Career Game playable slice', () => {
       within(screen.getByRole('navigation', { name: 'ケース進行' }))
         .getByText(firstDecision.prompt),
     ).toBeInTheDocument()
+
+    chooseFirstOption()
+    expect(
+      within(screen.getByRole('article', { name: '判断の結果' }))
+        .getByText(firstDecision.prompt),
+    ).toBeInTheDocument()
   })
 
   it('supports keyboard activation and moves focus across each case view', async () => {
