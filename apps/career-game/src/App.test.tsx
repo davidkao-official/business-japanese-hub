@@ -333,6 +333,29 @@ describe('Career Game playable slice', () => {
     expect(screen.queryByText(/^\d+ files$/)).not.toBeInTheDocument()
   })
 
+  it('uses the required prompt as the heading and rail label for an untitled decision', async () => {
+    const scenario = structuredClone(rookieSurvivalScenario)
+    scenario.id = 'untitled-decision'
+    scenario.slug = 'untitled-decision'
+    const firstDecision = scenario.scenes.find(
+      (scene) => scene.id === scenario.startSceneId && scene.kind === 'decision',
+    )
+    if (!firstDecision || firstDecision.kind !== 'decision') {
+      throw new Error('expected a starting decision scene')
+    }
+    delete firstDecision.title
+    expect(validateScenario(scenario)).toEqual({ ok: true, value: scenario })
+
+    renderGame(null, undefined, undefined, false, scenario)
+    await startCase()
+
+    expect(screen.getByRole('heading', { level: 1, name: firstDecision.prompt })).toHaveFocus()
+    expect(
+      within(screen.getByRole('navigation', { name: 'ケース進行' }))
+        .getByText(firstDecision.prompt),
+    ).toBeInTheDocument()
+  })
+
   it('supports keyboard activation and moves focus across each case view', async () => {
     const user = userEvent.setup()
     renderGame()

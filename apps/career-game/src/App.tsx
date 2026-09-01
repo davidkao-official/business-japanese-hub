@@ -142,6 +142,10 @@ interface ProgressRailEntry {
   state: ProgressRailState
 }
 
+function decisionSceneLabel(scene: DecisionScene): string {
+  return scene.title?.trim() || scene.prompt
+}
+
 function fixedDecisionPath(scenario: Scenario): DecisionScene[] | undefined {
   const scenesById = new Map(scenario.scenes.map((scene) => [scene.id, scene]))
   const outcomesById = new Map(scenario.outcomes.map((outcome) => [outcome.id, outcome]))
@@ -182,7 +186,7 @@ function ProgressRail({ entries }: { entries: ProgressRailEntry[] }) {
               aria-current={entry.state === 'active' ? 'step' : undefined}
             >
               <span className="case-progress__number">{formatFileNumber(file)}</span>
-              <span className="case-progress__title">{entry.scene.title}</span>
+              <span className="case-progress__title">{decisionSceneLabel(entry.scene)}</span>
               <span className="case-progress__state">
                 {entry.state === 'complete' ? '済' : entry.state === 'active' ? '現在' : '未'}
               </span>
@@ -1002,7 +1006,7 @@ export default function App({
           </p>
           <p className="case-sheet__context">{currentScene.context}</p>
           <h1 id="scene-title" ref={viewHeading} tabIndex={-1}>
-            {currentScene.title}
+            {decisionSceneLabel(currentScene)}
           </h1>
         </header>
 
