@@ -16,7 +16,7 @@ import { BookCover } from '../components/BookCover'
 import { Price } from '../components/Price'
 import { careerGameHomeHref } from '../lib/cross-product/careerGame'
 import {
-  AUTHOR_PROFILE,
+  COFOUNDER_PROFILE,
   FOUNDER_PROFILE,
   type PublicProfile,
 } from './storefrontProfiles'
@@ -171,7 +171,7 @@ function PublicProfiles() {
   return (
     <div className="page" id="profiles">
       <PublicProfileBlock id="founder-profile" profile={FOUNDER_PROFILE} />
-      <PublicProfileBlock id="author-profile" profile={AUTHOR_PROFILE} />
+      <PublicProfileBlock id="cofounder-profile" profile={COFOUNDER_PROFILE} />
     </div>
   )
 }
