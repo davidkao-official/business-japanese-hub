@@ -19,7 +19,7 @@ import {
   AUTHOR_PROFILE,
   FOUNDER_PROFILE,
   type PublicProfile,
-} from '../content/profiles'
+} from './storefrontProfiles'
 
 const browserValidationAnalytics = createBrowserValidationAnalytics({
   functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,
@@ -178,7 +178,7 @@ function PublicProfiles() {
 
 function PublicProfileBlock({ id, profile }: { id: string; profile: PublicProfile }) {
   return (
-    <article className="page" aria-labelledby={id}>
+    <article className="page" aria-labelledby={id} lang={profile.language}>
       <h2 className="section-title" id={id}>
         {profile.heading}
       </h2>
@@ -189,9 +189,14 @@ function PublicProfileBlock({ id, profile }: { id: string; profile: PublicProfil
       </ul>
       {profile.languages && (
         <p>
-          <strong>Languages</strong>
+          <strong lang="en">Languages</strong>
           <br />
-          {profile.languages.join('｜')}
+          {profile.languages.map((language, index) => (
+            <span key={language.label} lang={language.language}>
+              {index > 0 && '｜'}
+              {language.label}
+            </span>
+          ))}
         </p>
       )}
     </article>
