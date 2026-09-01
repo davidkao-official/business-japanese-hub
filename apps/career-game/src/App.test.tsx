@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 import { StrictMode } from 'react'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {
   applyChoice,
@@ -674,9 +674,11 @@ describe('Career Game playable slice', () => {
     renderGame(null, undefined, analytics)
 
     expect(await screen.findByRole('heading', { name: 'ケース完了' })).toBeInTheDocument()
-    expect(track.mock.calls.map(([event]) => event)).toEqual([
-      { event: 'case_viewed', scenarioId: 'rookie-survival' },
-    ])
+    await waitFor(() => {
+      expect(track.mock.calls.map(([event]) => event)).toEqual([
+        { event: 'case_viewed', scenarioId: 'rookie-survival' },
+      ])
+    })
   })
 
   it('restores the shared account identity while keeping progress device-local', async () => {
