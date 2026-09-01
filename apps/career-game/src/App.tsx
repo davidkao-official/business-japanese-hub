@@ -332,6 +332,9 @@ export default function App({
     })
   }, [decisions, model.gameState.history])
   const linearDecisionPath = useMemo(() => fixedDecisionPath(scenario), [scenario])
+  const caseFileSummary = linearDecisionPath
+    ? `${linearDecisionPath.length} files`
+    : '経路により変動'
   const completedAnnouncement = `ケース内のファイル${model.gameState.history.length}件を完了しました。`
   const currentScene = getCurrentScene(scenario, model.gameState)
   const progressEntries = useMemo<ProgressRailEntry[]>(() => {
@@ -949,7 +952,7 @@ export default function App({
           <dl className="case-facts">
             <div>
               <dt>記録</dt>
-              <dd>{decisions.length} files</dd>
+              <dd>{caseFileSummary}</dd>
             </div>
             <div>
               <dt>所要時間</dt>

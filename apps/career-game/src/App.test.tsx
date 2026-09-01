@@ -316,7 +316,21 @@ describe('Career Game playable slice', () => {
     expect(
       screen.getByText(/判断するたびに、その場の結果と職場語用論の解説を確認/),
     ).toBeInTheDocument()
+    expect(screen.getByText('5 files')).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'ケースを開始' })).toBeEnabled()
+  })
+
+  it('does not promise a fixed file count for branching or looping cases', async () => {
+    const branching = renderGame(null, undefined, undefined, false, branchingScenario)
+    expect(await screen.findByRole('heading', { name: '分岐ケース' })).toBeInTheDocument()
+    expect(screen.getByText('経路により変動')).toBeInTheDocument()
+    expect(screen.queryByText(/^\d+ files$/)).not.toBeInTheDocument()
+    branching.unmount()
+
+    renderGame(null, undefined, undefined, false, loopingScenario)
+    expect(await screen.findByRole('heading', { name: '繰り返して完了するケース' })).toBeInTheDocument()
+    expect(screen.getByText('経路により変動')).toBeInTheDocument()
+    expect(screen.queryByText(/^\d+ files$/)).not.toBeInTheDocument()
   })
 
   it('supports keyboard activation and moves focus across each case view', async () => {
