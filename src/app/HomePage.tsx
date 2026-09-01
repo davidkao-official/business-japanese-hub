@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import {
   createBrowserValidationAnalytics,
@@ -37,9 +38,12 @@ export function HomePage({
   const entries = listCatalogEntries()
   const featured = entries[0]
   const rest = entries.slice(1)
+  const careerGameMovementTracked = useRef(false)
   useDocumentTitle(strings.home.title)
 
   function trackCareerGameLink(): void {
+    if (careerGameMovementTracked.current) return
+    careerGameMovementTracked.current = true
     try {
       analytics.track({
         event: 'cross_product_link_clicked',

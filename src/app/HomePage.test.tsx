@@ -40,7 +40,7 @@ describe('storefront', () => {
     expect(screen.queryByText('¥660')).not.toBeInTheDocument()
   })
 
-  it('offers a quiet content-neutral link to the Game-owned default and tracks its use', () => {
+  it('offers a quiet content-neutral link and tracks rapid activation only once', () => {
     const track = vi.fn()
     renderWithAppProviders(<HomePage analytics={{ track }} />)
 
@@ -50,6 +50,7 @@ describe('storefront', () => {
       'https://business-japanese-career-game.pages.dev/',
     )
 
+    clickWithoutNavigation(link)
     clickWithoutNavigation(link)
 
     expect(track).toHaveBeenCalledExactlyOnceWith({

@@ -601,22 +601,14 @@ describe('Career Game playable slice', () => {
     ])
   })
 
-  it('tracks ordinary Game-to-Library links without changing their cross-origin hrefs', async () => {
+  it('tracks rapid Game-to-Library product-switch activation only once', async () => {
     const { analytics, track } = createAnalytics()
     renderGame(null, undefined, analytics)
 
     const productSwitch = await screen.findByRole('link', { name: /Library/ })
     expect(productSwitch).toHaveAttribute('href', 'https://business-japanese-hub.pages.dev/')
     clickWithoutNavigation(productSwitch)
-
-    await startCase()
-    chooseFirstOption()
-    const relatedReading = screen.getByRole('link', { name: 'Libraryで関連内容を読む' })
-    expect(relatedReading).toHaveAttribute(
-      'href',
-      'https://business-japanese-hub.pages.dev/library-link?bookId=book-sample-bj-keigo&chapterId=ch-2',
-    )
-    clickWithoutNavigation(relatedReading)
+    clickWithoutNavigation(productSwitch)
 
     expect(
       track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
@@ -628,6 +620,26 @@ describe('Career Game playable slice', () => {
           direction: 'career_game_to_library',
         },
       ],
+    ])
+  })
+
+  it('tracks rapid contextual Game-to-Library activation only once', async () => {
+    const { analytics, track } = createAnalytics()
+    renderGame(null, undefined, analytics)
+
+    await startCase()
+    chooseFirstOption()
+    const relatedReading = screen.getByRole('link', { name: 'Libraryで関連内容を読む' })
+    expect(relatedReading).toHaveAttribute(
+      'href',
+      'https://business-japanese-hub.pages.dev/library-link?bookId=book-sample-bj-keigo&chapterId=ch-2',
+    )
+    clickWithoutNavigation(relatedReading)
+    clickWithoutNavigation(relatedReading)
+
+    expect(
+      track.mock.calls.filter(([event]) => event.event === 'cross_product_link_clicked'),
+    ).toEqual([
       [
         {
           event: 'cross_product_link_clicked',
