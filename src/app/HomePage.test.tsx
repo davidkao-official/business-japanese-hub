@@ -29,7 +29,7 @@ describe('storefront', () => {
     })
   })
 
-  it('renders the approved founder and author profiles on the public storefront', () => {
+  it('renders the approved founder and co-founder profiles on the public storefront', () => {
     renderWithAppProviders(<HomePage />)
 
     const founderHeading = screen.getByRole('heading', { name: '創辦人｜David Kao' })
@@ -52,11 +52,12 @@ describe('storefront', () => {
     expect(languageScope.getByText('日本語')).toHaveAttribute('lang', 'ja')
     expect(languageScope.getByText('English')).toHaveAttribute('lang', 'en')
 
-    const authorHeading = screen.getByRole('heading', {
-      name: '作者｜塔奇巧克力（TachikoChoko）',
+    const cofounderHeading = screen.getByRole('heading', {
+      name: '共同創辦人｜塔奇巧克力（TachikoChoko）',
     })
-    expect(authorHeading).toBeInTheDocument()
-    expect(authorHeading.closest('article')).toHaveAttribute('lang', 'zh-TW')
+    expect(cofounderHeading).toBeInTheDocument()
+    expect(cofounderHeading.closest('article')).toHaveAttribute('lang', 'zh-TW')
+    expect(screen.queryByRole('heading', { name: '作者｜塔奇巧克力（TachikoChoko）' })).not.toBeInTheDocument()
     expect(screen.getByText('曾於直播平台「初樂（TrueLoveLive）」擔任後端工程師')).toBeInTheDocument()
     expect(screen.getByText('曾於冰角工作室擔任後端 Lead，主要負責後端系統開發')).toBeInTheDocument()
     expect(
