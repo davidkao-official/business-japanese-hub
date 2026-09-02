@@ -6,6 +6,7 @@ import './styles/global.css'
 import './styles/reader.css'
 import './styles/shop.css'
 import './styles/legal.css'
+import './styles/editorial-v2.css'
 
 const root = document.getElementById('root')
 
