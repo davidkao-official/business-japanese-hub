@@ -90,7 +90,7 @@
   font-family: var(--font-serif);
   font-size: var(--editorial-home-title-size);
   font-weight: var(--font-weight-medium);
-  line-height: 1.02;
+  line-height: var(--editorial-home-title-leading);
   letter-spacing: var(--editorial-display-tracking);
   font-feature-settings: var(--jp-feature-palt), var(--font-feature-defaults);
 }
@@ -153,7 +153,7 @@
   margin-block: var(--space-3);
   font-size: var(--editorial-feature-title-size);
   font-weight: var(--font-weight-medium);
-  line-height: 1.12;
+  line-height: var(--editorial-feature-title-leading);
   letter-spacing: var(--editorial-feature-tracking);
 }
 
@@ -393,7 +393,7 @@
   margin-bottom: var(--space-4);
   font-size: var(--editorial-detail-title-size);
   font-weight: var(--font-weight-medium);
-  line-height: 1.1;
+  line-height: var(--editorial-detail-title-leading);
   letter-spacing: var(--editorial-display-tracking);
 }
 
@@ -574,28 +574,28 @@
   margin-bottom: var(--space-3);
   color: var(--reader-muted);
   font-family: var(--font-reader-sans);
-  font-size: var(--text-sm);
+  font-size: 0.8em;
   font-weight: var(--font-weight-medium);
   letter-spacing: var(--editorial-kicker-tracking);
   text-transform: uppercase;
 }
 
 .reader-chapter-header__title {
-  font-size: var(--text-3xl);
+  font-size: var(--reader-chapter-title-size);
   font-weight: var(--font-weight-medium);
-  line-height: var(--leading-tight);
+  line-height: var(--reader-chapter-title-leading);
   letter-spacing: var(--tracking-tight);
 }
 
 .reader-chapter-header__subtitle {
   margin-top: var(--space-3);
-  font-size: var(--text-lg);
+  font-size: var(--reader-chapter-subtitle-size);
   line-height: var(--leading-body);
 }
 
 .reader-chapter-header__summary {
   margin-top: var(--space-4);
-  font-size: var(--text-md);
+  font-size: var(--reader-chapter-summary-size);
   line-height: var(--leading-body);
 }
 
@@ -612,7 +612,7 @@
 
 .reader-quote__text {
   font-family: var(--font-reader-serif);
-  font-size: var(--text-lg);
+  font-size: var(--reader-quote-size);
   line-height: var(--leading-body);
 }
 
