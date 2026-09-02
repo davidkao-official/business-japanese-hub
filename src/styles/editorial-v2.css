@@ -695,8 +695,8 @@
     font-size: var(--editorial-title-mobile-size);
   }
 
-  .featured-book__actions .cta-row,
-  .book-hero__actions .cta-row {
+  .featured-book__actions.cta-row,
+  .book-hero__actions.cta-row {
     display: grid;
     grid-template-columns: 1fr;
   }
