@@ -1,12 +1,13 @@
 /**
  * Design Tokens — Business Japanese Hub
  * =====================================================================
- * Centralized design decisions for the application shell.
+ * Centralized design decisions for the Library application shell.
  *
- * This is an intentionally neutral, skeleton-level token set. The visual
- * direction is NOT final — treat every value here as a swap point for the
- * design research pass (#2). Components should only ever reference tokens,
- * never hard-coded values, so a visual change is a token-only diff.
+ * `docs/ui-ux-research.md` is the canonical visual authority. The current
+ * values implement its Quiet Editorial Modernism direction: warm paper and
+ * ink neutrals, one restrained accent, Japanese-first typography, subtle
+ * elevation, and compact geometry. Components reference semantic tokens
+ * rather than page-local palette/shadow literals.
  *
  * Naming convention: --<category>-<element>-<modifier>
  *
@@ -33,25 +34,25 @@
   --bp-xl: 80rem; /* 1280px */
 
   /* ---------------------------------------------------------------
-   * Color — neutrals (warm paper neutrals tuned for long-form reading)
+   * Color — Quiet Editorial Modernism paper / ink hierarchy
    * --------------------------------------------------------------- */
-  --color-bg: #f7f5f1;
-  --color-bg-elevated: #ffffff;
-  --color-surface: #ffffff;
-  --color-surface-muted: #efece6;
-  --color-text: #21241f;
-  --color-text-muted: #5f655d;
-  --color-text-inverse: #ffffff;
-  --color-border: #dfdacd;
-  --color-border-strong: #c8c2b3;
+  --color-bg: #f5f1e8;
+  --color-bg-elevated: #f8f5ed;
+  --color-surface: #f8f5ed;
+  --color-surface-muted: #ece7dc;
+  --color-text: #1d1d1a;
+  --color-text-muted: #68645b;
+  --color-text-inverse: #f8f5ed;
+  --color-border: #d3cbbc;
+  --color-border-strong: #aaa191;
 
   /* ---------------------------------------------------------------
-   * Color — accent (placeholder; replace in design pass #2)
+   * Color — restrained editorial accent
    * --------------------------------------------------------------- */
-  --color-accent: #b5472f;
-  --color-accent-hover: #963a26;
-  --color-accent-soft: #f3e2da;
-  --color-accent-contrast: #ffffff;
+  --color-accent: #5f6f63;
+  --color-accent-hover: #49584d;
+  --color-accent-soft: #e1e6df;
+  --color-accent-contrast: #f8f5ed;
 
   /* ---------------------------------------------------------------
    * Color — focus / interactive
@@ -107,6 +108,20 @@
   --text-2xl: 2rem; /*    32px */
   --text-3xl: 2.75rem; /* 44px */
 
+  /* Editorial display roles — #74 visual reference */
+  --editorial-home-title-size: clamp(3rem, 7.2vw, 6.4rem);
+  --editorial-home-title-mobile-size: clamp(2.65rem, 14vw, 4.25rem);
+  --editorial-feature-title-size: clamp(2.2rem, 4.4vw, 4.75rem);
+  --editorial-detail-title-size: clamp(2.5rem, 5vw, 5rem);
+  --editorial-title-mobile-size: clamp(2.1rem, 10vw, 3rem);
+  --editorial-section-title-size: clamp(1.75rem, 3vw, 2.5rem);
+  --editorial-kicker-tracking: 0.15em;
+  --editorial-display-tracking: -0.04em;
+  --editorial-feature-tracking: -0.035em;
+  --editorial-shell-block-padding: clamp(2.75rem, 5vw, 5.25rem);
+  --editorial-section-padding: clamp(3.5rem, 6vw, 6rem);
+  --editorial-cover-padding: clamp(2.75rem, 6vw, 6rem);
+
   /* Weights */
   --font-weight-regular: 400;
   --font-weight-medium: 500;
@@ -132,11 +147,11 @@
   --font-feature-defaults: 'kern' 1, 'liga' 1;
 
   /* ---------------------------------------------------------------
-   * Radius
+   * Radius — compact editorial geometry
    * --------------------------------------------------------------- */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 1rem;
+  --radius-sm: 0.125rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.5rem;
   --radius-pill: 999px;
   /* Book covers sit near 0–2px (docs/ui-ux-research.md §6.2); never crop them. */
   --radius-cover: 0.125rem;
@@ -146,11 +161,11 @@
   --stroke-medium: 2px;
 
   /* ---------------------------------------------------------------
-   * Shadows
+   * Shadows — reserved mainly for books and true overlays
    * --------------------------------------------------------------- */
-  --shadow-sm: 0 1px 2px rgb(15 18 14 / 0.06), 0 1px 3px rgb(15 18 14 / 0.05);
-  --shadow-md: 0 4px 12px rgb(15 18 14 / 0.08);
-  --shadow-lg: 0 12px 32px rgb(15 18 14 / 0.12);
+  --shadow-sm: 0 1px 2px rgb(31 28 22 / 0.06);
+  --shadow-md: 0 8px 24px rgb(31 28 22 / 0.08);
+  --shadow-lg: 0 22px 54px rgb(31 28 22 / 0.14);
 
   /* ---------------------------------------------------------------
    * Focus ring
@@ -203,6 +218,34 @@
   --reader-gutter-desktop: 2rem; /* 32px */
   --reader-topbar-h: 3.25rem; /* 52px touch-safe reader chrome */
   --control-min-h: 2.75rem; /* 44px house touch target */
+
+  /* Reader palettes — values are centralized here; reader.css maps roles. */
+  --reader-light-bg: #f8f4ea;
+  --reader-light-text: #1d1d1a;
+  --reader-light-muted: #716c62;
+  --reader-light-border: #d8d0c2;
+  --reader-light-border-strong: #b8ae9d;
+  --reader-light-accent: #5f6f63;
+  --reader-light-accent-soft: #e7e9e3;
+  --reader-light-accent-ink: #f8f4ea;
+
+  --reader-sepia-bg: #f1e7d3;
+  --reader-sepia-text: #332f29;
+  --reader-sepia-muted: #716758;
+  --reader-sepia-border: #d7c8ad;
+  --reader-sepia-border-strong: #b9a688;
+  --reader-sepia-accent: #6f705d;
+  --reader-sepia-accent-soft: #e5dcc8;
+  --reader-sepia-accent-ink: #f1e7d3;
+
+  --reader-dark-bg: #171816;
+  --reader-dark-text: #eeeae0;
+  --reader-dark-muted: #aaa69b;
+  --reader-dark-border: #34352f;
+  --reader-dark-border-strong: #4d4e46;
+  --reader-dark-accent: #aebcaf;
+  --reader-dark-accent-soft: #252b26;
+  --reader-dark-accent-ink: #171816;
 }
 
 @media (min-width: 48rem) {
@@ -219,20 +262,20 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --color-bg: #161815;
-  --color-bg-elevated: #1d201c;
-  --color-surface: #1d201c;
-  --color-surface-muted: #262a25;
-  --color-text: #e7e4db;
-  --color-text-muted: #a4ab9e;
-  --color-text-inverse: #161815;
-  --color-border: #2f342d;
-  --color-border-strong: #434940;
+  --color-bg: #171816;
+  --color-bg-elevated: #1d1e1b;
+  --color-surface: #1d1e1b;
+  --color-surface-muted: #252620;
+  --color-text: #eeeae0;
+  --color-text-muted: #aaa69b;
+  --color-text-inverse: #171816;
+  --color-border: #34352f;
+  --color-border-strong: #4a4b43;
 
-  --color-accent: #e08a70;
-  --color-accent-hover: #eaa08c;
-  --color-accent-soft: #3b2721;
-  --color-accent-contrast: #161815;
+  --color-accent: #aebcaf;
+  --color-accent-hover: #c2cec3;
+  --color-accent-soft: #29312b;
+  --color-accent-contrast: #171816;
 
   --color-focus: #8ab4e8;
   --color-focus-inverse: #2f6fb3;
@@ -242,7 +285,7 @@
   --color-danger: #e08585;
   --color-info: #8ab4e8;
 
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.45);
-  --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.55);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.28);
+  --shadow-md: 0 8px 24px rgb(0 0 0 / 0.32);
+  --shadow-lg: 0 22px 54px rgb(0 0 0 / 0.4);
 }
