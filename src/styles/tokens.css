@@ -115,6 +115,9 @@
   --editorial-detail-title-size: clamp(2.5rem, 5vw, 5rem);
   --editorial-title-mobile-size: clamp(2.1rem, 10vw, 3rem);
   --editorial-section-title-size: clamp(1.75rem, 3vw, 2.5rem);
+  --editorial-home-title-leading: 1.02;
+  --editorial-feature-title-leading: 1.12;
+  --editorial-detail-title-leading: 1.1;
   --editorial-kicker-tracking: 0.15em;
   --editorial-display-tracking: -0.04em;
   --editorial-feature-tracking: -0.035em;
@@ -201,10 +204,9 @@
   /* ---------------------------------------------------------------
    * Reader typography — long-form Japanese reading surface.
    * Semantic tokens consumed by src/reader and src/styles/reader.css.
-   * The reader body is its own type system (research §3): it must not
-   * share the marketing type scale. Em values are resolved against the
-   * reader body font-size, so a user size override scales the whole
-   * surface proportionally.
+   * Em-based content roles inherit the scaled reader body size so the
+   * user's Small / Standard / Large / Extra Large preference scales the
+   * entire reading hierarchy coherently.
    * --------------------------------------------------------------- */
   --font-reader-serif: var(--font-serif);
   --font-reader-sans: var(--font-sans);
@@ -218,6 +220,11 @@
   --reader-gutter-desktop: 2rem; /* 32px */
   --reader-topbar-h: 3.25rem; /* 52px touch-safe reader chrome */
   --control-min-h: 2.75rem; /* 44px house touch target */
+  --reader-chapter-title-size: 2.4em;
+  --reader-chapter-title-leading: 1.28;
+  --reader-chapter-subtitle-size: 1.15em;
+  --reader-chapter-summary-size: 1.06em;
+  --reader-quote-size: 1.18em;
 
   /* Reader palettes — values are centralized here; reader.css maps roles. */
   --reader-light-bg: #f8f4ea;
