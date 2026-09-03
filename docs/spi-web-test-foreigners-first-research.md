@@ -192,6 +192,38 @@ Sources:
 - https://spi.careermine.jp/ (accessed 2026-09-04)
 - https://spi.kodansha.co.jp/ (accessed 2026-09-04)
 
+### Foreigner-facing / institutional offerings
+
+A focused scan of offerings explicitly aimed at international students found institutional or adjacent support, not a clearly differentiated direct-to-consumer language-vs-reasoning product:
+
+| Offering | What the cited page shows | Access / pricing observed | What this does and does not establish |
+| --- | --- | --- | --- |
+| KIT / Asia Jinzai Network | An international-student job-placement support network with employment-exam preparation of approximately 200 practice questions and smartphone access. | The KIT page describes access as free of charge for eligible students; registration uses a KIT student email. | This is a foreigner-facing practice/support channel, but not evidence of consumer willingness-to-pay or causal diagnosis value. |
+| Tohoku University SPI seminar | A 2026 online seminar for international students split into verbal and non-verbal sessions, conducted in Japanese. | Institutional program; no fee is listed on the cited event page. | This is a supply-side teaching offering, not a public standalone product or proof of target-user demand. |
+| Recruit GSPI3 | A multilingual assessment option for foreign candidates, including Traditional Chinese; it is an assessment product rather than a preparation product. | B2B assessment pricing is not listed in the cited source. | This is an adjacent alternative for assessment language, not a direct consumer practice competitor. |
+
+Sources:
+- KIT, 留學生向け情報: https://www.kit.ac.jp/career_index/internationalstudents/ (accessed 2026-09-04)
+- Tohoku University Career Support Office, international-student SPI seminar: https://www.career.ihe.tohoku.ac.jp/en/event/call-for-participantsspi-test-preparation-seminar-for-international-students/ (accessed 2026-09-04)
+- Recruit Management Solutions, GSPI3 guidance: https://www.spi.recruit.co.jp/spi3news/000122.html (accessed 2026-09-04)
+
+### Observed access and pricing models
+
+The broader Japanese market spans free entry diagnostics, university-gated programs and paid courses. These are public observations as of the access dates, not a like-for-like price benchmark:
+
+| Example | Access / pricing model observed |
+| --- | --- |
+| CareerMine SPI mock | Free short diagnostic entry point is shown on the public page. |
+| Studying.jp 一般知能＋SPI pack | Paid two-month course: 12,500 yen for the current pack, 8,000 yen for the update version; a free first lecture is available. |
+| 日本福祉大学 SPI on-demand course | 12,600 yen; limited to the university's students; ten non-verbal sessions. |
+| KIT / Asia Jinzai Network | Institutional access described as free for eligible KIT international students; no consumer price is listed. |
+| Tohoku University seminar | Institutional offering; no fee is listed on the cited event page. |
+
+Sources:
+- CareerMine SPI mock: https://spi.careermine.jp/exam (accessed 2026-09-04)
+- Studying.jp, 一般知能＋SPI pack: https://studying.jp/komuin/itempage/lapidcourse2026.html (accessed 2026-09-04)
+- 日本福祉大学, SPI on-demand course: https://www.n-fukushi.ac.jp/career/shikaku/cdp/spi-taisaku/ (accessed 2026-09-04)
+
 ### What is not a differentiator by itself
 
 Business Japanese Hub should **not** claim differentiation merely because it has:
@@ -467,7 +499,7 @@ Do not create a single ability score. For completed attempts, report transparent
 | Response time by category | Median elapsed time plus attempt count; keep timed and untimed attempts separate. |
 | Language / reasoning / execution tag accuracy | `correct / attempts` on items carrying each `itemAnalysis` tag; this is descriptive item-grouped performance, not a latent-skill or cause estimate. |
 | Timed vs untimed performance | Report accuracy and median elapsed time separately for each mode; do not infer a causal effect from unpaired sessions. |
-| Recurring vocabulary weaknesses | Group misses by authored `vocabularyTermIds`; list a term only after at least 2 misses across at least 2 items, resolving its label through the selected support overlay. |
+| Recurring vocabulary-tagged misses / review candidates | Group observed misses by authored `vocabularyTermIds`; list a term as a recurring tag-miss review candidate only after at least 2 misses across at least 2 items, resolving its label through the selected support overlay. This is not a claim about a learner weakness or its cause. |
 | Recent mistakes / review queue | Keep the latest incorrect attempt per question, newest first; remove it after a later review attempt is correct. Do not rank the queue by an inferred cause. |
 
 The threshold values are an MVP reporting rule to validate, not a claim of psychometric validity. With fewer relevant observations, say `資料不足` rather than inventing precision.
@@ -595,6 +627,17 @@ Therefore:
 - Do not use provider logos, official UI screenshots or styling that implies affiliation.
 - Do not call the product `official`, `公認`, `公式`, or imply partnership.
 - Before launch / paid marketing, have Japanese IP/trademark counsel review exact product name, ad copy and disclaimer.
+
+### Questions for legal review before launch
+
+These are review questions, not legal conclusions or approved legal advice:
+
+1. Is each use of `SPI`, `SPI3` and any adjacent provider name a permissible nominative / compatibility reference for the intended product, page, and advertising contexts under Japanese trademark law?
+2. Do the proposed umbrella name, metadata, search snippets, screenshots, or visual treatment create a likelihood of affiliation, endorsement, sponsorship, or official-test confusion?
+3. Are the original prompts, answer choices, explanations, diagrams, timing guidance, and category labels sufficiently independent from protected expression, trade secrets, or unfairly obtained test information?
+4. Do the originality attestation, prohibited-source workflow, and provenance records provide an adequate audit trail if a question's similarity is challenged?
+5. Does the disclaimer accurately describe the relationship to each provider without implying that the disclaimer itself cures an otherwise misleading use?
+6. Are the Traditional Chinese and other localized overlays faithful translations that preserve the same non-affiliation and non-reproduction claims in every market-facing language?
 
 Candidate disclaimer for professional review, **not approved legal copy**:
 
