@@ -350,6 +350,7 @@ This is a research contract, not a locked TypeScript implementation.
 type PracticeChoice = {
   id: string
   textJa: string
+  representation?: PracticeRepresentation
 }
 
 type PracticeRepresentation =
@@ -531,6 +532,35 @@ type PracticeQuestionBank = {
   questions: PracticeQuestion[]
 }
 
+type PracticeSupportOverlayRef = {
+  questionId: string
+  questionVersion: number
+  locale: string
+  overlayVersion: number
+}
+
+type PracticeStudyTrialBase = {
+  blockId: string
+  trialId: string
+  order: number
+  itemId: string
+  questionId: string
+  questionVersion: number
+  checkpointFeedback: 'hidden' | 'visible'
+  transferItemId: string
+  transferItemVersion: number
+}
+
+type PracticeStudyTrial =
+  | (PracticeStudyTrialBase & {
+      explanation: 'ordinary'
+      supportOverlay?: never
+    })
+  | (PracticeStudyTrialBase & {
+      explanation: 'foreigners-first'
+      supportOverlay: PracticeSupportOverlayRef
+    })
+
 type PracticeStudyManifest = {
   version: number
   questionBankVersion: number
@@ -540,12 +570,7 @@ type PracticeStudyManifest = {
     questionVersion: number
     checkpointRegistryVersion: number
   }>
-  selectedSupportOverlays: Array<{
-    questionId: string
-    questionVersion: number
-    locale: string
-    overlayVersion: number
-  }>
+  selectedSupportOverlays: PracticeSupportOverlayRef[]
   matchedBlocks: Array<{
     blockId: string
     items: Array<{
@@ -560,24 +585,7 @@ type PracticeStudyManifest = {
   counterbalanceSchedule: Array<{
     participantSlot: number
     blockOrder: string[]
-    trials: Array<{
-      blockId: string
-      trialId: string
-      order: number
-      itemId: string
-      questionId: string
-      questionVersion: number
-      explanation: 'ordinary' | 'foreigners-first'
-      checkpointFeedback: 'hidden' | 'visible'
-      supportOverlay?: {
-        questionId: string
-        questionVersion: number
-        locale: string
-        overlayVersion: number
-      }
-      transferItemId: string
-      transferItemVersion: number
-    }>
+    trials: PracticeStudyTrial[]
   }>
 }
 ```
@@ -588,7 +596,7 @@ type PracticeStudyManifest = {
 - The first support locale may be stored under `byLocale['zh-Hant']`; another locale adds a map entry rather than a new language-specific field or core renderer branch.
 - A support overlay is versioned independently. Increment `PracticeQuestionSupportOverlay.version` whenever any support treatment changes, even if `questionVersion` does not; resolve the selected locale from the exact question ID/version plus overlay version rather than from the latest available translation.
 - `PracticeStudyManifest` is frozen before study outcomes: it records the exact question-bank version, top-level checkpoint-registry version, and each item's registry version (which must equal the top-level version). It also records each selected support-overlay artifact as `(questionId, questionVersion, locale, overlayVersion)`, every matched block's four-item membership and transfer pairings, and a versioned participant-slot counterbalancing schedule whose trial rows pin the item-to-condition assignment plus block / trial order. Ordinary-explanation trials select no support overlay; foreigners-first trials may use only the exact matching overlay reference in that manifest. A later translation or allocation edit creates a new manifest and cannot silently change a completed session.
-- The manifest validator must reject duplicate item / trial / block IDs, a trial whose question or transfer pair does not match its matched-block item, a transfer item pair that does not resolve uniquely in the pinned `PracticeQuestionBank.version`, a support-overlay ref that does not match its question and one listed `selectedSupportOverlays` entry, a block that does not contain exactly four distinct items, and a participant-slot schedule that references unknown or repeated trials or fails to assign those items exactly once to each explanation × checkpoint-feedback combination. Every `itemSet` row must resolve to a question whose `itemAnalysis.diagnosticCheckpoints.registryVersion` equals both that row's and the manifest's `checkpointRegistryVersion`; a mismatch is invalid rather than silently replayed.
+- The manifest validator must reject duplicate item / trial / block IDs, a trial whose question or transfer pair does not match its matched-block item, a transfer item pair that does not resolve uniquely in the pinned `PracticeQuestionBank.version`, a transfer pair that equals its original question or is reused within one participant-slot schedule, a support-overlay ref that does not match its question and one listed `selectedSupportOverlays` entry, an ordinary trial that carries a support overlay, or a foreigners-first trial without one whose exact `byLocale[locale]` payload has at least one non-empty support field. It must also reject a block that does not contain exactly four distinct items, and a participant-slot schedule that references unknown or repeated trials or fails to assign those items exactly once to each explanation × checkpoint-feedback combination. Every `itemSet` row must resolve to a question whose `itemAnalysis.diagnosticCheckpoints.registryVersion` equals both that row's and the manifest's `checkpointRegistryVersion`; a mismatch is invalid rather than silently replayed.
 - Each `keyTerms[].termId` is a stable, locale-independent content reference and must match an entry in the core item's `vocabularyTermIds`; the overlay may translate or annotate that term without changing its identity.
 - `coreExplanation` is the source-language solution and `whatIsAskedJa` is the canonical Japanese restatement; locale-specific prose belongs in the overlay and must be shown alongside, not instead of, the Japanese restatement.
 - `diagnosticCheckpoints.ids` reference entries in the `PracticeCheckpointRegistry` version named by `diagnosticCheckpoints.registryVersion`. Each checkpoint carries its Japanese prompt, input format / choices, expected answer, dimension and provenance so Stage 0 can author and Stage 2 can score the same deterministic checkpoint. A registry version is immutable; revisions create a new version.
@@ -598,6 +606,7 @@ type PracticeStudyManifest = {
 - `deliveryProfile` and `practiceProfile` are extensible content labels. Read models keep them separate so Web / test-center delivery and untimed / timed / diagnostic practice semantics are not mixed accidentally.
 - `promptJa` is the canonical question text. Optional `promptRepresentation` is a source-language, structured stimulus rendered with that text when a table, diagram, equation or other non-text prompt is part of the question; it is not the solution representation. `coreExplanation.representation` is the separate source-language solution payload. Neither payload contains locale-specific fields.
 - Stage 1 representation validation applies to both `promptRepresentation` and `coreExplanation.representation`: reject empty required strings/arrays; require every table row to have exactly `columns.length` cells; require unique diagram node IDs and every edge endpoint to reference a declared node; require unique logic-grid row and column IDs, every cell reference to resolve to a declared row/column, and no duplicate row/column pair; and reject an `other` payload without both a label and content. This is referential / dimensional content validation, not a learner diagnosis.
+- `PracticeChoice.textJa` is the required accessible source-language fallback for every answer option. An optional choice-level `representation` may render a structured table, diagram, equation or logic grid, and is subject to the same validation as question and explanation representations; localized choice text remains an overlay concern.
 - `testFamily` lives at content / presentation taxonomy boundary, not in a platform-wide payment/identity contract.
 - Question content is data, not embedded in React components.
 - Exact rendering details can vary by question type without arbitrary executable scripts.
