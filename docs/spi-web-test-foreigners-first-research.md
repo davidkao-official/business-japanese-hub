@@ -442,13 +442,9 @@ type PracticeQuestion = {
 
   coreExplanation: {
     concise: string
+    whatIsAskedJa: string
     representation?: PracticeRepresentation
   }
-
-  vocabularyTerms?: Record<string, {
-    surfaceJa: string
-    explanationJa?: string
-  }>
 
   itemAnalysis: {
     languageLoads: Array<
@@ -518,6 +514,20 @@ type PracticeCheckpointRegistry = {
   version: number
   checkpoints: PracticeCheckpoint[]
 }
+
+type PracticeVocabularyCatalog = {
+  version: number
+  terms: Record<string, {
+    surfaceJa: string
+    explanationJa?: string
+  }>
+}
+
+type PracticeQuestionBank = {
+  version: number
+  vocabularyCatalog: PracticeVocabularyCatalog
+  questions: PracticeQuestion[]
+}
 ```
 
 ### Design rules
@@ -525,10 +535,10 @@ type PracticeCheckpointRegistry = {
 - `PracticeQuestion` contains the generic practice core: Japanese question content, answer, core solution, item requirements and provenance. `PracticeQuestionSupportOverlay` is a separate, optional, locale-keyed support layer.
 - The first support locale may be stored under `byLocale['zh-Hant']`; another locale adds a map entry rather than a new language-specific field or core renderer branch.
 - Each `keyTerms[].termId` is a stable, locale-independent content reference and must match an entry in the core item's `vocabularyTermIds`; the overlay may translate or annotate that term without changing its identity.
-- `coreExplanation` is the source-language solution for the Japanese prompt; locale-specific prose belongs in the overlay.
+- `coreExplanation` is the source-language solution and `whatIsAskedJa` is the canonical Japanese restatement; locale-specific prose belongs in the overlay and must be shown alongside, not instead of, the Japanese restatement.
 - `diagnosticCheckpoints.ids` reference entries in the `PracticeCheckpointRegistry` version named by `diagnosticCheckpoints.registryVersion`. Each checkpoint carries its Japanese prompt, input format / choices, expected answer, dimension and provenance so Stage 0 can author and Stage 2 can score the same deterministic checkpoint. A registry version is immutable; revisions create a new version.
 - The Stage 1 validator must resolve every `diagnosticCheckpoints.ids` entry in that registry version, require unique IDs, and reject any checkpoint whose `questionId` or `questionVersion` does not match the containing `PracticeQuestion`.
-- When `itemAnalysis.vocabularyTermIds` is present, `vocabularyTerms` is required and every ID must resolve to a stable, locale-independent core entry. The read model uses `surfaceJa` / `explanationJa` as its fallback when no support overlay is selected; a locale overlay only overrides that label or annotation.
+- When `itemAnalysis.vocabularyTermIds` is present, the containing `PracticeQuestionBank.vocabularyCatalog` is required and every ID must resolve to one stable, locale-independent catalog entry. The read model and cross-question aggregation use that bank-level catalog's `surfaceJa` / `explanationJa` as the fallback; a locale overlay only overrides that label or annotation.
 - `category` and `subcategory` remain separate dimensions for navigation and aggregation; authors must not flatten the hierarchy into an undocumented category string.
 - `deliveryProfile` and `practiceProfile` are extensible content labels. Read models keep them separate so Web / test-center delivery and untimed / timed / diagnostic practice semantics are not mixed accidentally.
 - `coreExplanation.representation` contains source-language renderable content, not only a representation kind. The renderer may support each discriminated payload without inventing data from the category name.
@@ -559,14 +569,14 @@ Recommended structure:
 
 1. **問題**: original authored Japanese prompt.
 2. **正解 / concise solution**.
-3. **這題在問什麼？**: plain-language restatement in the selected support locale where useful; the first planned locale is Traditional Chinese.
+3. **這題在問什麼？**: canonical plain-language Japanese restatement from `coreExplanation.whatIsAskedJa`, with the selected support locale alongside it where useful; the first planned locale is Traditional Chinese.
 4. **就活日本語 / キーワード**: only the terms that affect solving.
 5. **怎麼把文字變成可解的模型？**: equation / table / logic structure / elimination.
 6. **最快合理解法**: concise path, without claiming official tricks.
 7. **可能需要注意哪個語言特徵？**: an authored, testable hypothesis tied to an actual language feature.
 8. **回去複習什麼？**: category / term / diagnostic dimension.
 
-These support fields belong in the locale-keyed overlay, not in the generic `PracticeQuestion` core. Do not translate every Japanese sentence word-for-word by default. The product should train Japanese reading, not remove it.
+The localized support fields belong in the locale-keyed overlay, not in the generic `PracticeQuestion` core. Keep `coreExplanation.whatIsAskedJa` visible as the Japanese-reading scaffold; the selected locale explains but does not replace it. Do not translate every Japanese sentence word-for-word by default. The product should train Japanese reading, not remove it.
 
 ---
 
@@ -627,7 +637,7 @@ Do not create a single ability score. For completed attempts, report transparent
 | Response time by category | Median elapsed time plus attempt count; keep timed and untimed attempts separate. |
 | Language / reasoning / execution tag accuracy | `correct / attempts` on items carrying each `itemAnalysis` tag; this is descriptive item-grouped performance, not a latent-skill or cause estimate. |
 | Timed vs untimed performance | Report accuracy and median elapsed time separately for each mode; do not infer a causal effect from unpaired sessions. |
-| Recurring vocabulary-tagged misses / review candidates | Group observed misses by authored `vocabularyTermIds`; list a term as a recurring tag-miss review candidate only after at least 2 misses across at least 2 items, resolving its label through the selected support overlay. This is not a claim about a learner weakness or its cause. |
+| Recurring vocabulary-tagged misses / review candidates | Group observed misses by authored `vocabularyTermIds`; list a term as a recurring tag-miss review candidate only after at least 2 misses across at least 2 items, resolving its label from the bank-level vocabulary catalog and then applying the selected support overlay by `termId` when available. This is not a claim about a learner weakness or its cause. |
 | Recent mistakes / review queue | Keep the latest incorrect attempt per question, newest first; remove it after a later review attempt is correct. Do not rank the queue by an inferred cause. |
 
 The threshold values are an MVP reporting rule to validate, not a claim of psychometric validity. With fewer relevant observations, say `資料不足` rather than inventing precision.
