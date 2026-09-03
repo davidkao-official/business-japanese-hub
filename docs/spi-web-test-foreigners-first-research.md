@@ -401,6 +401,7 @@ type PracticeQuestionSupportOverlay = {
     concise?: string
     whatIsAsked?: string
     keyTerms?: Array<{
+      termId: string
       surface: string
       meaning: string
       note?: string
@@ -415,6 +416,7 @@ type PracticeQuestionSupportOverlay = {
 
 - `PracticeQuestion` contains the generic practice core: Japanese question content, answer, core solution, item requirements and provenance. `PracticeQuestionSupportOverlay` is a separate, optional, locale-keyed support layer.
 - The first support locale may be stored under `byLocale['zh-Hant']`; another locale adds a map entry rather than a new language-specific field or core renderer branch.
+- Each `keyTerms[].termId` is a stable, locale-independent content reference and must match an entry in the core item's `vocabularyTermIds`; the overlay may translate or annotate that term without changing its identity.
 - `coreExplanation` is the source-language solution for the Japanese prompt; locale-specific prose belongs in the overlay.
 - `testFamily` lives at content / presentation taxonomy boundary, not in a platform-wide payment/identity contract.
 - Question content is data, not embedded in React components.
@@ -663,8 +665,8 @@ This is a validation target, not evidence already collected.
 2. Give a short set of original Japanese questions.
 3. Capture correctness + response time.
 4. For selected misses / slow answers, run meaning → representation → execution checkpoints and record pass/miss observations.
-5. Show the foreigners-first explanation.
-6. Ask whether the explanation changed understanding faster than an ordinary solution explanation.
+5. For matched original-question pairs, assign one pair member to an ordinary solution explanation and the other to the foreigners-first explanation; counterbalance which condition appears first across participants and pairs so the comparison is not confounded by sequence or question difficulty.
+6. Compare time-to-understanding and a short post-explanation transfer task between the two explanation conditions; treat preference and self-report as secondary evidence.
 7. Ask whether the user would return specifically for `language vs reasoning` diagnosis.
 
 ### Questions to validate
@@ -682,7 +684,7 @@ This is a validation target, not evidence already collected.
 Proceed to a real MVP when several target users independently show both:
 
 1. observable user uncertainty about whether a difficulty was language-related or reasoning-related, checked against task performance where possible; and
-2. clear value from the structured explanation / diagnostic checkpoints.
+2. clear value from the structured explanation / diagnostic checkpoints relative to the ordinary-explanation baseline under the counterbalanced comparison.
 
 ### Kill / pivot signals
 
