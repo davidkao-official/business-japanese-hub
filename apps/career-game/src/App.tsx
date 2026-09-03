@@ -31,6 +31,7 @@ import {
   type GameSessionSnapshot,
   type GameSessionStorage,
 } from './game-session'
+import { careerGameCasePath } from './content/catalog'
 import { libraryLinkHref } from './library-links'
 import { ProductHeader } from './ProductHeader'
 
@@ -44,6 +45,7 @@ interface AppModel {
 
 export interface AppProps {
   scenario: Scenario
+  availableScenarios?: readonly Scenario[]
   progressRepository?: CareerGameProgressRepository
   analytics?: ValidationAnalytics
   libraryOriginValue?: unknown
@@ -198,6 +200,55 @@ function ProgressRail({ entries }: { entries: ProgressRailEntry[] }) {
   )
 }
 
+function CaseDirectory({
+  scenarios,
+  activeScenarioId,
+}: {
+  scenarios: readonly Scenario[]
+  activeScenarioId: string
+}) {
+  if (scenarios.length < 2) return null
+
+  return (
+    <section className="case-directory" aria-labelledby="case-directory-title">
+      <div className="case-directory__header">
+        <p className="section-label" lang="en">
+          Case register
+        </p>
+        <h2 id="case-directory-title">ケースを選ぶ</h2>
+        <p>同じ職場でも、相手と状況が変われば判断の軸も変わります。</p>
+      </div>
+      <ul className="case-directory__list">
+        {scenarios.map((candidate, index) => {
+          const isActive = candidate.id === activeScenarioId
+          return (
+            <li className="case-directory__item" key={candidate.id}>
+              <a
+                className="case-directory__link"
+                href={careerGameCasePath(candidate)}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <span className="case-directory__meta" lang="en">
+                  CASE {formatFileNumber(index + 1)} · v{candidate.contentVersion}
+                </span>
+                <span className="case-directory__title">{candidate.title}</span>
+                {candidate.subtitle ? (
+                  <span className="case-directory__subtitle">{candidate.subtitle}</span>
+                ) : null}
+                <span className="case-directory__summary">{candidate.summary}</span>
+                <span className="case-directory__open">
+                  {isActive ? '現在のケース' : 'ケースを開く'}
+                  <span aria-hidden="true">→</span>
+                </span>
+              </a>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
+  )
+}
+
 function MeterReadout({ scenario, gameState }: { scenario: Scenario; gameState: GameState }) {
   if (!scenario.meters?.length) return null
   return (
@@ -288,6 +339,7 @@ function resolveRemoteResponse(
 
 export default function App({
   scenario,
+  availableScenarios,
   progressRepository,
   analytics = noopValidationAnalytics,
   libraryOriginValue = import.meta.env.VITE_LIBRARY_ORIGIN,
@@ -324,6 +376,7 @@ export default function App({
       : usesRemoteProgress
         ? 'remote-loading'
         : 'auth-loading'
+  const caseOptions = availableScenarios ?? [scenario]
 
   const decisions = useMemo(
     () => scenario.scenes.filter((scene): scene is DecisionScene => scene.kind === 'decision'),
@@ -1263,7 +1316,12 @@ export default function App({
             進行を同期できませんでした。もう一度お試しください。
           </p>
         ) : null}
-        {visibleSourceStatus === 'ready' && model.view === 'intro' ? renderIntro() : null}
+        {visibleSourceStatus === 'ready' && model.view === 'intro' ? (
+          <>
+            <CaseDirectory scenarios={caseOptions} activeScenarioId={scenario.id} />
+            {renderIntro()}
+          </>
+        ) : null}
         {showGameLayout ? (
           <div
             className={`game-layout${

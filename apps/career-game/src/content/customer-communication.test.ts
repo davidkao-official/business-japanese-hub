@@ -58,6 +58,25 @@ describe('取引先との一手 scenario content', () => {
     }
   })
 
+  it('gives every decision a plausible strong, mixed, and risky response with coaching', () => {
+    const outcomes = new Map(customerCommunicationScenario.outcomes.map((outcome) => [outcome.id, outcome]))
+    const decisions = customerCommunicationScenario.scenes.filter((scene) => scene.kind === 'decision')
+
+    for (const scene of decisions) {
+      const categories = scene.choices.map((choice) => outcomes.get(choice.outcomeId)?.category)
+      expect(new Set(categories), scene.id).toEqual(new Set(['strong', 'mixed', 'risky']))
+      for (const choice of scene.choices) {
+        const outcome = outcomes.get(choice.outcomeId)
+        expect(outcome, choice.id).toBeDefined()
+        expect(outcome?.feedback.length, choice.id).toBeGreaterThan(20)
+        expect(outcome?.recommendedExpression.length, choice.id).toBeGreaterThan(0)
+      }
+    }
+    expect(customerCommunicationScenario.outcomes.some((outcome) => outcome.libraryLinks?.length)).toBe(
+      true,
+    )
+  })
+
   it('runs a strong path through all five decisions and completes deterministically', () => {
     let state = createInitialState(customerCommunicationScenario)
 

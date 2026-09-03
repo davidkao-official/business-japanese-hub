@@ -1,5 +1,6 @@
 import type { Scenario } from '@business-japanese-hub/career-game'
 import { rookieSurvivalScenario } from './rookie-survival'
+import { careerGameScenarios } from './scenario-registry'
 
 export interface CareerGameCatalog {
   readonly scenarios: readonly Scenario[]
@@ -44,11 +45,11 @@ export function createCareerGameCatalog(
 }
 
 export const careerGameCatalog = createCareerGameCatalog(
-  [rookieSurvivalScenario],
+  careerGameScenarios,
   rookieSurvivalScenario.id,
 )
 
-function canonicalCasePath(scenario: Scenario): string {
+export function careerGameCasePath(scenario: Scenario): string {
   return `/cases/${encodeURIComponent(scenario.slug)}`
 }
 
@@ -60,7 +61,7 @@ function available(
     kind: 'available',
     source,
     scenario,
-    canonicalPath: canonicalCasePath(scenario),
+    canonicalPath: careerGameCasePath(scenario),
   }
 }
 

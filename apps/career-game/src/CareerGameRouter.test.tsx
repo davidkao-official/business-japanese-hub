@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import { AuthProvider, createNullAuthClient } from '@business-japanese-hub/platform-auth'
 import { describe, expect, it } from 'vitest'
 import { CareerGameRouter } from './CareerGameRouter'
+import { careerGameCatalog } from './content/catalog'
 
 function renderRoute(pathname: string, search = '') {
   return render(
@@ -24,7 +25,36 @@ describe('Career Game router surface', () => {
       await screen.findByRole('heading', { level: 1, name: '新人社員生存戦' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('main')).toHaveAttribute('id', 'career-game-main')
+    expect(screen.getByRole('heading', { level: 2, name: 'ケースを選ぶ' })).toBeInTheDocument()
+    for (const scenario of careerGameCatalog.scenarios) {
+      expect(
+        screen.getByRole('link', { name: new RegExp(scenario.title) }),
+      ).toHaveAttribute('href', `/cases/${scenario.slug}`)
+    }
   })
+
+  it.each(careerGameCatalog.scenarios)(
+    'renders the selected production case from its direct route: %s',
+    async (scenario) => {
+      renderRoute(`/cases/${scenario.slug}`)
+
+      expect(
+        await screen.findByRole('heading', { level: 1, name: scenario.title }),
+      ).toBeInTheDocument()
+      expect(screen.getByRole('main')).toHaveAttribute('id', 'career-game-main')
+    },
+  )
+
+  it.each(careerGameCatalog.scenarios)(
+    'renders the selected production case from its stable link: %s',
+    async (scenario) => {
+      renderRoute('/case-link', `?scenarioId=${encodeURIComponent(scenario.id)}`)
+
+      expect(
+        await screen.findByRole('heading', { level: 1, name: scenario.title }),
+      ).toBeInTheDocument()
+    },
+  )
 
   it.each([
     ['/cases/missing', ''],

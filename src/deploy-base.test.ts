@@ -141,8 +141,16 @@ describe('deployment base contract', () => {
 
     expect(fetcher).toHaveBeenCalledWith(new URL(baseUrl))
     expect(fetcher).toHaveBeenCalledWith(new URL('cases/rookie-survival', baseUrl))
+    expect(fetcher).toHaveBeenCalledWith(new URL('cases/customer-communication', baseUrl))
+    expect(fetcher).toHaveBeenCalledWith(new URL('cases/upward-disagreement', baseUrl))
     expect(fetcher).toHaveBeenCalledWith(
       new URL('case-link?scenarioId=rookie-survival', baseUrl),
+    )
+    expect(fetcher).toHaveBeenCalledWith(
+      new URL('case-link?scenarioId=customer-communication', baseUrl),
+    )
+    expect(fetcher).toHaveBeenCalledWith(
+      new URL('case-link?scenarioId=upward-disagreement', baseUrl),
     )
     expect(fetcher).toHaveBeenCalledWith(new URL('cases/unknown-case', baseUrl))
   })

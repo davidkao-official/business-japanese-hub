@@ -6,7 +6,7 @@ import {
 } from '@business-japanese-hub/validation-analytics'
 import App from './App'
 import type { CareerGameProgressRepository } from './career-game-progress'
-import { resolveCareerGameRoute } from './content/catalog'
+import { careerGameCatalog, resolveCareerGameRoute } from './content/catalog'
 import { libraryHomeHref } from './library-links'
 import { ProductHeader } from './ProductHeader'
 
@@ -64,6 +64,7 @@ export function CareerGameRouter({
   return (
     <App
       scenario={scenario}
+      availableScenarios={careerGameCatalog.scenarios}
       progressRepository={progressRepository}
       analytics={analytics}
       libraryOriginValue={libraryOriginValue}

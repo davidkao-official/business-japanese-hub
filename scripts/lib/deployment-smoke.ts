@@ -31,7 +31,11 @@ const SMOKE_CONTRACTS: Record<DeploymentProduct, DeploymentSmokeContract> = {
   'career-game': {
     directRoutes: [
       'cases/rookie-survival',
+      'cases/customer-communication',
+      'cases/upward-disagreement',
       'case-link?scenarioId=rookie-survival',
+      'case-link?scenarioId=customer-communication',
+      'case-link?scenarioId=upward-disagreement',
       'cases/unknown-case',
     ],
     fingerprint:

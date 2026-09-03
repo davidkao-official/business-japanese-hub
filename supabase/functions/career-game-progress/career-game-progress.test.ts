@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { applyChoice, createInitialState, type Scenario } from '@business-japanese-hub/career-game';
+import { customerCommunicationScenario } from '../../../apps/career-game/src/content/customer-communication.ts';
 import { rookieSurvivalScenario } from '../../../apps/career-game/src/content/rookie-survival.ts';
+import { upwardDisagreementScenario } from '../../../apps/career-game/src/content/upward-disagreement.ts';
+import { careerGameScenarioMap } from '../../../apps/career-game/src/content/scenario-registry.ts';
 import {
   bearerHeaders,
   createMockDb,
@@ -43,7 +46,7 @@ function setup(routes: Record<string, unknown> = {}) {
     deps: {
       db: mock.db,
       log: fakeLogger(),
-      scenarios: new Map([[rookieSurvivalScenario.id, rookieSurvivalScenario]]),
+      scenarios: careerGameScenarioMap,
       randomUUID: () => ATTEMPT_ID,
     },
   };
@@ -274,6 +277,37 @@ describe('career-game-progress handler', () => {
       p_evidence_skill_ids: [],
     });
   });
+
+  it.each([customerCommunicationScenario, upwardDisagreementScenario])(
+    'starts the registered heterogeneous case %s',
+    async (scenario) => {
+      const { deps, mock } = setup();
+      const result = await handleCareerGameProgress(
+        handlerRequest(
+          'POST',
+          'https://test.supabase.co/functions/v1/career-game-progress',
+          body({
+            action: 'start',
+            scenarioId: scenario.id,
+            contentVersion: scenario.contentVersion,
+          }),
+          bearerHeaders('jwt-1'),
+        ),
+        deps,
+      );
+
+      expect(result.status).toBe(200);
+      expect(JSON.parse(result.body)).toMatchObject({
+        kind: 'progress',
+        scenarioId: scenario.id,
+        contentVersion: scenario.contentVersion,
+      });
+      expect(mock.rpcCalls('persist_career_game_action')[0]?.args[0]).toMatchObject({
+        p_scenario_id: scenario.id,
+        p_content_version: scenario.contentVersion,
+      });
+    },
+  );
 
   it('applies a choice server-side and derives evidence from the authored outcome', async () => {
     const initial = createInitialState(rookieSurvivalScenario);

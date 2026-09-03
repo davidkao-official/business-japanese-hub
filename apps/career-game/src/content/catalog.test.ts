@@ -2,6 +2,7 @@ import type { Scenario } from '@business-japanese-hub/career-game'
 import { describe, expect, it } from 'vitest'
 import {
   careerGameCatalog,
+  careerGameCasePath,
   createCareerGameCatalog,
   resolveCareerGameRoute,
 } from './catalog'
@@ -51,6 +52,32 @@ describe('Career Game scenario catalog and routes', () => {
       scenario: rookieSurvivalScenario,
       canonicalPath: '/cases/rookie-survival',
     })
+  })
+
+  it('registers three materially different production cases with stable routes and versions', () => {
+    expect(careerGameCatalog.scenarios.map((scenario) => scenario.id)).toEqual([
+      'rookie-survival',
+      'customer-communication',
+      'upward-disagreement',
+    ])
+
+    expect(new Set(careerGameCatalog.scenarios.map((scenario) => scenario.id)).size).toBe(3)
+    expect(new Set(careerGameCatalog.scenarios.map((scenario) => scenario.slug)).size).toBe(3)
+    for (const scenario of careerGameCatalog.scenarios) {
+      expect(scenario.contentVersion).toBeGreaterThan(0)
+      expect(careerGameCasePath(scenario)).toBe(`/cases/${scenario.slug}`)
+      expect(resolveCareerGameRoute(careerGameCasePath(scenario), '', careerGameCatalog)).toMatchObject({
+        kind: 'available',
+        scenario,
+      })
+      expect(
+        resolveCareerGameRoute(
+          '/case-link',
+          `?scenarioId=${encodeURIComponent(scenario.id)}`,
+          careerGameCatalog,
+        ),
+      ).toMatchObject({ kind: 'available', scenario })
+    }
   })
 
   it.each([
