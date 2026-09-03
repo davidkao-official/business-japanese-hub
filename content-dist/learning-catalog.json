@@ -58,7 +58,7 @@
     {
       "bookId": "book-meeting-japanese",
       "bookSlug": "meeting-japanese",
-      "releaseId": "meeting-japanese@e1-r1-c6dba80886a2",
+      "releaseId": "meeting-japanese@e1-r2-cba4bf5632cc",
       "chapters": [
         {
           "chapterId": "mj-ch-1",
@@ -107,6 +107,12 @@
         {
           "chapterId": "mj-ch-08",
           "chapterSlug": "turn-decisions-into-action",
+          "access": "entitled",
+          "skillIds": []
+        },
+        {
+          "chapterId": "mj-ch-09",
+          "chapterSlug": "course-correction",
           "access": "entitled",
           "skillIds": []
         }
