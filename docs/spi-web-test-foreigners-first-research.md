@@ -4,7 +4,7 @@
 >
 > **研究日期：** 2026-09-04
 >
-> 本文件只決定「值不值得做、先做多小、content / diagnosis / IP contract 長什麼樣」。不建立 production quiz UI、不生成大型題庫、不改 payment / entitlement / Career Game runtime，也不建立第三套 shared LMS schema。
+> 本文件只決定「值不值得做、先做多小、content / checkpoint-reporting / IP contract 長什麼樣」。不建立 production quiz UI、不生成大型題庫、不改 payment / entitlement / Career Game runtime，也不建立第三套 shared LMS schema。
 
 ## 1. Executive recommendation
 
@@ -12,9 +12,11 @@
 
 **做，但只做一個小型 validation MVP。**
 
-Business Japanese Hub 不應做「另一個 SPI 題庫」。第一個可驗證的 differentiated job 是：
+Business Japanese Hub 不應做「另一個 SPI 題庫」。第一個待驗證的 differentiated job 是：
 
-> **幫進階外國求職者分辨：這題是日文沒有讀懂，還是推理／計算本身不會？**
+> **幫進階外國求職者看見：這題的題幹理解、解法表示或計算 checkpoint 哪裡沒有通過，再驗證這些觀察是否有助於分辨日文與推理／計算上的學習需要。**
+
+這是待 real-user validation 的產品假設，不是已證實的 user-level causal diagnosis。
 
 推薦的產品入口名稱先使用中性的：
 
@@ -41,7 +43,7 @@ Business Japanese Hub 不應做「另一個 SPI 題庫」。第一個可驗證�
 2. SPI-style **非言語中高度依賴題幹理解的類型**：割合・損益、速度／rate、集合／條件整理／推論。
 3. `untimed learning` + bounded `timed practice`。
 4. 每題都有原創日文題幹、一般解說與 foreigners-first explanation layer。
-5. 少量題目加入 deterministic diagnostic checkpoints，驗證能否真的拆出 language / reasoning / calculation / time-pressure bottleneck。
+5. 少量題目加入 deterministic diagnostic checkpoints，先報告 language / reasoning / calculation / time-pressure 相關的 checkpoint performance 與 observed weakness；這些觀察能否支持有用的 language-vs-reasoning diagnosis，留待 real-user validation，不把它們當作已證實的原因。
 6. Mistake review / category result 只做到能支持 validation，不先做 gamification、leaderboard、streak、AI mastery score。
 
 第一批建議 **36–48 題原創高品質題目**，而不是數百題。這個數量是 validation budget，不是產品永久規格；如果 36–48 題仍無法讓真實使用者感受到 differentiated value，就不該用大量內容掩蓋定位問題。
@@ -59,7 +61,7 @@ Business Japanese Hub 不應做「另一個 SPI 題庫」。第一個可驗證�
 
 ---
 
-## 2. Why the thesis is credible
+## 2. Evidence that makes the hypothesis worth testing
 
 ### 2.1 Official evidence: Japanese reading can contaminate aptitude measurement
 
@@ -68,17 +70,17 @@ Recruit Management Solutions itself states that for foreign candidates, Japanese
 Source:
 - Recruit Management Solutions, 「活躍できる外国人を採用するためにGSPI3を活用しよう！」, https://www.spi.recruit.co.jp/spi3news/000122.html (accessed 2026-09-04)
 
-This is unusually strong product evidence: the test provider itself acknowledges a **language contamination problem**.
+This is unusually strong evidence that the test provider recognizes a **language-contamination problem in aptitude measurement**.
 
 Important interpretation:
 
 - This does **not** prove that every foreign candidate needs a bilingual prep product.
-- It does prove that `Japanese reading load` and `underlying aptitude` are separable constructs worth distinguishing.
+- It supports treating `Japanese reading load` and `underlying aptitude` as distinct constructs worth testing; it does not validate a user-level checkpoint diagnosis.
 - In real Japanese-company recruitment, candidates may still be asked to take Japanese tests, so preparation for the Japanese wording remains practically relevant even when multilingual assessment would be psychometrically cleaner.
 
-### 2.2 Institutional evidence: foreign students receive dedicated SPI support
+### 2.2 Institutional / supply-side signal: institutions offer dedicated SPI support
 
-Current Japanese university / public employment guidance confirms that this is not a hypothetical niche:
+Current Japanese university / public employment guidance shows institutional provision or recommendation of dedicated SPI support; it does not by itself establish target-user demand:
 
 - Tohoku University ran a 2026 SPI preparation course specifically for international students, split into verbal and non-verbal sessions. The course was conducted in Japanese with no other-language support and recommended around N3-level Japanese comprehension.
 - Takushoku University offered a 2026 international-student SPI intensive course consisting of six 90-minute sessions.
@@ -91,7 +93,7 @@ Sources:
 - Kyushu University, https://www.kyushu-u.ac.jp/ja/education/employment/foreign/jobhunting
 - Tokyo Foreign Employment Service Center / MHLW, https://jsite.mhlw.go.jp/tokyo-foreigner/yokuaru_goshitsumon/ryugakusei/q_38_a4.html
 
-This supports **demand for dedicated preparation**, but it does not yet prove that Traditional Chinese explanation or language-vs-reasoning diagnosis is the winning feature. Those remain validation hypotheses.
+This supports an **institutional / supply-side signal** that dedicated preparation is being offered or recommended. It does not establish target-user demand, unmet pain, enrollment or utilization, outcomes, willingness-to-pay, or product-market fit. Traditional Chinese explanation and language-vs-reasoning diagnosis remain validation hypotheses as well.
 
 ### 2.3 Research evidence: foreign learners can show different error/time patterns
 
@@ -231,7 +233,7 @@ Separate evidence from hypotheses.
 ### Evidence-backed
 
 1. **Japanese reading load can distort aptitude measurement for foreign candidates.** Recruit explicitly says so in its GSPI3 guidance.
-2. **Foreign students need dedicated preparation.** Multiple universities / public employment guidance provide or recommend SPI-specific preparation.
+2. **Institutions provide or recommend dedicated preparation for international students.** This is an institutional / supply-side signal, not proof of target-user demand or willingness-to-pay.
 3. **Speed matters.** University guidance and current prep materials emphasize solving accurately under short time constraints.
 4. **Verbal and non-verbal both contain language load.** Even a mathematically simple ratio/profit problem requires correct parsing of Japanese conditions and commercial vocabulary.
 5. **Different error/time patterns have been observed in Chinese international students.** Existing research supports at least some foreign-learner-specific verbal burden.
@@ -240,7 +242,7 @@ Separate evidence from hypotheses.
 
 1. Traditional Chinese explanation materially improves learning efficiency for the first target segment.
 2. Users care about knowing **why** they missed a question, not only which category is weak.
-3. Non-verbal failures frequently originate in Japanese wording rather than math skill.
+3. Some non-verbal failures may be associated with Japanese wording rather than mathematics; this possible causal interpretation requires real-user validation.
 4. A small diagnostic product can be more valuable than a huge question bank if explanations are substantially better.
 5. Users will repeatedly use a `meaning → representation → calculation` diagnostic flow rather than finding it too slow.
 6. The audience will trust independently authored SPI-style questions if provenance / disclaimer is clear.
@@ -291,12 +293,12 @@ Reasoning representation
         ↓
 Solution
         ↓
-Why this mistake likely happened
+Observed checkpoint performance / possible review focus
         ↓
 Next / review later
 ```
 
-The detailed diagnostic checkpoints should appear only where they add information. Do not make every correct easy answer go through a long explanation ritual.
+The detailed diagnostic checkpoints should appear only where they add information. Do not make every correct easy answer go through a long explanation ritual. Present their results descriptively; do not state that a checkpoint proves why the learner failed.
 
 ### Desktop / mobile
 
@@ -326,23 +328,14 @@ type PracticeQuestion = {
   choices?: Array<{ id: string; textJa: string }>
   correctAnswer: unknown
 
-  explanation: {
-    conciseJa?: string
-    conciseZhHant?: string
-    whatIsAskedZhHant?: string
-    keyTerms?: Array<{
-      surface: string
-      meaningZhHant: string
-      note?: string
-    }>
+  coreExplanation: {
+    concise: string
     representation?: {
       kind: 'equation' | 'table' | 'diagram' | 'elimination' | 'logic-grid' | 'other'
-      explanationZhHant?: string
     }
-    commonMisread?: string
   }
 
-  diagnosis: {
+  itemAnalysis: {
     languageLoads: Array<
       | 'vocabulary'
       | 'semantic-relation'
@@ -367,14 +360,34 @@ type PracticeQuestion = {
     originalContentAttestation: true
   }
 }
+
+type PracticeQuestionSupportOverlay = {
+  questionId: string
+  questionVersion: number
+  byLocale: Record<string, {
+    concise?: string
+    whatIsAsked?: string
+    keyTerms?: Array<{
+      surface: string
+      meaning: string
+      note?: string
+    }>
+    representationExplanation?: string
+    commonMisread?: string
+  }>
+}
 ```
 
 ### Design rules
 
+- `PracticeQuestion` contains the generic practice core: Japanese question content, answer, core solution, item requirements and provenance. `PracticeQuestionSupportOverlay` is a separate, optional, locale-keyed support layer.
+- The first support locale may be stored under `byLocale['zh-Hant']`; another locale adds a map entry rather than a new language-specific field or core renderer branch.
+- `coreExplanation` is the source-language solution for the Japanese prompt; locale-specific prose belongs in the overlay.
 - `testFamily` lives at content / presentation taxonomy boundary, not in a platform-wide payment/identity contract.
 - Question content is data, not embedded in React components.
 - Exact rendering details can vary by question type without arbitrary executable scripts.
-- `promptJa` remains primary. Chinese support explains; it does not replace Japanese practice.
+- `promptJa` remains primary. Localized support explains; it does not replace Japanese practice.
+- `itemAnalysis` describes what an item requires, not what caused an individual user's miss. Attempt records should report checkpoint pass/miss and response time separately.
 - Version is required because explanation / distractors / diagnostics may improve after release.
 - Provenance is mandatory for internally authored content.
 
@@ -386,7 +399,7 @@ Every production question must answer the ordinary learner question first:
 
 > **為什麼答案是這個？**
 
-Foreigners-first explanation adds a second layer:
+The optional, locale-keyed support overlay adds a second layer for a foreigners-first experience:
 
 > **這題的日文到底在問什麼？**
 
@@ -394,24 +407,24 @@ Recommended structure:
 
 1. **問題**: original authored Japanese prompt.
 2. **正解 / concise solution**.
-3. **這題在問什麼？**: plain Traditional Chinese restatement where useful.
+3. **這題在問什麼？**: plain-language restatement in the selected support locale where useful; the first planned locale is Traditional Chinese.
 4. **就活日本語 / キーワード**: only the terms that affect solving.
 5. **怎麼把文字變成可解的模型？**: equation / table / logic structure / elimination.
 6. **最快合理解法**: concise path, without claiming official tricks.
-7. **外國學習者容易卡在哪？**: authored hypothesis tied to actual language feature.
+7. **可能需要注意哪個語言特徵？**: an authored, testable hypothesis tied to an actual language feature.
 8. **回去複習什麼？**: category / term / diagnostic dimension.
 
-Do not translate every Japanese sentence word-for-word by default. The product should train Japanese reading, not remove it.
+These support fields belong in the locale-keyed overlay, not in the generic `PracticeQuestion` core. Do not translate every Japanese sentence word-for-word by default. The product should train Japanese reading, not remove it.
 
 ---
 
-## 9. Deterministic diagnosis model
+## 9. Deterministic checkpoint reporting model
 
 ### Principle
 
-An incorrect answer alone **cannot prove why the user failed**. Tags only tell us what a question requires, not which internal process failed.
+An incorrect answer alone **cannot prove why the user failed**. Item tags only tell us what a question requires, not which internal process failed.
 
-Therefore MVP diagnosis should combine normal attempt data with **small authored diagnostic checkpoints** on a subset of high-value questions.
+Therefore MVP reporting should combine normal attempt data with **small authored checkpoints** on a subset of high-value questions. The MVP reports deterministic observations—correctness, response time and checkpoint pass/miss—not causal reasons for an error.
 
 ### Checkpoint ladder
 
@@ -430,16 +443,16 @@ C. Execution checkpoint
    perform the arithmetic / final operation
 ```
 
-Deterministic interpretation:
+Deterministic descriptive reporting:
 
-| Observation | Bounded interpretation |
+| Observation | Descriptive report / review cue |
 | --- | --- |
-| Original wrong + A wrong | evidence of Japanese comprehension / test-vocabulary bottleneck |
-| A correct + B wrong | evidence of reasoning / model-selection bottleneck |
-| A + B correct + C wrong | evidence of calculation / execution bottleneck |
-| Original correct but far above target time; checkpoints easy/correct | possible processing-speed / time-pressure bottleneck |
-| Multiple checkpoints wrong | mixed cause; do not force one label |
-| Too few observations | insufficient evidence |
+| Original wrong + A wrong | Report misses on the original and meaning checkpoints; suggest reviewing Japanese comprehension / test vocabulary, without attributing the original error to that cause. |
+| A correct + B wrong | Report that the meaning checkpoint passed and the representation checkpoint was missed; suggest reviewing model selection, without proving a reasoning cause. |
+| A + B correct + C wrong | Report an execution checkpoint miss after the earlier checkpoints passed; suggest reviewing calculation execution, without proving why the original answer was wrong. |
+| Original correct but far above target time; checkpoints easy/correct | Report response time above the internal target with checkpoints passed; flag a time-related pattern for review, not a time-pressure cause. |
+| Multiple checkpoints wrong | Report multiple observed checkpoint misses; do not force one causal label. |
+| Too few observations | Report insufficient observations. |
 
 For verbal questions, checkpoints can test word meaning / semantic relation / sentence logic rather than pretending a separate math model exists.
 
@@ -449,15 +462,15 @@ Do not create a single ability score. Report transparent counts / rates only aft
 
 ```text
 最近 12 個可診斷 attempts
-Japanese comprehension evidence: 5 misses / 8 relevant checks
-Reasoning/model selection: 1 miss / 6 relevant checks
-Calculation execution: 0 misses / 5 relevant checks
+Japanese comprehension checkpoint misses: 5 / 8 relevant checks
+Reasoning/model-selection checkpoint misses: 1 / 6 relevant checks
+Calculation/execution checkpoint misses: 0 / 5 relevant checks
 Timed attempts above target: 4 / 7
 
-→ 目前較明顯的瓶頸：題幹日文理解與處理速度
+→ Observed pattern to review: more comprehension-checkpoint misses and slower timed attempts; this is an observed pattern, not a confirmed cause.
 ```
 
-The exact threshold / UI wording must be validated. With insufficient data, say `資料不足` rather than inventing precision.
+The exact threshold / UI wording must be validated. With insufficient data, say `資料不足` rather than inventing precision. Any language-vs-reasoning causal interpretation remains a hypothesis requiring real-user validation and, where possible, independent language / reasoning measures.
 
 ### Taxonomy boundary
 
@@ -592,14 +605,14 @@ This is a validation target, not evidence already collected.
 1. Ask which Web Tests they have actually encountered.
 2. Give a short set of original Japanese questions.
 3. Capture correctness + response time.
-4. For selected misses / slow answers, run meaning → representation → execution checkpoints.
+4. For selected misses / slow answers, run meaning → representation → execution checkpoints and record pass/miss observations.
 5. Show the foreigners-first explanation.
 6. Ask whether the explanation changed understanding faster than an ordinary solution explanation.
 7. Ask whether the user would return specifically for `language vs reasoning` diagnosis.
 
 ### Questions to validate
 
-- Was the bottleneck Japanese, vocabulary, math/reasoning, calculation, or time?
+- Which part felt most difficult: Japanese, vocabulary, math/reasoning, calculation, or time?
 - Did the user know which one before seeing the diagnostic breakdown?
 - Does Traditional Chinese materially help or simply duplicate Japanese explanation?
 - Which vocabulary categories recur?
@@ -611,14 +624,14 @@ This is a validation target, not evidence already collected.
 
 Proceed to a real MVP when several target users independently show both:
 
-1. observable language-vs-reasoning misclassification / uncertainty in tasks; and
+1. observable user uncertainty about whether a difficulty was language-related or reasoning-related, checked against task performance where possible; and
 2. clear value from the structured explanation / diagnostic checkpoints.
 
 ### Kill / pivot signals
 
 Do not scale if:
 
-- most target users' bottleneck is simply forgotten math and existing Japanese apps are sufficient;
+- most target users report only forgotten math and existing Japanese apps are sufficient;
 - Traditional Chinese support adds little value;
 - users do not care why they missed questions;
 - authored diagnostic checkpoints take too long and do not change learning decisions;
@@ -655,7 +668,7 @@ Only after the validation artifact is accepted, split implementation into small 
 
 - Timed vs untimed attempts.
 - Mistake review.
-- Language / reasoning / calculation / time evidence with minimum thresholds.
+- Checkpoint performance and timing reports with minimum thresholds.
 - Keep persistence product-specific unless a real cross-device consumer justifies a new server seam.
 
 ### Stage 4: production QA / small launch
@@ -670,14 +683,14 @@ Only after the validation artifact is accepted, split implementation into small 
 
 ## 15. Decision summary
 
-The strongest defensible product thesis is not:
+The strongest defensible validation proposition is not:
 
 > 「我們也有 SPI 題庫。」
 
 It is:
 
-> **「你答錯時，我們幫你看懂：你是不懂題目的日文，還是不懂題目本身。」**
+> **「你答錯時，我們先讓你看到哪些題幹理解、解法表示或執行 checkpoint 沒通過，再驗證這些觀察是否幫你選擇複習方向。」**
 
-That thesis is supported by official evidence that Japanese reading can distort aptitude measurement for foreign candidates, and by current foreign-student SPI support in Japanese universities. The market still needs validation on whether **Traditional Chinese explanation + deterministic cause diagnosis** is strong enough to drive product choice.
+This is a product hypothesis, not an established causal diagnosis. It is worth testing because official evidence indicates that Japanese reading can affect aptitude measurement for foreign candidates, while current university / public-employment sources provide an institutional / supply-side signal. The market still needs real-user validation of target-user demand and whether **locale-keyed support (including Traditional Chinese) + deterministic checkpoint reporting** creates enough value to drive product choice.
 
 Therefore the next correct step is **small original-content validation**, not mass question generation and not production UI first.
