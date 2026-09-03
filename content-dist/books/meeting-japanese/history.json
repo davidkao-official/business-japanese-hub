@@ -19,6 +19,26 @@
       "status": "published",
       "releasedAt": "2026-08-20",
       "createdAt": "2026-09-03T19:53:43.500Z"
+    },
+    {
+      "id": "meeting-japanese@e1-r3-33d049871ef0",
+      "slug": "meeting-japanese",
+      "editionNumber": 1,
+      "revision": 3,
+      "contentHash": "33d049871ef01740ab40697792ff588ca3d5c489c154e66f1246977f8436f2c9",
+      "status": "published",
+      "releasedAt": "2026-08-20",
+      "createdAt": "2026-09-03T21:35:22.836Z"
+    },
+    {
+      "id": "meeting-japanese@e1-r4-3ca1a5b5af47",
+      "slug": "meeting-japanese",
+      "editionNumber": 1,
+      "revision": 4,
+      "contentHash": "3ca1a5b5af476f0945b3846c0e990c79872f474d209356500201776e42b6ecf4",
+      "status": "published",
+      "releasedAt": "2026-08-20",
+      "createdAt": "2026-09-03T21:36:01.544Z"
     }
   ]
 }
