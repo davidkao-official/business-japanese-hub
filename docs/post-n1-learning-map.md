@@ -30,7 +30,7 @@ Business Japanese Hub 對使用者的公開概念名稱是：
 
 - 主要受眾仍是已具備 N2 / N1 附近能力、準備進入或已在日本職場的進階學習者。
 - 依 `docs/product-contract.md`，同一套核心內容也必須能對日本的大學生與年輕職場人士提供實際價值。
-- 因此 taxonomy 應圍繞 **workplace capability**，而不是把 `foreigner`、JLPT 等級或繁體中文支援寫死成每個內容型別的 schema identity。
+- Taxonomy 應圍繞 **workplace capability**，而不是把 `foreigner`、JLPT 等級或繁體中文支援寫死成每個內容型別的 schema identity。
 - 繁體中文是第一階段重要的 explanation/support layer，不代表核心能力只能服務中文母語者。
 
 ---
@@ -75,17 +75,35 @@ Capability domain 回答：**這是在培養哪一類日本職場能力？**
 
 這一層回答：**具體要做成什麼能力，以及在哪個情境下判斷是否做得好？**
 
-例如：
+Curriculum 中使用人可讀的 skill / situation 名稱，例如：
 
-- `meeting.course-correction`
-- `meeting.disagree-upward`
-- `hourensou.error-reporting`
-- `hourensou.deadline-renegotiation`
-- `writing.softening-request`
-- `reading.midterm-management-plan`
-- `logical.identify-issue`
-- `workplace.request-clarification`
-- `job-hunting.interview-follow-up`
+- Meeting course correction
+- Disagreeing upward in a meeting
+- Reporting an error
+- Deadline renegotiation
+- Softening an email request
+- Reading a mid-term management plan
+- Identifying the central issue
+- Request clarification
+- Interview follow-up
+
+### Curriculum labels are not evidence IDs
+
+這些 curriculum 名稱 **不是** `@business-japanese-hub/learning` 的 production stable skill IDs，也不得直接複製到 Career Game `skillTags`、browser payload 或 server-authoritative evidence。
+
+若一個 curriculum skill 已經對應 #57 的 stable ID，必須沿用既有值：
+
+- `workplace-greeting`
+- `request-clarification`
+- `deadline-negotiation`
+- `meeting-disagreement`
+- `error-reporting`
+
+若尚未有 stable evidence ID，先維持 curriculum-only human-readable label。只有在有實際 evidence consumer、已接受內容需求，而且完成 #57 所要求的 metadata / server catalog / authoring association / tests 後，才可把它提升為新的 production stable skill ID。
+
+**不得因為本文件列出一個 curriculum skill，就自行發明平行的 dotted ID、alias 或 migration。**
+
+### Cross-cutting dimensions
 
 Cross-cutting dimensions 不應被誤做成彼此隔離的課程 silo。主要包含：
 
@@ -146,7 +164,7 @@ Business text / context
 
 **目的：** 用可重複的題型進行 retrieval、judgment 與 deliberate practice。
 
-Practice 應盡量跨 domain 重用，不為每一個 Lesson 重新發明一套互動方式。
+Practice 應盡量跨 domain 重用，不為每一個 lesson 重新發明一套互動方式。
 
 ### 3.4 My Learning
 
@@ -346,7 +364,7 @@ Read 不代表可以直接把第三方文章或商業書全文放進產品。
 - Business Japanese Hub 原創內容
 - public-domain material
 - 合法授權內容
-- 官方 / primary-source material在其使用條款允許的範圍
+- 官方 / primary-source material 在其使用條款允許的範圍
 - 必要且合理的短引用，搭配自身分析，並遵守適用法規與 repository copyright policy
 
 對受著作權保護且無授權的來源，優先使用：
@@ -393,7 +411,7 @@ Practice item / outcome 可以標示一個或多個可解釋的 weakness dimensi
 - `calculation.execution`
 - `performance.time-pressure`
 
-這些 tags 是 diagnosis dimension，不是「能力分數」。
+這些是 diagnosis dimensions，不是 #57 evidence skill IDs，也不得當作 Career Game `skillTags` 寫入 `learning_evidence`。
 
 第一階段允許的 read model 例如：
 
@@ -410,7 +428,7 @@ Japanese problem wording 42%
 
 ## 8. Relationship to existing #57 learning/progress seam
 
-`docs/learning-and-progress.md` 已經定義五個 production stable skill ids：
+`docs/learning-and-progress.md` 已經定義五個 production stable skill IDs：
 
 ```text
 workplace-greeting
@@ -420,7 +438,7 @@ meeting-disagreement
 error-reporting
 ```
 
-本 framework **不重新命名、不批次 migrate、不把它們替換成 taxonomy node ids**。
+本 framework **不重新命名、不批次 migrate、不建立 alias，也不把它們替換成 taxonomy node IDs**。
 
 它們是 content-driven 的 stable evidence skills，可映射到新的上層分類：
 
@@ -434,12 +452,14 @@ error-reporting
 
 ### Stable skill rule
 
-`@business-japanese-hub/learning` 的 skill ids 仍遵守 #57 contract：
+`@business-japanese-hub/learning` 的 skill IDs 仍遵守 #57 contract：
 
 - 由已接受、實際要產生 evidence 的內容需求驅動。
-- 不因本文件列出每一個 curriculum subskill 就自動建立 DB / package id。
+- 不因本文件列出每一個 curriculum subskill 就自動建立 DB / package ID。
 - 新增 production stable skill 時，必須同步更新 authoritative metadata、server catalog、authoring association 與測試。
 - Browser 仍不可提交任意 taxonomy tag 當作 server-authoritative evidence。
+- Career Game authors 只能使用當前 authoritative stable skill catalog 中已存在的 `skillTags`。
+- Curriculum-only labels、practice types 與 diagnosis dimensions 都不是 evidence IDs。
 
 因此：
 
@@ -456,19 +476,28 @@ Career Game 是 `Experience` 的第一個 implementation，但 Career Game 不�
 Career Game case 應：
 
 - 使用自己的 generic runtime contract。
-- 用 stable `skillTags` / links 對應相關 capability，而不是改用 Learn schema。
+- 只用 #57 authoritative stable skill IDs 作為 `skillTags` / evidence references。
+- 以 curriculum 文件中的 domain / human-readable skill / dimensions 做 authoring planning，不把它們當 runtime IDs。
 - 允許一個 case 同時練多個 domain / cross-cutting dimensions。
 - outcome evidence 仍遵守 #57 的 `strong | mixed | risky` bounded quality contract。
 
-例：`會議中向上提出異議` 可以被分類成：
+例：`會議中向上提出異議` 可以被 curriculum 分類成：
 
 ```text
 mode: Experience
 product: Career Game
 domain: Meeting & Discussion
-skill: disagree-upward
+curriculum skill: Disagreeing upward in a meeting
 dimensions: pragmatics, authority-context, logical-structuring
 ```
+
+若該 case 要產生現有 meeting-disagreement evidence，runtime `skillTags` 應使用已存在的：
+
+```text
+meeting-disagreement
+```
+
+不得自行建立 `meeting.disagree-upward` 或其他平行 ID 取代它。
 
 ---
 
@@ -542,7 +571,9 @@ My Learning 只聚合已存在的可靠 evidence，不創造新的權威事實�
 
 例：
 
-- `[Epic][Meeting] Build Meeting & Discussion curriculum wave`
+```text
+[Epic][Meeting] Build Meeting & Discussion curriculum wave
+```
 
 單一 lesson / module 不應標成 Epic。
 
@@ -596,8 +627,8 @@ Research ticket 必須產生 decision-oriented artifact，而不是只蒐集連�
 | #72 About narrative | Positioning | `N1 後學習地圖消失` 是 brand narrative，不是 curriculum runtime。 |
 | #83 Meeting Facilitation / Course Correction | Learn → Meeting & Discussion | 第一個 reference Learn module，用來驗證 unit contract。 |
 | #82 SPI / Web Test | Practice → Job Hunting | Research first；SPI 是 first test family，不是 platform-wide assumption。 |
-| #52 / #56 / #58 / #68 Career Game family | Experience | 保持 own bounded runtime，case 以 skill/domain tags 對應本 map。 |
-| #57 shared learning/progress seam | Evidence infrastructure | 不被本 taxonomy 取代；existing stable skill ids 保留。 |
+| #52 / #56 / #58 / #68 Career Game family | Experience | 保持 own bounded runtime，case 只用 authoritative stable evidence IDs。 |
+| #57 shared learning/progress seam | Evidence infrastructure | 不被本 taxonomy 取代；existing stable skill IDs 保留。 |
 | Library / Reader | Delivery bounded context | 可以承載 Learn / Read 與有限的 authored Practice blocks，但 Book schema 不變。 |
 
 ---
@@ -612,9 +643,10 @@ Research ticket 必須產生 decision-oriented artifact，而不是只蒐集連�
 4. **Cross-cutting dimensions**：是否涉及 pragmatics、authority、vocabulary、logic、time pressure 等？
 5. **Existing overlap**：是否已經有一張票 / module 教同一個能力？
 6. **Practice reuse**：能否使用 existing practice type，而不是新造一種互動？
-7. **Diagnosis**：若會產生結果，需要哪些 deterministic tags？
+7. **Diagnosis**：若會產生結果，需要哪些 deterministic dimensions？
 8. **Source / rights**：內容是否原創、public domain、licensed、official-source-safe？
-9. **Evidence need**：真的需要新增 production stable skill id 嗎？還是 curriculum-only tag 就足夠？
+9. **Evidence need**：真的需要新增 production stable skill ID 嗎？還是 curriculum-only label 就足夠？
+10. **Stable overlap**：若概念已對應 #57 stable ID，是否直接沿用既有 ID，而非建立 alias / dotted replacement？
 
 ### Adding a new top-level domain
 
@@ -633,7 +665,9 @@ Research ticket 必須產生 decision-oriented artifact，而不是只蒐集連�
 - 把第三方教材章節名直接變成 product taxonomy。
 - 為每一堂課新增新的 database schema / renderer / progress model。
 - 把所有 Learn / Read / SPI / Career Game content 強塞進一個 universal mega-schema。
-- 看到一個新詞就新增 production evidence skill id。
+- 看到一個新詞就新增 production evidence skill ID。
+- 把 curriculum-only label、practice type 或 diagnosis dimension 直接貼進 Career Game `skillTags`。
+- 為已存在的 #57 skill 建立另一個「看起來更整齊」的平行 ID。
 
 ---
 
@@ -673,6 +707,6 @@ Return to the next useful capability
 - SPI 之外哪些 Web Test family 值得正式支援。
 - My Learning 是否需要 spaced review / expression notebook，以及其 deterministic contract。
 - 哪些 authentic business-reading sources 可長期合法、穩定地用於產品。
-- 哪些 curriculum skills 有足夠 consumer 需要，值得升級成 #57 production stable evidence ids。
+- 哪些 curriculum skills 有足夠 consumer 需要，值得升級成 #57 production stable evidence IDs。
 
 這些 future extensions 都不得推翻兩個既有產品 boundary：Library 仍是 `Book → Chapter → ContentBlock`；Career Game 仍使用自己的 scenario runtime；shared platform 只增加 narrow、consumer-driven contracts。
