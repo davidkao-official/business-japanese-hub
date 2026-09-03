@@ -92,6 +92,8 @@ describe('commercial Book', () => {
       expect.objectContaining({ name: 'Business Japanese Hub 編集部', role: 'editorial' }),
     ])
     expect(book.price).toEqual({ tier: 'paid', amount: 12, currency: 'USD' })
+    expect(book.audience?.description).toContain('JLPT N2〜N1')
+    expect(book.audience?.description).toContain('外国籍')
     expect(book.chapters).toHaveLength(9)
     expect(book.chapters.reduce((total, chapter) => total + chapter.blocks.length, 0)).toBeGreaterThanOrEqual(108)
     expect(JSON.stringify(book).length).toBeGreaterThan(12_000)
