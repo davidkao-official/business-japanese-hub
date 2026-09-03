@@ -445,6 +445,11 @@ type PracticeQuestion = {
     representation?: PracticeRepresentation
   }
 
+  vocabularyTerms?: Record<string, {
+    surfaceJa: string
+    explanationJa?: string
+  }>
+
   itemAnalysis: {
     languageLoads: Array<
       | 'vocabulary'
@@ -523,6 +528,7 @@ type PracticeCheckpointRegistry = {
 - `coreExplanation` is the source-language solution for the Japanese prompt; locale-specific prose belongs in the overlay.
 - `diagnosticCheckpoints.ids` reference entries in the `PracticeCheckpointRegistry` version named by `diagnosticCheckpoints.registryVersion`. Each checkpoint carries its Japanese prompt, input format / choices, expected answer, dimension and provenance so Stage 0 can author and Stage 2 can score the same deterministic checkpoint. A registry version is immutable; revisions create a new version.
 - The Stage 1 validator must resolve every `diagnosticCheckpoints.ids` entry in that registry version, require unique IDs, and reject any checkpoint whose `questionId` or `questionVersion` does not match the containing `PracticeQuestion`.
+- When `itemAnalysis.vocabularyTermIds` is present, `vocabularyTerms` is required and every ID must resolve to a stable, locale-independent core entry. The read model uses `surfaceJa` / `explanationJa` as its fallback when no support overlay is selected; a locale overlay only overrides that label or annotation.
 - `category` and `subcategory` remain separate dimensions for navigation and aggregation; authors must not flatten the hierarchy into an undocumented category string.
 - `deliveryProfile` and `practiceProfile` are extensible content labels. Read models keep them separate so Web / test-center delivery and untimed / timed / diagnostic practice semantics are not mixed accidentally.
 - `coreExplanation.representation` contains source-language renderable content, not only a representation kind. The renderer may support each discriminated payload without inventing data from the category name.
@@ -532,6 +538,7 @@ type PracticeCheckpointRegistry = {
 - `promptJa` remains primary. Localized support explains; it does not replace Japanese practice.
 - `itemAnalysis` describes what an item requires, not what caused an individual user's miss. `vocabularyTermIds` are content references, not #57 evidence IDs. Attempt records should report checkpoint pass/miss and response time separately.
 - Each `PracticeAnswer` variant couples a discriminated input shape, expected answer and scoring rule for single-choice, multi-select, short-text, numeric and ordering questions; validators should reject incompatible combinations rather than infer them from `category`.
+- Stage 1 answer validation must require unique choice IDs; require a single-choice `choiceId` to be offered, multi-select `choiceIds` to be a unique subset of offered IDs, and ordering `choiceIds` to be an exact permutation of offered IDs. These rules apply to both questions and checkpoints.
 - Checkpoint scoring is deterministic from the authored `answer` contract; it must not produce an opaque AI score or causal diagnosis. Checkpoint `dimension` is a descriptive reporting label only.
 - Version is required because explanation / distractors / diagnostics may improve after release.
 - Provenance is mandatory for internally authored content.
@@ -576,9 +583,9 @@ For the validation study, freeze a versioned checkpoint registry and a predefine
 Treat explanation and checkpoint feedback as separate study factors:
 
 - explanation condition: ordinary solution explanation vs the foreigners-first support overlay;
-- checkpoint condition: no checkpoint feedback vs the predeclared checkpoint sequence.
+- checkpoint-feedback condition: the same predeclared checkpoint prompts with feedback visible vs feedback hidden / neutral.
 
-Use matched item blocks and counterbalance the four combinations before sessions begin. In a checkpoint cell, administer every referenced checkpoint in the same sequence; in a no-checkpoint cell, skip the checkpoints and record the ordinary attempt data. This isolates the incremental value of checkpoint feedback without assigning causal meaning to any pass/miss pattern.
+Use matched item blocks and counterbalance the four combinations before sessions begin. In both feedback cells, administer every referenced checkpoint in the same sequence and allow the same response time; only the visible cell shows the pass/miss feedback and mapped review cue, while the hidden / neutral cell withholds that information. This isolates the incremental value of checkpoint feedback without assigning causal meaning to any pass/miss pattern.
 
 ### Checkpoint ladder
 
@@ -783,10 +790,10 @@ This is a validation target, not evidence already collected.
 1. Ask which Web Tests they have actually encountered.
 2. Give a short set of original Japanese questions.
 3. Capture correctness + response time.
-4. Before observing any outcomes, freeze the registry / item set and assign each matched item block four comparable original questions: ordinary + no checkpoint, ordinary + checkpoint, foreigners-first + no checkpoint, and foreigners-first + checkpoint. Counterbalance item-to-cell assignment and condition order across participants.
-5. In checkpoint cells, administer every referenced meaning → representation → execution checkpoint to the participant in the same sequence regardless of the original answer or response time; in no-checkpoint cells, skip the checkpoints. Record pass/miss and response time without selecting checkpoints after researcher judgment.
-6. After each explanation, ask the participant to choose one next review action from a fixed list (for example, re-read wording, review the model, review calculation, or continue). In checkpoint cells, predeclare an alignment rule: choose the action for the first non-passing checkpoint in the meaning → representation → execution ladder, or choose continue when all checkpoints pass. Alignment means consistency with the recorded observation, not a correct causal diagnosis.
-7. Compare time-to-understanding and a short post-explanation transfer task for the ordinary vs foreigners-first conditions, using the no-checkpoint cells for the primary explanation comparison. For checkpoint value, compare both alignment with the predeclared rule and transfer accuracy / time between checkpoint and matched no-checkpoint cells under the same explanation.
+4. Before observing any outcomes, freeze the registry / item set and assign each matched item block four comparable original questions: ordinary + feedback hidden, ordinary + feedback visible, foreigners-first + feedback hidden, and foreigners-first + feedback visible. Counterbalance item-to-cell assignment and condition order across participants.
+5. In both feedback cells, administer every referenced meaning → representation → execution checkpoint to the participant in the same sequence regardless of the original answer or response time; show the recorded pass/miss and mapped review cue only in the visible cells, and withhold it in the hidden / neutral cells. Do not select checkpoints after researcher judgment.
+6. After each explanation, ask the participant to choose one next review action from a fixed list (for example, re-read wording, review the model, review calculation, or continue). In feedback-visible cells, predeclare an alignment rule: choose the action for the first non-passing checkpoint in the meaning → representation → execution ladder, or choose continue when all checkpoints pass. Alignment means consistency with the recorded observation, not a correct causal diagnosis.
+7. Compare time-to-understanding and a short post-explanation transfer task for the ordinary vs foreigners-first conditions, using the feedback-hidden cells for the primary explanation comparison. For checkpoint value, compare both alignment with the predeclared rule and transfer accuracy / time between feedback-visible and matched feedback-hidden cells under the same explanation.
 8. Ask whether the user would return specifically for `language vs reasoning` diagnosis.
 
 ### Questions to validate
@@ -804,8 +811,8 @@ This is a validation target, not evidence already collected.
 Before recruiting, write down the item set, registry version, timing procedure and these thresholds:
 
 - Define an eligible start as a consented participant who begins the first question. Recruit 8–12 eligible starts and require at least 8 before making a go/no-go decision; do not recruit replacements to erase observed attrition. Keep every eligible start in the denominator, report the reason for every withdrawal, and count a checkpoint-flow confusion, slowness, technical failure or other product-caused incompletion as a failure for both gates.
-- Each participant must complete at least two matched item blocks, with all four explanation/checkpoint combinations represented in each block. For the primary explanation comparison, define the participant-level criterion using the no-checkpoint cells: the foreigners-first condition must have at least 20% lower median time-to-understanding than the ordinary-explanation condition and its post-explanation transfer accuracy must be no more than 10 percentage points lower. Time-to-understanding means elapsed time to a correct restatement of what the question asks; transfer accuracy is the binary result on the same-format, newly authored follow-up item. An eligible start without enough data to compute this comparison fails the criterion.
-- Define the checkpoint criterion as a participant meeting both conditions: at least 70% of checkpoint-cell review choices align with the predeclared observed-checkpoint rule, and transfer accuracy in checkpoint cells is at least 10 percentage points higher than in matched no-checkpoint cells under the same explanation condition, without a worse median transfer-task time. Alignment is not a claim that the selected action is a true diagnosis. An eligible start without enough data to compute both comparisons fails the criterion. Call the checkpoint gate met only when at least 60% of eligible starts, rounded up, meet this criterion; report raw paired choices, alignment and transfer results.
+- Each participant must complete at least two matched item blocks, with all four explanation/feedback combinations represented in each block. For the primary explanation comparison, define the participant-level criterion using the feedback-hidden cells: the foreigners-first condition must have at least 20% lower median time-to-understanding than the ordinary-explanation condition and its post-explanation transfer accuracy must be no more than 10 percentage points lower. Time-to-understanding means elapsed time to a correct restatement of what the question asks; transfer accuracy is the binary result on the same-format, newly authored follow-up item. An eligible start without enough data to compute this comparison fails the criterion.
+- Define the checkpoint criterion as a participant meeting both conditions: at least 70% of feedback-visible review choices align with the predeclared observed-checkpoint rule, and transfer accuracy in feedback-visible cells is at least 10 percentage points higher than in matched feedback-hidden cells under the same explanation condition, without a worse median transfer-task time. Alignment is not a claim that the selected action is a true diagnosis. An eligible start without enough data to compute both comparisons fails the criterion. Call the checkpoint gate met only when at least 60% of eligible starts, rounded up, meet this criterion; report raw paired choices, alignment and transfer results.
 - Call the overall value gate met only when at least 75% of eligible starts, rounded up to a whole participant, meet the primary explanation criterion and at least 60% meet the checkpoint criterion. For example, with 8 eligible starts this means at least 6 meet the explanation criterion and at least 5 meet the checkpoint criterion.
 - Self-reported preference, willingness to return, and requests for a language-vs-reasoning explanation are secondary demand signals; they cannot satisfy the value gate by themselves and do not establish willingness-to-pay.
 
