@@ -44,6 +44,12 @@ verify_jwt = true
 [functions.product-analytics]
 verify_jwt = false
 
+[functions.repair-reconcile]
+verify_jwt = false
+
+[functions.order-email]
+verify_jwt = false
+
 [functions.ecpay-callback]
 verify_jwt = false
 
@@ -54,10 +60,4 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.paypal-browser-return]
-verify_jwt = false
-
-[functions.repair-reconcile]
-verify_jwt = false
-
-[functions.order-email]
 verify_jwt = false
