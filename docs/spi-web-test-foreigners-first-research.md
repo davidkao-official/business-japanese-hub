@@ -352,6 +352,43 @@ type PracticeChoice = {
   textJa: string
 }
 
+type PracticeRepresentation =
+  | {
+      kind: 'equation'
+      expression: string
+    }
+  | {
+      kind: 'table'
+      columns: string[]
+      rows: string[][]
+    }
+  | {
+      kind: 'diagram'
+      altText: string
+      nodes: Array<{ id: string; label: string }>
+      edges: Array<{ from: string; to: string; label?: string }>
+    }
+  | {
+      kind: 'elimination'
+      candidates: string[]
+      steps: string[]
+    }
+  | {
+      kind: 'logic-grid'
+      columns: string[]
+      rows: string[]
+      cells: Array<{
+        row: string
+        column: string
+        value: 'yes' | 'no' | 'unknown'
+      }>
+    }
+  | {
+      kind: 'other'
+      label: string
+      content: string
+    }
+
 type PracticeAnswer =
   | {
       input: {
@@ -394,6 +431,9 @@ type PracticeQuestion = {
   testFamily: 'spi' | string
   domain: 'verbal' | 'nonverbal'
   category: string
+  subcategory?: string
+  deliveryProfile: string // e.g. 'web', 'test-center'
+  practiceProfile: string // e.g. 'untimed-learning', 'timed-practice'
   difficulty: 'foundation' | 'standard' | 'stretch'
   targetSeconds?: number
 
@@ -402,9 +442,7 @@ type PracticeQuestion = {
 
   coreExplanation: {
     concise: string
-    representation?: {
-      kind: 'equation' | 'table' | 'diagram' | 'elimination' | 'logic-grid' | 'other'
-    }
+    representation?: PracticeRepresentation
   }
 
   itemAnalysis: {
@@ -484,6 +522,9 @@ type PracticeCheckpointRegistry = {
 - Each `keyTerms[].termId` is a stable, locale-independent content reference and must match an entry in the core item's `vocabularyTermIds`; the overlay may translate or annotate that term without changing its identity.
 - `coreExplanation` is the source-language solution for the Japanese prompt; locale-specific prose belongs in the overlay.
 - `diagnosticCheckpoints.ids` reference entries in the `PracticeCheckpointRegistry` version named by `diagnosticCheckpoints.registryVersion`. Each checkpoint carries its Japanese prompt, input format / choices, expected answer, dimension and provenance so Stage 0 can author and Stage 2 can score the same deterministic checkpoint. A registry version is immutable; revisions create a new version.
+- `category` and `subcategory` remain separate dimensions for navigation and aggregation; authors must not flatten the hierarchy into an undocumented category string.
+- `deliveryProfile` and `practiceProfile` are extensible content labels. Read models keep them separate so Web / test-center delivery and untimed / timed / diagnostic practice semantics are not mixed accidentally.
+- `coreExplanation.representation` contains source-language renderable content, not only a representation kind. The renderer may support each discriminated payload without inventing data from the category name.
 - `testFamily` lives at content / presentation taxonomy boundary, not in a platform-wide payment/identity contract.
 - Question content is data, not embedded in React components.
 - Exact rendering details can vary by question type without arbitrary executable scripts.
@@ -530,6 +571,13 @@ An incorrect answer alone **cannot prove why the user failed**. Item tags only t
 Therefore MVP reporting should combine normal attempt data with **small authored checkpoints** on a subset of high-value questions. The MVP reports deterministic observations—correctness, response time and checkpoint pass/miss—not causal reasons for an error.
 
 For the validation study, freeze a versioned checkpoint registry and a predefined diagnostic item set before sessions begin. This is an experimental protocol, not a requirement to send every production learner through every checkpoint.
+
+Treat explanation and checkpoint feedback as separate study factors:
+
+- explanation condition: ordinary solution explanation vs the foreigners-first support overlay;
+- checkpoint condition: no checkpoint feedback vs the predeclared checkpoint sequence.
+
+Use matched item blocks and counterbalance the four combinations before sessions begin. In a checkpoint cell, administer every referenced checkpoint in the same sequence; in a no-checkpoint cell, skip the checkpoints and record the ordinary attempt data. This isolates the incremental value of checkpoint feedback without assigning causal meaning to any pass/miss pattern.
 
 ### Checkpoint ladder
 
@@ -734,10 +782,11 @@ This is a validation target, not evidence already collected.
 1. Ask which Web Tests they have actually encountered.
 2. Give a short set of original Japanese questions.
 3. Capture correctness + response time.
-4. On the predefined diagnostic item set, administer every referenced meaning → representation → execution checkpoint to every participant in the same sequence, regardless of whether the original answer was correct, incorrect, fast or slow; record pass/miss and response time. Do not select checkpoints after observing outcomes or researcher judgment.
-5. For matched original-question pairs, assign one pair member to an ordinary solution explanation and the other to the foreigners-first explanation; counterbalance which condition appears first across participants and pairs so the comparison is not confounded by sequence or question difficulty.
-6. Compare time-to-understanding and a short post-explanation transfer task between the two explanation conditions; treat preference and self-report as secondary evidence.
-7. Ask whether the user would return specifically for `language vs reasoning` diagnosis.
+4. Before observing any outcomes, freeze the registry / item set and assign each matched item block four comparable original questions: ordinary + no checkpoint, ordinary + checkpoint, foreigners-first + no checkpoint, and foreigners-first + checkpoint. Counterbalance item-to-cell assignment and condition order across participants.
+5. In checkpoint cells, administer every referenced meaning → representation → execution checkpoint to the participant in the same sequence regardless of the original answer or response time; in no-checkpoint cells, skip the checkpoints. Record pass/miss and response time without selecting checkpoints after researcher judgment.
+6. After each explanation, ask the participant to choose one next review action from a fixed list (for example, re-read wording, review the model, review calculation, or continue); record the choice as the checkpoint-value endpoint rather than judging it as a correct diagnosis.
+7. Compare time-to-understanding and a short post-explanation transfer task for the ordinary vs foreigners-first conditions, using the no-checkpoint cells for the primary explanation comparison; compare the fixed-list review-choice rate between checkpoint and no-checkpoint cells with the same explanation.
+8. Ask whether the user would return specifically for `language vs reasoning` diagnosis.
 
 ### Questions to validate
 
@@ -754,8 +803,9 @@ This is a validation target, not evidence already collected.
 Before recruiting, write down the item set, registry version, timing procedure and these thresholds:
 
 - Count only sessions that complete the full protocol; recruit 8–12 participants and require at least 8 completed sessions before making a go/no-go decision.
-- Each participant must see at least two matched pairs, with both explanation conditions represented. For each participant, define the comparison as met when the foreigners-first condition has at least 20% lower median time-to-understanding than the ordinary-explanation condition and its post-explanation transfer accuracy is no more than 10 percentage points lower. Time-to-understanding means elapsed time to a correct restatement of what the question asks; transfer accuracy is the binary result on the same-format, newly authored follow-up item.
-- Call the value gate met only when at least 75% of completed participants, rounded up to a whole participant, meet both comparison criteria. For example, this means at least 6 of 8 or 9 of 12 participants.
+- Each participant must complete at least two matched item blocks, with all four explanation/checkpoint combinations represented in each block. For the primary explanation comparison, define the participant-level criterion using the no-checkpoint cells: the foreigners-first condition must have at least 20% lower median time-to-understanding than the ordinary-explanation condition and its post-explanation transfer accuracy must be no more than 10 percentage points lower. Time-to-understanding means elapsed time to a correct restatement of what the question asks; transfer accuracy is the binary result on the same-format, newly authored follow-up item.
+- Define the checkpoint criterion as a participant showing at least a 20-percentage-point higher rate of concrete review-action choices in checkpoint cells than in matched no-checkpoint cells under the same explanation condition, in at least one explanation condition. Call the checkpoint gate met only when at least 60% of completed participants, rounded up, meet this criterion; report the raw paired choices as well as the rate.
+- Call the overall value gate met only when at least 75% of completed participants, rounded up to a whole participant, meet the primary explanation criterion and at least 60% meet the checkpoint criterion. For example, with 8 completed participants this means at least 6 meet the explanation criterion and at least 5 meet the checkpoint criterion.
 - Self-reported preference, willingness to return, and requests for a language-vs-reasoning explanation are secondary demand signals; they cannot satisfy the value gate by themselves and do not establish willingness-to-pay.
 
 These are predeclared product-decision thresholds for a small exploratory study, not psychometric validity claims. Passing them does not turn checkpoint patterns into causal evidence.
