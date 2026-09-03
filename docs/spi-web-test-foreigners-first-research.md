@@ -438,6 +438,7 @@ type PracticeQuestion = {
   targetSeconds?: number
 
   promptJa: string
+  promptRepresentation?: PracticeRepresentation
   answer: PracticeAnswer
 
   coreExplanation: {
@@ -479,6 +480,7 @@ type PracticeQuestion = {
 type PracticeQuestionSupportOverlay = {
   questionId: string
   questionVersion: number
+  version: number
   byLocale: Record<string, {
     concise?: string
     whatIsAsked?: string
@@ -528,12 +530,27 @@ type PracticeQuestionBank = {
   vocabularyCatalog: PracticeVocabularyCatalog
   questions: PracticeQuestion[]
 }
+
+type PracticeStudyManifest = {
+  version: number
+  questionBankVersion: number
+  checkpointRegistryVersion: number
+  itemSet: Array<{ questionId: string; questionVersion: number }>
+  selectedSupportOverlays: Array<{
+    questionId: string
+    questionVersion: number
+    locale: string
+    overlayVersion: number
+  }>
+}
 ```
 
 ### Design rules
 
 - `PracticeQuestion` contains the generic practice core: Japanese question content, answer, core solution, item requirements and provenance. `PracticeQuestionSupportOverlay` is a separate, optional, locale-keyed support layer.
 - The first support locale may be stored under `byLocale['zh-Hant']`; another locale adds a map entry rather than a new language-specific field or core renderer branch.
+- A support overlay is versioned independently. Increment `PracticeQuestionSupportOverlay.version` whenever any support treatment changes, even if `questionVersion` does not; resolve the selected locale from the exact question ID/version plus overlay version rather than from the latest available translation.
+- `PracticeStudyManifest` is frozen before study outcomes: it records the exact question-bank version, checkpoint-registry version, item-set question versions, and each selected support-overlay artifact as `(questionId, questionVersion, locale, overlayVersion)`. Ordinary-explanation cells select no support overlay; foreigners-first cells may use only the exact overlay references in that manifest. A later translation edit creates a new overlay version and cannot silently change a completed session.
 - Each `keyTerms[].termId` is a stable, locale-independent content reference and must match an entry in the core item's `vocabularyTermIds`; the overlay may translate or annotate that term without changing its identity.
 - `coreExplanation` is the source-language solution and `whatIsAskedJa` is the canonical Japanese restatement; locale-specific prose belongs in the overlay and must be shown alongside, not instead of, the Japanese restatement.
 - `diagnosticCheckpoints.ids` reference entries in the `PracticeCheckpointRegistry` version named by `diagnosticCheckpoints.registryVersion`. Each checkpoint carries its Japanese prompt, input format / choices, expected answer, dimension and provenance so Stage 0 can author and Stage 2 can score the same deterministic checkpoint. A registry version is immutable; revisions create a new version.
@@ -541,7 +558,8 @@ type PracticeQuestionBank = {
 - When `itemAnalysis.vocabularyTermIds` is present, the containing `PracticeQuestionBank.vocabularyCatalog` is required and every ID must resolve to one stable, locale-independent catalog entry. The read model and cross-question aggregation use that bank-level catalog's `surfaceJa` / `explanationJa` as the fallback; a locale overlay only overrides that label or annotation.
 - `category` and `subcategory` remain separate dimensions for navigation and aggregation; authors must not flatten the hierarchy into an undocumented category string.
 - `deliveryProfile` and `practiceProfile` are extensible content labels. Read models keep them separate so Web / test-center delivery and untimed / timed / diagnostic practice semantics are not mixed accidentally.
-- `coreExplanation.representation` contains source-language renderable content, not only a representation kind. The renderer may support each discriminated payload without inventing data from the category name.
+- `promptJa` is the canonical question text. Optional `promptRepresentation` is a source-language, structured stimulus rendered with that text when a table, diagram, equation or other non-text prompt is part of the question; it is not the solution representation. `coreExplanation.representation` is the separate source-language solution payload. Neither payload contains locale-specific fields.
+- Stage 1 representation validation applies to both `promptRepresentation` and `coreExplanation.representation`: reject empty required strings/arrays; require every table row to have exactly `columns.length` cells; require unique diagram node IDs and every edge endpoint to reference a declared node; require unique logic-grid row and column IDs, every cell reference to resolve to a declared row/column, and no duplicate row/column pair; and reject an `other` payload without both a label and content. This is referential / dimensional content validation, not a learner diagnosis.
 - `testFamily` lives at content / presentation taxonomy boundary, not in a platform-wide payment/identity contract.
 - Question content is data, not embedded in React components.
 - Exact rendering details can vary by question type without arbitrary executable scripts.
@@ -800,7 +818,7 @@ This is a validation target, not evidence already collected.
 1. Ask which Web Tests they have actually encountered.
 2. Give a short set of original Japanese questions.
 3. Capture correctness + response time.
-4. Before observing any outcomes, freeze the registry / item set and assign each matched item block four comparable original questions: ordinary + feedback hidden, ordinary + feedback visible, foreigners-first + feedback hidden, and foreigners-first + feedback visible. Counterbalance item-to-cell assignment and condition order across participants.
+4. Before observing any outcomes, freeze a `PracticeStudyManifest` containing the exact question-bank version, registry version, item-set question versions and selected support-overlay artifact/version for the foreigners-first cells. Assign each matched item block four comparable original questions: ordinary + feedback hidden, ordinary + feedback visible, foreigners-first + feedback hidden, and foreigners-first + feedback visible. Counterbalance item-to-cell assignment and condition order across participants; do not resolve an overlay from the latest catalog entry during a session.
 5. In both feedback cells, administer every referenced meaning → representation → execution checkpoint to the participant in the same sequence regardless of the original answer or response time; show the recorded pass/miss and mapped review cue only in the visible cells, and withhold it in the hidden / neutral cells. Do not select checkpoints after researcher judgment.
 6. After each explanation, ask the participant to choose one next review action from a fixed list (for example, re-read wording, review the model, review calculation, or continue). In feedback-visible cells, predeclare an alignment rule: choose the action for the first non-passing checkpoint in the meaning → representation → execution ladder, or choose continue when all checkpoints pass. Alignment means consistency with the recorded observation, not a correct causal diagnosis.
 7. Compare time-to-understanding and a short post-explanation transfer task for the ordinary vs foreigners-first conditions, using the feedback-hidden cells for the primary explanation comparison. For checkpoint value, compare both alignment with the predeclared rule and transfer accuracy / time between feedback-visible and matched feedback-hidden cells under the same explanation.
