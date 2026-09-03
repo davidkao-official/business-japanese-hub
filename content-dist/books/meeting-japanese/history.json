@@ -11,24 +11,14 @@
       "createdAt": "2026-08-19T22:55:31.131Z"
     },
     {
-      "id": "meeting-japanese@e1-r2-cba4bf5632cc",
+      "id": "meeting-japanese@e1-r2-1de5e0aafc50",
       "slug": "meeting-japanese",
       "editionNumber": 1,
       "revision": 2,
-      "contentHash": "cba4bf5632cc8d5638488c3ad5262814eb3ad148ae0e528040c19196c2ab3962",
+      "contentHash": "1de5e0aafc50a867307b2dd950bf2422de4a29a70a2156c7c9f2bda77e6db61f",
       "status": "published",
       "releasedAt": "2026-08-20",
-      "createdAt": "2026-09-03T19:25:10.530Z"
-    },
-    {
-      "id": "meeting-japanese@e1-r3-4eb311c9e995",
-      "slug": "meeting-japanese",
-      "editionNumber": 1,
-      "revision": 3,
-      "contentHash": "4eb311c9e9954c952d0ef124260ed89e6a9396f4002c2b663b81188ea448a859",
-      "status": "published",
-      "releasedAt": "2026-08-20",
-      "createdAt": "2026-09-03T19:40:59.688Z"
+      "createdAt": "2026-09-03T19:53:43.500Z"
     }
   ]
 }

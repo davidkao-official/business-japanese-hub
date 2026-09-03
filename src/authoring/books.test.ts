@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Book } from '../content/types'
+import type { Book, ContentBlock } from '../content/types'
 import { BLOCK_TYPES } from '../content/types'
 import { validateBook } from '../content/validate'
 import { derivePreview, type PreviewBoundary } from './preview'
@@ -20,6 +20,7 @@ interface AuthoringManifest {
   catalog?: { order?: number }
   preview?: { boundary?: PreviewBoundary }
   learning?: { chapters?: Record<string, string[]> }
+  notes?: string
 }
 
 function slugFromPath(path: string): string {
@@ -52,6 +53,10 @@ function loadManifests(): Map<string, AuthoringManifest> {
       JSON.parse(raw) as AuthoringManifest,
     ]),
   )
+}
+
+function countBlocksByType(chapter: Book['chapters'][number], type: ContentBlock['type']): number {
+  return chapter.blocks.filter((block) => block.type === type).length
 }
 
 describe('authored Book catalog', () => {
@@ -114,8 +119,8 @@ describe('commercial Book', () => {
 
     expect(chapter.slug).toBe('course-correction')
     expect(chapter.title).toBe('議論を本筋に戻す')
-    expect(blocks.filter((block) => block.type === 'exercise')).toHaveLength(4)
-    expect(blocks.filter((block) => block.type === 'dialogue')).toHaveLength(3)
+    expect(countBlocksByType(chapter, 'exercise')).toBe(4)
+    expect(countBlocksByType(chapter, 'dialogue')).toBe(3)
     expect(vocabularyTerms).toEqual(
       new Set([
         '本題',
@@ -140,6 +145,8 @@ describe('commercial Book', () => {
     expect(serialized).toContain('語氣：')
     expect(serialized).toContain('選項是「此情境較合適」的判斷')
     expect(manifest.learning?.chapters?.['mj-ch-09']).toBeUndefined()
+    expect(manifest.notes).toContain('mode=Learn')
+    expect(manifest.notes).toContain('primary domain=Meeting & Discussion')
   })
 
   it('publishes only the first chapter as a genuine partial preview', () => {
