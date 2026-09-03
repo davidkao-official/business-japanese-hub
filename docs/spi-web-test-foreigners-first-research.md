@@ -347,6 +347,47 @@ The detailed diagnostic checkpoints should appear only where they add informatio
 This is a research contract, not a locked TypeScript implementation.
 
 ```ts
+type PracticeChoice = {
+  id: string
+  textJa: string
+}
+
+type PracticeAnswer =
+  | {
+      input: {
+        kind: 'single-choice'
+        choices: PracticeChoice[]
+      }
+      expectedAnswer: { kind: 'single-choice'; choiceId: string }
+      scoring: { kind: 'exact-choice' }
+    }
+  | {
+      input: {
+        kind: 'multi-select'
+        choices: PracticeChoice[]
+      }
+      expectedAnswer: { kind: 'multi-select'; choiceIds: string[] }
+      scoring: { kind: 'exact-set' }
+    }
+  | {
+      input: { kind: 'short-text' }
+      expectedAnswer: { kind: 'short-text'; value: string }
+      scoring: { kind: 'exact-text' }
+    }
+  | {
+      input: { kind: 'number' }
+      expectedAnswer: { kind: 'number'; value: number }
+      scoring: { kind: 'numeric'; tolerance?: number }
+    }
+  | {
+      input: {
+        kind: 'ordering'
+        choices: PracticeChoice[]
+      }
+      expectedAnswer: { kind: 'ordering'; choiceIds: string[] }
+      scoring: { kind: 'exact-order' }
+    }
+
 type PracticeQuestion = {
   id: string
   version: number
@@ -357,8 +398,7 @@ type PracticeQuestion = {
   targetSeconds?: number
 
   promptJa: string
-  choices?: Array<{ id: string; textJa: string }>
-  correctAnswer: unknown
+  answer: PracticeAnswer
 
   coreExplanation: {
     concise: string
@@ -381,8 +421,10 @@ type PracticeQuestion = {
       | 'quantitative-reasoning'
     >
     executionLoads: Array<'calculation' | 'choice-elimination'>
-    diagnosticCheckpointIds?: string[]
-    diagnosticCheckpointRegistryVersion?: number
+    diagnosticCheckpoints?: {
+      registryVersion: number
+      ids: string[]
+    }
   }
 
   provenance: {
@@ -419,15 +461,7 @@ type PracticeCheckpoint = {
   questionVersion: number
   dimension: 'meaning' | 'representation' | 'execution'
   promptJa: string
-  input: {
-    kind: 'single-choice' | 'short-text' | 'number'
-    choices?: Array<{ id: string; textJa: string }>
-  }
-  expectedAnswer: unknown
-  scoring: {
-    kind: 'exact' | 'normalized-text' | 'numeric'
-    tolerance?: number
-  }
+  answer: PracticeAnswer
   provenance: {
     authoredBy: string
     reviewedBy?: string[]
@@ -449,13 +483,14 @@ type PracticeCheckpointRegistry = {
 - The first support locale may be stored under `byLocale['zh-Hant']`; another locale adds a map entry rather than a new language-specific field or core renderer branch.
 - Each `keyTerms[].termId` is a stable, locale-independent content reference and must match an entry in the core item's `vocabularyTermIds`; the overlay may translate or annotate that term without changing its identity.
 - `coreExplanation` is the source-language solution for the Japanese prompt; locale-specific prose belongs in the overlay.
-- `diagnosticCheckpointIds` reference entries in a versioned `PracticeCheckpointRegistry`. Each checkpoint carries its Japanese prompt, input format / choices, expected answer, dimension and provenance so Stage 0 can author and Stage 2 can score the same deterministic checkpoint.
+- `diagnosticCheckpoints.ids` reference entries in the `PracticeCheckpointRegistry` version named by `diagnosticCheckpoints.registryVersion`. Each checkpoint carries its Japanese prompt, input format / choices, expected answer, dimension and provenance so Stage 0 can author and Stage 2 can score the same deterministic checkpoint. A registry version is immutable; revisions create a new version.
 - `testFamily` lives at content / presentation taxonomy boundary, not in a platform-wide payment/identity contract.
 - Question content is data, not embedded in React components.
 - Exact rendering details can vary by question type without arbitrary executable scripts.
 - `promptJa` remains primary. Localized support explains; it does not replace Japanese practice.
 - `itemAnalysis` describes what an item requires, not what caused an individual user's miss. `vocabularyTermIds` are content references, not #57 evidence IDs. Attempt records should report checkpoint pass/miss and response time separately.
-- Checkpoint scoring is deterministic from the authored `expectedAnswer` and input kind; it must not produce an opaque AI score or causal diagnosis. Checkpoint `dimension` is a descriptive reporting label only.
+- Each `PracticeAnswer` variant couples a discriminated input shape, expected answer and scoring rule for single-choice, multi-select, short-text, numeric and ordering questions; validators should reject incompatible combinations rather than infer them from `category`.
+- Checkpoint scoring is deterministic from the authored `answer` contract; it must not produce an opaque AI score or causal diagnosis. Checkpoint `dimension` is a descriptive reporting label only.
 - Version is required because explanation / distractors / diagnostics may improve after release.
 - Provenance is mandatory for internally authored content.
 
@@ -714,9 +749,20 @@ This is a validation target, not evidence already collected.
 - Which real test families did the user encounter?
 - Would they prefer 40 excellent diagnostic questions or hundreds of ordinary drill questions?
 
+### Predeclared decision rule
+
+Before recruiting, write down the item set, registry version, timing procedure and these thresholds:
+
+- Count only sessions that complete the full protocol; recruit 8–12 participants and require at least 8 completed sessions before making a go/no-go decision.
+- Each participant must see at least two matched pairs, with both explanation conditions represented. For each participant, define the comparison as met when the foreigners-first condition has at least 20% lower median time-to-understanding than the ordinary-explanation condition and its post-explanation transfer accuracy is no more than 10 percentage points lower. Time-to-understanding means elapsed time to a correct restatement of what the question asks; transfer accuracy is the binary result on the same-format, newly authored follow-up item.
+- Call the value gate met only when at least 75% of completed participants, rounded up to a whole participant, meet both comparison criteria. For example, this means at least 6 of 8 or 9 of 12 participants.
+- Self-reported preference, willingness to return, and requests for a language-vs-reasoning explanation are secondary demand signals; they cannot satisfy the value gate by themselves and do not establish willingness-to-pay.
+
+These are predeclared product-decision thresholds for a small exploratory study, not psychometric validity claims. Passing them does not turn checkpoint patterns into causal evidence.
+
 ### Success signal
 
-Proceed to a real MVP when several target users independently show both:
+Proceed to a real MVP only when the predeclared decision rule is met and target users independently show both:
 
 1. observable user uncertainty about whether a difficulty was language-related or reasoning-related, checked against task performance where possible; and
 2. clear value from the structured explanation / diagnostic checkpoints relative to the ordinary-explanation baseline under the counterbalanced comparison.
