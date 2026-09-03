@@ -83,6 +83,16 @@
   --section-gap: var(--space-8);
 
   /* ---------------------------------------------------------------
+   * Landing page — scoped extension points for #79–#81
+   * These do not replace the shared Library / Reader geometry above.
+   * --------------------------------------------------------------- */
+  --lp-section-gap: var(--space-8); /* 64px mobile; 120px desktop below */
+  --lp-container-max-width: 75rem; /* 1200px LP measure */
+  --lp-radius-justified: 0.75rem; /* 12px only for justified LP surfaces */
+  --lp-reveal-distance: 1rem; /* 16px, opacity + translateY only */
+  --lp-reveal-duration: 600ms;
+
+  /* ---------------------------------------------------------------
    * Typography — Japanese-first font stacks
    * Noto Sans JP / Hiragino / Yu Gothic are the preferred Japanese faces;
    * system-ui acts as the ultimate fallback for latin + UI glyphs.
@@ -258,6 +268,7 @@
 @media (min-width: 48rem) {
   :root {
     --container-padding: 2rem;
+    --lp-section-gap: 7.5rem; /* 120px desktop */
   }
 }
 
