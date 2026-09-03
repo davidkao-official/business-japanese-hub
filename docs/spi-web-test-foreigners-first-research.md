@@ -382,6 +382,7 @@ type PracticeQuestion = {
     >
     executionLoads: Array<'calculation' | 'choice-elimination'>
     diagnosticCheckpointIds?: string[]
+    diagnosticCheckpointRegistryVersion?: number
   }
 
   provenance: {
@@ -410,6 +411,36 @@ type PracticeQuestionSupportOverlay = {
     commonMisread?: string
   }>
 }
+
+type PracticeCheckpoint = {
+  id: string
+  version: number
+  questionId: string
+  questionVersion: number
+  dimension: 'meaning' | 'representation' | 'execution'
+  promptJa: string
+  input: {
+    kind: 'single-choice' | 'short-text' | 'number'
+    choices?: Array<{ id: string; textJa: string }>
+  }
+  expectedAnswer: unknown
+  scoring: {
+    kind: 'exact' | 'normalized-text' | 'numeric'
+    tolerance?: number
+  }
+  provenance: {
+    authoredBy: string
+    reviewedBy?: string[]
+    createdAt: string
+    updatedAt: string
+    originalContentAttestation: true
+  }
+}
+
+type PracticeCheckpointRegistry = {
+  version: number
+  checkpoints: PracticeCheckpoint[]
+}
 ```
 
 ### Design rules
@@ -418,11 +449,13 @@ type PracticeQuestionSupportOverlay = {
 - The first support locale may be stored under `byLocale['zh-Hant']`; another locale adds a map entry rather than a new language-specific field or core renderer branch.
 - Each `keyTerms[].termId` is a stable, locale-independent content reference and must match an entry in the core item's `vocabularyTermIds`; the overlay may translate or annotate that term without changing its identity.
 - `coreExplanation` is the source-language solution for the Japanese prompt; locale-specific prose belongs in the overlay.
+- `diagnosticCheckpointIds` reference entries in a versioned `PracticeCheckpointRegistry`. Each checkpoint carries its Japanese prompt, input format / choices, expected answer, dimension and provenance so Stage 0 can author and Stage 2 can score the same deterministic checkpoint.
 - `testFamily` lives at content / presentation taxonomy boundary, not in a platform-wide payment/identity contract.
 - Question content is data, not embedded in React components.
 - Exact rendering details can vary by question type without arbitrary executable scripts.
 - `promptJa` remains primary. Localized support explains; it does not replace Japanese practice.
 - `itemAnalysis` describes what an item requires, not what caused an individual user's miss. `vocabularyTermIds` are content references, not #57 evidence IDs. Attempt records should report checkpoint pass/miss and response time separately.
+- Checkpoint scoring is deterministic from the authored `expectedAnswer` and input kind; it must not produce an opaque AI score or causal diagnosis. Checkpoint `dimension` is a descriptive reporting label only.
 - Version is required because explanation / distractors / diagnostics may improve after release.
 - Provenance is mandatory for internally authored content.
 
@@ -460,6 +493,8 @@ These support fields belong in the locale-keyed overlay, not in the generic `Pra
 An incorrect answer alone **cannot prove why the user failed**. Item tags only tell us what a question requires, not which internal process failed.
 
 Therefore MVP reporting should combine normal attempt data with **small authored checkpoints** on a subset of high-value questions. The MVP reports deterministic observations—correctness, response time and checkpoint pass/miss—not causal reasons for an error.
+
+For the validation study, freeze a versioned checkpoint registry and a predefined diagnostic item set before sessions begin. This is an experimental protocol, not a requirement to send every production learner through every checkpoint.
 
 ### Checkpoint ladder
 
@@ -664,7 +699,7 @@ This is a validation target, not evidence already collected.
 1. Ask which Web Tests they have actually encountered.
 2. Give a short set of original Japanese questions.
 3. Capture correctness + response time.
-4. For selected misses / slow answers, run meaning → representation → execution checkpoints and record pass/miss observations.
+4. On the predefined diagnostic item set, administer every referenced meaning → representation → execution checkpoint to every participant in the same sequence, regardless of whether the original answer was correct, incorrect, fast or slow; record pass/miss and response time. Do not select checkpoints after observing outcomes or researcher judgment.
 5. For matched original-question pairs, assign one pair member to an ordinary solution explanation and the other to the foreigners-first explanation; counterbalance which condition appears first across participants and pairs so the comparison is not confounded by sequence or question difficulty.
 6. Compare time-to-understanding and a short post-explanation transfer task between the two explanation conditions; treat preference and self-report as secondary evidence.
 7. Ask whether the user would return specifically for `language vs reasoning` diagnosis.
