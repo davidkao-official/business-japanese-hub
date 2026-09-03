@@ -10,6 +10,7 @@ Business Japanese Hub 是 shared、web-first 的 business-Japanese 平台，服�
 - **[`docs/platform-architecture.md`](docs/platform-architecture.md)** — Library + Career Game bounded contexts、shared platform 邊界與 dependency direction。
 - **[`docs/shared-backend-and-identity.md`](docs/shared-backend-and-identity.md)** — 兩個 frontends 共用的 Supabase identity、origin/session topology、client/server secret boundary 與 product data isolation。
 - **[`docs/learning-and-progress.md`](docs/learning-and-progress.md)** — bounded shared skill/evidence seam、Library reading／Career Game progress isolation、authenticated resume、version/reset 與 RLS contract。
+- **[`docs/post-n1-learning-map.md`](docs/post-n1-learning-map.md)** — canonical「N1 之後的日文學習地圖」。定義 Learn／Read／Practice／My Learning／Experience、職場能力 domains、cross-cutting dimensions、內容票分類與 taxonomy drift 規則。
 - **[`docs/product-validation-analytics.md`](docs/product-validation-analytics.md)** — #60 的小型 Career Game funnel／cross-product movement event vocabulary、privacy 與 trust boundary。
 - **[`docs/content-model.md`](docs/content-model.md)** — Library 內容資料模型。`Book → Chapter → ContentBlock` 的具體定義與結構；不是 Career Game schema。
 - **[`docs/ui-ux-research.md`](docs/ui-ux-research.md)** — UI/UX 設計方向研究（canonical）。`Quiet Editorial Modernism` 設計方向、日本文排版規格、design tokens、content-block rendering grammar、anti-patterns，以及 Universal Reader 的 measurable baseline。
@@ -53,7 +54,7 @@ Business Japanese Hub 是 shared、web-first 的 business-Japanese 平台，服�
 ## 關鍵決策摘要
 
 - **Prototype MVP 已完成**；當前目標是 **Paid Launch／最快安全的第一筆真實營收**。保留陌生訪客免登入閱讀 free/public books 的正式能力，同時完成最小可上線的 paid Book、authoritative pricing、payment／entitlement、compliance 與 production activation（見 [product contract §15](docs/product-contract.md#15-產品階段paid-launchprototype-mvp-已完成)）。
-- 第一個商業 Book 是 **《会議の日本語》**：USD 12，第 1 章免費預覽，其餘章節由 server-authoritative entitlement 保護；兩本 Prototype books 保持免費公開。
+- 第一個付費 Book 是 **《会議の日本語》**：USD 12，第 1 章免費預覽，其餘章節由 server-authoritative entitlement 保護；兩本 Prototype books 保持免費公開。
 - Career Game Phase A free validation 可並行，但不得弱化或延後 Book purchase golden path；未來非 Book commerce 等 #58 evidence 後由 #59 決策。
 - UI quality 是 **P0**：Library Reader 維持 premium editorial surface，Career Game 可採 distinct case-file／narrative grammar。
 - Library 抽象為 `Book → Chapter → ContentBlock`；Career Game 使用自己的 scenario／scene／choice／outcome／feedback／progression bounded context，兩者不互相套用。
