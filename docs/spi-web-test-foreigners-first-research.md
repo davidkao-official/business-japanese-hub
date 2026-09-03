@@ -88,10 +88,10 @@ Current Japanese university / public employment guidance shows institutional pro
 - Tokyo Foreign Employment Service Center lists SPI among representative written tests for international students and recommends advance preparation.
 
 Sources:
-- Tohoku University Career Support Office, 2026-06, https://www.career.ihe.tohoku.ac.jp/event/event-13305/
-- Takushoku University, 2026-01-22, https://tac.takushoku-u.ac.jp/news/career/news071/
-- Kyushu University, https://www.kyushu-u.ac.jp/ja/education/employment/foreign/jobhunting
-- Tokyo Foreign Employment Service Center / MHLW, https://jsite.mhlw.go.jp/tokyo-foreigner/yokuaru_goshitsumon/ryugakusei/q_38_a4.html
+- Tohoku University Career Support Office, 2026-06, https://www.career.ihe.tohoku.ac.jp/event/event-13305/ (accessed 2026-09-04)
+- Takushoku University, 2026-01-22, https://tac.takushoku-u.ac.jp/news/career/news071/ (accessed 2026-09-04)
+- Kyushu University, https://www.kyushu-u.ac.jp/ja/education/employment/foreign/jobhunting (accessed 2026-09-04)
+- Tokyo Foreign Employment Service Center / MHLW, https://jsite.mhlw.go.jp/tokyo-foreigner/yokuaru_goshitsumon/ryugakusei/q_38_a4.html (accessed 2026-09-04)
 
 This supports an **institutional / supply-side signal** that dedicated preparation is being offered or recommended. It does not establish target-user demand, unmet pain, enrollment or utilization, outcomes, willingness-to-pay, or product-market fit. Traditional Chinese explanation and language-vs-reasoning diagnosis remain validation hypotheses as well.
 
@@ -100,7 +100,7 @@ This supports an **institutional / supply-side signal** that dedicated preparati
 A 2017 study of Chinese undergraduate international students reported that Japanese students outperformed Chinese students on several SPI verbal task types, and that the international students generally took longer to answer. It highlighted polysemy, idioms, non-kanji vocabulary, broader reading exposure, Japanese social/cultural knowledge, test-specific response format and speed practice as relevant preparation areas.
 
 Source:
-- 「中国人学部留学生のSPIの解答の傾向」, 専門日本語教育研究 19, CiNii Research, https://cir.nii.ac.jp/crid/1390848647544696960
+- 「中国人学部留学生のSPIの解答の傾向」, 専門日本語教育研究 19, CiNii Research, https://cir.nii.ac.jp/crid/1390848647544696960 (accessed 2026-09-04)
 
 Use this as prior evidence, not as a 2026 prevalence estimate. The study is old and population-specific; current validation with Business Japanese Hub target users is still required.
 
@@ -113,9 +113,9 @@ Use this as prior evidence, not as a 2026 prevalence estimate. The study is old 
 Recruit reports SPI3 usage of 16,500 companies and 2.766 million examinees in the fiscal year ending March 2026. Official documentation describes an ability test and a personality test. The ability test covers verbal and non-verbal domains and is intended to measure language comprehension, numerical processing and logical thinking. Delivery methods include test center, in-house CBT, WEB testing and paper depending on product / use case.
 
 Sources:
-- https://www.spi.recruit.co.jp/
-- https://www.spi.recruit.co.jp/spi3news/000573.html
-- https://www.spi.recruit.co.jp/lp/landing_v3_b.html
+- https://www.spi.recruit.co.jp/ (accessed 2026-09-04)
+- https://www.spi.recruit.co.jp/spi3news/000573.html (accessed 2026-09-04)
+- https://www.spi.recruit.co.jp/lp/landing_v3_b.html (accessed 2026-09-04)
 
 For Business Japanese Hub, only **ability-test preparation** is in MVP scope. Personality testing is not a skill-training target.
 
@@ -126,9 +126,9 @@ Official Recruit materials reliably establish the broad `verbal / non-verbal` sp
 Rikunabi's 2026-updated preparation guide describes verbal examples such as vocabulary and reading comprehension, and non-verbal examples as numerical processing / logical thinking. Current prep sources commonly further divide verbal practice into relationships between words, word meaning/usage, sentence ordering/completion, idiom formation and long reading; non-verbal practice commonly includes inference, probability, tables, rates, ratios, profit/loss and similar patterns.
 
 Sources:
-- Recruit test center: https://www.spi.recruit.co.jp/testcenter/
-- Rikunabi, updated 2026-07-07: https://job.rikunabi.com/contents/test/22996/
-- Rikunabi practice examples: https://job.rikunabi.com/contents/test/19580/
+- Recruit test center: https://www.spi.recruit.co.jp/testcenter/ (accessed 2026-09-04)
+- Rikunabi, updated 2026-07-07: https://job.rikunabi.com/contents/test/22996/ (accessed 2026-09-04)
+- Rikunabi practice examples: https://job.rikunabi.com/contents/test/19580/ (accessed 2026-09-04)
 
 Product rule:
 
@@ -150,13 +150,13 @@ The Japanese recruitment-test landscape is broader than SPI:
 | SCOA | NOMA; multi-dimensional family; SCOA-A includes verbal/numerical/logical/general knowledge/English, SCOA-i2 launched June 2026 with verbal / numerical-logical / spatial scales | Later validation |
 
 Primary sources:
-- 玉手箱Ⅲ: https://www.shl.co.jp/materials/tamatebako3/
-- SHL assessment lineup: https://www.shl.co.jp/service/assessment/
-- TG-WEB: https://tg-web.humanage.co.jp/
-- TG-WEB delivery methods: https://tg-web.humanage.co.jp/test_method/
-- SCOA: https://www.noma.co.jp/service/assessment/scoa/
-- SCOA-A: https://www.noma.co.jp/service/assessment/scoa-a/
-- SCOA-i2: https://www.noma.co.jp/service/assessment/scoa-i2/
+- 玉手箱Ⅲ: https://www.shl.co.jp/materials/tamatebako3/ (accessed 2026-09-04)
+- SHL assessment lineup: https://www.shl.co.jp/service/assessment/ (accessed 2026-09-04)
+- TG-WEB: https://tg-web.humanage.co.jp/ (accessed 2026-09-04)
+- TG-WEB delivery methods: https://tg-web.humanage.co.jp/test_method/ (accessed 2026-09-04)
+- SCOA: https://www.noma.co.jp/service/assessment/scoa/ (accessed 2026-09-04)
+- SCOA-A: https://www.noma.co.jp/service/assessment/scoa-a/ (accessed 2026-09-04)
+- SCOA-i2: https://www.noma.co.jp/service/assessment/scoa-i2/ (accessed 2026-09-04)
 
 The value of supporting these names in architecture now is only to avoid `spi_*` fields everywhere. It is **not permission to author content for them now**.
 
@@ -186,11 +186,11 @@ Examples reviewed:
 - SPIノートの会 / Kodansha: format-specific prep books across 玉手箱, SPI WEB testing, TG-WEB, CAB/GAB.
 
 Sources:
-- https://play.google.com/store/apps/details?id=com.internous.spi
-- https://play.google.com/store/apps/details?id=inc.ann.spi_taisaku
-- https://play.google.com/store/apps/details?id=com.minatoapps.spi
-- https://spi.careermine.jp/
-- https://spi.kodansha.co.jp/
+- https://play.google.com/store/apps/details?id=com.internous.spi (accessed 2026-09-04)
+- https://play.google.com/store/apps/details?id=inc.ann.spi_taisaku (accessed 2026-09-04)
+- https://play.google.com/store/apps/details?id=com.minatoapps.spi (accessed 2026-09-04)
+- https://spi.careermine.jp/ (accessed 2026-09-04)
+- https://spi.kodansha.co.jp/ (accessed 2026-09-04)
 
 ### What is not a differentiator by itself
 
@@ -342,6 +342,7 @@ type PracticeQuestion = {
       | 'condition-parsing'
       | 'reading-comprehension'
     >
+    vocabularyTermIds?: string[]
     reasoningLoads: Array<
       | 'model-selection'
       | 'constraint-reasoning'
@@ -387,7 +388,7 @@ type PracticeQuestionSupportOverlay = {
 - Question content is data, not embedded in React components.
 - Exact rendering details can vary by question type without arbitrary executable scripts.
 - `promptJa` remains primary. Localized support explains; it does not replace Japanese practice.
-- `itemAnalysis` describes what an item requires, not what caused an individual user's miss. Attempt records should report checkpoint pass/miss and response time separately.
+- `itemAnalysis` describes what an item requires, not what caused an individual user's miss. `vocabularyTermIds` are content references, not #57 evidence IDs. Attempt records should report checkpoint pass/miss and response time separately.
 - Version is required because explanation / distractors / diagnostics may improve after release.
 - Provenance is mandatory for internally authored content.
 
@@ -456,9 +457,22 @@ Deterministic descriptive reporting:
 
 For verbal questions, checkpoints can test word meaning / semantic relation / sentence logic rather than pretending a separate math model exists.
 
-### Aggregation
+### Aggregation and read models
 
-Do not create a single ability score. Report transparent counts / rates only after a minimum evidence threshold, for example:
+Do not create a single ability score. For completed attempts, report transparent counts / rates by the following deterministic rules:
+
+| Read model | Deterministic report |
+| --- | --- |
+| Accuracy by test family / domain / category | `correct / completed attempts`; show `資料不足` until there are at least 5 relevant attempts. |
+| Response time by category | Median elapsed time plus attempt count; keep timed and untimed attempts separate. |
+| Language / reasoning / execution tag accuracy | `correct / attempts` on items carrying each `itemAnalysis` tag; this is descriptive item-grouped performance, not a latent-skill or cause estimate. |
+| Timed vs untimed performance | Report accuracy and median elapsed time separately for each mode; do not infer a causal effect from unpaired sessions. |
+| Recurring vocabulary weaknesses | Group misses by authored `vocabularyTermIds`; list a term only after at least 2 misses across at least 2 items, resolving its label through the selected support overlay. |
+| Recent mistakes / review queue | Keep the latest incorrect attempt per question, newest first; remove it after a later review attempt is correct. Do not rank the queue by an inferred cause. |
+
+The threshold values are an MVP reporting rule to validate, not a claim of psychometric validity. With fewer relevant observations, say `資料不足` rather than inventing precision.
+
+Example checkpoint report:
 
 ```text
 最近 12 個可診斷 attempts
@@ -470,7 +484,7 @@ Timed attempts above target: 4 / 7
 → Observed pattern to review: more comprehension-checkpoint misses and slower timed attempts; this is an observed pattern, not a confirmed cause.
 ```
 
-The exact threshold / UI wording must be validated. With insufficient data, say `資料不足` rather than inventing precision. Any language-vs-reasoning causal interpretation remains a hypothesis requiring real-user validation and, where possible, independent language / reasoning measures.
+The exact threshold / UI wording must be validated. Any language-vs-reasoning causal interpretation remains a hypothesis requiring real-user validation and, where possible, independent language / reasoning measures.
 
 ### Taxonomy boundary
 
@@ -561,8 +575,8 @@ Never scrape, transcribe, copy, reconstruct or crowdsource proprietary current-t
 Recruit's official test-center site explicitly states that it does not publish test questions or prep-book information. Recruit also states that SPI has no official prep book and that it monitors commercial prep books, removing or replacing test items judged too similar in order to preserve fairness.
 
 Sources:
-- https://www.spi.recruit.co.jp/testcenter/
-- https://www.spi.recruit.co.jp/spi3news/000040.html
+- https://www.spi.recruit.co.jp/testcenter/ (accessed 2026-09-04)
+- https://www.spi.recruit.co.jp/spi3news/000040.html (accessed 2026-09-04)
 
 That makes `we independently authored similar skill-domain questions` the correct operating model, not `we recreated what appears on the exam`.
 
@@ -571,8 +585,8 @@ That makes `we independently authored similar skill-domain questions` the correc
 The Japan Patent Office explains that registered trademark rights have defined scope and statutory limitations, and provides J-PlatPat for official trademark searches. This research did not establish a blanket rule that any specific `SPI` naming is automatically safe for a commercial prep product.
 
 Source:
-- JPO, https://www.jpo.go.jp/system/trademark/gaiyo/seidogaiyo/shotoha.html
-- J-PlatPat guidance, https://www.jpo.go.jp/e/support/j_platpat/trademark_search.html
+- JPO, https://www.jpo.go.jp/system/trademark/gaiyo/seidogaiyo/shotoha.html (accessed 2026-09-04)
+- J-PlatPat guidance, https://www.jpo.go.jp/e/support/j_platpat/trademark_search.html (accessed 2026-09-04)
 
 Therefore:
 
