@@ -33,6 +33,7 @@
 ## 未來 agents 必須遵守的規則
 
 - 修改 cross-product architecture 前先讀 `docs/platform-architecture.md`；shared contract 必須 narrow、consumer-driven，不得建立 universal content mega-schema。
+- 新增或分類 Learn／Read／Practice／My Learning／Experience、課程模組、Reading、SPI/Web Test、Career Game learning tags 前先讀 `docs/post-n1-learning-map.md`。該文件是 curriculum/content taxonomy authority，但不得被誤用成新的 shared runtime schema。
 - Library **不得新增 first-book 特有的 schema、component、route 或 hard-coded content**；新書應只靠 metadata 與內容上架。
 - Career Game 不得依賴 Book／Chapter／ContentBlock；Library 也不得依賴 scenario／scene／choice／outcome／progression。
 - Library 平台與書的責任分界：platform 負責 rendering、navigation、access、purchase state、library、reading state、search、responsive、accessibility；書負責 metadata 與內容。
@@ -64,6 +65,7 @@
 - `docs/platform-architecture.md` — Library + Career Game bounded contexts、shared platform 與 dependency direction。
 - `docs/shared-backend-and-identity.md` — shared Supabase identity、origin/session topology、browser/server secret boundary 與 data-access isolation。
 - `docs/learning-and-progress.md` — Library／Career Game 的 bounded shared skill/evidence seam、authenticated Game resume、version/reset 與 RLS contract。
+- `docs/post-n1-learning-map.md` — canonical curriculum / content taxonomy；定義 N1 之後學習地圖、learning modes、capability domains、cross-cutting dimensions、ticket naming 與 taxonomy drift guardrails。
 - `docs/product-validation-analytics.md` — #60 的 bounded analytics event vocabulary、privacy 與 non-authoritative trust boundary。
 - `docs/content-model.md` — Library 內容資料模型（`Book → Chapter → ContentBlock` 的具體定義；不是 Career Game schema）。
 - `docs/payments/decision-record.md` — canonical payment decision record（provider-neutral payment architecture 的唯一規範來源；6 頁初版研究已 SUPERSEDED，見 `docs/payments/research-v1-superseded.md`）。
