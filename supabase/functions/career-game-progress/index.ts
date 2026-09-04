@@ -1,6 +1,6 @@
 /** Authenticated Career Game progress/evidence boundary (verify_jwt=true). */
 import { createClient } from 'npm:@supabase/supabase-js@^2.112.3';
-import { rookieSurvivalScenario } from '../../../apps/career-game/src/content/rookie-survival.ts';
+import { careerGameScenarioMap } from '../../../apps/career-game/src/content/scenario-registry.ts';
 import { careerGameCors, withCorsHeaders } from '../_shared/cors.ts';
 import { createServiceRoleClient, type DbClient } from '../_shared/db.ts';
 import { toHandlerRequest, toResponse } from '../_shared/deno.ts';
@@ -19,7 +19,7 @@ Deno.serve(async (req) => {
   const result = await handleCareerGameProgress(request, {
     db,
     log: createSanitizedLogger(),
-    scenarios: new Map([[rookieSurvivalScenario.id, rookieSurvivalScenario]]),
+    scenarios: careerGameScenarioMap,
     randomUUID: () => crypto.randomUUID(),
   });
   return toResponse(withCorsHeaders(result, cors.headers));
