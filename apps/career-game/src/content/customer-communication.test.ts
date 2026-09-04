@@ -210,6 +210,8 @@ describe('取引先との一手 scenario content', () => {
     expect(result.kind).toBe('advanced')
     if (result.kind !== 'advanced') return
     expect(result.outcome.id).toBe('customer-correction-facts-outcome')
+    expect(result.outcome.consequence).not.toContain('月曜に使う三項目')
+    expect(result.outcome.recommendedExpression).not.toContain('月曜提供分')
     expect(result.state.currentSceneId).toBe('customer-closeout')
 
     const closeoutScene = getCurrentScene(customerCommunicationScenario, result.state)

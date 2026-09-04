@@ -347,11 +347,11 @@ const authoredScenario = {
       id: 'customer-correction-facts-outcome',
       category: 'strong',
       consequence:
-        '取引先は未確認の範囲を正しく把握でき、月曜に使う三項目への影響がないことと、残りの確認時刻を確認できた。',
+        '取引先は未確認の範囲と次の確認時刻を正しく把握でき、対応を判断するための情報を得られた。',
       feedback:
         '訂正では、謝罪を大きくするより、何が誤っていたか、影響がどこまでか、いつ更新するかを明確にする。相手が次の行動を決められる情報が信頼を戻す。',
       recommendedExpression:
-        '先ほどの進捗報告に誤りがありました。権限テスト一件が未確認で、月曜提供分の三項目には影響ありません。確認を本日二十時までに終え、結果を改めてご報告します。',
+        '先ほどの進捗報告に誤りがありました。権限テスト一件が未確認です。影響範囲を確認し、本日二十時までに結果を改めてご報告します。',
       acceptableAlternatives: [
         '私の確認不足で、完了としていた一件が未確認でした。影響範囲と修正時刻を分けてご報告します。',
       ],
@@ -364,11 +364,11 @@ const authoredScenario = {
       id: 'customer-correction-apology-outcome',
       category: 'mixed',
       consequence:
-        '誠意は伝わったが、取引先は月曜提供分への影響と、未確認分がいつ終わるのかをもう一度尋ねる必要があった。',
+        '誠意は伝わったが、取引先は未確認分の影響と、いつ状況が確定するのかをもう一度尋ねる必要があった。',
       feedback:
         '謝罪は必要だが、それだけでは相手の不安を解消できない。まず謝り、確認できた事実・影響・次の更新時刻を続けて示すと、丁寧さが実務の安心につながる。',
       recommendedExpression:
-        '申し訳ありません。先ほどの報告に一件誤りがありました。月曜提供分への影響と、確認完了の時刻を続けてご報告します。',
+        '申し訳ありません。先ほどの報告に一件誤りがありました。影響範囲と、確認完了の時刻を続けてご報告します。',
       acceptableAlternatives: [],
       effects: [],
       nextSceneId: 'customer-closeout',
@@ -382,7 +382,7 @@ const authoredScenario = {
       feedback:
         '記録を直すだけでは、すでにその情報を受け取った相手には届かない。誤りの影響を受ける相手へ、訂正を能動的に届けることが報告の責任。',
       recommendedExpression:
-        '先ほどの報告を訂正します。未確認の権限パターンが一件あるため、月曜提供分への影響を確認して改めてご連絡します。',
+        '先ほどの報告を訂正します。未確認の権限パターンが一件あるため、影響範囲を確認して改めてご連絡します。',
       acceptableAlternatives: [],
       effects: [{ kind: 'adjustMeter', meterId: 'trust', amount: -1 }],
       nextSceneId: 'customer-closeout',
