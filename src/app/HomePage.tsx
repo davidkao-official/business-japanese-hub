@@ -162,7 +162,7 @@ function StorefrontPaths({
             <h2 className="storefront-path__title" id="storefront-continue-title">
               {strings.library.continueReading}
             </h2>
-            <p className="storefront-path__description">{strings.library.signedOut}</p>
+            <p className="storefront-path__description">{strings.library.allOwned}</p>
             <Link className="storefront-path__link" to="/library">
               {strings.library.continueReading}
               <span aria-hidden="true">→</span>
