@@ -1219,11 +1219,13 @@ describe('authenticated Career Game progress', () => {
         revision: 7,
       }),
     })
-    renderGame(signedIn, repository)
+    renderGame(signedIn, repository, undefined, false, rookieSurvivalScenario, careerGameScenarios)
 
     expect(await screen.findByRole('heading', { name: '進行をリセットしてください' })).toBeInTheDocument()
     expect(screen.getByText(/ケース内容が更新されたため/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '保存済み進行をリセット' })).toBeEnabled()
+    expect(screen.getByRole('heading', { name: 'ケースを選ぶ' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /取引先との一手/ })).toBeInTheDocument()
   })
 
   it('keeps reset-required state when reset fails and permits retry', async () => {
@@ -1328,10 +1330,18 @@ describe('authenticated Career Game progress', () => {
       { state: createInitialState(rookieSurvivalScenario) },
       window.localStorage,
     )
-    renderGame(signedIn, createRepository({ load }), analytics)
+    renderGame(
+      signedIn,
+      createRepository({ load }),
+      analytics,
+      false,
+      rookieSurvivalScenario,
+      careerGameScenarios,
+    )
 
     expect(await screen.findByRole('heading', { name: '進行を読み込めませんでした' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '配属初日の挨拶' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'ケースを選ぶ' })).toBeInTheDocument()
     expect(track.mock.calls.some(([event]) => event.event === 'case_viewed')).toBe(false)
     fireEvent.click(screen.getByRole('button', { name: '再読み込み' }))
     expect(await screen.findByRole('heading', { name: '新人社員生存戦' })).toBeInTheDocument()

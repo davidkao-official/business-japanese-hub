@@ -1293,6 +1293,8 @@ export default function App({
   }
 
   const showGameLayout = visibleSourceStatus === 'ready' && model.view !== 'intro'
+  const showCaseDirectory =
+    visibleSourceStatus !== 'auth-loading' && visibleSourceStatus !== 'remote-loading'
 
   return (
     <div className="career-game-shell">
@@ -1337,7 +1339,7 @@ export default function App({
             </div>
           </div>
         ) : null}
-        {visibleSourceStatus === 'ready' ? (
+        {showCaseDirectory ? (
           <CaseDirectory
             scenarios={caseOptions}
             activeScenarioId={scenario.id}
