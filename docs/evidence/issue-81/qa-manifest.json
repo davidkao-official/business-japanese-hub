@@ -1,0 +1,114 @@
+{
+  "issue": 81,
+  "baseline": {
+    "sha": "81a5dfe812e37a78110311a0277a79bb0a920913",
+    "url": "http://127.0.0.1:4183/",
+    "server": "pnpm exec vite preview --host 127.0.0.1 --port 4183 --strictPort"
+  },
+  "preIssue80Comparison": {
+    "sha": "4b3558ca8dd4443470df43b81bfce61a7ea523d1",
+    "url": "http://127.0.0.1:4184/",
+    "server": "pnpm exec vite preview --host 127.0.0.1 --port 4184 --strictPort"
+  },
+  "finalImplementationAnchor": "4b48f77cc0f4760be7e4d5b9d8a99c5e84dbacd2",
+  "capture": {
+    "browser": "独立 Chromium context",
+    "deviceScaleFactor": 1,
+    "titleAndBrand": "Business Japanese Hub",
+    "viewports": [
+      "1440x900",
+      "390x844",
+      "768x844",
+      "1024x900",
+      "1280x900"
+    ],
+    "guards": [
+      "document.documentElement.scrollWidth === viewport width",
+      "document.fonts.ready",
+      "scrollBehavior = auto",
+      "mobile menu focus entry, Escape return, and background inertness"
+    ]
+  },
+  "lighthouse": {
+    "version": "13.4.1",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+    "runs": [
+      {
+        "surface": "historical #78 / PR #88 authority",
+        "viewport": "1440x900",
+        "performance": 100,
+        "accessibility": 100,
+        "source": "latest handoff; not rerun in this task"
+      },
+      {
+        "surface": "historical #78 / PR #88 authority",
+        "viewport": "390x844",
+        "performance": 96,
+        "accessibility": 100,
+        "source": "latest handoff; not rerun in this task"
+      },
+      {
+        "surface": "pre-#80 comparison",
+        "viewport": "1440x900",
+        "performance": 100,
+        "accessibility": 100,
+        "bestPractices": 96,
+        "seo": 92,
+        "lcp": "0.5 s",
+        "fcp": "0.4 s"
+      },
+      {
+        "surface": "pre-#80 comparison",
+        "viewport": "390x844",
+        "performance": 95,
+        "accessibility": 100,
+        "bestPractices": 96,
+        "seo": 92,
+        "lcp": "2.6 s",
+        "fcp": "2.0 s"
+      },
+      {
+        "surface": "origin/main after #80",
+        "viewport": "1440x900",
+        "performance": 99,
+        "accessibility": 100,
+        "bestPractices": 96,
+        "seo": 92,
+        "lcp": "0.9 s",
+        "fcp": "0.6 s"
+      },
+      {
+        "surface": "origin/main after #80",
+        "viewport": "390x844",
+        "performance": 83,
+        "accessibility": 100,
+        "bestPractices": 96,
+        "seo": 92,
+        "lcp": "4.4 s",
+        "fcp": "2.0 s"
+      },
+      {
+        "surface": "final #81 implementation",
+        "viewport": "1440x900",
+        "performance": 99,
+        "accessibility": 100,
+        "bestPractices": 96,
+        "seo": 92,
+        "lcp": "0.8 s",
+        "fcp": "0.5 s"
+      },
+      {
+        "surface": "final #81 implementation",
+        "viewport": "390x844",
+        "performance": 82,
+        "accessibility": 100,
+        "bestPractices": 96,
+        "seo": 92,
+        "lcp": "4.5 s",
+        "fcp": "2.1 s"
+      }
+    ],
+    "desktopCommand": "pnpm dlx lighthouse@13.4.1 http://127.0.0.1:<port>/ --preset=desktop --screenEmulation.width=1440 --screenEmulation.height=900 --screenEmulation.mobile=false --screenEmulation.deviceScaleFactor=1 --output=json --output-path=<tmp> --quiet",
+    "mobileCommand": "pnpm dlx lighthouse@13.4.1 http://127.0.0.1:<port>/ --form-factor=mobile --screenEmulation.mobile=true --screenEmulation.width=390 --screenEmulation.height=844 --screenEmulation.deviceScaleFactor=1 --output=json --output-path=<tmp> --quiet"
+  }
+}

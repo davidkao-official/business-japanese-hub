@@ -3,8 +3,10 @@
 ## Immutable anchors
 
 - Baseline: `origin/main` at `81a5dfe812e37a78110311a0277a79bb0a920913`.
-- Final implementation anchor: `5439452f13e11ab0c08b2903b115bc1da1e28f91`.
-- The final evidence package is committed on the branch HEAD reported in the PR handoff; no merge was performed.
+- Pre-#80 comparison: `4b3558ca8dd4443470df43b81bfce61a7ea523d1`.
+- Final implementation anchor: `4b48f77cc0f4760be7e4d5b9d8a99c5e84dbacd2`.
+- Machine-readable capture and Lighthouse provenance: [`qa-manifest.json`](qa-manifest.json).
+- The evidence-only package is committed after the implementation anchor; the exact final branch HEAD is reported in the PR handoff. No merge was performed.
 
 ## Capture method
 
@@ -21,7 +23,8 @@
 | --- | --- | --- |
 | light top | ![before 1440 light](before-1440-light.png) | ![after 1440 light](after-1440-light.png) |
 | dark top | ![before 1440 dark](before-1440-dark.png) | ![after 1440 dark](after-1440-dark.png) |
-| closing surface | ![before 1440 closing](before-1440-closing.png) | ![after 1440 closing](after-1440-closing.png) |
+| light closing / footer | ![before 1440 closing light](before-1440-closing.png) | ![after 1440 closing light](after-1440-closing.png) |
+| dark closing / footer | ![before 1440 closing dark](before-1440-footer-dark.png) | ![after 1440 closing dark](after-1440-footer-dark.png) |
 
 ### 390 × 844
 
@@ -29,7 +32,8 @@
 | --- | --- | --- |
 | light top | ![before 390 light](before-390-light.png) | ![after 390 light](after-390-light.png) |
 | dark top | ![before 390 dark](before-390-dark.png) | ![after 390 dark](after-390-dark.png) |
-| closing surface | ![before 390 closing](before-390-closing.png) | ![after 390 closing](after-390-closing.png) |
+| light closing / footer | ![before 390 closing light](before-390-closing.png) | ![after 390 closing light](after-390-closing.png) |
+| dark closing / footer | ![before 390 closing dark](before-390-footer-dark.png) | ![after 390 closing dark](after-390-footer-dark.png) |
 | mobile menu, light | — | ![after 390 light mobile menu](after-390-menu-light.png) |
 | mobile menu, dark | — | ![after 390 dark mobile menu](after-390-menu-dark.png) |
 
@@ -48,20 +52,22 @@ Runs used the exact requested viewport emulation, device scale factor 1, and the
 
 | run | Performance | Accessibility | Best Practices | SEO | LCP | FCP |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| fresh main before, 1440 × 900 | 100 | 100 | 96 | 92 | 0.8 s | 0.5 s |
-| final after, 1440 × 900 | 99 | 100 | 96 | 92 | 0.8 s | 0.5 s |
-| fresh main before, 390 × 844 | 83 | 100 | 96 | 92 | 4.4 s | 2.0 s |
-| final after, 390 × 844 | 83 | 100 | 96 | 92 | 4.4 s | 2.0 s |
+| pre-#80 comparison, 1440 × 900 | 100 | 100 | 96 | 92 | 0.5 s | 0.4 s |
+| fresh main after #80, 1440 × 900 | 99 | 100 | 96 | 92 | 0.9 s | 0.6 s |
+| final #81, 1440 × 900 | 99 | 100 | 96 | 92 | 0.8 s | 0.5 s |
+| pre-#80 comparison, 390 × 844 | 95 | 100 | 96 | 92 | 2.6 s | 2.0 s |
+| fresh main after #80, 390 × 844 | 83 | 100 | 96 | 92 | 4.4 s | 2.0 s |
+| final #81, 390 × 844 | 82 | 100 | 96 | 92 | 4.5 s | 2.1 s |
 
-The final run is performance-parity with the fresh current-main baseline at 390px; the one-point desktop score difference is within the same 0.8 s LCP band. The 390px result is documented against both the fresh post-#80 baseline and the historical #78 authority rather than presented as a false 96-point reproduction.
+The fresh pre-#80 to post-#80 comparison localizes the large mobile change before #81: 95 to 83 performance points and LCP 2.6 s to 4.4 s. The final #81 run has the same accessibility, Best Practices, SEO, and Lighthouse failing-audit set as current main; its 82 versus 83 is a one-point run difference with LCP 4.5 s versus 4.4 s, not a claim that the historical 96-point result was reproduced. The historical #78 score remains the comparison authority recorded by the latest handoff.
 
 ## Exact-HEAD validation
 
-The following repository-prescribed gates passed on the final implementation before the evidence commit, with the same source tree and no unrelated changes:
+The following repository-prescribed gates are rerun at the final branch HEAD after the evidence package is committed; the implementation anchor above identifies the executable #81 change set:
 
 - `pnpm typecheck` — pass
 - `pnpm lint` — pass
-- `pnpm test` — 109 files / 1,202 tests passed
+- `pnpm test` — 109 files / 1,205 tests passed
 - `deno check supabase/functions/*/index.ts` — pass
 - `pnpm build` — release verification, Library build, and Career Game build passed
 - `pnpm smoke:built-frontends` — Library and Career Game built-artifact direct-route smoke passed
@@ -70,6 +76,6 @@ The following repository-prescribed gates passed on the final implementation bef
 - `supabase db reset --local` — pass
 - `supabase test db --local supabase/tests` — 9 files / 259 tests passed
 - `supabase db lint --local --schema public --level warning --fail-on error` — no schema errors
-- `git diff --check origin/main...HEAD` — pass at the implementation anchor
+- `git diff --check origin/main...HEAD` — pass
 
-The final branch HEAD and its exact PR head SHA are recorded in the final handoff after the evidence package is committed and pushed. CI and mergeability remain GitHub-authoritative; this task intentionally does not merge the PR.
+CI and mergeability remain GitHub-authoritative; the final PR head SHA, exact-HEAD gate output, fresh review verdict, CI state, and mergeability are recorded in the final handoff. This task intentionally does not merge the PR.
