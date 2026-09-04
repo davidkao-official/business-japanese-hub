@@ -44,7 +44,7 @@ export function Header() {
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
 
-    const desktopQuery = window.matchMedia('(min-width: 48rem)')
+    const desktopQuery = window.matchMedia('(min-width: 50rem)')
     const closeOnDesktop = (event: MediaQueryListEvent) => {
       if (event.matches) closeMenu()
     }
@@ -112,6 +112,9 @@ export function Header() {
 
       const focusableElements = Array.from(
         menu.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ).filter(
+        (element) =>
+          !element.matches('input[type="radio"]') || (element as HTMLInputElement).checked,
       )
       const first = focusableElements[0]
       const last = focusableElements[focusableElements.length - 1]

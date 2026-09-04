@@ -44,6 +44,9 @@ describe('Header mobile navigation', () => {
       menu.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       ),
+    ).filter(
+      (element) =>
+        !element.matches('input[type="radio"]') || (element as HTMLInputElement).checked,
     )
     const first = focusable[0]
     const last = focusable[focusable.length - 1]
@@ -63,6 +66,20 @@ describe('Header mobile navigation', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(trigger).toHaveFocus()
     expect(document.body.style.overflow).toBe('')
+  })
+
+  it('keeps the native radio-group Tab stop inside the overlay', () => {
+    renderWithAppProviders(<Header />)
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
+
+    const menu = screen.getByRole('dialog', { name: 'メニュー' })
+    const selectedAppearance = within(menu).getByRole('radio', { name: 'システム' })
+    expect(selectedAppearance).toBeChecked()
+
+    selectedAppearance.focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+
+    expect(within(menu).getByRole('link', { name: 'ビジネス日本語ハブ' })).toHaveFocus()
   })
 
   it('closes when an existing route is selected', () => {
@@ -135,6 +152,7 @@ describe('Header mobile navigation', () => {
 
     try {
       renderWithAppProviders(<Header />)
+      expect(matchMediaMock).toHaveBeenCalledWith('(min-width: 50rem)')
       fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
       expect(screen.getByRole('dialog', { name: 'メニュー' })).toBeInTheDocument()
 

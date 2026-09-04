@@ -1605,13 +1605,13 @@
   min-width: 0;
 }
 
-@media (min-width: 48rem) {
+@media (min-width: 50rem) {
   .site-header__inner {
     grid-template-columns: auto minmax(0, 1fr);
   }
 }
 
-@media (max-width: 47.99rem) {
+@media (max-width: 49.99rem) {
   .site-header__inner {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
