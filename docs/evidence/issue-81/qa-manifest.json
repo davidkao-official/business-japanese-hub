@@ -31,6 +31,7 @@
   },
   "lighthouse": {
     "version": "13.4.1",
+    "runMode": "sequential runs per surface, without concurrent Lighthouse workers",
     "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
     "runs": [
       {
@@ -70,12 +71,12 @@
       {
         "surface": "origin/main after #80",
         "viewport": "1440x900",
-        "performance": 99,
+        "performance": 100,
         "accessibility": 100,
         "bestPractices": 96,
         "seo": 92,
-        "lcp": "0.9 s",
-        "fcp": "0.6 s"
+        "lcp": "0.8 s",
+        "fcp": "0.5 s"
       },
       {
         "surface": "origin/main after #80",
@@ -90,22 +91,22 @@
       {
         "surface": "final #81 implementation",
         "viewport": "1440x900",
-        "performance": 99,
+        "performance": 100,
         "accessibility": 100,
         "bestPractices": 96,
         "seo": 92,
         "lcp": "0.8 s",
-        "fcp": "0.5 s"
+        "fcp": "0.4 s"
       },
       {
         "surface": "final #81 implementation",
         "viewport": "390x844",
-        "performance": 82,
+        "performance": 83,
         "accessibility": 100,
         "bestPractices": 96,
         "seo": 92,
-        "lcp": "4.5 s",
-        "fcp": "2.1 s"
+        "lcp": "4.4 s",
+        "fcp": "2.0 s"
       }
     ],
     "desktopCommand": "pnpm dlx lighthouse@13.4.1 http://127.0.0.1:<port>/ --preset=desktop --screenEmulation.width=1440 --screenEmulation.height=900 --screenEmulation.mobile=false --screenEmulation.deviceScaleFactor=1 --output=json --output-path=<tmp> --quiet",

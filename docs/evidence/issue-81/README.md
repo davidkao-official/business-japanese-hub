@@ -53,13 +53,13 @@ Runs used the exact requested viewport emulation, device scale factor 1, and the
 | run | Performance | Accessibility | Best Practices | SEO | LCP | FCP |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | pre-#80 comparison, 1440 × 900 | 100 | 100 | 96 | 92 | 0.5 s | 0.4 s |
-| fresh main after #80, 1440 × 900 | 99 | 100 | 96 | 92 | 0.9 s | 0.6 s |
-| final #81, 1440 × 900 | 99 | 100 | 96 | 92 | 0.8 s | 0.5 s |
+| fresh main after #80, 1440 × 900 | 100 | 100 | 96 | 92 | 0.8 s | 0.5 s |
+| final #81, 1440 × 900 | 100 | 100 | 96 | 92 | 0.8 s | 0.4 s |
 | pre-#80 comparison, 390 × 844 | 95 | 100 | 96 | 92 | 2.6 s | 2.0 s |
 | fresh main after #80, 390 × 844 | 83 | 100 | 96 | 92 | 4.4 s | 2.0 s |
-| final #81, 390 × 844 | 82 | 100 | 96 | 92 | 4.5 s | 2.1 s |
+| final #81, 390 × 844 | 83 | 100 | 96 | 92 | 4.4 s | 2.0 s |
 
-The fresh pre-#80 to post-#80 comparison localizes the large mobile change before #81: 95 to 83 performance points and LCP 2.6 s to 4.4 s. The final #81 run has the same accessibility, Best Practices, SEO, and Lighthouse failing-audit set as current main; its 82 versus 83 is a one-point run difference with LCP 4.5 s versus 4.4 s, not a claim that the historical 96-point result was reproduced. The historical #78 score remains the comparison authority recorded by the latest handoff.
+The fresh pre-#80 to post-#80 comparison localizes the large mobile change before #81: 95 to 83 performance points and LCP 2.6 s to 4.4 s. Sequential runs show the final #81 surface matching current main at both requested viewports and across all reported Lighthouse categories; this does not claim that the historical #78 96-point mobile result was reproduced. The historical #78 score remains the comparison authority recorded by the latest handoff.
 
 ## Exact-HEAD validation
 
