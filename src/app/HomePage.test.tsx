@@ -21,7 +21,7 @@ describe('storefront', () => {
   it('features the commercial Book and lists both free Books as a compact shelf', async () => {
     renderWithAppProviders(<HomePage />)
 
-    expect(screen.getByRole('heading', { name: '会議の日本語' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '会議の日本語', level: 2 })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'すべての書籍' })).toBeInTheDocument()
     await waitFor(() => {
       expect(screen.getByRole('link', { name: /ビジネス日本語：敬語の基礎/ })).toBeInTheDocument()

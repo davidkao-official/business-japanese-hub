@@ -2,7 +2,11 @@
 
 ## Screenshots
 
-所有影像都是 requested viewport 的 1x PNG：
+所有影像都是 requested viewport 的 1x PNG。每個 URL 都在獨立的
+Chromium context 中載入，等待 `document.fonts` 與現有圖片完成後，以
+`document.documentElement.style.scrollBehavior = 'auto'` 固定 scroll，最後用
+viewport screenshot（不是 document-coordinate clip）擷取；因此每一張 scrolled
+capture 都保留相同的 sticky header（viewport top = 0）。
 
 - after captures 由 fresh Library dev server
   `http://127.0.0.1:41731/` 產生，server 使用 `--host 127.0.0.1
@@ -19,6 +23,22 @@
   requested `scrollY=3560`，顯示 alternating text/image spreads
 - `before-alternating-390.png` / `after-alternating-390.png`：390 × 844，
   requested `scrollY=5600`，顯示行動版的 content-first spread
+
+實際 capture scroll record 如下；baseline 文件較短時，瀏覽器只在該 baseline
+的最大 scrollY 取樣：
+
+| pair | viewport | requested | baseline effective | after effective |
+| --- | ---: | ---: | ---: | ---: |
+| top | 1440 × 900 | 0 | 0 | 0 |
+| top | 390 × 844 | 0 | 0 | 0 |
+| mid | 1440 × 900 | 1760 | 1760 | 1760 |
+| mid | 390 × 844 | 2520 | 2520 | 2520 |
+| alternating | 1440 × 900 | 3560 | 2257 (clamped) | 3560 |
+| alternating | 390 × 844 | 5600 | 3912 (clamped) | 5600 |
+
+每個 scrolled capture 的 header 都在 viewport top = 0；1440px header 高度為
+77px，390px responsive header 高度約為 162px。這保證 before / after 的
+差異來自頁面內容，而不是不同的 screenshot clipping mode。
 
 Before captures 由 exact `origin/main` baseline
 `ee068528a9e6e77f8d3b37f4ba12214401e98a3c` render。頂部 before/after 維持
@@ -45,8 +65,8 @@ baseline document end；這個差異本身證明新增 spread 位於既有 store
 ## QA notes
 
 - CUA browser 以 `http://127.0.0.1:41731/`（`--strictPort`）檢查；兩個
-  viewport 的 title 都是 `Business Japanese Hub`，頁面含已發布的 Library
-  content，且沒有其他產品的內容。
+  viewport 的 title 與 header brand 都是 `Business Japanese Hub`，頁面含已發布
+  的 Library content，且沒有誤載其他產品頁面或品牌。
 - CUA browser 已檢查 1440px 與 390px 的 light / dark themes；headless
   responsive pass 也確認兩種尺寸的 `document.scrollWidth` 沒有超出 viewport。
 - 390px 下 document 維持 viewport-bounded；只有 sample viewport 擁有
@@ -62,7 +82,9 @@ baseline document end；這個差異本身證明新增 spread 位於既有 store
 
 ## Exact-HEAD validation
 
-以下 gates 在包含本 evidence package 的 final commit 重新執行：
+以下 gates 在包含本 evidence package 與所有 source 修正的 final `HEAD` 重新
+執行；push 後以 PR head SHA 作為不可變 exact-HEAD anchor，並在 PR / final
+handoff 同時記錄 `git rev-parse HEAD`：
 
 - `pnpm typecheck` — pass
 - `pnpm lint` — pass
@@ -77,5 +99,7 @@ baseline document end；這個差異本身證明新增 spread 位於既有 store
 - `git diff --check origin/main...HEAD` — pass
 - `git status --porcelain=v1` — clean after validation
 
-Validation was run against the final relevant working tree; the final commit SHA
-is recorded in the PR and handoff report.
+Validation was run against the final relevant working tree after the evidence
+capture was regenerated. `git status --porcelain=v1` was clean afterwards; the
+immutable final commit SHA is recorded from the pushed PR head and the handoff
+report, together with the command results above.

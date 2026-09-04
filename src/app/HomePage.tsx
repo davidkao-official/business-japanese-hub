@@ -139,7 +139,7 @@ function EditorialFeatures({ features }: { features: EditorialFeature[] }) {
               <p className="storefront-feature__label" lang="en">
                 {feature.label}
               </p>
-              <h3 lang={feature.titleLanguage} aria-label={`${feature.label}: ${feature.title}`}>
+              <h3 lang={feature.titleLanguage}>
                 {feature.title}
               </h3>
               <p lang={feature.bodyLanguage}>{feature.body}</p>
