@@ -47,6 +47,12 @@ export interface AppStrings {
   home: {
     title: string
     lead: string
+    featureLabel: string
+    featureTitle: string
+    samplesLabel: string
+    samplesTitle: string
+    selectionsLabel: string
+    selectionsTitle: string
   }
   library: {
     title: string
@@ -265,6 +271,12 @@ const ja: AppStrings = {
   home: {
     title: 'ビジネス日本語ハブ',
     lead: 'ビジネスシーンで役立つ日本語表現を、実践的な書籍を通して学べるプラットフォームです。',
+    featureLabel: '本の構造',
+    featureTitle: '実務で使う言葉を、文脈の中で読む',
+    samplesLabel: '表現のサンプル',
+    samplesTitle: '実際の文章と会話から学ぶ',
+    selectionsLabel: '書籍からの選書',
+    selectionsTitle: '公開中の書籍から、読む場所を選ぶ',
   },
   library: {
     title: 'マイライブラリ',
@@ -485,6 +497,12 @@ const en: AppStrings = {
   home: {
     title: 'Business Japanese Hub',
     lead: 'A platform for learning practical business Japanese through real-world reading materials.',
+    featureLabel: 'How the books are structured',
+    featureTitle: 'Read workplace language in context.',
+    samplesLabel: 'Expression samples',
+    samplesTitle: 'Start with real sentences and conversations.',
+    selectionsLabel: 'Selected from the books',
+    selectionsTitle: 'Find a place to begin in the published books.',
   },
   library: {
     title: 'My Library',
@@ -705,6 +723,12 @@ const zhTW: AppStrings = {
   home: {
     title: '商務日語中心',
     lead: '透過實際的商務日語讀物，學習職場實用日語的平台。',
+    featureLabel: '書本結構',
+    featureTitle: '在真實脈絡中閱讀職場日語',
+    samplesLabel: '表達範例',
+    samplesTitle: '從實際句子與對話開始學習',
+    selectionsLabel: '書籍選讀',
+    selectionsTitle: '從已公開的書籍中，找到開始閱讀的位置',
   },
   library: {
     title: '我的書庫',
