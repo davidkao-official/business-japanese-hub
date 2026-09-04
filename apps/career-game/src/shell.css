@@ -359,6 +359,12 @@ button {
   margin-block-end: var(--space-5);
 }
 
+.case-directory--compact {
+  padding-block-start: var(--space-5);
+  margin-block-start: var(--space-6);
+  border-block-start: var(--stroke-thin) solid var(--game-rule-soft);
+}
+
 .case-directory__header {
   display: grid;
   gap: var(--space-2);
@@ -461,6 +467,16 @@ button {
   padding-block-start: var(--space-2);
   margin-block-start: auto;
   border-block-start: var(--stroke-thin) solid var(--game-rule-soft);
+}
+
+.case-directory--compact .case-directory__link {
+  min-height: auto;
+  padding: var(--space-3);
+}
+
+.case-directory--compact .case-directory__subtitle,
+.case-directory--compact .case-directory__summary {
+  display: none;
 }
 
 .case-cover {

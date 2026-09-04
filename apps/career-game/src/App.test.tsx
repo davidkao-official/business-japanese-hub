@@ -41,6 +41,7 @@ function renderGame(
   analytics?: ValidationAnalytics,
   strict = false,
   scenario: Scenario = rookieSurvivalScenario,
+  availableScenarios: readonly Scenario[] = [scenario],
 ) {
   const authClient: AuthClient = {
     getSession: vi.fn().mockResolvedValue(session),
@@ -56,6 +57,7 @@ function renderGame(
     <AuthProvider authClient={authClient}>
       <App
         scenario={scenario}
+        availableScenarios={availableScenarios}
         progressRepository={progressRepository}
         analytics={analytics}
       />
@@ -357,6 +359,20 @@ describe('Career Game playable slice', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('5 files')).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'ケースを開始' })).toBeEnabled()
+  })
+
+  it('keeps the generic case selector available after play starts', async () => {
+    renderGame(null, undefined, undefined, false, rookieSurvivalScenario, careerGameScenarios)
+
+    await startCase()
+
+    expect(screen.getByRole('heading', { level: 2, name: 'ケースを選ぶ' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /取引先との一手/ })).toHaveAttribute(
+      'href',
+      '/cases/customer-communication',
+    )
+    chooseFirstOption()
+    expect(screen.getByRole('heading', { level: 2, name: 'ケースを選ぶ' })).toBeInTheDocument()
   })
 
   it('does not promise a fixed file count for branching or looping cases', async () => {

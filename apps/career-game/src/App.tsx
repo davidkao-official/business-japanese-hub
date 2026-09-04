@@ -203,14 +203,19 @@ function ProgressRail({ entries }: { entries: ProgressRailEntry[] }) {
 function CaseDirectory({
   scenarios,
   activeScenarioId,
+  compact = false,
 }: {
   scenarios: readonly Scenario[]
   activeScenarioId: string
+  compact?: boolean
 }) {
   if (scenarios.length < 2) return null
 
   return (
-    <section className="case-directory" aria-labelledby="case-directory-title">
+    <section
+      className={`case-directory${compact ? ' case-directory--compact' : ''}`}
+      aria-labelledby="case-directory-title"
+    >
       <div className="case-directory__header">
         <p className="section-label" lang="en">
           Case register
@@ -1316,12 +1321,7 @@ export default function App({
             進行を同期できませんでした。もう一度お試しください。
           </p>
         ) : null}
-        {visibleSourceStatus === 'ready' && model.view === 'intro' ? (
-          <>
-            {renderIntro()}
-            <CaseDirectory scenarios={caseOptions} activeScenarioId={scenario.id} />
-          </>
-        ) : null}
+        {visibleSourceStatus === 'ready' && model.view === 'intro' ? renderIntro() : null}
         {showGameLayout ? (
           <div
             className={`game-layout${
@@ -1336,6 +1336,13 @@ export default function App({
               {model.view === 'complete' ? renderCompletion() : null}
             </div>
           </div>
+        ) : null}
+        {visibleSourceStatus === 'ready' ? (
+          <CaseDirectory
+            scenarios={caseOptions}
+            activeScenarioId={scenario.id}
+            compact={showGameLayout}
+          />
         ) : null}
       </main>
     </div>

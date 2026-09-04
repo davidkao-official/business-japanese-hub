@@ -488,6 +488,13 @@ describe('career-game-progress handler', () => {
     async (scenario) => {
       const initial = createInitialState(scenario)
       const choice = firstChoice(scenario, initial)
+      const first = applyChoice(scenario, initial, {
+        scenarioId: scenario.id,
+        contentVersion: scenario.contentVersion,
+        sceneId: initial.currentSceneId,
+        choiceId: choice.id,
+      });
+      if (first.kind !== 'advanced') throw new Error('fixture must advance');
       const stale = await call(
         {
           action: 'acknowledge',
@@ -498,11 +505,16 @@ describe('career-game-progress handler', () => {
         },
         {
           career_game_progress: {
-            data: progressRow(scenario, { revision: 1, pending_outcome_id: 'x' }),
+            data: progressRow(scenario, {
+              state: first.state,
+              pending_outcome_id: first.outcome.id,
+              revision: 1,
+            }),
           },
         },
       );
       expect(stale.result.status).toBe(409);
+      expect(JSON.parse(stale.result.body)).toEqual({ kind: 'conflict' });
       expect(stale.mock.rpcCalls('persist_career_game_action')).toHaveLength(0);
 
       const lost = await call(
