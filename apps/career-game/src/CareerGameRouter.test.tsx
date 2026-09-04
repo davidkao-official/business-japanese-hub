@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { AuthProvider, createNullAuthClient } from '@business-japanese-hub/platform-auth'
 import { describe, expect, it } from 'vitest'
 import { CareerGameRouter } from './CareerGameRouter'
@@ -26,6 +26,9 @@ describe('Career Game router surface', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('main')).toHaveAttribute('id', 'career-game-main')
     expect(screen.getByRole('heading', { level: 2, name: 'ケースを選ぶ' })).toBeInTheDocument()
+    const headings = within(screen.getByRole('main')).getAllByRole('heading')
+    expect(headings[0]).toHaveTextContent('新人社員生存戦')
+    expect(headings[1]).toHaveTextContent('ケースを選ぶ')
     for (const scenario of careerGameCatalog.scenarios) {
       expect(
         screen.getByRole('link', { name: new RegExp(scenario.title) }),

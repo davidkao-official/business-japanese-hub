@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { applyChoice, createInitialState, type Scenario } from '@business-japanese-hub/career-game';
+import {
+  applyChoice,
+  createInitialState,
+  getAvailableChoices,
+  type Scenario,
+} from '@business-japanese-hub/career-game';
 import { customerCommunicationScenario } from '../../../apps/career-game/src/content/customer-communication.ts';
 import { rookieSurvivalScenario } from '../../../apps/career-game/src/content/rookie-survival.ts';
 import { upwardDisagreementScenario } from '../../../apps/career-game/src/content/upward-disagreement.ts';
-import { careerGameScenarioMap } from '../../../apps/career-game/src/content/scenario-registry.ts';
+import {
+  careerGameScenarioMap,
+  careerGameScenarios,
+} from '../../../apps/career-game/src/content/scenario-registry.ts';
 import {
   bearerHeaders,
   createMockDb,
@@ -18,12 +26,15 @@ function body(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function progressRow(overrides: Record<string, unknown> = {}) {
+function progressRow(
+  scenario: Scenario = rookieSurvivalScenario,
+  overrides: Record<string, unknown> = {},
+) {
   return {
     user_id: 'user-1',
-    scenario_id: rookieSurvivalScenario.id,
-    content_version: rookieSurvivalScenario.contentVersion,
-    state: createInitialState(rookieSurvivalScenario),
+    scenario_id: scenario.id,
+    content_version: scenario.contentVersion,
+    state: createInitialState(scenario),
     pending_outcome_id: null,
     attempt_id: ATTEMPT_ID,
     revision: 1,
@@ -31,6 +42,12 @@ function progressRow(overrides: Record<string, unknown> = {}) {
     updated_at: '2026-08-31T00:00:00Z',
     ...overrides,
   };
+}
+
+function firstChoice(scenario: Scenario, state: ReturnType<typeof createInitialState>) {
+  const choice = getAvailableChoices(scenario, state)[0]
+  if (!choice) throw new Error(`Expected an available choice for ${scenario.id}`)
+  return choice
 }
 
 function setup(routes: Record<string, unknown> = {}) {
@@ -182,13 +199,17 @@ describe('career-game-progress handler', () => {
   it('turns stale versions and replay-invalid stored state into deterministic reset responses', async () => {
     const stale = await call(
       { action: 'load', scenarioId: rookieSurvivalScenario.id, contentVersion: 1 },
-      { career_game_progress: { data: progressRow({ content_version: 2 }) } },
+      {
+        career_game_progress: {
+          data: progressRow(rookieSurvivalScenario, { content_version: 2 }),
+        },
+      },
     );
     const invalid = await call(
       { action: 'load', scenarioId: rookieSurvivalScenario.id, contentVersion: 1 },
       {
         career_game_progress: {
-          data: progressRow({
+          data: progressRow(rookieSurvivalScenario, {
             state: { ...createInitialState(rookieSurvivalScenario), currentSceneId: 'forged' },
           }),
         },
@@ -309,49 +330,53 @@ describe('career-game-progress handler', () => {
     },
   );
 
-  it('applies a choice server-side and derives evidence from the authored outcome', async () => {
-    const initial = createInitialState(rookieSurvivalScenario);
-    const expected = applyChoice(rookieSurvivalScenario, initial, {
-      scenarioId: rookieSurvivalScenario.id,
-      contentVersion: 1,
-      sceneId: 'file-one-greeting',
-      choiceId: 'greeting-concise-choice',
-    });
-    if (expected.kind !== 'advanced') throw new Error('fixture must advance');
+  it.each(careerGameScenarios)(
+    'applies a choice server-side and derives evidence from the authored outcome for %s',
+    async (scenario) => {
+      const initial = createInitialState(scenario);
+      const choice = firstChoice(scenario, initial)
+      const expected = applyChoice(scenario, initial, {
+        scenarioId: scenario.id,
+        contentVersion: scenario.contentVersion,
+        sceneId: initial.currentSceneId,
+        choiceId: choice.id,
+      });
+      if (expected.kind !== 'advanced') throw new Error('fixture must advance');
 
-    const { result, mock } = await call(
-      {
-        action: 'choose',
-        scenarioId: rookieSurvivalScenario.id,
-        contentVersion: 1,
-        sceneId: 'file-one-greeting',
-        choiceId: 'greeting-concise-choice',
+      const { result, mock } = await call(
+        {
+          action: 'choose',
+          scenarioId: scenario.id,
+          contentVersion: scenario.contentVersion,
+          sceneId: initial.currentSceneId,
+          choiceId: choice.id,
+          checkpointId: ATTEMPT_ID,
+          expectedRevision: 1,
+        },
+        {
+          career_game_progress: { data: progressRow(scenario) },
+          'rpc:persist_career_game_action': { data: { kind: 'persisted', revision: 2 } },
+        },
+      );
+      expect(result.status).toBe(200);
+      expect(JSON.parse(result.body)).toEqual({
+        kind: 'progress',
+        scenarioId: scenario.id,
+        contentVersion: scenario.contentVersion,
         checkpointId: ATTEMPT_ID,
-        expectedRevision: 1,
-      },
-      {
-        career_game_progress: { data: progressRow() },
-        'rpc:persist_career_game_action': { data: { kind: 'persisted', revision: 2 } },
-      },
-    );
-    expect(result.status).toBe(200);
-    expect(JSON.parse(result.body)).toEqual({
-      kind: 'progress',
-      scenarioId: rookieSurvivalScenario.id,
-      contentVersion: 1,
-      checkpointId: ATTEMPT_ID,
-      revision: 2,
-      snapshot: { state: expected.state, pendingOutcomeId: expected.outcome.id },
-    });
-    expect(mock.rpcCalls('persist_career_game_action')[0]?.args[0]).toMatchObject({
-      p_user_id: 'user-1',
-      p_state: expected.state,
-      p_pending_outcome_id: expected.outcome.id,
-      p_evidence_skill_ids: ['workplace-greeting'],
-      p_evidence_quality: 'strong',
-      p_evidence_source_unit_id: expected.outcome.id,
-    });
-  });
+        revision: 2,
+        snapshot: { state: expected.state, pendingOutcomeId: expected.outcome.id },
+      });
+      expect(mock.rpcCalls('persist_career_game_action')[0]?.args[0]).toMatchObject({
+        p_user_id: 'user-1',
+        p_state: expected.state,
+        p_pending_outcome_id: expected.outcome.id,
+        p_evidence_skill_ids: expected.outcome.skillTags ?? [],
+        p_evidence_quality: expected.outcome.category,
+        p_evidence_source_unit_id: expected.outcome.id,
+      });
+    },
+  );
 
   it('persists an authored outcome with no skill tags without fabricating evidence metadata', async () => {
     const firstOutcome = rookieSurvivalScenario.outcomes.find(
@@ -400,91 +425,112 @@ describe('career-game-progress handler', () => {
     });
   });
 
-  it('requires pending feedback to be acknowledged before another choice', async () => {
-    const first = applyChoice(rookieSurvivalScenario, createInitialState(rookieSurvivalScenario), {
-      scenarioId: rookieSurvivalScenario.id,
-      contentVersion: 1,
-      sceneId: 'file-one-greeting',
-      choiceId: 'greeting-concise-choice',
-    });
-    if (first.kind !== 'advanced') throw new Error('fixture must advance');
-    const row = progressRow({
-      state: first.state,
-      pending_outcome_id: first.outcome.id,
-      revision: 2,
-    });
-    const blocked = await call(
-      {
-        action: 'choose',
-        scenarioId: rookieSurvivalScenario.id,
-        contentVersion: 1,
-        sceneId: first.state.currentSceneId,
-        choiceId: 'request-confirm-choice',
-        checkpointId: ATTEMPT_ID,
-        expectedRevision: 2,
-      },
-      { career_game_progress: { data: row } },
-    );
-    expect(blocked.result.status).toBe(400);
-    expect(blocked.mock.rpcCalls('persist_career_game_action')).toHaveLength(0);
+  it.each(careerGameScenarios)(
+    'requires pending feedback to be acknowledged before another choice for %s',
+    async (scenario) => {
+      const initial = createInitialState(scenario)
+      const choice = firstChoice(scenario, initial)
+      const first = applyChoice(scenario, initial, {
+        scenarioId: scenario.id,
+        contentVersion: scenario.contentVersion,
+        sceneId: initial.currentSceneId,
+        choiceId: choice.id,
+      });
+      if (first.kind !== 'advanced') throw new Error('fixture must advance');
+      const nextScene = scenario.scenes.find((scene) => scene.id === first.state.currentSceneId)
+      if (!nextScene || nextScene.kind !== 'decision') {
+        throw new Error('fixture must have another decision')
+      }
+      const row = progressRow(scenario, {
+        state: first.state,
+        pending_outcome_id: first.outcome.id,
+        revision: 2,
+      });
+      const blocked = await call(
+        {
+          action: 'choose',
+          scenarioId: scenario.id,
+          contentVersion: scenario.contentVersion,
+          sceneId: first.state.currentSceneId,
+          choiceId: nextScene.choices[0]!.id,
+          checkpointId: ATTEMPT_ID,
+          expectedRevision: 2,
+        },
+        { career_game_progress: { data: row } },
+      );
+      expect(blocked.result.status).toBe(400);
+      expect(blocked.mock.rpcCalls('persist_career_game_action')).toHaveLength(0);
 
-    const acknowledged = await call(
-      {
-        action: 'acknowledge',
-        scenarioId: rookieSurvivalScenario.id,
-        contentVersion: 1,
-        checkpointId: ATTEMPT_ID,
-        expectedRevision: 2,
-      },
-      {
-        career_game_progress: { data: row },
-        'rpc:persist_career_game_action': { data: { kind: 'persisted', revision: 3 } },
-      },
-    );
-    expect(acknowledged.result.status).toBe(200);
-    expect(JSON.parse(acknowledged.result.body).snapshot).toEqual({ state: first.state });
-    expect(acknowledged.mock.rpcCalls('persist_career_game_action')[0]?.args[0]).toMatchObject({
-      p_pending_outcome_id: null,
-      p_evidence_skill_ids: [],
-    });
-  });
+      const acknowledged = await call(
+        {
+          action: 'acknowledge',
+          scenarioId: scenario.id,
+          contentVersion: scenario.contentVersion,
+          checkpointId: ATTEMPT_ID,
+          expectedRevision: 2,
+        },
+        {
+          career_game_progress: { data: row },
+          'rpc:persist_career_game_action': { data: { kind: 'persisted', revision: 3 } },
+        },
+      );
+      expect(acknowledged.result.status).toBe(200);
+      expect(JSON.parse(acknowledged.result.body).snapshot).toEqual({ state: first.state });
+      expect(acknowledged.mock.rpcCalls('persist_career_game_action')[0]?.args[0]).toMatchObject({
+        p_pending_outcome_id: null,
+        p_evidence_skill_ids: [],
+      });
+    },
+  );
 
-  it('returns conflict without advancement on a stale revision or CAS loss', async () => {
-    const stale = await call(
-      {
-        action: 'acknowledge',
-        scenarioId: rookieSurvivalScenario.id,
-        contentVersion: 1,
-        checkpointId: ATTEMPT_ID,
-        expectedRevision: 2,
-      },
-      { career_game_progress: { data: progressRow({ revision: 1, pending_outcome_id: 'x' }) } },
-    );
-    expect(stale.result.status).toBe(409);
-    expect(stale.mock.rpcCalls('persist_career_game_action')).toHaveLength(0);
+  it.each(careerGameScenarios)(
+    'returns conflict without advancement on a stale revision or CAS loss for %s',
+    async (scenario) => {
+      const initial = createInitialState(scenario)
+      const choice = firstChoice(scenario, initial)
+      const stale = await call(
+        {
+          action: 'acknowledge',
+          scenarioId: scenario.id,
+          contentVersion: scenario.contentVersion,
+          checkpointId: ATTEMPT_ID,
+          expectedRevision: 2,
+        },
+        {
+          career_game_progress: {
+            data: progressRow(scenario, { revision: 1, pending_outcome_id: 'x' }),
+          },
+        },
+      );
+      expect(stale.result.status).toBe(409);
+      expect(stale.mock.rpcCalls('persist_career_game_action')).toHaveLength(0);
 
-    const lost = await call(
-      {
-        action: 'choose',
-        scenarioId: rookieSurvivalScenario.id,
-        contentVersion: 1,
-        sceneId: 'file-one-greeting',
-        choiceId: 'greeting-concise-choice',
-        checkpointId: ATTEMPT_ID,
-        expectedRevision: 1,
-      },
-      {
-        career_game_progress: { data: progressRow() },
-        'rpc:persist_career_game_action': { data: { kind: 'conflict' } },
-      },
-    );
-    expect(lost.result.status).toBe(409);
-    expect(JSON.parse(lost.result.body)).toEqual({ kind: 'conflict' });
-  });
+      const lost = await call(
+        {
+          action: 'choose',
+          scenarioId: scenario.id,
+          contentVersion: scenario.contentVersion,
+          sceneId: initial.currentSceneId,
+          choiceId: choice.id,
+          checkpointId: ATTEMPT_ID,
+          expectedRevision: 1,
+        },
+        {
+          career_game_progress: { data: progressRow(scenario) },
+          'rpc:persist_career_game_action': { data: { kind: 'conflict' } },
+        },
+      );
+      expect(lost.result.status).toBe(409);
+      expect(JSON.parse(lost.result.body)).toEqual({ kind: 'conflict' });
+    },
+  );
 
   it('rejects stale actions when a replacement attempt reuses the same revision', async () => {
     const replacementAttemptId = '10000000-0000-4000-8000-000000000099';
-    const replacement = progressRow({ attempt_id: replacementAttemptId, revision: 1 });
+    const replacement = progressRow(rookieSurvivalScenario, {
+      attempt_id: replacementAttemptId,
+      revision: 1,
+    });
     const choose = await call(
       {
         action: 'choose',

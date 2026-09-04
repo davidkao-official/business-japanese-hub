@@ -11,6 +11,7 @@ interface DeploymentSmokeContract {
   directRoutes: readonly string[]
   fingerprint: string
   label: string
+  runtimeFingerprints?: readonly string[]
   title: string
 }
 
@@ -41,6 +42,7 @@ const SMOKE_CONTRACTS: Record<DeploymentProduct, DeploymentSmokeContract> = {
     fingerprint:
       '日本の職場を舞台に判断と結果を振り返る、Business Japanese Hub の職場シミュレーション。',
     label: 'Career Game',
+    runtimeFingerprints: ['rookie-survival', 'customer-communication', 'upward-disagreement'],
     title: 'キャリアゲーム | Business Japanese Hub',
   },
 }
@@ -167,6 +169,7 @@ export async function verifyDeployment(
   ];
   if (assetRefs.length === 0) throw new Error('Deployment smoke found no built assets');
 
+  const javascriptBodies: string[] = [];
   for (const ref of assetRefs) {
     const assetUrl = new URL(ref, base)
     const response = await fetchWithRetry(
@@ -176,6 +179,9 @@ export async function verifyDeployment(
       options,
     );
     assertRequestedUrl(response, assetUrl, `asset ${ref}`)
+    if (/\.(?:m?js)$/i.test(assetUrl.pathname)) {
+      javascriptBodies.push(await response.text())
+    }
   }
 
   for (const route of contract.directRoutes) {
@@ -193,6 +199,17 @@ export async function verifyDeployment(
     const body = await response.text();
     if (body !== rootHtml) {
       throw new Error(`Deployment smoke received a non-SPA fallback for ${route}`);
+    }
+  }
+
+  if (contract.runtimeFingerprints?.length) {
+    const runtime = javascriptBodies.join('\n')
+    for (const fingerprint of contract.runtimeFingerprints) {
+      if (!runtime.includes(fingerprint)) {
+        throw new Error(
+          `Deployment smoke could not find ${contract.label} runtime catalog marker ${fingerprint}`,
+        )
+      }
     }
   }
 }

@@ -38,10 +38,14 @@ supabase db start
 supabase db reset --local
 supabase test db --local supabase/tests
 supabase db lint --local
-pnpm smoke:deployment https://business-japanese-career-game.pages.dev/ career-game
-pnpm smoke:deployment https://business-japanese-hub.pages.dev/ library
 git diff --check
 ```
+
+Run the two `smoke:deployment` commands against the exact candidate preview
+origins before release. After the Pages projects deploy that exact HEAD, repeat
+them against the canonical Career Game and Library origins. The canonical Game
+smoke must include the runtime catalog markers for all three cases; an older
+production bundle is not evidence for this ticket.
 
 Release QA must also cover root selection, each `/cases/:slug` route, each
 stable `/case-link?scenarioId=...` route, reload/deep-link behavior, mobile and

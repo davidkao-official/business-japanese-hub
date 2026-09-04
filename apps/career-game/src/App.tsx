@@ -1318,8 +1318,8 @@ export default function App({
         ) : null}
         {visibleSourceStatus === 'ready' && model.view === 'intro' ? (
           <>
-            <CaseDirectory scenarios={caseOptions} activeScenarioId={scenario.id} />
             {renderIntro()}
+            <CaseDirectory scenarios={caseOptions} activeScenarioId={scenario.id} />
           </>
         ) : null}
         {showGameLayout ? (

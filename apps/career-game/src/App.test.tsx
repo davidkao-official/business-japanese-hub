@@ -18,7 +18,9 @@ import type {
   CareerGameProgressResponse,
 } from './career-game-progress'
 import { rookieSurvivalScenario } from './content/rookie-survival'
+import { careerGameScenarios } from './content/scenario-registry'
 import { loadGameSession, saveGameSession } from './game-session'
+import { libraryLinkHref } from './library-links'
 
 function createRepository(
   overrides: Partial<CareerGameProgressRepository> = {},
@@ -635,20 +637,26 @@ describe('Career Game playable slice', () => {
     }
   })
 
-  it('restores pending consequence feedback after a reload', async () => {
-    const firstRender = renderGame()
-    await startCase()
-    chooseFirstOption()
-    expect(screen.getByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
-    firstRender.unmount()
+  it.each(careerGameScenarios)(
+    'restores pending consequence feedback after a reload for %s',
+    async (scenario) => {
+      const firstRender = renderGame(null, undefined, undefined, false, scenario)
+      await startCase()
+      chooseFirstOption()
+      expect(screen.getByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
+      expect(loadGameSession(scenario, window.localStorage)?.state.history).toHaveLength(1)
+      firstRender.unmount()
 
-    renderGame()
-    expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
-    expect(screen.getByText('FILE 01 / 05')).toBeInTheDocument()
-    expect(document.querySelector('[aria-current="step"]')).toHaveTextContent('配属初日の挨拶')
-    fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
-    expect(screen.getByText('FILE 02 / 05')).toBeInTheDocument()
-  })
+      renderGame(null, undefined, undefined, false, scenario)
+      expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
+      expect(screen.getByText('FILE 01 / 05')).toBeInTheDocument()
+      expect(document.querySelector('[aria-current="step"]')).toHaveTextContent(
+        scenario.scenes.find((scene) => scene.id === scenario.startSceneId)?.title ?? '',
+      )
+      fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
+      expect(screen.getByText('FILE 02 / 05')).toBeInTheDocument()
+    },
+  )
 
   it('resumes the next file after feedback has been acknowledged', async () => {
     const firstRender = renderGame()
@@ -680,25 +688,28 @@ describe('Career Game playable slice', () => {
     ).toHaveLength(1)
   })
 
-  it('clears the checkpoint and returns to the case file on replay', async () => {
-    const { analytics, track } = createAnalytics()
-    renderGame(null, undefined, analytics)
-    await startCase()
+  it.each(careerGameScenarios)(
+    'clears the checkpoint and returns to the case file on replay for %s',
+    async (scenario) => {
+      const { analytics, track } = createAnalytics()
+      renderGame(null, undefined, analytics, false, scenario)
+      await startCase()
 
-    for (let file = 1; file <= 5; file += 1) {
-      chooseFirstOption()
-      fireEvent.click(
-        screen.getByRole('button', { name: file === 5 ? '結果を見る' : '次のファイルへ' }),
-      )
-    }
+      for (let file = 1; file <= 5; file += 1) {
+        chooseFirstOption()
+        fireEvent.click(
+          screen.getByRole('button', { name: file === 5 ? '結果を見る' : '次のファイルへ' }),
+        )
+      }
 
-    fireEvent.click(screen.getByRole('button', { name: 'もう一度プレイ' }))
-    expect(screen.getByRole('heading', { level: 1, name: '新人社員生存戦' })).toBeInTheDocument()
-    expect(loadGameSession(rookieSurvivalScenario, window.localStorage)).toBeNull()
-    expect(
-      track.mock.calls.filter(([event]) => event.event === 'case_replayed'),
-    ).toEqual([[{ event: 'case_replayed', scenarioId: 'rookie-survival' }]])
-  })
+      fireEvent.click(screen.getByRole('button', { name: 'もう一度プレイ' }))
+      expect(screen.getByRole('heading', { level: 1, name: scenario.title })).toBeInTheDocument()
+      expect(loadGameSession(scenario, window.localStorage)).toBeNull()
+      expect(
+        track.mock.calls.filter(([event]) => event.event === 'case_replayed'),
+      ).toEqual([[{ event: 'case_replayed', scenarioId: scenario.id }]])
+    },
+  )
 
   it('tracks a Case view once through the development StrictMode effect cycle', async () => {
     const { analytics, track } = createAnalytics()
@@ -948,24 +959,29 @@ describe('Career Game playable slice', () => {
 
 const CHECKPOINT_ID = '11111111-1111-4111-8111-111111111111'
 
-function firstRemoteProgress(revision = 2): Extract<CareerGameProgressResponse, { kind: 'progress' }> {
-  const state = createInitialState(rookieSurvivalScenario)
-  const firstScene = rookieSurvivalScenario.scenes.find((scene) => scene.id === state.currentSceneId)
+function firstRemoteProgress(
+  scenarioOrRevision: Scenario | number = rookieSurvivalScenario,
+  revision = 2,
+): Extract<CareerGameProgressResponse, { kind: 'progress' }> {
+  const scenario = typeof scenarioOrRevision === 'number' ? rookieSurvivalScenario : scenarioOrRevision
+  const currentRevision = typeof scenarioOrRevision === 'number' ? scenarioOrRevision : revision
+  const state = createInitialState(scenario)
+  const firstScene = scenario.scenes.find((scene) => scene.id === state.currentSceneId)
   if (!firstScene || firstScene.kind !== 'decision') throw new Error('expected decision')
   const choice = firstScene.choices[0]!
-  const result = applyChoice(rookieSurvivalScenario, state, {
-    scenarioId: rookieSurvivalScenario.id,
-    contentVersion: rookieSurvivalScenario.contentVersion,
+  const result = applyChoice(scenario, state, {
+    scenarioId: scenario.id,
+    contentVersion: scenario.contentVersion,
     sceneId: firstScene.id,
     choiceId: choice.id,
   })
   if (result.kind !== 'advanced') throw new Error(result.kind)
   return {
     kind: 'progress',
-    scenarioId: rookieSurvivalScenario.id,
-    contentVersion: rookieSurvivalScenario.contentVersion,
+    scenarioId: scenario.id,
+    contentVersion: scenario.contentVersion,
     checkpointId: CHECKPOINT_ID,
-    revision,
+    revision: currentRevision,
     snapshot: { state: result.state, pendingOutcomeId: result.outcome.id },
   }
 }
@@ -1121,22 +1137,32 @@ describe('authenticated Career Game progress', () => {
     expect(authClient.signOut).toHaveBeenCalledOnce()
   })
 
-  it('restores pending remote feedback and links to the stable Library resolver', async () => {
-    const repository = createRepository({ load: vi.fn().mockResolvedValue(firstRemoteProgress()) })
-    const { analytics, track } = createAnalytics()
-    renderGame(signedIn, repository, analytics)
+  it.each(careerGameScenarios)(
+    'restores pending remote feedback and links to the stable Library resolver for %s',
+    async (scenario) => {
+      const response = firstRemoteProgress(scenario)
+      const repository = createRepository({ load: vi.fn().mockResolvedValue(response) })
+      const { analytics, track } = createAnalytics()
+      renderGame(signedIn, repository, analytics, false, scenario)
 
-    expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Libraryで関連内容を読む' })).toHaveAttribute(
-      'href',
-      'https://business-japanese-hub.pages.dev/library-link?bookId=book-sample-bj-keigo&chapterId=ch-2',
-    )
-    await waitFor(() => {
-      expect(track.mock.calls.map(([event]) => event)).toEqual([
-        { event: 'case_viewed', scenarioId: 'rookie-survival' },
-      ])
-    })
-  })
+      expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
+      const pendingOutcome = scenario.outcomes.find(
+        (outcome) => outcome.id === response.snapshot.pendingOutcomeId,
+      )
+      const libraryLink = pendingOutcome?.libraryLinks?.[0]
+      if (!libraryLink) throw new Error(`expected a Library link for ${scenario.id}`)
+      expect(screen.getByRole('link', { name: 'Libraryで関連内容を読む' })).toHaveAttribute(
+        'href',
+        libraryLinkHref(libraryLink, undefined),
+      )
+      expect(repository.load).toHaveBeenCalledWith(scenario.id, scenario.contentVersion)
+      await waitFor(() => {
+        expect(track.mock.calls.map(([event]) => event)).toEqual([
+          { event: 'case_viewed', scenarioId: scenario.id },
+        ])
+      })
+    },
+  )
 
   it('never writes authenticated actions to guest local storage', async () => {
     const initial = createInitialState(rookieSurvivalScenario)
@@ -1208,35 +1234,44 @@ describe('authenticated Career Game progress', () => {
     expect(reset).toHaveBeenCalledWith('rookie-survival', 1, 1, CHECKPOINT_ID, 7)
   })
 
-  it('leaves reset mode after a CAS conflict loads a replacement checkpoint', async () => {
-    const replacementCheckpointId = '22222222-2222-4222-8222-222222222222'
-    const replacement = {
-      ...firstRemoteProgress(1),
-      checkpointId: replacementCheckpointId,
-    }
-    const load = vi
-      .fn()
-      .mockResolvedValueOnce({
-        kind: 'reset-required',
-        reason: 'invalid-persisted-progress',
-        currentVersion: 1,
-        storedVersion: 1,
-        checkpointId: CHECKPOINT_ID,
-        revision: 7,
-      } satisfies CareerGameProgressResponse)
-      .mockResolvedValueOnce(replacement)
-    const reset = vi.fn().mockResolvedValue({ kind: 'conflict' })
-    renderGame(signedIn, createRepository({ load, reset }))
+  it.each(careerGameScenarios)(
+    'leaves reset mode after a CAS conflict loads a replacement checkpoint for %s',
+    async (scenario) => {
+      const replacementCheckpointId = '22222222-2222-4222-8222-222222222222'
+      const replacement = {
+        ...firstRemoteProgress(scenario, 1),
+        checkpointId: replacementCheckpointId,
+      }
+      const load = vi
+        .fn()
+        .mockResolvedValueOnce({
+          kind: 'reset-required',
+          reason: 'invalid-persisted-progress',
+          currentVersion: scenario.contentVersion,
+          storedVersion: scenario.contentVersion,
+          checkpointId: CHECKPOINT_ID,
+          revision: 7,
+        } satisfies CareerGameProgressResponse)
+        .mockResolvedValueOnce(replacement)
+      const reset = vi.fn().mockResolvedValue({ kind: 'conflict' })
+      renderGame(signedIn, createRepository({ load, reset }), undefined, false, scenario)
 
-    fireEvent.click(await screen.findByRole('button', { name: '保存済み進行をリセット' }))
+      fireEvent.click(await screen.findByRole('button', { name: '保存済み進行をリセット' }))
 
-    expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: '進行をリセットしてください' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '保存済み進行をリセット' })).not.toBeInTheDocument()
-    expect(reset).toHaveBeenCalledTimes(1)
-    expect(reset).toHaveBeenCalledWith('rookie-survival', 1, 1, CHECKPOINT_ID, 7)
-    expect(load).toHaveBeenCalledTimes(2)
-  })
+      expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: '進行をリセットしてください' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '保存済み進行をリセット' })).not.toBeInTheDocument()
+      expect(reset).toHaveBeenCalledTimes(1)
+      expect(reset).toHaveBeenCalledWith(
+        scenario.id,
+        scenario.contentVersion,
+        scenario.contentVersion,
+        CHECKPOINT_ID,
+        7,
+      )
+      expect(load).toHaveBeenCalledTimes(2)
+    },
+  )
 
   it('uses the loaded progress checkpoint identity for a successful replay reset', async () => {
     const reset = vi.fn().mockResolvedValue({ kind: 'none' })

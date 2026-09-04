@@ -127,7 +127,11 @@ describe('deployment base contract', () => {
     const fetcher = vi.fn(async (input: string | URL | Request) => {
       const url = String(input)
       if (url.endsWith('/assets/game.js')) {
-        return responseAt(url, 'export {}', 'application/javascript')
+        return responseAt(
+          url,
+          'const cases = ["rookie-survival", "customer-communication", "upward-disagreement"]',
+          'application/javascript',
+        )
       }
       return responseAt(url, html, 'text/html; charset=utf-8')
     })
@@ -153,6 +157,38 @@ describe('deployment base contract', () => {
       new URL('case-link?scenarioId=upward-disagreement', baseUrl),
     )
     expect(fetcher).toHaveBeenCalledWith(new URL('cases/unknown-case', baseUrl))
+  })
+
+  it('rejects a Career Game bundle that omits a registered production case', async () => {
+    const baseUrl = 'https://business-japanese-career-game.pages.dev/'
+    const html = [
+      '<!doctype html>',
+      '<html><head>',
+      '<meta name="description" content="日本の職場を舞台に判断と結果を振り返る、Business Japanese Hub の職場シミュレーション。">',
+      '<title>キャリアゲーム | Business Japanese Hub</title>',
+      '<script type="module" src="/assets/game.js"></script>',
+      '</head><body><div id="root"></div></body></html>',
+    ].join('')
+    const fetcher = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      if (url.endsWith('/assets/game.js')) {
+        return responseAt(
+          url,
+          'const cases = ["rookie-survival", "customer-communication"]',
+          'application/javascript',
+        )
+      }
+      return responseAt(url, html, 'text/html; charset=utf-8')
+    })
+
+    await expect(
+      verifyDeployment(baseUrl, {
+        attempts: 1,
+        fetcher,
+        product: 'career-game',
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(/runtime catalog marker.*upward-disagreement/i)
   })
 
   it('rejects the wrong application shell at the deployment root', async () => {

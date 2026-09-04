@@ -127,7 +127,8 @@ pnpm smoke:deployment https://business-japanese-career-game.pages.dev/ career-ga
 ```
 
 The smoke verifies product identity, HTML/content types, emitted assets, direct
-SPA routes for all three Career Game cases and that deep-link requests were not
+SPA routes for all three Career Game cases, the deployed Career Game runtime
+catalog markers for the two new cases, and that deep-link requests were not
 redirected to another URL. The full case-specific validation and the evidence
 boundary for #59 are documented in `docs/career-game-validation.md`.
 The commercial Book itself should additionally be checked manually through its
