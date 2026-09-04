@@ -204,6 +204,28 @@ describe('上司の案に異議を伝える scenario content', () => {
     expect(commitmentScene?.context).toContain('公開計画のチーム確認')
     expect(commitmentScene?.narrative).toContain('公開計画の資料を受けて')
     expect(commitmentScene?.narrative).not.toContain('一件のリスクは受け入れる決定だが')
+
+    const checkpointChoice = getAvailableChoices(
+      upwardDisagreementScenario,
+      commitmentResult.state,
+    ).find((choice) => choice.id === 'upward-commitment-checkpoint-choice')
+    if (!checkpointChoice) throw new Error('missing commitment checkpoint choice')
+    const checkpointResult = applyChoice(upwardDisagreementScenario, commitmentResult.state, {
+      scenarioId: upwardDisagreementScenario.id,
+      contentVersion: upwardDisagreementScenario.contentVersion,
+      sceneId: commitmentResult.state.currentSceneId,
+      choiceId: checkpointChoice.id,
+    })
+    expect(['advanced', 'completed']).toContain(checkpointResult.kind)
+    if (checkpointResult.kind !== 'advanced' && checkpointResult.kind !== 'completed') return
+
+    expect(checkpointResult.outcome.id).toBe('upward-commitment-checkpoint-outcome')
+    expect(checkpointResult.outcome.consequence).toContain('確認ポイント')
+    expect(checkpointResult.outcome.consequence).not.toContain('火曜')
+    expect(checkpointResult.outcome.recommendedExpression).toContain('決定した内容')
+    expect(checkpointResult.outcome.recommendedExpression).not.toContain('限定公開')
+    expect(checkpointResult.outcome.recommendedExpression).not.toContain('全体公開')
+    expect(checkpointResult.state.currentSceneId).toBe('upward-complete')
   })
 
   it('rejects stale scene and content-version inputs without mutating progress', () => {
