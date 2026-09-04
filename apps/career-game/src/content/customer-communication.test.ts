@@ -197,6 +197,10 @@ describe('取引先との一手 scenario content', () => {
     if (result.kind !== 'advanced') return
     state = result.state
 
+    const correctionScene = getCurrentScene(customerCommunicationScenario, state)
+    expect(correctionScene?.narrative).toContain('先方に共有した情報を訂正し')
+    expect(correctionScene?.narrative).not.toContain('月曜の利用を想定している')
+
     result = applyChoice(customerCommunicationScenario, state, {
       scenarioId: customerCommunicationScenario.id,
       contentVersion: customerCommunicationScenario.contentVersion,

@@ -169,6 +169,23 @@ describe('上司の案に異議を伝える scenario content', () => {
     expect(nextScene?.narrative).not.toContain('会議中')
     expect(nextScene?.dialogue?.[0]?.text).toContain('先ほどのレビューを踏まえ')
     expect(nextScene?.dialogue?.[0]?.text).not.toContain('懸念は分かりました')
+
+    const evidenceChoice = getAvailableChoices(upwardDisagreementScenario, result.state).find(
+      (choice) => choice.id === 'upward-evidence-detail-choice',
+    )
+    if (!evidenceChoice) throw new Error('missing evidence detail choice')
+    const evidenceResult = applyChoice(upwardDisagreementScenario, result.state, {
+      scenarioId: upwardDisagreementScenario.id,
+      contentVersion: upwardDisagreementScenario.contentVersion,
+      sceneId: result.state.currentSceneId,
+      choiceId: evidenceChoice.id,
+    })
+    expect(evidenceResult.kind).toBe('advanced')
+    if (evidenceResult.kind !== 'advanced') return
+
+    const planNoteScene = getCurrentScene(upwardDisagreementScenario, evidenceResult.state)
+    expect(planNoteScene?.narrative).toContain('公開計画レビューを受け')
+    expect(planNoteScene?.narrative).not.toContain('限定公開を二週間後に行い')
   })
 
   it('rejects stale scene and content-version inputs without mutating progress', () => {
