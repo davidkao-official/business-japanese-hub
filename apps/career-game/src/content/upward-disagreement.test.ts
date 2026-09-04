@@ -186,6 +186,24 @@ describe('上司の案に異議を伝える scenario content', () => {
     const planNoteScene = getCurrentScene(upwardDisagreementScenario, evidenceResult.state)
     expect(planNoteScene?.narrative).toContain('公開計画レビューを受け')
     expect(planNoteScene?.narrative).not.toContain('限定公開を二週間後に行い')
+
+    const planNoteChoice = getAvailableChoices(upwardDisagreementScenario, evidenceResult.state).find(
+      (choice) => choice.id === 'upward-plan-note-keep-choice',
+    )
+    if (!planNoteChoice) throw new Error('missing plan-note choice')
+    const commitmentResult = applyChoice(upwardDisagreementScenario, evidenceResult.state, {
+      scenarioId: upwardDisagreementScenario.id,
+      contentVersion: upwardDisagreementScenario.contentVersion,
+      sceneId: evidenceResult.state.currentSceneId,
+      choiceId: planNoteChoice.id,
+    })
+    expect(commitmentResult.kind).toBe('advanced')
+    if (commitmentResult.kind !== 'advanced') return
+
+    const commitmentScene = getCurrentScene(upwardDisagreementScenario, commitmentResult.state)
+    expect(commitmentScene?.context).toContain('公開計画のチーム確認')
+    expect(commitmentScene?.narrative).toContain('公開計画の資料を受けて')
+    expect(commitmentScene?.narrative).not.toContain('一件のリスクは受け入れる決定だが')
   })
 
   it('rejects stale scene and content-version inputs without mutating progress', () => {
