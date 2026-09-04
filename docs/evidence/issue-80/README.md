@@ -71,6 +71,9 @@ baseline document end；這個差異本身證明新增 spread 位於既有 store
 - `pnpm build` — release verification、Library build、Career Game build pass
 - `pnpm smoke:built-frontends` — built Library / Career Game direct-route smoke pass
 - `pnpm smoke:deployment:production` — canonical Library / Career Game origin smoke pass
+- `supabase db start` + `supabase db reset --local` — clean local database pass
+- `supabase test db --local supabase/tests` — transactional database contracts pass
+- `supabase db lint --local --schema public --level warning --fail-on error` — pass
 - `git diff --check origin/main...HEAD` — pass
 - `git status --porcelain=v1` — clean after validation
 
