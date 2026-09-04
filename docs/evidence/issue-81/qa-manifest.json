@@ -19,6 +19,8 @@
     "viewports": [
       "1440x900",
       "390x844",
+      "799x844",
+      "800x844",
       "768x844",
       "1024x900",
       "1280x900"
@@ -28,6 +30,15 @@
       "document.fonts.ready",
       "scrollBehavior = auto",
       "mobile menu focus entry, Escape return, and background inertness"
+    ],
+    "responsiveChecks": [
+      { "viewport": "390x844", "surface": "mobile menu" },
+      { "viewport": "768x844", "surface": "mobile menu" },
+      { "viewport": "799x844", "surface": "mobile menu" },
+      { "viewport": "800x844", "surface": "desktop header" },
+      { "viewport": "1024x900", "surface": "desktop header" },
+      { "viewport": "1280x900", "surface": "desktop header" },
+      { "viewport": "1440x900", "surface": "desktop header" }
     ]
   },
   "lighthouse": {
@@ -130,5 +141,21 @@
     ],
     "desktopCommand": "pnpm dlx lighthouse@13.4.1 http://127.0.0.1:<port>/ --preset=desktop --screenEmulation.width=1440 --screenEmulation.height=900 --screenEmulation.mobile=false --screenEmulation.deviceScaleFactor=1 --output=json --output-path=<tmp> --quiet",
     "mobileCommand": "pnpm dlx lighthouse@13.4.1 http://127.0.0.1:<port>/ --form-factor=mobile --screenEmulation.mobile=true --screenEmulation.width=390 --screenEmulation.height=844 --screenEmulation.deviceScaleFactor=1 --output=json --output-path=<tmp> --quiet"
+  },
+  "performanceDisposition": {
+    "comparison": "pre-#80 versus origin/main after #80 versus final #81",
+    "lcpAsset": {
+      "path": "cover-B0Kzu4AB.jpg",
+      "bytes": 446868,
+      "mobileRender": "302x403",
+      "imageDeliveryEstimatedWastedBytes": 426601
+    },
+    "sharedCurrentMainAndFinalFindings": [
+      "150 ms render-blocking CSS",
+      "approximately 98 KiB unused JavaScript",
+      "catalog-rendered LCP image is not discoverable in initial HTML"
+    ],
+    "issue81Remediation": "Featured cover uses loading=eager and fetchPriority=high; final Lighthouse confirms both hints.",
+    "safeScopeBoundary": "Further compression or responsive variants require a versioned release asset/contentHash change under the immutable publish pipeline; removing the #80 editorial projection would change the approved surface. Defer that asset-pipeline decision rather than alter release truth in #81."
   }
 }
