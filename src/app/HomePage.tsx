@@ -52,6 +52,9 @@ export function HomePage({
   const strings = useStrings()
   const entries = listCatalogEntries()
   const featured = entries[0]
+  const paidOffer = entries.find(
+    ({ book }) => tierOf(book) === 'paid' && book.price?.tier === 'paid',
+  )
   const rest = entries.slice(1)
   const editorialFeatures = listEditorialFeatures(entries)
   const contentSamples = listHomeContentSamples(entries)
@@ -115,6 +118,7 @@ export function HomePage({
       )}
 
       <PublicProfiles />
+      {paidOffer && <StorefrontOffer entry={paidOffer} />}
     </section>
   )
 }
@@ -373,7 +377,7 @@ function FeaturedBook({ entry }: { entry: CatalogEntry }) {
         aria-label={book.title}
         tabIndex={-1}
       >
-        <BookCover book={book} />
+        <BookCover book={book} loading="eager" fetchPriority="high" />
       </Link>
       <div className="featured-book__copy">
         <p className="featured-book__kicker">{strings.storefront.featured}</p>
@@ -404,6 +408,54 @@ function FeaturedBook({ entry }: { entry: CatalogEntry }) {
         </Link>
       </div>
     </article>
+  )
+}
+
+/** A single, catalog-driven closing offer for the current paid Book. */
+function StorefrontOffer({ entry }: { entry: CatalogEntry }) {
+  const strings = useStrings()
+  const { book, previewBoundary } = entry
+  const { owned, readingState, loading } = useBookState(book.id)
+  const cta = bookCtaState(book, owned, readingState, previewBoundary)
+  const resume = readingState ? resumeHref(book, readingState.chapterId) : undefined
+  const tier = tierOf(book)
+
+  return (
+    <section className="storefront-offer" aria-labelledby={`offer-${book.id}`}>
+      <div className="storefront-section-heading">
+        <p className="storefront-section-heading__label" lang="en">BOOK</p>
+        <h2 id={`offer-${book.id}`}>{book.title}</h2>
+      </div>
+      <div className="storefront-offer__body">
+        <div className="storefront-offer__copy">
+          {book.description && <p className="storefront-offer__description">{book.description}</p>}
+          <p className="storefront-offer__author">
+            {book.authors.map((author) => author.name).join(' / ')}
+          </p>
+          <p className="storefront-offer__price">
+            <Price book={book} />
+          </p>
+          <BookActions
+            book={book}
+            cta={cta}
+            resumeHref={resume}
+            loading={loading && tier === 'paid'}
+            className="storefront-offer__actions"
+          />
+          <Link className="storefront-offer__details" to={`/books/${book.slug}`}>
+            {strings.storefront.viewDetails}
+          </Link>
+        </div>
+        <Link
+          className="storefront-offer__cover"
+          to={`/books/${book.slug}`}
+          aria-label={book.title}
+          tabIndex={-1}
+        >
+          <BookCover book={book} />
+        </Link>
+      </div>
+    </section>
   )
 }
 

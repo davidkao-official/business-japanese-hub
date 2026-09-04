@@ -12,9 +12,16 @@ import type { Book } from '../content/types'
 export interface BookCoverProps {
   book: Book
   className?: string
+  loading?: 'eager' | 'lazy'
+  fetchPriority?: 'high' | 'low' | 'auto'
 }
 
-export function BookCover({ book, className = '' }: BookCoverProps) {
+export function BookCover({
+  book,
+  className = '',
+  loading = 'lazy',
+  fetchPriority,
+}: BookCoverProps) {
   const cover = book.cover
   if (!cover) return null
 
@@ -31,7 +38,8 @@ export function BookCover({ book, className = '' }: BookCoverProps) {
         alt={cover.alt}
         width={cover.width}
         height={cover.height}
-        loading="lazy"
+        loading={loading}
+        fetchPriority={fetchPriority}
         style={aspectRatio}
       />
     </figure>

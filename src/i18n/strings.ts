@@ -26,6 +26,9 @@ export interface AppStrings {
     home: string
     library: string
     skipToContent: string
+    openMenu: string
+    closeMenu: string
+    mobileMenuTitle: string
   }
   appearance: {
     label: string
@@ -250,6 +253,9 @@ const ja: AppStrings = {
     home: 'ホーム',
     library: 'マイライブラリ',
     skipToContent: '本文へスキップ',
+    openMenu: 'メニューを開く',
+    closeMenu: 'メニューを閉じる',
+    mobileMenuTitle: 'メニュー',
   },
   appearance: {
     label: '外観',
@@ -476,6 +482,9 @@ const en: AppStrings = {
     home: 'Home',
     library: 'My Library',
     skipToContent: 'Skip to content',
+    openMenu: 'Open menu',
+    closeMenu: 'Close menu',
+    mobileMenuTitle: 'Menu',
   },
   appearance: {
     label: 'Appearance',
@@ -702,6 +711,9 @@ const zhTW: AppStrings = {
     home: '首頁',
     library: '我的書庫',
     skipToContent: '跳到主要內容',
+    openMenu: '開啟選單',
+    closeMenu: '關閉選單',
+    mobileMenuTitle: '選單',
   },
   appearance: {
     label: '外觀',

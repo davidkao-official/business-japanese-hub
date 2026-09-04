@@ -113,6 +113,9 @@
   --lp-selection-title-max-width: 18ch;
   --lp-selection-cover-max-width: 20rem;
   --lp-sample-card-width: min(82vw, var(--lp-selection-cover-max-width));
+  --lp-offer-copy-max-width: 38rem;
+  --lp-offer-cover-max-width: 16rem;
+  --lp-menu-title-size: clamp(var(--text-2xl), 7vw, var(--text-3xl));
 
   /* ---------------------------------------------------------------
    * Typography — Japanese-first font stacks
