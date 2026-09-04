@@ -727,3 +727,347 @@
     padding-block-start: calc(var(--reader-topbar-h) + var(--space-7));
   }
 }
+
+/* =====================================================================
+ * Storefront composition — Issue #79
+ * ---------------------------------------------------------------------
+ * The LP layer refines the existing editorial feature rather than replacing
+ * it with a generic marketing hero. All copy and destinations stay owned by
+ * the catalog, localization, and existing product surfaces.
+ * ===================================================================== */
+
+/* ---------------------------------------------------------------------
+ * Header — quiet, sticky, and usable at narrow widths
+ * --------------------------------------------------------------------- */
+.site-header {
+  background: var(--color-bg-elevated);
+  border-bottom: var(--stroke-thin) solid var(--color-border);
+}
+
+.site-header__inner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.site-header__brand {
+  white-space: nowrap;
+}
+
+.site-header__tools {
+  min-width: 0;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
+.site-header .account-control__identity {
+  max-width: min(var(--account-identifier-max-width), var(--lp-header-account-max-width));
+}
+
+.site-header .account-control:not(.account-control--signed-in) > .btn {
+  border-color: var(--color-text);
+  background: var(--color-text);
+  color: var(--color-text-inverse);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-instant) var(--ease-out);
+}
+
+.site-header .account-control:not(.account-control--signed-in) > .btn:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-accent-contrast);
+}
+
+.site-header .account-control:not(.account-control--signed-in) > .btn:active,
+.featured-book--hero .btn:active {
+  transform: translateY(var(--stroke-thin));
+}
+
+/* ---------------------------------------------------------------------
+ * Top of Storefront — editorial masthead + data-driven feature
+ * --------------------------------------------------------------------- */
+.storefront-page {
+  width: 100%;
+  max-width: var(--lp-container-max-width);
+  min-width: 0;
+  gap: 0;
+}
+
+.storefront-masthead {
+  min-width: 0;
+  padding-block-end: var(--lp-section-gap);
+}
+
+.storefront-masthead .page__title {
+  max-width: min(var(--lp-masthead-title-max-width), 100%);
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--editorial-home-title-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--editorial-home-title-leading);
+  letter-spacing: var(--editorial-display-tracking);
+  font-feature-settings: var(--jp-feature-palt), var(--font-feature-defaults);
+  overflow-wrap: anywhere;
+}
+
+.storefront-masthead .page__lead {
+  max-width: var(--lp-masthead-lead-max-width);
+  margin: var(--space-5) 0 0;
+  font-family: var(--font-serif);
+  font-size: var(--lp-masthead-lead-size);
+  line-height: var(--leading-relaxed);
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.storefront-page > .featured-book--hero {
+  gap: 0;
+  padding: 0;
+  border-block: var(--stroke-thin) solid var(--color-border);
+}
+
+.featured-book--hero .featured-book__cover {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  padding: var(--lp-hero-cover-padding);
+  background: var(--color-surface-muted);
+}
+
+.featured-book--hero .featured-book__cover .book-cover {
+  width: min(100%, var(--lp-hero-cover-max-width));
+}
+
+.featured-book--hero .featured-book__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding-block: var(--lp-hero-copy-padding-block);
+  padding-inline: var(--lp-hero-copy-padding-inline);
+}
+
+.featured-book--hero .featured-book__title {
+  max-width: var(--lp-hero-title-max-width);
+  margin-block: var(--space-3) 0;
+  overflow-wrap: anywhere;
+}
+
+.featured-book--hero .featured-book__subtitle {
+  margin-top: var(--space-3);
+  margin-bottom: 0;
+}
+
+.featured-book--hero .featured-book__proposition {
+  max-width: var(--lp-hero-proposition-max-width);
+  margin-block: var(--space-5) 0;
+}
+
+.featured-book--hero .featured-book__author {
+  margin-top: var(--space-5);
+}
+
+.featured-book--hero .featured-book__access {
+  width: min(100%, var(--lp-hero-access-max-width));
+  margin-block: var(--space-4) 0;
+  padding-top: var(--space-3);
+  border-top: var(--stroke-thin) solid var(--color-border);
+}
+
+.featured-book--hero .featured-book__actions {
+  margin-block: var(--space-5) var(--space-2);
+}
+
+.featured-book--hero .btn {
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-instant) var(--ease-out);
+}
+
+.featured-book--hero .featured-book__details {
+  margin-top: var(--space-3);
+}
+
+@media (min-width: 48rem) {
+  .storefront-page > .featured-book--hero {
+    grid-template-columns: var(--lp-hero-grid-columns);
+    align-items: stretch;
+  }
+}
+
+/* ---------------------------------------------------------------------
+ * Product paths — three real destinations, expressed with type and rules
+ * --------------------------------------------------------------------- */
+.storefront-paths {
+  margin-top: var(--lp-section-gap);
+  border-block: var(--stroke-thin) solid var(--color-border);
+}
+
+.storefront-paths__list {
+  display: grid;
+  grid-template-columns: var(--lp-path-grid-columns);
+}
+
+.storefront-paths__list > li {
+  min-width: 0;
+}
+
+.storefront-path {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: var(--space-3);
+  min-width: 0;
+  height: 100%;
+  padding: var(--space-6) var(--space-5) var(--space-7) 0;
+}
+
+.storefront-paths__list > li + li .storefront-path {
+  padding-inline-start: var(--space-5);
+  border-inline-start: var(--stroke-thin) solid var(--color-border);
+}
+
+.storefront-path__label {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  line-height: var(--leading-tight);
+}
+
+.storefront-path__title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: var(--lp-path-title-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  overflow-wrap: anywhere;
+}
+
+.storefront-path__description {
+  max-width: var(--lp-path-description-max-width);
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+}
+
+.storefront-path__link {
+  display: inline-flex;
+  align-items: baseline;
+  justify-self: start;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  color: var(--color-text);
+  font-weight: var(--font-weight-medium);
+  text-underline-offset: var(--space-1);
+}
+
+.storefront-path__link span {
+  display: inline-block;
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.storefront-path__link:hover span {
+  transform: translateX(var(--space-1));
+}
+
+@media (max-width: 47.99rem) {
+  .site-header__inner {
+    grid-template-columns: 1fr;
+    align-items: start;
+    gap: var(--space-3);
+  }
+
+  .site-header__tools {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'navigation account'
+      'appearance appearance';
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    justify-content: initial;
+  }
+
+  .site-nav {
+    grid-area: navigation;
+    min-width: 0;
+  }
+
+  .site-nav__list {
+    flex-wrap: nowrap;
+  }
+
+  .site-nav__link {
+    padding-inline: var(--space-1);
+    white-space: nowrap;
+  }
+
+  .account-control {
+    grid-area: account;
+    justify-self: end;
+  }
+
+  .appearance-control {
+    grid-area: appearance;
+    justify-self: start;
+  }
+
+  .storefront-masthead {
+    padding-block-end: var(--space-7);
+  }
+
+  .storefront-masthead .page__title {
+    max-width: 100%;
+    font-size: var(--editorial-home-title-mobile-size);
+    line-height: var(--lp-masthead-title-mobile-leading);
+  }
+
+  .storefront-masthead .page__lead {
+    max-width: var(--lp-masthead-lead-mobile-max-width);
+    font-size: var(--text-md);
+  }
+
+  .featured-book--hero .featured-book__cover {
+    padding-block: var(--space-7);
+  }
+
+  .featured-book--hero .featured-book__copy {
+    padding-block: var(--space-7);
+    padding-inline: 0;
+  }
+
+  .featured-book--hero .featured-book__title {
+    max-width: 100%;
+    font-size: var(--editorial-title-mobile-size);
+  }
+
+  .storefront-paths {
+    margin-top: var(--space-8);
+  }
+
+  .storefront-paths__list {
+    grid-template-columns: 1fr;
+  }
+
+  .storefront-path {
+    padding-block: var(--space-5) var(--space-6);
+    padding-inline: 0;
+  }
+
+  .storefront-paths__list > li + li .storefront-path {
+    padding-inline-start: 0;
+    border-block-start: var(--stroke-thin) solid var(--color-border);
+    border-inline-start: 0;
+  }
+}

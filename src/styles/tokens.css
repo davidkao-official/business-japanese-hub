@@ -91,6 +91,23 @@
   --lp-radius-justified: 0.75rem; /* 12px only for justified LP surfaces */
   --lp-reveal-distance: 1rem; /* 16px, opacity + translateY only */
   --lp-reveal-duration: 600ms;
+  --lp-header-account-max-width: 18rem;
+  --lp-masthead-title-max-width: 13ch;
+  --lp-masthead-lead-max-width: 42rem;
+  --lp-masthead-lead-mobile-max-width: 38rem;
+  --lp-masthead-lead-size: clamp(var(--text-md), 1.8vw, var(--text-lg));
+  --lp-masthead-title-mobile-leading: 1.06;
+  --lp-hero-cover-padding: clamp(2.75rem, 6vw, 6rem) clamp(1.5rem, 4vw, 4.5rem);
+  --lp-hero-cover-max-width: 21rem;
+  --lp-hero-copy-padding-block: clamp(2.75rem, 6vw, 6rem);
+  --lp-hero-copy-padding-inline: clamp(1.5rem, 5vw, 5rem) clamp(1.5rem, 4vw, 4rem);
+  --lp-hero-title-max-width: 12ch;
+  --lp-hero-proposition-max-width: 39rem;
+  --lp-hero-access-max-width: 24rem;
+  --lp-hero-grid-columns: minmax(0, 10fr) minmax(0, 11fr);
+  --lp-path-grid-columns: minmax(0, 1.15fr) repeat(2, minmax(0, 1fr));
+  --lp-path-title-size: clamp(1.5rem, 2.6vw, 2.25rem);
+  --lp-path-description-max-width: 34rem;
 
   /* ---------------------------------------------------------------
    * Typography — Japanese-first font stacks

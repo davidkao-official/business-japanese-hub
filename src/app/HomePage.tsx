@@ -67,30 +67,23 @@ export function HomePage({
   }
 
   return (
-    <section className="page" aria-labelledby="home-title">
-      <h1 className="page__title" id="home-title">
-        {strings.home.title}
-      </h1>
-      <p className="page__lead">{strings.home.lead}</p>
+    <section className="page storefront-page" aria-labelledby="home-title">
+      <div className="storefront-masthead">
+        <h1 className="page__title" id="home-title">
+          {strings.home.title}
+        </h1>
+        <p className="page__lead">{strings.home.lead}</p>
+      </div>
 
       {featured && <FeaturedBook entry={featured} />}
 
-      <aside className="career-game-callout" aria-labelledby="career-game-callout-title">
-        <div className="career-game-callout__copy">
-          <p className="career-game-callout__kicker">{strings.storefront.practiceKicker}</p>
-          <h2 id="career-game-callout-title">{strings.storefront.practiceTitle}</h2>
-          <p>{strings.storefront.practiceLead}</p>
-        </div>
-        <a
-          className="btn btn--ghost career-game-callout__link"
-          href={careerGameHomeHref(careerGameOriginValue)}
-          onClick={trackCareerGameLink}
-          onAuxClick={trackCareerGameLink}
-        >
-          {strings.storefront.playCase}
-          <span aria-hidden="true">→</span>
-        </a>
-      </aside>
+      {featured && (
+        <StorefrontPaths
+          featured={featured}
+          careerGameOriginValue={careerGameOriginValue}
+          onCareerGameLink={trackCareerGameLink}
+        />
+      )}
 
       {rest.length > 0 && (
         <section className="storefront-catalog" aria-labelledby="catalog-title">
@@ -106,6 +99,77 @@ export function HomePage({
       )}
 
       <PublicProfiles />
+    </section>
+  )
+}
+
+interface StorefrontPathsProps {
+  featured: CatalogEntry
+  careerGameOriginValue: unknown
+  onCareerGameLink: (event: MouseEvent<HTMLAnchorElement>) => void
+}
+
+/**
+ * The storefront's three product paths. These are links into existing
+ * surfaces, not a second navigation model or a new set of product claims.
+ */
+function StorefrontPaths({
+  featured,
+  careerGameOriginValue,
+  onCareerGameLink,
+}: StorefrontPathsProps) {
+  const strings = useStrings()
+
+  return (
+    <section className="storefront-paths" aria-label={strings.app.name}>
+      <ul className="storefront-paths__list">
+        <li>
+          <article className="storefront-path" aria-labelledby="storefront-read-title">
+            <p className="storefront-path__label" lang="en">READ</p>
+            <h2 className="storefront-path__title" id="storefront-read-title">
+              {strings.storefront.featured}
+            </h2>
+            <p className="storefront-path__description">
+              {featured.book.description ?? featured.book.subtitle ?? strings.home.lead}
+            </p>
+            <Link className="storefront-path__link" to={`/books/${featured.book.slug}`}>
+              {strings.storefront.viewDetails}
+              <span aria-hidden="true">→</span>
+            </Link>
+          </article>
+        </li>
+        <li>
+          <article className="storefront-path" aria-labelledby="storefront-practice-title">
+            <p className="storefront-path__label" lang="en">PRACTICE</p>
+            <h2 className="storefront-path__title" id="storefront-practice-title">
+              {strings.storefront.practiceTitle}
+            </h2>
+            <p className="storefront-path__description">{strings.storefront.practiceLead}</p>
+            <a
+              className="storefront-path__link"
+              href={careerGameHomeHref(careerGameOriginValue)}
+              onClick={onCareerGameLink}
+              onAuxClick={onCareerGameLink}
+            >
+              {strings.storefront.playCase}
+              <span aria-hidden="true">→</span>
+            </a>
+          </article>
+        </li>
+        <li>
+          <article className="storefront-path" aria-labelledby="storefront-continue-title">
+            <p className="storefront-path__label" lang="en">CONTINUE</p>
+            <h2 className="storefront-path__title" id="storefront-continue-title">
+              {strings.library.continueReading}
+            </h2>
+            <p className="storefront-path__description">{strings.library.allOwned}</p>
+            <Link className="storefront-path__link" to="/library">
+              {strings.library.continueReading}
+              <span aria-hidden="true">→</span>
+            </Link>
+          </article>
+        </li>
+      </ul>
     </section>
   )
 }
@@ -126,7 +190,7 @@ function FeaturedBook({ entry }: { entry: CatalogEntry }) {
   const ownedByUser = tier !== 'free' && tier !== 'preview' && owned
 
   return (
-    <article className="featured-book" aria-labelledby={`featured-${book.id}`}>
+    <article className="featured-book featured-book--hero" aria-labelledby={`featured-${book.id}`}>
       <Link
         className="featured-book__cover"
         to={`/books/${book.slug}`}
