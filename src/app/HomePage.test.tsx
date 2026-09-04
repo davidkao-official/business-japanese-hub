@@ -29,6 +29,29 @@ describe('storefront', () => {
     })
   })
 
+  it('organizes the storefront around read, practice, and continue paths', () => {
+    renderWithAppProviders(<HomePage />)
+
+    const paths = document.querySelector('.storefront-paths')
+    expect(paths).not.toBeNull()
+    const pathsScope = within(paths as HTMLElement)
+    expect(pathsScope.getByText('READ')).toBeInTheDocument()
+    expect(pathsScope.getByText('PRACTICE')).toBeInTheDocument()
+    expect(pathsScope.getByText('CONTINUE')).toBeInTheDocument()
+    expect(pathsScope.getByRole('link', { name: '詳細を見る' })).toHaveAttribute(
+      'href',
+      '/books/meeting-japanese',
+    )
+    expect(pathsScope.getByRole('link', { name: 'ケースをプレイ' })).toHaveAttribute(
+      'href',
+      'https://business-japanese-career-game.pages.dev/',
+    )
+    expect(pathsScope.getByRole('link', { name: '続きを読む' })).toHaveAttribute(
+      'href',
+      '/library',
+    )
+  })
+
   it('renders the approved founder and co-founder profiles on the public storefront', () => {
     renderWithAppProviders(<HomePage />)
 
