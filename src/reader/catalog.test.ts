@@ -25,7 +25,7 @@ describe('catalog', () => {
 
     expect(entry?.book.price).toEqual({ tier: 'paid', amount: 12, currency: 'USD' })
     expect(entry?.previewBoundary).toEqual({ chapterId: 'mj-ch-1' })
-    expect(entry?.book.chapters).toHaveLength(8)
+    expect(entry?.book.chapters).toHaveLength(9)
   })
 
   it('resolves authored books and their bundled assets by slug', () => {

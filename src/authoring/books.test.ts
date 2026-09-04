@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Book } from '../content/types'
+import type { Book, ContentBlock } from '../content/types'
 import { BLOCK_TYPES } from '../content/types'
 import { validateBook } from '../content/validate'
 import { derivePreview, type PreviewBoundary } from './preview'
@@ -19,6 +19,8 @@ const authoredManifestModules = import.meta.glob('../../books/*/manifest.json', 
 interface AuthoringManifest {
   catalog?: { order?: number }
   preview?: { boundary?: PreviewBoundary }
+  learning?: { chapters?: Record<string, string[]> }
+  notes?: string
 }
 
 function slugFromPath(path: string): string {
@@ -51,6 +53,10 @@ function loadManifests(): Map<string, AuthoringManifest> {
       JSON.parse(raw) as AuthoringManifest,
     ]),
   )
+}
+
+function countBlocksByType(chapter: Book['chapters'][number], type: ContentBlock['type']): number {
+  return chapter.blocks.filter((block) => block.type === type).length
 }
 
 describe('authored Book catalog', () => {
@@ -91,10 +97,56 @@ describe('commercial Book', () => {
       expect.objectContaining({ name: 'Business Japanese Hub 編集部', role: 'editorial' }),
     ])
     expect(book.price).toEqual({ tier: 'paid', amount: 12, currency: 'USD' })
-    expect(book.chapters).toHaveLength(8)
-    expect(book.chapters.reduce((total, chapter) => total + chapter.blocks.length, 0)).toBeGreaterThanOrEqual(72)
+    expect(book.audience?.description).toContain('JLPT N2〜N1')
+    expect(book.audience?.description).toContain('外国籍')
+    expect(book.chapters).toHaveLength(9)
+    expect(book.chapters.reduce((total, chapter) => total + chapter.blocks.length, 0)).toBeGreaterThanOrEqual(108)
     expect(JSON.stringify(book).length).toBeGreaterThan(12_000)
     expect(JSON.stringify(book)).not.toMatch(/prototype|test|fixture|sample|プロトタイプ|テスト|サンプル/i)
+  })
+
+  it('contains the canonical Course Correction Learn module without inventing an evidence skill', () => {
+    const book = loadBooks().get('meeting-japanese')
+    const manifest = loadManifests().get('meeting-japanese')
+    const chapter = book?.chapters.find((candidate) => candidate.id === 'mj-ch-09')
+    if (!book || !manifest || !chapter) throw new Error('missing Course Correction module')
+
+    const blocks = chapter.blocks
+    const serialized = JSON.stringify(chapter)
+    const vocabularyTerms = new Set(
+      blocks.flatMap((block) => (block.type === 'vocabulary' ? [block.term] : [])),
+    )
+
+    expect(chapter.slug).toBe('course-correction')
+    expect(chapter.title).toBe('議論を本筋に戻す')
+    expect(countBlocksByType(chapter, 'exercise')).toBe(4)
+    expect(countBlocksByType(chapter, 'dialogue')).toBe(3)
+    expect(vocabularyTerms).toEqual(
+      new Set([
+        '本題',
+        '本筋',
+        '論点',
+        '整理する',
+        '議論が広がる',
+        '脱線する',
+        '一旦',
+        '話を戻す',
+        '進行',
+        '次の項目',
+        '別途',
+        '持ち帰る',
+      ]),
+    )
+    expect(serialized).toContain('承接 → Pivot → 收斂')
+    expect(serialized).toContain('文法上は正しいが直接的')
+    expect(serialized).toContain('進行役 → 全員')
+    expect(serialized).toContain('同僚 → 同僚')
+    expect(serialized).toContain('後輩 → 先輩・上司')
+    expect(serialized).toContain('語氣：')
+    expect(serialized).toContain('選項是「此情境較合適」的判斷')
+    expect(manifest.learning?.chapters?.['mj-ch-09']).toBeUndefined()
+    expect(manifest.notes).toContain('mode=Learn')
+    expect(manifest.notes).toContain('primary domain=Meeting & Discussion')
   })
 
   it('publishes only the first chapter as a genuine partial preview', () => {
