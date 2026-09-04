@@ -10,7 +10,8 @@
     "url": "http://127.0.0.1:4184/",
     "server": "pnpm exec vite preview --host 127.0.0.1 --port 4184 --strictPort"
   },
-  "finalImplementationAnchor": "4b48f77cc0f4760be7e4d5b9d8a99c5e84dbacd2",
+  "finalImplementationAnchor": "bc0e016cfcb3d187b7fef8cc2bf8b30ce0066563",
+  "measurementSourceHead": "bc0e016cfcb3d187b7fef8cc2bf8b30ce0066563",
   "capture": {
     "browser": "独立 Chromium context",
     "deviceScaleFactor": 1,
@@ -56,7 +57,10 @@
         "bestPractices": 96,
         "seo": 92,
         "lcp": "0.5 s",
-        "fcp": "0.4 s"
+        "fcp": "0.4 s",
+        "capturedAt": "2026-09-04T20:57:06.515Z",
+        "reportPath": "/tmp/bjh-issue81-pre80-1440.json",
+        "reportSha256": "f10e2552dde793903771844da9b840d23894cd43a346e7e75a64276540266826"
       },
       {
         "surface": "pre-#80 comparison",
@@ -66,7 +70,10 @@
         "bestPractices": 96,
         "seo": 92,
         "lcp": "2.6 s",
-        "fcp": "2.0 s"
+        "fcp": "2.0 s",
+        "capturedAt": "2026-09-04T20:57:18.644Z",
+        "reportPath": "/tmp/bjh-issue81-pre80-390.json",
+        "reportSha256": "d15a2b7271f0d0052a5b0550f6f5a0e7111b468ac14e459de920673a45f79888"
       },
       {
         "surface": "origin/main after #80",
@@ -76,7 +83,10 @@
         "bestPractices": 96,
         "seo": 92,
         "lcp": "0.8 s",
-        "fcp": "0.5 s"
+        "fcp": "0.5 s",
+        "capturedAt": "2026-09-04T21:44:03.139Z",
+        "reportPath": "/tmp/bjh-issue81-main-fixed-1440.json",
+        "reportSha256": "622937c347888d8bc6550d8f8fe23cf1b9929c5c07be3638e9a321c2d9988bef"
       },
       {
         "surface": "origin/main after #80",
@@ -86,7 +96,10 @@
         "bestPractices": 96,
         "seo": 92,
         "lcp": "4.4 s",
-        "fcp": "2.0 s"
+        "fcp": "2.0 s",
+        "capturedAt": "2026-09-04T21:44:14.352Z",
+        "reportPath": "/tmp/bjh-issue81-main-fixed-390.json",
+        "reportSha256": "a42322d2f505025ff48621d5ac99844ab87ba17b337cd0512a4138bdd0b46b0b"
       },
       {
         "surface": "final #81 implementation",
@@ -96,7 +109,10 @@
         "bestPractices": 96,
         "seo": 92,
         "lcp": "0.8 s",
-        "fcp": "0.4 s"
+        "fcp": "0.4 s",
+        "capturedAt": "2026-09-04T21:43:40.633Z",
+        "reportPath": "/tmp/bjh-issue81-final-fixed-1440.json",
+        "reportSha256": "b6c348157e382ff2fd1841f41b55e0a56b6eec0c7608436fa1ed9627e1fb1ed7"
       },
       {
         "surface": "final #81 implementation",
@@ -106,7 +122,10 @@
         "bestPractices": 96,
         "seo": 92,
         "lcp": "4.4 s",
-        "fcp": "2.0 s"
+        "fcp": "2.0 s",
+        "capturedAt": "2026-09-04T21:43:52.012Z",
+        "reportPath": "/tmp/bjh-issue81-final-fixed-390.json",
+        "reportSha256": "2ae3d0374db9f0def4834e1c44b12cb3d37f3a59498cfa59fcddbf963905db8e"
       }
     ],
     "desktopCommand": "pnpm dlx lighthouse@13.4.1 http://127.0.0.1:<port>/ --preset=desktop --screenEmulation.width=1440 --screenEmulation.height=900 --screenEmulation.mobile=false --screenEmulation.deviceScaleFactor=1 --output=json --output-path=<tmp> --quiet",
