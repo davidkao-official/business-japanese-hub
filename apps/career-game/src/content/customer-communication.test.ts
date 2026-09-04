@@ -132,6 +132,35 @@ describe('取引先との一手 scenario content', () => {
     expect(riskyResult.outcome.feedback).toContain('問題ありません')
   })
 
+  it('keeps the next scene consistent after promising the customer', () => {
+    const initial = createInitialState(customerCommunicationScenario)
+    const promiseChoice = getAvailableChoices(customerCommunicationScenario, initial).find(
+      (choice) => choice.id === 'customer-scope-promise-choice',
+    )
+    if (!promiseChoice) throw new Error('missing customer promise choice')
+
+    const result = applyChoice(customerCommunicationScenario, initial, {
+      scenarioId: customerCommunicationScenario.id,
+      contentVersion: customerCommunicationScenario.contentVersion,
+      sceneId: initial.currentSceneId,
+      choiceId: promiseChoice.id,
+    })
+
+    expect(result.kind).toBe('advanced')
+    if (result.kind !== 'advanced') return
+
+    expect(result.outcome.id).toBe('customer-scope-promise-outcome')
+    expect(result.outcome.nextSceneId).toBe('customer-risk')
+    expect(result.state.currentSceneId).toBe(result.outcome.nextSceneId)
+
+    const nextScene = getCurrentScene(customerCommunicationScenario, result.state)
+    expect(nextScene?.narrative).toContain('取引先への最初の返答を終えて')
+    expect(nextScene?.narrative).toContain('先方に伝えた内容')
+    expect(nextScene?.narrative).not.toContain('まだ取引先には')
+    expect(nextScene?.dialogue?.[0]?.text).toContain('先方には最初の返答をしている')
+    expect(nextScene?.dialogue?.[0]?.text).not.toContain('まだ先方には')
+  })
+
   it('rejects stale scene and content-version inputs without mutating progress', () => {
     const state = createInitialState(customerCommunicationScenario)
     const choice = getAvailableChoices(customerCommunicationScenario, state)[0]!

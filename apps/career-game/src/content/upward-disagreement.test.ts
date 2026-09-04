@@ -132,6 +132,45 @@ describe('上司の案に異議を伝える scenario content', () => {
     expect(riskyResult.outcome.feedback).toContain('無理です')
   })
 
+  it('keeps the follow-up scene after raising a concern privately after the meeting', () => {
+    const initial = createInitialState(upwardDisagreementScenario)
+    const openingChoice = choiceForCategory(initial, 'strong')
+    const openingResult = applyChoice(upwardDisagreementScenario, initial, {
+      scenarioId: upwardDisagreementScenario.id,
+      contentVersion: upwardDisagreementScenario.contentVersion,
+      sceneId: initial.currentSceneId,
+      choiceId: openingChoice.id,
+    })
+    expect(openingResult.kind).toBe('advanced')
+    if (openingResult.kind !== 'advanced') return
+
+    const silentChoice = getAvailableChoices(upwardDisagreementScenario, openingResult.state).find(
+      (choice) => choice.id === 'upward-steering-silent-choice',
+    )
+    if (!silentChoice) throw new Error('missing silent meeting choice')
+
+    const result = applyChoice(upwardDisagreementScenario, openingResult.state, {
+      scenarioId: upwardDisagreementScenario.id,
+      contentVersion: upwardDisagreementScenario.contentVersion,
+      sceneId: openingResult.state.currentSceneId,
+      choiceId: silentChoice.id,
+    })
+
+    expect(result.kind).toBe('advanced')
+    if (result.kind !== 'advanced') return
+
+    expect(result.outcome.id).toBe('upward-steering-silent-outcome')
+    expect(result.outcome.nextSceneId).toBe('upward-evidence')
+    expect(result.state.currentSceneId).toBe(result.outcome.nextSceneId)
+
+    const nextScene = getCurrentScene(upwardDisagreementScenario, result.state)
+    expect(nextScene?.context).toContain('フォローアップ')
+    expect(nextScene?.narrative).toContain('公開計画レビューが終わり')
+    expect(nextScene?.narrative).not.toContain('会議中')
+    expect(nextScene?.dialogue?.[0]?.text).toContain('先ほどのレビューを踏まえ')
+    expect(nextScene?.dialogue?.[0]?.text).not.toContain('懸念は分かりました')
+  })
+
   it('rejects stale scene and content-version inputs without mutating progress', () => {
     const state = createInitialState(upwardDisagreementScenario)
     const choice = getAvailableChoices(upwardDisagreementScenario, state)[0]!
