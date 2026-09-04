@@ -38,6 +38,7 @@ export interface AppStrings {
   }
   storefront: {
     catalog: string
+    bookLabel: string
     viewDetails: string
     featured: string
     free: string
@@ -265,6 +266,7 @@ const ja: AppStrings = {
   },
   storefront: {
     catalog: 'すべての書籍',
+    bookLabel: 'BOOK',
     viewDetails: '詳細を見る',
     featured: '注目の一冊',
     free: '無料',
@@ -494,6 +496,7 @@ const en: AppStrings = {
   },
   storefront: {
     catalog: 'All books',
+    bookLabel: 'BOOK',
     viewDetails: 'View details',
     featured: 'Featured',
     free: 'Free',
@@ -723,6 +726,7 @@ const zhTW: AppStrings = {
   },
   storefront: {
     catalog: '所有書籍',
+    bookLabel: 'BOOK',
     viewDetails: '查看詳情',
     featured: '主打書籍',
     free: '免費',

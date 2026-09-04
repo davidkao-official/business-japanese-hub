@@ -8,7 +8,7 @@ import {
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { listCatalogEntries, type CatalogEntry } from '../reader/catalog'
 import { useStrings } from '../i18n/strings'
-import { useBookOwned, useBookState } from '../lib/persistence/useBookState'
+import { useBookOwned, useBookState, type BookState } from '../lib/persistence/useBookState'
 import { bookCtaState, resumeHref, tierOf } from '../lib/bookAccess'
 import { BookActions } from '../components/BookActions'
 import { BookCard } from '../components/BookCard'
@@ -55,6 +55,12 @@ export function HomePage({
   const paidOffer = entries.find(
     ({ book }) => tierOf(book) === 'paid' && book.price?.tier === 'paid',
   )
+  const featuredState = useBookState(featured?.book.id ?? '')
+  const separatePaidOfferState = useBookState(
+    paidOffer && paidOffer.book.id !== featured?.book.id ? paidOffer.book.id : '',
+  )
+  const paidOfferState =
+    paidOffer && paidOffer.book.id === featured?.book.id ? featuredState : separatePaidOfferState
   const rest = entries.slice(1)
   const editorialFeatures = listEditorialFeatures(entries)
   const contentSamples = listHomeContentSamples(entries)
@@ -90,7 +96,7 @@ export function HomePage({
         <p className="page__lead">{strings.home.lead}</p>
       </div>
 
-      {featured && <FeaturedBook entry={featured} />}
+      {featured && <FeaturedBook entry={featured} state={featuredState} />}
 
       {featured && (
         <StorefrontPaths
@@ -118,7 +124,7 @@ export function HomePage({
       )}
 
       <PublicProfiles />
-      {paidOffer && <StorefrontOffer entry={paidOffer} />}
+      {paidOffer && <StorefrontOffer entry={paidOffer} state={paidOfferState} />}
     </section>
   )
 }
@@ -360,10 +366,10 @@ function StorefrontBookCard({ entry }: { entry: CatalogEntry }) {
 }
 
 /** Editorial feature: large cover + copy + CTA for the first catalog entry. */
-function FeaturedBook({ entry }: { entry: CatalogEntry }) {
+function FeaturedBook({ entry, state }: { entry: CatalogEntry; state: BookState }) {
   const strings = useStrings()
   const { book, previewBoundary } = entry
-  const { owned, readingState, loading } = useBookState(book.id)
+  const { owned, readingState, loading } = state
   const cta = bookCtaState(book, owned, readingState, previewBoundary)
   const resume = readingState ? resumeHref(book, readingState.chapterId) : undefined
   const tier = tierOf(book)
@@ -412,18 +418,19 @@ function FeaturedBook({ entry }: { entry: CatalogEntry }) {
 }
 
 /** A single, catalog-driven closing offer for the current paid Book. */
-function StorefrontOffer({ entry }: { entry: CatalogEntry }) {
+function StorefrontOffer({ entry, state }: { entry: CatalogEntry; state: BookState }) {
   const strings = useStrings()
   const { book, previewBoundary } = entry
-  const { owned, readingState, loading } = useBookState(book.id)
+  const { owned, readingState, loading } = state
   const cta = bookCtaState(book, owned, readingState, previewBoundary)
   const resume = readingState ? resumeHref(book, readingState.chapterId) : undefined
   const tier = tierOf(book)
+  const ownedByUser = tier !== 'free' && tier !== 'preview' && owned
 
   return (
     <section className="storefront-offer" aria-labelledby={`offer-${book.id}`}>
       <div className="storefront-section-heading">
-        <p className="storefront-section-heading__label" lang="en">BOOK</p>
+        <p className="storefront-section-heading__label" lang="en">{strings.storefront.bookLabel}</p>
         <h2 id={`offer-${book.id}`}>{book.title}</h2>
       </div>
       <div className="storefront-offer__body">
@@ -433,7 +440,11 @@ function StorefrontOffer({ entry }: { entry: CatalogEntry }) {
             {book.authors.map((author) => author.name).join(' / ')}
           </p>
           <p className="storefront-offer__price">
-            <Price book={book} />
+            {ownedByUser ? (
+              <span className="entitlement-label">{strings.storefront.owned}</span>
+            ) : (
+              <Price book={book} />
+            )}
           </p>
           <BookActions
             book={book}

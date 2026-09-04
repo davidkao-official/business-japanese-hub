@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useStrings } from '../i18n/strings'
 import { AppearanceControl } from './AppearanceControl'
 import { AccountControl } from './AccountControl'
@@ -10,6 +10,7 @@ const FOCUSABLE_SELECTOR =
 
 export function Header() {
   const strings = useStrings()
+  const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuId = useId()
   const menuTitleId = useId()
@@ -17,6 +18,7 @@ export function Header() {
   const closeRef = useRef<HTMLButtonElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuWasOpen = useRef(false)
+  const lastLocationKey = useRef(location.key)
 
   const closeMenu = () => setMenuOpen(false)
 
@@ -30,6 +32,55 @@ export function Header() {
     if (menuWasOpen.current) {
       menuWasOpen.current = false
       triggerRef.current?.focus()
+    }
+  }, [menuOpen])
+
+  useEffect(() => {
+    if (lastLocationKey.current === location.key) return
+    lastLocationKey.current = location.key
+    closeMenu()
+  }, [location.key])
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+
+    const desktopQuery = window.matchMedia('(min-width: 48rem)')
+    const closeOnDesktop = (event: MediaQueryListEvent) => {
+      if (event.matches) closeMenu()
+    }
+
+    if (typeof desktopQuery.addEventListener === 'function') {
+      desktopQuery.addEventListener('change', closeOnDesktop)
+      return () => desktopQuery.removeEventListener('change', closeOnDesktop)
+    }
+
+    desktopQuery.addListener(closeOnDesktop)
+    return () => desktopQuery.removeListener(closeOnDesktop)
+  }, [])
+
+  useEffect(() => {
+    if (!menuOpen) return
+
+    const backgroundElements = Array.from(
+      document.querySelectorAll<HTMLElement>('.skip-link, .app-main, .site-footer'),
+    )
+    const previousBackgroundState = backgroundElements.map((element) => ({
+      element,
+      inert: Boolean(element.inert),
+      ariaHidden: element.getAttribute('aria-hidden'),
+    }))
+
+    for (const element of backgroundElements) {
+      element.inert = true
+      element.setAttribute('aria-hidden', 'true')
+    }
+
+    return () => {
+      for (const { element, inert, ariaHidden } of previousBackgroundState) {
+        element.inert = inert
+        if (ariaHidden === null) element.removeAttribute('aria-hidden')
+        else element.setAttribute('aria-hidden', ariaHidden)
+      }
     }
   }, [menuOpen])
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { vi } from 'vitest'
-import { renderWithAppProviders } from '../test/appProviders'
+import { createMockRepository, renderWithAppProviders } from '../test/appProviders'
 import { HomePage } from './HomePage'
 
 function clickWithoutNavigation(link: HTMLElement, init: MouseEventInit = {}) {
@@ -163,6 +163,44 @@ describe('storefront', () => {
       'href',
       '/books/meeting-japanese',
     )
+  })
+
+  it('shares paid ownership and reading state between the feature and closing offer', async () => {
+    const repository = createMockRepository({
+      entitlements: {
+        'book-meeting-japanese': {
+          bookId: 'book-meeting-japanese',
+          provider: 'manual',
+          grantedAt: '2026-08-01T00:00:00.000Z',
+        },
+      },
+      readingStates: {
+        'book-meeting-japanese': {
+          bookId: 'book-meeting-japanese',
+          chapterId: 'mj-ch-02',
+          updatedAt: '2026-08-01T00:00:00.000Z',
+        },
+      },
+    })
+    renderWithAppProviders(<HomePage />, {
+      session: { id: 'u-1', email: 'reader@example.com' },
+      repository,
+    })
+
+    const feature = document.querySelector('.featured-book') as HTMLElement
+    const offer = document.querySelector('.storefront-offer') as HTMLElement
+    expect(await within(feature).findByRole('link', { name: '続きを読む' })).toHaveAttribute(
+      'href',
+      '/books/meeting-japanese/read/enter-the-conversation',
+    )
+    expect(within(offer).getByRole('link', { name: '続きを読む' })).toHaveAttribute(
+      'href',
+      '/books/meeting-japanese/read/enter-the-conversation',
+    )
+    expect(within(feature).queryByText('USD 12')).not.toBeInTheDocument()
+    expect(within(offer).queryByText('USD 12')).not.toBeInTheDocument()
+    expect(vi.mocked(repository.getEntitlement).mock.calls.filter(([bookId]) => bookId === 'book-meeting-japanese')).toHaveLength(1)
+    expect(vi.mocked(repository.getReadingState).mock.calls.filter(([bookId]) => bookId === 'book-meeting-japanese')).toHaveLength(1)
   })
 
   it('keeps the two Prototype books visibly free without changing their access tier', async () => {

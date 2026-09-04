@@ -1,7 +1,18 @@
-import { fireEvent, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { act, fireEvent, screen, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { renderWithAppProviders } from '../test/appProviders'
 import { Header } from './Header'
+
+function BackButton() {
+  const navigate = useNavigate()
+  return <button onClick={() => navigate(-1)}>Go back</button>
+}
+
+function CurrentPath() {
+  const location = useLocation()
+  return <output>{location.pathname}</output>
+}
 
 describe('Header mobile navigation', () => {
   it('opens the existing navigation with account and appearance controls', () => {
@@ -66,5 +77,83 @@ describe('Header mobile navigation', () => {
       'aria-expanded',
       'false',
     )
+  })
+
+  it('makes the shell background inert and closes on browser back', () => {
+    renderWithAppProviders(
+      <>
+        <Header />
+        <BackButton />
+        <CurrentPath />
+        <main className="app-main">Background content</main>
+        <footer className="site-footer">Background footer</footer>
+      </>,
+      { initialEntries: ['/', '/library'], initialIndex: 1 },
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
+
+    const backgroundMain = document.querySelector('.app-main') as HTMLElement
+    const backgroundFooter = document.querySelector('.site-footer') as HTMLElement
+    expect(backgroundMain).toHaveAttribute('aria-hidden', 'true')
+    expect(backgroundFooter).toHaveAttribute('aria-hidden', 'true')
+    expect(backgroundMain.inert).toBe(true)
+    expect(backgroundFooter.inert).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go back' }))
+
+    expect(screen.queryByRole('dialog', { name: 'メニュー' })).not.toBeInTheDocument()
+    expect(screen.getByText('/')).toBeInTheDocument()
+    expect(backgroundMain).not.toHaveAttribute('aria-hidden')
+    expect(backgroundFooter).not.toHaveAttribute('aria-hidden')
+    expect(backgroundMain.inert).toBe(false)
+    expect(backgroundFooter.inert).toBe(false)
+    expect(document.body.style.overflow).toBe('')
+  })
+
+  it('closes and restores the desktop shell when the viewport crosses the breakpoint', () => {
+    const listeners: Array<(event: MediaQueryListEvent) => void> = []
+    const originalMatchMedia = window.matchMedia
+    const matchMediaMock = vi.fn((media: string) => ({
+      matches: false,
+      media,
+      onchange: null,
+      addEventListener: (_event: string, listener: EventListenerOrEventListenerObject) => {
+        listeners.push(listener as (event: MediaQueryListEvent) => void)
+      },
+      removeEventListener: () => {},
+      addListener: (listener: (event: MediaQueryListEvent) => void) => listeners.push(listener),
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }) as MediaQueryList)
+
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: matchMediaMock,
+    })
+
+    try {
+      renderWithAppProviders(<Header />)
+      fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
+      expect(screen.getByRole('dialog', { name: 'メニュー' })).toBeInTheDocument()
+
+      act(() => {
+        listeners.forEach((listener) => listener({ matches: true } as MediaQueryListEvent))
+      })
+
+      expect(screen.queryByRole('dialog', { name: 'メニュー' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'メニューを開く' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      )
+      expect(document.body.style.overflow).toBe('')
+    } finally {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        writable: true,
+        value: originalMatchMedia,
+      })
+    }
   })
 })
