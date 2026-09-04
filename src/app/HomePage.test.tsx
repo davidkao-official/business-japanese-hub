@@ -52,6 +52,40 @@ describe('storefront', () => {
     )
   })
 
+  it('renders the supported mid-page editorial sections from released content', () => {
+    renderWithAppProviders(<HomePage />)
+
+    const features = document.querySelector('.storefront-features') as HTMLElement
+    expect(features).not.toBeNull()
+    expect(within(features).getAllByRole('listitem')).toHaveLength(3)
+    expect(within(features).getByText('BOOK')).toBeInTheDocument()
+    expect(within(features).getByText('CHAPTER')).toBeInTheDocument()
+    expect(within(features).getByText('EXPRESSION')).toBeInTheDocument()
+
+    const samples = document.querySelector('.storefront-samples') as HTMLElement
+    expect(samples).not.toBeNull()
+    expect(
+      within(samples).getByText(
+        '本日の目的は、三つの企画案から来月検証する一案を決めることです。',
+      ),
+    ).toBeInTheDocument()
+    expect(within(samples).getByText('敬語（けいご）')).toBeInTheDocument()
+    expect(
+      within(samples).getByText(
+        'お手数をおかけしますが、ご確認のほどよろしくお願いいたします。',
+      ),
+    ).toBeInTheDocument()
+    expect(within(samples).getByRole('region')).toHaveAttribute(
+      'aria-label',
+      '実際の文章と会話から学ぶ',
+    )
+
+    const selections = document.querySelector('.storefront-selections') as HTMLElement
+    expect(selections).not.toBeNull()
+    expect(within(selections).getAllByRole('img')).toHaveLength(3)
+    expect(screen.queryByRole('heading', { name: /stats/i })).not.toBeInTheDocument()
+  })
+
   it('renders the approved founder and co-founder profiles on the public storefront', () => {
     renderWithAppProviders(<HomePage />)
 

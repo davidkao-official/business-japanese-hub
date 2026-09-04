@@ -20,6 +20,15 @@ import {
   FOUNDER_PROFILE,
   type PublicProfile,
 } from './storefrontProfiles'
+import {
+  listEditorialFeatures,
+  listEditorialSelections,
+  listHomeContentSamples,
+  type EditorialFeature,
+  type EditorialMedia,
+  type EditorialSelection,
+  type HomeContentSample,
+} from './homeEditorial'
 
 const browserValidationAnalytics = createBrowserValidationAnalytics({
   functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,
@@ -44,6 +53,9 @@ export function HomePage({
   const entries = listCatalogEntries()
   const featured = entries[0]
   const rest = entries.slice(1)
+  const editorialFeatures = listEditorialFeatures(entries)
+  const contentSamples = listHomeContentSamples(entries)
+  const editorialSelections = listEditorialSelections(entries)
   const careerGameMovementDeduper = useRef(createCrossProductMovementDeduper())
   useDocumentTitle(strings.home.title)
 
@@ -85,6 +97,10 @@ export function HomePage({
         />
       )}
 
+      <EditorialFeatures features={editorialFeatures} />
+      <EditorialSamples samples={contentSamples} />
+      <EditorialSelections selections={editorialSelections} />
+
       {rest.length > 0 && (
         <section className="storefront-catalog" aria-labelledby="catalog-title">
           <h2 className="section-title" id="catalog-title">
@@ -100,6 +116,147 @@ export function HomePage({
 
       <PublicProfiles />
     </section>
+  )
+}
+
+function EditorialFeatures({ features }: { features: EditorialFeature[] }) {
+  const strings = useStrings()
+  if (features.length === 0) return null
+
+  return (
+    <section className="storefront-features" aria-labelledby="storefront-features-title">
+      <div className="storefront-section-heading">
+        <p className="storefront-section-heading__label">{strings.home.featureLabel}</p>
+        <h2 id="storefront-features-title">{strings.home.featureTitle}</h2>
+      </div>
+      <ol className="storefront-features__list">
+        {features.map((feature, index) => (
+          <li className="storefront-feature" key={`${feature.label}-${feature.title}`}>
+            <span className="storefront-feature__number" aria-hidden="true">
+              {String(index + 1).padStart(2, '0')}
+            </span>
+            <div className="storefront-feature__copy">
+              <p className="storefront-feature__label" lang="en">
+                {feature.label}
+              </p>
+              <h3 aria-label={`${feature.label}: ${feature.title}`}>{feature.title}</h3>
+              <p>{feature.body}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
+function EditorialSamples({ samples }: { samples: HomeContentSample[] }) {
+  const strings = useStrings()
+  if (samples.length === 0) return null
+
+  return (
+    <section className="storefront-samples" aria-labelledby="storefront-samples-title">
+      <div className="storefront-section-heading">
+        <p className="storefront-section-heading__label">{strings.home.samplesLabel}</p>
+        <h2 id="storefront-samples-title">{strings.home.samplesTitle}</h2>
+      </div>
+      <div
+        className="storefront-samples__viewport"
+        role="region"
+        aria-label={strings.home.samplesTitle}
+      >
+        <ul className="storefront-samples__list">
+          {samples.map((sample, index) => (
+            <li className="storefront-samples__item" key={sample.id}>
+              <article className="storefront-sample" aria-labelledby={`sample-title-${index}`}>
+                <p className="storefront-sample__source">{sample.sourceLabel}</p>
+                <p className="storefront-sample__kind" lang="en">
+                  {sample.kind}
+                </p>
+                <h3 className="storefront-sample__expression" id={`sample-title-${index}`} lang="ja">
+                  {sample.expression}
+                </h3>
+                <div className="storefront-sample__tier">
+                  <p className="storefront-sample__tier-label" lang="en">MEANING</p>
+                  <p>{sample.meaning}</p>
+                </div>
+                {sample.supporting && (
+                  <div className="storefront-sample__tier">
+                    <p className="storefront-sample__tier-label" lang="en">NOTE</p>
+                    <p>{sample.supporting}</p>
+                  </div>
+                )}
+                <Link
+                  className="storefront-sample__link"
+                  to={`/books/${sample.book.slug}`}
+                >
+                  {strings.storefront.viewDetails}
+                  <span aria-hidden="true">→</span>
+                </Link>
+              </article>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+function EditorialSelections({ selections }: { selections: EditorialSelection[] }) {
+  const strings = useStrings()
+  if (selections.length === 0) return null
+
+  return (
+    <section className="storefront-selections" aria-labelledby="storefront-selections-title">
+      <div className="storefront-section-heading">
+        <p className="storefront-section-heading__label">{strings.home.selectionsLabel}</p>
+        <h2 id="storefront-selections-title">{strings.home.selectionsTitle}</h2>
+      </div>
+      <div className="storefront-selections__list">
+        {selections.map((selection, index) => (
+          <article className="storefront-selection" key={selection.id}>
+            <div className="storefront-selection__content">
+              <p className="storefront-selection__source">{selection.sourceLabel}</p>
+              <h3>
+                <Link to={`/books/${selection.book.slug}`}>
+                  {selection.title}
+                </Link>
+              </h3>
+              <p className="storefront-selection__body">{selection.body}</p>
+              <Link
+                className="storefront-selection__link"
+                to={`/books/${selection.book.slug}`}
+              >
+                {strings.storefront.viewDetails}
+                <span aria-hidden="true">→</span>
+              </Link>
+            </div>
+            <div className="storefront-selection__media">
+              <EditorialMedia media={selection.media} priority={index === 0} />
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function EditorialMedia({ media, priority }: { media: EditorialMedia; priority: boolean }) {
+  if (media.kind === 'cover') {
+    return <BookCover book={media.book} className="storefront-selection__cover" />
+  }
+
+  return (
+    <figure className="storefront-selection__figure">
+      <img
+        src={media.image.src}
+        alt={media.image.alt}
+        width={media.image.width}
+        height={media.image.height}
+        loading={priority ? 'eager' : 'lazy'}
+      />
+      {media.image.caption && <figcaption>{media.image.caption}</figcaption>}
+      {media.image.credit && <p className="storefront-selection__credit">{media.image.credit}</p>}
+    </figure>
   )
 }
 
