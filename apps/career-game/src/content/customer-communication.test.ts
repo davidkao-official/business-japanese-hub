@@ -161,6 +161,59 @@ describe('取引先との一手 scenario content', () => {
     expect(nextScene?.dialogue?.[0]?.text).not.toContain('まだ先方には')
   })
 
+  it('keeps the closeout scene neutral after declining staged delivery', () => {
+    let state = createInitialState(customerCommunicationScenario)
+    let result = applyChoice(customerCommunicationScenario, state, {
+      scenarioId: customerCommunicationScenario.id,
+      contentVersion: customerCommunicationScenario.contentVersion,
+      sceneId: state.currentSceneId,
+      choiceId: choiceForCategory(state, 'strong').id,
+    })
+    expect(result.kind).toBe('advanced')
+    if (result.kind !== 'advanced') return
+    state = result.state
+
+    result = applyChoice(customerCommunicationScenario, state, {
+      scenarioId: customerCommunicationScenario.id,
+      contentVersion: customerCommunicationScenario.contentVersion,
+      sceneId: state.currentSceneId,
+      choiceId: choiceForCategory(state, 'strong').id,
+    })
+    expect(result.kind).toBe('advanced')
+    if (result.kind !== 'advanced') return
+    state = result.state
+
+    const refuseChoice = getAvailableChoices(customerCommunicationScenario, state).find(
+      (choice) => choice.id === 'customer-priority-refuse-choice',
+    )
+    if (!refuseChoice) throw new Error('missing staged-delivery refusal choice')
+    result = applyChoice(customerCommunicationScenario, state, {
+      scenarioId: customerCommunicationScenario.id,
+      contentVersion: customerCommunicationScenario.contentVersion,
+      sceneId: state.currentSceneId,
+      choiceId: refuseChoice.id,
+    })
+    expect(result.kind).toBe('advanced')
+    if (result.kind !== 'advanced') return
+    state = result.state
+
+    result = applyChoice(customerCommunicationScenario, state, {
+      scenarioId: customerCommunicationScenario.id,
+      contentVersion: customerCommunicationScenario.contentVersion,
+      sceneId: state.currentSceneId,
+      choiceId: choiceForCategory(state, 'strong').id,
+    })
+    expect(result.kind).toBe('advanced')
+    if (result.kind !== 'advanced') return
+    expect(result.outcome.id).toBe('customer-correction-facts-outcome')
+    expect(result.state.currentSceneId).toBe('customer-closeout')
+
+    const closeoutScene = getCurrentScene(customerCommunicationScenario, result.state)
+    expect(closeoutScene?.narrative).toContain('今回の対応が一段落し')
+    expect(closeoutScene?.narrative).not.toContain('最小範囲の機能は月曜に無事使われ')
+    expect(closeoutScene?.dialogue?.[0]?.text).toContain('今回の対応は一段落しました')
+  })
+
   it('rejects stale scene and content-version inputs without mutating progress', () => {
     const state = createInitialState(customerCommunicationScenario)
     const choice = getAvailableChoices(customerCommunicationScenario, state)[0]!
