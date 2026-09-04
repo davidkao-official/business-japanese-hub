@@ -4,6 +4,11 @@
 
 所有影像都是 requested viewport 的 1x PNG：
 
+- after captures 由 fresh Library dev server
+  `http://127.0.0.1:41731/` 產生，server 使用 `--host 127.0.0.1
+  --port 41731 --strictPort`；before captures 由獨立的
+  `http://127.0.0.1:41732/` exact baseline server 產生。
+
 - `before-1440.png` / `after-1440.png`：1440 × 900，頁面頂部
 - `before-390.png` / `after-390.png`：390 × 844，頁面頂部
 - `before-mid-1440.png` / `after-mid-1440.png`：1440 × 900，固定
@@ -39,10 +44,16 @@ baseline document end；這個差異本身證明新增 spread 位於既有 store
 
 ## QA notes
 
-- CUA browser 已檢查 1440px 與 390px 的 light / dark themes。
+- CUA browser 以 `http://127.0.0.1:41731/`（`--strictPort`）檢查；兩個
+  viewport 的 title 都是 `Business Japanese Hub`，頁面含已發布的 Library
+  content，且沒有其他產品的內容。
+- CUA browser 已檢查 1440px 與 390px 的 light / dark themes；headless
+  responsive pass 也確認兩種尺寸的 `document.scrollWidth` 沒有超出 viewport。
 - 390px 下 document 維持 viewport-bounded；只有 sample viewport 擁有
   horizontal overflow，並設定 `scroll-snap-type: x mandatory`、touch scrolling，
-  以及其中可 focus 的 links。
+  以及其中可 focus 的 links。CUA keyboard pass 從第一個 sample link 按 Tab
+  到第二個 sample link，`scrollLeft` 由 0 變成 320；headless pass 同時確認
+  focus 仍落在第二個 link。
 - Accessibility tree 暴露新 feature list、sample region、real image alt text /
   captions、既有 header controls，以及未變更的 purchase / preview / Career Game
   destinations；catalog-derived Japanese / Traditional Chinese text 使用 nested
