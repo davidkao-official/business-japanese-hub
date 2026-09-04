@@ -151,14 +151,21 @@ describe('Header mobile navigation', () => {
     })
 
     try {
-      renderWithAppProviders(<Header />)
+      renderWithAppProviders(
+        <>
+          <Header />
+          <button type="button">Focus probe</button>
+        </>,
+      )
       expect(matchMediaMock).toHaveBeenCalledWith('(min-width: 50rem)')
-      const desktopBrand = screen.getByRole('link', { name: 'ビジネス日本語ハブ' })
-      desktopBrand.focus()
+      const focusProbe = screen.getByRole('button', { name: 'Focus probe' })
+      focusProbe.focus()
       act(() => {
         listeners.forEach((listener) => listener({ matches: true } as MediaQueryListEvent))
       })
-      expect(desktopBrand).toHaveFocus()
+      expect(focusProbe).toHaveFocus()
+
+      const desktopBrand = screen.getByRole('link', { name: 'ビジネス日本語ハブ' })
 
       fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
       expect(screen.getByRole('dialog', { name: 'メニュー' })).toBeInTheDocument()
