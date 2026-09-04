@@ -108,6 +108,11 @@
   --lp-path-grid-columns: minmax(0, 1.15fr) repeat(2, minmax(0, 1fr));
   --lp-path-title-size: clamp(1.5rem, 2.6vw, 2.25rem);
   --lp-path-description-max-width: 34rem;
+  --lp-feature-number-column-width: 2.5rem;
+  --lp-sample-expression-max-width: 28rem;
+  --lp-selection-title-max-width: 18ch;
+  --lp-selection-cover-max-width: 20rem;
+  --lp-sample-card-width: min(82vw, var(--lp-selection-cover-max-width));
 
   /* ---------------------------------------------------------------
    * Typography — Japanese-first font stacks

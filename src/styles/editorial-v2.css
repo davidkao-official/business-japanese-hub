@@ -1223,7 +1223,7 @@
 }
 
 .storefront-sample__expression {
-  max-width: 28rem;
+  max-width: var(--lp-sample-expression-max-width);
   margin-block: var(--space-3) var(--space-6);
   font-family: var(--font-serif);
   font-size: var(--text-xl);
@@ -1308,7 +1308,7 @@
 }
 
 .storefront-selection__content h3 {
-  max-width: 18ch;
+  max-width: var(--lp-selection-title-max-width);
   margin-block: var(--space-4) var(--space-5);
   font-family: var(--font-serif);
   font-size: var(--editorial-section-title-size);
@@ -1339,7 +1339,7 @@
 }
 
 .storefront-selection__media .book-cover {
-  width: min(100%, 20rem);
+  width: min(100%, var(--lp-selection-cover-max-width));
 }
 
 .storefront-selection__media .book-cover img {
@@ -1379,7 +1379,7 @@
   }
 
   .storefront-feature {
-    grid-template-columns: 2.5rem minmax(0, 1fr);
+    grid-template-columns: var(--lp-feature-number-column-width) minmax(0, 1fr);
     gap: var(--space-4);
     padding-block: var(--space-6);
     padding-inline-end: 0;
@@ -1409,7 +1409,7 @@
   }
 
   .storefront-samples__item {
-    flex: 0 0 min(82vw, 20rem);
+    flex: 0 0 var(--lp-sample-card-width);
     padding-block: var(--space-6);
     padding-inline-end: var(--space-5);
     scroll-snap-align: start;
