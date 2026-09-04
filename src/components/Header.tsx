@@ -8,6 +8,8 @@ import { Navigation } from './Navigation'
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+type CloseFocusTarget = 'trigger' | 'desktop'
+
 export function Header() {
   const strings = useStrings()
   const location = useLocation()
@@ -17,21 +19,35 @@ export function Header() {
   const menuRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const desktopBrandRef = useRef<HTMLAnchorElement>(null)
   const menuWasOpen = useRef(false)
+  const closeFocusTarget = useRef<CloseFocusTarget>('trigger')
   const lastLocationKey = useRef(location.key)
 
-  const closeMenu = () => setMenuOpen(false)
+  const closeMenu = () => {
+    closeFocusTarget.current = 'trigger'
+    setMenuOpen(false)
+  }
+
+  const closeMenuTo = (focusTarget: CloseFocusTarget) => {
+    closeFocusTarget.current = focusTarget
+    setMenuOpen(false)
+  }
 
   useEffect(() => {
     if (menuOpen) {
       menuWasOpen.current = true
+      closeFocusTarget.current = 'trigger'
       closeRef.current?.focus()
       return
     }
 
     if (menuWasOpen.current) {
       menuWasOpen.current = false
-      triggerRef.current?.focus()
+      const focusTarget =
+        closeFocusTarget.current === 'desktop' ? desktopBrandRef.current : triggerRef.current
+      closeFocusTarget.current = 'trigger'
+      focusTarget?.focus()
     }
   }, [menuOpen])
 
@@ -46,7 +62,7 @@ export function Header() {
 
     const desktopQuery = window.matchMedia('(min-width: 50rem)')
     const closeOnDesktop = (event: MediaQueryListEvent) => {
-      if (event.matches) closeMenu()
+      if (event.matches) closeMenuTo('desktop')
     }
 
     if (typeof desktopQuery.addEventListener === 'function') {
@@ -145,7 +161,7 @@ export function Header() {
   return (
     <header className="site-header">
       <div className="site-header__inner" aria-hidden={menuOpen}>
-        <Link className="site-header__brand" to="/">
+        <Link ref={desktopBrandRef} className="site-header__brand" to="/">
           {strings.app.name}
         </Link>
         <div className="site-header__tools">

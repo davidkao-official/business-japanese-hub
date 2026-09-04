@@ -153,8 +153,19 @@ describe('Header mobile navigation', () => {
     try {
       renderWithAppProviders(<Header />)
       expect(matchMediaMock).toHaveBeenCalledWith('(min-width: 50rem)')
+      const desktopBrand = screen.getByRole('link', { name: 'ビジネス日本語ハブ' })
+      desktopBrand.focus()
+      act(() => {
+        listeners.forEach((listener) => listener({ matches: true } as MediaQueryListEvent))
+      })
+      expect(desktopBrand).toHaveFocus()
+
       fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
       expect(screen.getByRole('dialog', { name: 'メニュー' })).toBeInTheDocument()
+
+      within(screen.getByRole('dialog', { name: 'メニュー' }))
+        .getByRole('link', { name: 'ホーム' })
+        .focus()
 
       act(() => {
         listeners.forEach((listener) => listener({ matches: true } as MediaQueryListEvent))
@@ -165,6 +176,9 @@ describe('Header mobile navigation', () => {
         'aria-expanded',
         'false',
       )
+      expect(desktopBrand).toHaveFocus()
+      expect(document.activeElement).not.toBe(document.body)
+      expect(document.activeElement).not.toBe(screen.getByRole('button', { name: 'メニューを開く' }))
       expect(document.body.style.overflow).toBe('')
     } finally {
       Object.defineProperty(window, 'matchMedia', {
