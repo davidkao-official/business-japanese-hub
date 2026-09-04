@@ -32,6 +32,9 @@ describe('home editorial content projection', () => {
       '敬語（けいご）',
       'お手数をおかけしますが、ご確認のほどよろしくお願いいたします。',
     ])
+    expect(samples.map((sample) => sample.expressionLanguage)).toEqual(['ja', 'ja', 'ja'])
+    expect(samples.find((sample) => sample.kind === 'example')?.meaningLanguage).toBe('zh-TW')
+    expect(samples.find((sample) => sample.kind === 'example')?.supportingLanguage).toBe('ja')
     expect(samples.every((sample) => sample.sourceLabel.includes(' / '))).toBe(true)
   })
 

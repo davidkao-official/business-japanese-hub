@@ -139,8 +139,10 @@ function EditorialFeatures({ features }: { features: EditorialFeature[] }) {
               <p className="storefront-feature__label" lang="en">
                 {feature.label}
               </p>
-              <h3 aria-label={`${feature.label}: ${feature.title}`}>{feature.title}</h3>
-              <p>{feature.body}</p>
+              <h3 lang={feature.titleLanguage} aria-label={`${feature.label}: ${feature.title}`}>
+                {feature.title}
+              </h3>
+              <p lang={feature.bodyLanguage}>{feature.body}</p>
             </div>
           </li>
         ))}
@@ -168,21 +170,27 @@ function EditorialSamples({ samples }: { samples: HomeContentSample[] }) {
           {samples.map((sample, index) => (
             <li className="storefront-samples__item" key={sample.id}>
               <article className="storefront-sample" aria-labelledby={`sample-title-${index}`}>
-                <p className="storefront-sample__source">{sample.sourceLabel}</p>
+                <p className="storefront-sample__source" lang={sample.book.language}>
+                  {sample.sourceLabel}
+                </p>
                 <p className="storefront-sample__kind" lang="en">
                   {sample.kind}
                 </p>
-                <h3 className="storefront-sample__expression" id={`sample-title-${index}`} lang="ja">
+                <h3
+                  className="storefront-sample__expression"
+                  id={`sample-title-${index}`}
+                  lang={sample.expressionLanguage}
+                >
                   {sample.expression}
                 </h3>
                 <div className="storefront-sample__tier">
                   <p className="storefront-sample__tier-label" lang="en">MEANING</p>
-                  <p>{sample.meaning}</p>
+                  <p lang={sample.meaningLanguage}>{sample.meaning}</p>
                 </div>
                 {sample.supporting && (
                   <div className="storefront-sample__tier">
                     <p className="storefront-sample__tier-label" lang="en">NOTE</p>
-                    <p>{sample.supporting}</p>
+                    <p lang={sample.supportingLanguage}>{sample.supporting}</p>
                   </div>
                 )}
                 <Link
@@ -212,16 +220,20 @@ function EditorialSelections({ selections }: { selections: EditorialSelection[] 
         <h2 id="storefront-selections-title">{strings.home.selectionsTitle}</h2>
       </div>
       <div className="storefront-selections__list">
-        {selections.map((selection, index) => (
+        {selections.map((selection) => (
           <article className="storefront-selection" key={selection.id}>
             <div className="storefront-selection__content">
-              <p className="storefront-selection__source">{selection.sourceLabel}</p>
+              <p className="storefront-selection__source" lang={selection.book.language}>
+                {selection.sourceLabel}
+              </p>
               <h3>
-                <Link to={`/books/${selection.book.slug}`}>
+                <Link lang={selection.book.language} to={`/books/${selection.book.slug}`}>
                   {selection.title}
                 </Link>
               </h3>
-              <p className="storefront-selection__body">{selection.body}</p>
+              <p className="storefront-selection__body" lang={selection.book.language}>
+                {selection.body}
+              </p>
               <Link
                 className="storefront-selection__link"
                 to={`/books/${selection.book.slug}`}
@@ -231,7 +243,7 @@ function EditorialSelections({ selections }: { selections: EditorialSelection[] 
               </Link>
             </div>
             <div className="storefront-selection__media">
-              <EditorialMedia media={selection.media} priority={index === 0} />
+              <EditorialMedia media={selection.media} language={selection.book.language} />
             </div>
           </article>
         ))}
@@ -240,7 +252,7 @@ function EditorialSelections({ selections }: { selections: EditorialSelection[] 
   )
 }
 
-function EditorialMedia({ media, priority }: { media: EditorialMedia; priority: boolean }) {
+function EditorialMedia({ media, language }: { media: EditorialMedia; language: string }) {
   if (media.kind === 'cover') {
     return <BookCover book={media.book} className="storefront-selection__cover" />
   }
@@ -252,10 +264,17 @@ function EditorialMedia({ media, priority }: { media: EditorialMedia; priority: 
         alt={media.image.alt}
         width={media.image.width}
         height={media.image.height}
-        loading={priority ? 'eager' : 'lazy'}
+        loading="lazy"
       />
-      {media.image.caption && <figcaption>{media.image.caption}</figcaption>}
-      {media.image.credit && <p className="storefront-selection__credit">{media.image.credit}</p>}
+      {(media.image.caption || media.image.credit) && (
+        <figcaption lang={language}>
+          {media.image.caption && <span>{media.image.caption}</span>}
+          {media.image.caption && media.image.credit && (
+            <span aria-hidden="true"> — </span>
+          )}
+          {media.image.credit && <span>{media.image.credit}</span>}
+        </figcaption>
+      )}
     </figure>
   )
 }

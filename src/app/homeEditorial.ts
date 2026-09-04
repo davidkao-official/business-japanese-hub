@@ -16,14 +16,19 @@ export interface HomeContentSample {
   kind: 'dialogue' | 'example' | 'vocabulary'
   sourceLabel: string
   expression: string
+  expressionLanguage: string
   meaning: string
+  meaningLanguage: string
   supporting?: string
+  supportingLanguage?: string
 }
 
 export interface EditorialFeature {
   label: 'BOOK' | 'CHAPTER' | 'EXPRESSION'
   title: string
+  titleLanguage: string
   body: string
+  bodyLanguage: string
 }
 
 export type EditorialMedia =
@@ -72,6 +77,19 @@ function sourceLabel(book: Book, chapter: Chapter): string {
   return `${book.title} / ${chapter.title}`
 }
 
+/**
+ * Example translations predate per-field language metadata in the content
+ * model. Keep the Book language as the source-language default, while
+ * recognizing the released Traditional Chinese translation and plain-English
+ * fallback without changing the published content itself.
+ */
+function languageForTranslation(text: string, bookLanguage: string): string {
+  if (bookLanguage !== 'ja') return bookLanguage
+  if (/[\u3040-\u30ff]/u.test(text)) return bookLanguage
+  if (/[\u3400-\u9fff]/u.test(text)) return 'zh-TW'
+  return /[A-Za-z]/u.test(text) ? 'en' : bookLanguage
+}
+
 function sampleFromBlock(
   content: PublicChapterContent,
   block: ContentBlock,
@@ -89,8 +107,11 @@ function sampleFromBlock(
       kind: 'dialogue',
       sourceLabel: sourceLabel(book, chapter),
       expression: firstLine.text,
+      expressionLanguage: book.language,
       meaning: block.context,
+      meaningLanguage: book.language,
       supporting: firstLine.note,
+      supportingLanguage: firstLine.note ? book.language : undefined,
     }
   }
 
@@ -103,8 +124,11 @@ function sampleFromBlock(
       kind: 'vocabulary',
       sourceLabel: sourceLabel(book, chapter),
       expression: block.reading ? `${block.term}（${block.reading}）` : block.term,
+      expressionLanguage: book.language,
       meaning: block.meaning,
+      meaningLanguage: book.language,
       supporting: block.example,
+      supportingLanguage: block.example ? book.language : undefined,
     }
   }
 
@@ -117,8 +141,13 @@ function sampleFromBlock(
       kind: 'example',
       sourceLabel: sourceLabel(book, chapter),
       expression: block.text,
+      expressionLanguage: book.language,
       meaning: block.translation ?? block.note ?? '',
+      meaningLanguage: block.translation
+        ? languageForTranslation(block.translation, book.language)
+        : book.language,
       supporting: block.translation ? block.note : undefined,
+      supportingLanguage: block.note ? book.language : undefined,
     }
   }
 
@@ -180,7 +209,9 @@ export function listEditorialFeatures(entries = listCatalogEntries()): Editorial
     features.push({
       label: 'BOOK',
       title: featureEntry.book.title,
+      titleLanguage: featureEntry.book.language,
       body: featureEntry.book.description,
+      bodyLanguage: featureEntry.book.language,
     })
   }
 
@@ -188,7 +219,9 @@ export function listEditorialFeatures(entries = listCatalogEntries()): Editorial
     features.push({
       label: 'CHAPTER',
       title: firstChapter.chapter.title,
+      titleLanguage: firstChapter.entry.book.language,
       body: firstChapter.chapter.summary,
+      bodyLanguage: firstChapter.entry.book.language,
     })
   }
 
@@ -196,7 +229,9 @@ export function listEditorialFeatures(entries = listCatalogEntries()): Editorial
     features.push({
       label: 'EXPRESSION',
       title: firstSample.expression,
+      titleLanguage: firstSample.expressionLanguage,
       body: firstSample.meaning,
+      bodyLanguage: firstSample.meaningLanguage,
     })
   }
 

@@ -75,6 +75,12 @@ describe('storefront', () => {
         'お手数をおかけしますが、ご確認のほどよろしくお願いいたします。',
       ),
     ).toBeInTheDocument()
+    expect(within(samples).getByText('敬語（けいご）')).toHaveAttribute('lang', 'ja')
+    expect(within(samples).getByText('麻煩您確認，謝謝。')).toHaveAttribute('lang', 'zh-TW')
+    expect(within(samples).getByText('依頼を締めくくる定番表現です。')).toHaveAttribute(
+      'lang',
+      'ja',
+    )
     expect(within(samples).getByRole('region')).toHaveAttribute(
       'aria-label',
       '実際の文章と会話から学ぶ',
