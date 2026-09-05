@@ -2,17 +2,24 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const read = (path: string) => readFileSync(path, 'utf8')
+const rawDbCommand = /^(?:supabase db (?:start|reset|stop|lint)|supabase test db)\b/m
+
+const liveValidationDocs = [
+  'docs/career-game-validation.md',
+  'docs/accounts-and-entitlement.md',
+  'docs/payments/implementation-contract.md',
+] as const
 
 describe('database validation safety contract', () => {
-  it('routes the current Career Game validation checklist through the owned guard', () => {
-    const document = read('docs/career-game-validation.md')
+  it('routes every current local DB validation checklist through the owned guard', () => {
+    for (const path of liveValidationDocs) {
+      const document = read(path)
 
-    expect(document).toContain('pnpm test:db-guard')
-    expect(document).toContain('pnpm validate:db')
-    expect(document).toContain('docs/db-validation.md')
-    expect(document).not.toMatch(/^supabase db (?:start|reset|stop)\b/m)
-    expect(document).not.toMatch(/^supabase test db\b/m)
-    expect(document).not.toMatch(/^supabase db lint\b/m)
+      expect(document, path).toContain('pnpm test:db-guard')
+      expect(document, path).toContain('pnpm validate:db')
+      expect(document, path).toContain('docs/db-validation.md')
+      expect(document, path).not.toMatch(rawDbCommand)
+    }
   })
 
   it('keeps exact-HEAD and pull-request merge-result CI as separate gates', () => {
