@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http'
 import { readFile, stat } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
+import { resolveBuildCommitSha } from './lib/deployment-identity'
 import { verifyDeployment, type DeploymentProduct } from './lib/deployment-smoke'
 
 interface BuiltFrontend {
@@ -50,9 +51,17 @@ async function startSpaServer(outputDirectory: string): Promise<{ baseUrl: strin
       const file = await stat(requestedFile).catch(() => undefined)
       const responsePath = file?.isFile() ? requestedFile : indexPath
       const body = await readFile(responsePath)
+      const isHtml = responsePath === indexPath || extname(responsePath).toLowerCase() === '.html'
+      const isBuildInfo = responsePath === resolve(root, 'build-info.json')
+      const cacheControl = isBuildInfo
+        ? 'no-store'
+        : isHtml
+          ? 'public, max-age=0, must-revalidate'
+          : undefined
       response.writeHead(200, {
         'content-length': body.byteLength,
         'content-type': MEDIA_TYPES[extname(responsePath).toLowerCase()] ?? 'application/octet-stream',
+        ...(cacheControl ? { 'cache-control': cacheControl } : {}),
       })
       response.end(body)
     } catch (error) {
@@ -73,6 +82,7 @@ async function startSpaServer(outputDirectory: string): Promise<{ baseUrl: strin
   return { baseUrl: `http://127.0.0.1:${address.port}/`, server }
 }
 
+const expectedCommitSha = resolveBuildCommitSha()
 const servers: Server[] = []
 try {
   for (const frontend of BUILT_FRONTENDS) {
@@ -80,11 +90,12 @@ try {
     servers.push(preview.server)
     await verifyDeployment(preview.baseUrl, {
       attempts: 1,
+      expectedCommitSha,
       product: frontend.product,
       retryDelayMs: 0,
     })
     console.log(
-      `ok   ${frontend.product}: ${frontend.outputDirectory}/ root, typed assets, and SPA direct routes`,
+      `ok   ${frontend.product}: ${frontend.outputDirectory}/ exact-head identity, cache policy, typed assets, and SPA direct routes`,
     )
   }
 } finally {
