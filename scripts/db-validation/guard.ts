@@ -3,6 +3,7 @@ export const IMAGE = 'docker:28.5.2-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b327
 export const CLI_IMAGE = 'node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d'
 export const CLI_SHA256 = 'ff099608ce758b625532ef03a61f4c9520b995e94ff6cd5480dc0428cad64cb3'
 export const CLI_VERSION = '2.115.0'
+export const DATA_ROOT = '/owned-docker-data'
 export type Runner = (args: string[]) => Promise<string>
 const OWNER = 'dev.business-japanese-hub.db-validation'
 const ID = /^[a-f0-9]{64}$/
@@ -69,15 +70,16 @@ export async function validateDatabase(options: Options): Promise<void> {
       'container ownership mismatch')
     requireProof(row.Config.Image === IMAGE && row.HostConfig?.Privileged === true,
       'container configuration drift')
-    requireProof(Array.isArray(row.Mounts) && row.Mounts.every((m: { Type: string }) => m.Type === 'tmpfs'),
-      'persistent volume or host bind detected')
-    requireProof(['/var/lib/docker', '/certs/client', '/certs/server'].every(path =>
-      Object.hasOwn(row.HostConfig.Tmpfs ?? {}, path)), 'missing disposable filesystem declaration')
-    requireProof(row.HostConfig.Tmpfs['/var/lib/docker'] === 'exec', 'daemon data filesystem must permit nested executables')
+    const imageTmpfs = ['/var/lib/docker', '/certs/client', '/certs/server']
+    requireProof(Array.isArray(row.Mounts) && row.Mounts.every((m: { Type: string; Destination: string }) =>
+      m.Type === 'tmpfs' && imageTmpfs.includes(m.Destination)),
+      'unexpected mount or persistent volume detected')
+    requireProof(Object.keys(row.HostConfig.Tmpfs ?? {}).length === imageTmpfs.length && imageTmpfs.every(path =>
+      Object.hasOwn(row.HostConfig.Tmpfs ?? {}, path)), 'unexpected disposable filesystem declaration')
     requireProof(!row.HostConfig.Binds?.length && !Object.keys(row.HostConfig.PortBindings ?? {}).length &&
       !row.HostConfig.PublishAllPorts && row.HostConfig.NetworkMode !== 'host', 'host resource attachment detected')
     requireProof(row.Path === 'dockerd' && JSON.stringify(row.Args) === JSON.stringify([
-      '--host=unix:///var/run/docker.sock', '--data-root=/var/lib/docker', '--storage-driver=vfs',
+      '--host=unix:///var/run/docker.sock', `--data-root=${DATA_ROOT}`, '--storage-driver=vfs',
     ]), 'daemon command drift')
   }
   const owned: Runner = async args => {
@@ -89,9 +91,9 @@ export async function validateDatabase(options: Options): Promise<void> {
   try {
     // create returns the only authority to mutate; never adopt by name or label.
     const created = (await docker(['create', '--platform', 'linux/amd64', '--name', name,
-      '--label', `${OWNER}=${token}`, '--privileged', '--tmpfs', '/var/lib/docker:exec',
+      '--label', `${OWNER}=${token}`, '--privileged', '--tmpfs', '/var/lib/docker',
       '--tmpfs', '/certs/client', '--tmpfs', '/certs/server', '--entrypoint', 'dockerd', IMAGE,
-      '--host=unix:///var/run/docker.sock', '--data-root=/var/lib/docker', '--storage-driver=vfs'])).trim()
+      '--host=unix:///var/run/docker.sock', `--data-root=${DATA_ROOT}`, '--storage-driver=vfs'])).trim()
     requireProof(ID.test(created), 'invalid create receipt; resources preserved')
     receipt = created
     report(`Owned disposable container: ${receipt}; invocation: ${token}`)
@@ -120,6 +122,8 @@ export async function validateDatabase(options: Options): Promise<void> {
         }
         requireProof((await nestedDocker(['info', '--format', '{{.ID}}'])).trim() === innerDaemon,
           'inner daemon identity changed')
+        requireProof((await nestedDocker(['info', '--format', '{{.DockerRootDir}}'])).trim() === DATA_ROOT,
+          'inner daemon data root changed')
         for (const [kind, list] of [
           ['container', ['ps', '-aq', '--no-trunc']], ['volume', ['volume', 'ls', '-q']],
           ['network', ['network', 'ls', '-q', '--no-trunc']],
@@ -171,10 +175,7 @@ tar -xzf /tmp/cli.tar.gz -C /tmp supabase supabase-go`])
       }
     }
     await cliProof()
-    const dataMountOptions = (await inner(['sh', '-ec', `awk '$2 == "/var/lib/docker" { print $4 }' /proc/mounts`])).trim()
-    report(`Owned daemon /var/lib/docker mount options: ${dataMountOptions || 'unavailable'}`)
-    requireProof(dataMountOptions.split(',').includes('rw') && !dataMountOptions.split(',').includes('noexec'),
-      'daemon data filesystem cannot execute nested containers')
+    report(`Owned daemon data root: ${DATA_ROOT} (container writable layer)`)
     await privateDocker(['start', cliReceipt])
     await privateDocker(['exec', cliReceipt, 'mkdir', '-p', '/work', '/etc/ssl/certs'])
     await privateDocker(['cp', '/work/.', `${cliReceipt}:/work/`])
@@ -211,7 +212,7 @@ tar -xzf /tmp/cli.tar.gz -C /tmp supabase supabase-go`])
         await proof()
         // Metadata only, inside the proved domain: no Env, health logs or database rows.
         const diagnostics = await docker(['exec', receipt, 'sh', '-ec',
-          `df -Pk /var/lib/docker
+          `df -Pk ${DATA_ROOT}
 docker --host unix:///var/run/docker.sock ps -aq --no-trunc | xargs -r docker --host unix:///var/run/docker.sock container inspect --format '{{.Name}} status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}'`])
         report(`Owned resource failure diagnostics:\n${diagnostics.slice(0, 4096)}`)
       } catch {
@@ -224,7 +225,7 @@ docker --host unix:///var/run/docker.sock ps -aq --no-trunc | xargs -r docker --
         if (checkNested) await checkNested()
         requireProof(!unknownNestedResource, 'unknown nested resource; preserve for owner inspection')
         await proof()
-        // Only an immutable receipt ID; all nested data is in this container's tmpfs.
+        // Only an immutable receipt ID; all nested data is in its own writable layer.
         await docker(['rm', '--force', receipt])
         report(`Removed owned disposable container: ${receipt}`)
       } catch {

@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { validateDatabase, IMAGE, CLI_IMAGE, CLI_VERSION, CLI_SHA256 } from './guard.ts'
+import { validateDatabase, IMAGE, CLI_IMAGE, CLI_VERSION, CLI_SHA256, DATA_ROOT } from './guard.ts'
 import { commandFailure, safeErrorCategories } from './command-error.ts'
 
 const token = 'a'.repeat(32)
@@ -14,9 +14,9 @@ function harness() {
     Id: receipt, Name: `/bjh-db-validation-${token}`,
     Config: { Image: IMAGE, Labels: { 'dev.business-japanese-hub.db-validation': token } },
     HostConfig: { Privileged: true, Binds: [], PortBindings: {}, PublishAllPorts: false, NetworkMode: 'default',
-      Tmpfs: { '/var/lib/docker': 'exec', '/certs/client': '', '/certs/server': '' } },
-    Mounts: [] as { Type: string }[], Path: 'dockerd',
-    Args: ['--host=unix:///var/run/docker.sock', '--data-root=/var/lib/docker', '--storage-driver=vfs'],
+      Tmpfs: { '/var/lib/docker': '', '/certs/client': '', '/certs/server': '' } },
+    Mounts: [] as { Type: string; Destination?: string }[], Path: 'dockerd',
+    Args: ['--host=unix:///var/run/docker.sock', `--data-root=${DATA_ROOT}`, '--storage-driver=vfs'],
   }
   const cliRow = {
     Id: cliReceipt, Name: `/bjh-validation-cli-${token}`,
@@ -38,12 +38,12 @@ function harness() {
       if (args[0] === 'ps') return ''
       if (args[0] === 'create') return receipt
       if (args[0] === 'inspect') return JSON.stringify([row])
+      if (args[0] === 'exec' && args.includes('{{.DockerRootDir}}')) return DATA_ROOT
       if (args[0] === 'exec' && args.includes('info') && args.includes('--format')) return 'inner-daemon'
       if (args[0] === 'exec' && args[2] === 'docker' && args.includes('create')) return cliReceipt
       if (args[0] === 'exec' && args.includes('-aq') && calls.some(a => a[0] === 'exec' && a.includes('create'))) return cliReceipt
       if (args[0] === 'exec' && args.includes('container') && args.includes('inspect')) return JSON.stringify([cliRow])
       if (args[0] === 'exec' && args.includes('supabase') && args.includes('--version')) return CLI_VERSION
-      if (args[0] === 'exec' && args.some(a => a.includes("awk '$2"))) return 'rw,nosuid,nodev,relatime'
       return ''
     },
   }
@@ -283,17 +283,22 @@ test('bounded diagnostics apply only to the fixed pre-DB CLI start command', () 
     assert.ok(!suppressed.message.includes('PRIVATE-OUTPUT'))
   }
 })
-test('noexec daemon data refuses nested startup with proved receipt cleanup', async () => {
+test('unexpected actual daemon data root preserves the unknown domain', async () => {
   const h = harness()
-  h.override(a => a[0] === 'exec' && a.some(v => v.includes("awk '$2")) ? 'rw,nosuid,nodev,noexec,relatime' : undefined)
-  await assert.rejects(validateDatabase(h.options), /cannot execute nested containers/)
+  h.override(a => a[0] === 'exec' && a.includes('{{.DockerRootDir}}') ? '/foreign-data' : undefined)
+  await assert.rejects(validateDatabase(h.options), /inner daemon data root changed/)
   assert.ok(!h.calls.flat().includes('reset'))
-  assert.ok(!h.calls.some(a => a[0] === 'exec' && a.includes('start') && a.includes(cliReceipt)))
-  assert.deepEqual(h.calls.at(-1), ['rm', '--force', receipt])
+  assert.ok(!h.calls.some(a => a[0] === 'rm'))
 })
-test('missing explicit exec declaration refuses daemon start and cleanup', async () => {
-  const h = harness(); h.row.HostConfig.Tmpfs['/var/lib/docker'] = ''
-  await assert.rejects(validateDatabase(h.options), /must permit nested executables/)
+test('a mount over the owned writable data path refuses start and cleanup', async () => {
+  const h = harness(); h.row.Mounts.push({ Type: 'tmpfs', Destination: DATA_ROOT })
+  await assert.rejects(validateDatabase(h.options), /unexpected mount/)
+  assert.ok(!h.calls.some(a => a[0] === 'start' || a[0] === 'rm'))
+})
+test('additional ancestor tmpfs declaration cannot mask the owned data root', async () => {
+  const h = harness()
+  ;(h.row.HostConfig.Tmpfs as Record<string, string>)['/'] = ''
+  await assert.rejects(validateDatabase(h.options), /unexpected disposable filesystem declaration/)
   assert.ok(!h.calls.some(a => a[0] === 'start' || a[0] === 'rm'))
 })
 test('Supabase diagnostics expose fixed categories without any original error text', () => {

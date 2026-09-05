@@ -28,11 +28,11 @@ fall back to a shared stack. No frontend ports are published.
    never permits adoption, relabeling, name-based deletion or retry cleanup.
 4. Inspect the receipt ID, invocation label, pinned image and exact daemon
    command. Reject persistent volumes, bind mounts, published ports and host
-   networking. Nested Docker data and image-declared certificate volumes are
-   replaced with tmpfs. The daemon data tmpfs explicitly permits execution
-   because it contains nested container root filesystems; the default `noexec`
-   mount prevents their entrypoints from starting. Verify actual mount options
-   before CLI startup. The nested daemon has only its private Unix socket;
+   networking. Only the three image-declared volume paths are masked with
+   unused tmpfs. Docker data lives at `/owned-docker-data` in this newly created
+   container's own writable layer; no mount or external volume may cover it.
+   Require the exact daemon command and actual `DockerRootDir` on each inventory.
+   The nested daemon has only its private Unix socket;
    neither the host socket nor host source is mounted into it.
 5. Require a distinct inner daemon with no containers or volumes. Before every
    gate and cleanup, inventory all nested containers, volumes and networks;
@@ -56,7 +56,7 @@ fall back to a shared stack. No frontend ports are published.
    environment plus explicit local Docker socket and tool paths. Never run
    `supabase stop`, prune, linked reset, DB-URL reset or destructive fallback.
 7. On success or failure, inspect ownership again. Remove only the exact created
-   outer container ID; its tmpfs contains all created DB resources. Unknown
+   outer container ID; its writable layer contains all created DB resources. Unknown
    ownership, daemon drift or failed inventory preserves the container and
    fails the command. A partial start failure may remove its proved outer
    receipt before an inner daemon exists. No global volume/network cleanup is
@@ -103,10 +103,13 @@ The first implementation was verified with mocks and non-DB source gates only
 on the incident workstation. A hosted CI success is required for real nested
 daemon / migration / pgTAP / lint evidence; do not relabel mock results as a
 database pass. Preserve the input HEAD and CI run with the review evidence.
-The private daemon uses tmpfs and Docker's `vfs` driver; image expansion can
-exhaust a small runner's memory. Treat such a failure as a failed gate, preserve
-its evidence, and fix only the disposable environment; never use an existing
-host volume or stack as a fallback.
+The private daemon uses Docker's `vfs` driver and its owned writable layer.
+An earlier hosted run reported `disk_full` during DB startup with a tmpfs data
+root. Capacity measurements were taken after the CLI's failure rollback, so
+peak extraction pressure is an inference, not a measured high-water mark.
+The writable-layer repair removes that tmpfs limit without creating/adopting a
+host volume. A future disk-capacity failure still fails the gate; preserve its
+evidence and never use an existing host volume or stack as a fallback.
 
 ## Incident preservation
 
