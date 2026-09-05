@@ -245,3 +245,24 @@ test('CLI image drift refuses execution and preserves the domain', async () => {
   assert.ok(!h.calls.flat().includes('reset'))
   assert.ok(!h.calls.some(a => a[0] === 'rm'))
 })
+test('CLI create error with a lost receipt preserves the unknown container', async () => {
+  const h = harness()
+  h.override(a => { if (a[0] === 'exec' && a.includes('create')) throw new Error('lost create reply') })
+  await assert.rejects(validateDatabase(h.options), /lost create reply/)
+  assert.ok(!h.calls.flat().includes('reset'))
+  assert.ok(!h.calls.some(a => a[0] === 'rm'))
+})
+for (const stage of ['start', 'exec']) {
+  test(`CLI ${stage} failure cleans only the proved outer receipt`, async () => {
+    const h = harness()
+    h.override(a => {
+      if (a[0] === 'exec' && a.includes(cliReceipt) &&
+        ((stage === 'start' && a.includes('start')) || (stage === 'exec' && a.includes('mkdir')))) {
+        throw new Error(`CLI ${stage} failed`)
+      }
+    })
+    await assert.rejects(validateDatabase(h.options), new RegExp(`CLI ${stage} failed`))
+    assert.ok(!h.calls.flat().includes('reset'))
+    assert.deepEqual(h.calls.at(-1), ['rm', '--force', receipt])
+  })
+}
