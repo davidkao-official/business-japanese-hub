@@ -48,6 +48,37 @@ export function resolveBuildCommitSha(
   return normalizeCommitSha(readGitHead(), 'Git HEAD commit SHA')
 }
 
+export interface ResolveExpectedDeploymentShaOptions extends ResolveBuildCommitShaOptions {
+  explicitSha?: string
+}
+
+/**
+ * Resolve the revision an operator expects one deployed product to serve.
+ * Product-scoped environment variables preserve independent Library/Career Game
+ * deploy and rollback histories when the aggregate production smoke is used.
+ */
+export function resolveExpectedDeploymentSha(
+  product: DeploymentProduct,
+  options: ResolveExpectedDeploymentShaOptions = {},
+): string {
+  const env = options.env ?? process.env
+  const productVariable =
+    product === 'library'
+      ? 'EXPECTED_LIBRARY_DEPLOYMENT_SHA'
+      : 'EXPECTED_CAREER_GAME_DEPLOYMENT_SHA'
+  const candidates: readonly [string, string | undefined][] = [
+    ['explicit deployment commit SHA', options.explicitSha],
+    [productVariable, env[productVariable]],
+    ['EXPECTED_DEPLOYMENT_SHA', env.EXPECTED_DEPLOYMENT_SHA],
+  ]
+
+  for (const [label, raw] of candidates) {
+    if (raw?.trim()) return normalizeCommitSha(raw, label)
+  }
+
+  return resolveBuildCommitSha({ env, readGitHead: options.readGitHead })
+}
+
 export function createBuildInfo(
   product: DeploymentProduct,
   commitSha: string,
