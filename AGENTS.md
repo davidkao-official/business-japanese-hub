@@ -72,3 +72,9 @@
 - `docs/accounts-and-entitlement.md` — accounts / ownership / reading-state persistence 契約。
 - `docs/legal-tax-launch-brief.md` — legal / tax / entity structure launch brief（#11 研究成果；MVP 結構建議、A–G 比較、金流、launch compliance checklist、對 #9/#20/#21 的影響）。
 - `docs/deployment.md` — Cloudflare Pages frontend + production Supabase activation / rollback / smoke runbook。
+
+## 本機 DB 驗證安全入口
+
+- DB validation 一律使用 `pnpm validate:db`，先讀 [docs/db-validation.md](docs/db-validation.md)。此入口只建立本次專屬 disposable daemon；不接受既有 project／container／volume 作為目標。
+- 不可使用 raw `supabase db start/reset/stop`、remote／linked reset 或修改 port／project ID 作為防護失敗的替代方案。不得沿用、重標籤或清理其他 worktree／worker 的資源。
+- #98 事故原受影響 stack 保持原狀；禁止 reset、重啟、停止、刪除、prune、restore 或 recovery 嘗試。原資料損失及可恢復性沒有證據即為 UNKNOWN；任何原資料操作須由 owner 另行決定。

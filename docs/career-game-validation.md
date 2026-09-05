@@ -34,12 +34,16 @@ pnpm lint
 pnpm test
 pnpm build
 pnpm smoke:built-frontends
-supabase db start
-supabase db reset --local
-supabase test db --local supabase/tests
-supabase db lint --local
+pnpm test:db-guard
+pnpm validate:db
 git diff --check
 ```
+
+Database validation must use the owned disposable boundary documented in
+`docs/db-validation.md`. If that guard refuses to run, stop and report the DB
+gate as unavailable; do not substitute raw `supabase db start/reset/stop`, a
+linked/remote reset, an existing local stack, or a different project/port as a
+fallback.
 
 Run the two `smoke:deployment` commands against the exact candidate preview
 origins before release. After the Pages projects deploy that exact HEAD, repeat
