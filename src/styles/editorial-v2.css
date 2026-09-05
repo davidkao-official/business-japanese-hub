@@ -340,10 +340,18 @@
   border-bottom: var(--stroke-thin) solid var(--color-border);
 }
 
+#profiles ul,
+#profiles .public-profile__languages {
+  color: var(--color-text-muted);
+}
+
+#profiles .public-profile__languages strong {
+  font-weight: var(--font-weight-medium);
+}
+
 #profiles ul {
   padding-inline-start: var(--space-5);
   list-style: disc;
-  color: var(--color-text-muted);
 }
 
 #profiles li + li {
