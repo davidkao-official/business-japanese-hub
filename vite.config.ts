@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { deploymentIdentityPlugin } from './vite.deployment-identity'
 
 /**
  * Extracts the light/dark `--color-bg` values from the single canonical color
@@ -65,7 +66,7 @@ export function resolveDeploymentBase(raw: string | undefined): string {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), themeColorPlugin()],
+  plugins: [react(), themeColorPlugin(), deploymentIdentityPlugin('library')],
   // `BASE_URL` is derived from this value and is also used as BrowserRouter's
   // basename. Cloudflare Pages production uses the root default.
   base: resolveDeploymentBase(process.env.DEPLOY_BASE_PATH),
