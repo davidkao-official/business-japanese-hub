@@ -66,6 +66,10 @@ function installHeaderMediaQueryHarness() {
   }
 }
 
+function simulateResponsiveFocusLoss() {
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+}
+
 describe('Header mobile navigation', () => {
   it('opens the existing navigation with account and appearance controls', () => {
     renderWithAppProviders(<Header />)
@@ -197,8 +201,13 @@ describe('Header mobile navigation', () => {
       expect(focusProbe).toHaveFocus()
 
       const desktopBrand = screen.getByRole('link', { name: 'ビジネス日本語ハブ' })
+      const trigger = screen.getByRole('button', { name: 'メニューを開く' })
+      trigger.focus()
+      trigger.blur()
+      media.emitHeaderBreakpoint(true)
+      expect(desktopBrand).toHaveFocus()
 
-      fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
+      fireEvent.click(trigger)
       expect(screen.getByRole('dialog', { name: 'メニュー' })).toBeInTheDocument()
 
       within(screen.getByRole('dialog', { name: 'メニュー' }))
@@ -267,10 +276,12 @@ describe('Header mobile navigation', () => {
       const desktopTools = document.querySelector('.site-header__tools') as HTMLElement
       const trigger = screen.getByRole('button', { name: 'メニューを開く' })
       within(desktopTools).getByRole('link', { name: 'ホーム' }).focus()
+      simulateResponsiveFocusLoss()
       media.emitHeaderBreakpoint(false)
       expect(trigger).toHaveFocus()
 
       within(desktopTools).getByRole('radio', { name: 'システム' }).focus()
+      simulateResponsiveFocusLoss()
       media.emitHeaderBreakpoint(false)
       expect(trigger).toHaveFocus()
 

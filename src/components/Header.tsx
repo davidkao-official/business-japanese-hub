@@ -21,6 +21,8 @@ export function Header() {
   const triggerRef = useRef<HTMLButtonElement>(null)
   const desktopBrandRef = useRef<HTMLAnchorElement>(null)
   const desktopToolsRef = useRef<HTMLDivElement>(null)
+  const lastDesktopToolsFocusRef = useRef<HTMLElement | null>(null)
+  const lastTriggerFocusRef = useRef(false)
   const menuWasOpen = useRef(false)
   const closeFocusTarget = useRef<CloseFocusTarget>('trigger')
   const lastLocationKey = useRef(location.key)
@@ -60,20 +62,62 @@ export function Header() {
   }, [location.key])
 
   useEffect(() => {
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target
+      if (!(target instanceof HTMLElement)) return
+
+      if (desktopToolsRef.current?.contains(target)) {
+        lastDesktopToolsFocusRef.current = target
+        lastTriggerFocusRef.current = false
+        return
+      }
+
+      lastDesktopToolsFocusRef.current = null
+      lastTriggerFocusRef.current = target === triggerRef.current
+    }
+
+    const handleBlur = (event: FocusEvent) => {
+      const target = event.target
+      if (!(target instanceof HTMLElement)) return
+
+      // A responsive display:none transition can blur the focused desktop
+      // control before the matching media-query listener runs. Retain that
+      // focus provenance so the listener can restore it to the mobile trigger.
+      if (desktopToolsRef.current?.contains(target)) {
+        lastDesktopToolsFocusRef.current = target
+      } else if (target === triggerRef.current) {
+        lastTriggerFocusRef.current = true
+      }
+    }
+
+    document.addEventListener('focusin', handleFocusIn)
+    document.addEventListener('blur', handleBlur, true)
+    return () => {
+      document.removeEventListener('focusin', handleFocusIn)
+      document.removeEventListener('blur', handleBlur, true)
+    }
+  }, [])
+
+  useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
 
     const desktopQuery = window.matchMedia('(min-width: 50rem)')
     const handleBreakpointChange = (event: MediaQueryListEvent) => {
       if (event.matches) {
         const shouldRestoreClosedMenuFocus =
-          !menuOpen && document.activeElement === triggerRef.current
+          !menuOpen &&
+          (document.activeElement === triggerRef.current ||
+            (document.activeElement === document.body && lastTriggerFocusRef.current))
         closeMenuTo('desktop')
         if (shouldRestoreClosedMenuFocus) desktopBrandRef.current?.focus()
         return
       }
 
       setDesktopAccountOpen(false)
-      if (desktopToolsRef.current?.contains(document.activeElement)) {
+      const desktopToolsLostFocusToBreakpoint =
+        document.activeElement === document.body &&
+        desktopToolsRef.current?.contains(lastDesktopToolsFocusRef.current)
+      if (desktopToolsRef.current?.contains(document.activeElement) || desktopToolsLostFocusToBreakpoint) {
         triggerRef.current?.focus()
       }
     }
