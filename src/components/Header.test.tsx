@@ -325,4 +325,29 @@ describe('Header mobile navigation', () => {
       media.restore()
     }
   })
+
+  it('does not restore stale desktop-control body blur provenance after the breakpoint window expires', () => {
+    const media = installHeaderMediaQueryHarness()
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+
+    try {
+      renderWithAppProviders(<Header />)
+
+      const desktopTools = document.querySelector('.site-header__tools') as HTMLElement
+      const desktopHome = within(desktopTools).getByRole('link', { name: 'ホーム' })
+      const trigger = screen.getByRole('button', { name: 'メニューを開く' })
+      desktopHome.focus()
+      desktopHome.blur()
+      expect(document.activeElement).toBe(document.body)
+
+      clock.mockReturnValue(1_501)
+      media.emitHeaderBreakpoint(false)
+
+      expect(document.activeElement).toBe(document.body)
+      expect(trigger).not.toHaveFocus()
+    } finally {
+      clock.mockRestore()
+      media.restore()
+    }
+  })
 })
