@@ -428,7 +428,7 @@ function PublicProfileBlock({ id, profile }: { id: string; profile: PublicProfil
         ))}
       </ul>
       {profile.languages && (
-        <p>
+        <p className="public-profile__languages">
           <strong lang="en">Languages</strong>
           <br />
           {profile.languages.map((language, index) => (
