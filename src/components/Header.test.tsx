@@ -238,6 +238,7 @@ describe('Header mobile navigation', () => {
       const trigger = screen.getByRole('button', { name: 'メニューを開く' })
       expect(trigger).toHaveFocus()
 
+      const desktopBrand = screen.getByRole('link', { name: 'ビジネス日本語ハブ' })
       fireEvent.click(trigger)
       const menu = screen.getByRole('dialog', { name: 'メニュー' })
       fireEvent.click(within(menu).getByRole('button', { name: 'ログイン' }))
@@ -246,6 +247,7 @@ describe('Header mobile navigation', () => {
       fireEvent.keyDown(document, { key: 'Escape' })
       media.emitHeaderBreakpoint(true)
       expect(screen.queryByRole('region', { name: 'ログイン' })).not.toBeInTheDocument()
+      expect(desktopBrand).toHaveFocus()
     } finally {
       media.restore()
     }

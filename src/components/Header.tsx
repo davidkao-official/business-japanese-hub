@@ -65,7 +65,10 @@ export function Header() {
     const desktopQuery = window.matchMedia('(min-width: 50rem)')
     const handleBreakpointChange = (event: MediaQueryListEvent) => {
       if (event.matches) {
+        const shouldRestoreClosedMenuFocus =
+          !menuOpen && document.activeElement === triggerRef.current
         closeMenuTo('desktop')
+        if (shouldRestoreClosedMenuFocus) desktopBrandRef.current?.focus()
         return
       }
 
@@ -82,7 +85,7 @@ export function Header() {
 
     desktopQuery.addListener(handleBreakpointChange)
     return () => desktopQuery.removeListener(handleBreakpointChange)
-  }, [])
+  }, [menuOpen])
 
   useEffect(() => {
     if (!menuOpen) return
