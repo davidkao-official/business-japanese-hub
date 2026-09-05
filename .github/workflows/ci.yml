@@ -38,11 +38,6 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v3
-        with:
-          version: 2.115.0
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
