@@ -71,7 +71,13 @@ later invocation. A Docker administrator can bypass these controls; agents
 must use the canonical entrypoint instead of issuing raw commands.
 Only the fixed inner CLI container's pre-DB `docker start` failure includes a
 bounded (4 KiB) stderr diagnostic and numeric exit code. Supabase failures,
-arbitrary command output, environment dumps and private rows remain suppressed.
+in the four fixed stages, include only fixed error categories (such as disk capacity, image pull,
+connection, TLS, permission or health) and a numeric exit code; no original
+Supabase error text is returned. Other
+command output, environment dumps and private rows remain suppressed. Failed
+gates may report the proved daemon's data-filesystem capacity and owned
+containers' status, exit code, OOM flag and health status; never environment
+variables or health-check logs.
 
 ## Pinned tooling provenance
 

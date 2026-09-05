@@ -195,6 +195,7 @@ tar -xzf /tmp/cli.tar.gz -C /tmp supabase supabase-go`])
       await cliProof()
       requireProof((await inner(['docker', '--host', 'unix:///var/run/docker.sock', 'info', '--format', '{{.ID}}'])).trim() === innerDaemon,
         'inner daemon identity changed')
+      report(`RUN supabase ${args.join(' ')}`)
       const output = await privateDocker(['exec', '--workdir', '/work', cliReceipt, 'env', '-i', 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
         'HOME=/root', 'DOCKER_HOST=unix:///var/run/docker.sock', 'SUPABASE_TELEMETRY_DISABLED=true',
         'supabase', '--workdir', '/work', ...args])
@@ -204,6 +205,19 @@ tar -xzf /tmp/cli.tar.gz -C /tmp supabase supabase-go`])
     await nestedInventory()
   } catch (error) {
     failure = error
+    if (receipt && checkNested && !unknownNestedResource) {
+      try {
+        await checkNested()
+        await proof()
+        // Metadata only, inside the proved domain: no Env, health logs or database rows.
+        const diagnostics = await docker(['exec', receipt, 'sh', '-ec',
+          `df -Pk /var/lib/docker
+docker --host unix:///var/run/docker.sock ps -aq --no-trunc | xargs -r docker --host unix:///var/run/docker.sock container inspect --format '{{.Name}} status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}'`])
+        report(`Owned resource failure diagnostics:\n${diagnostics.slice(0, 4096)}`)
+      } catch {
+        report('Owned resource failure diagnostics unavailable; no unproved target queried.')
+      }
+    }
   } finally {
     if (receipt) {
       try {

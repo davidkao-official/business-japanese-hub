@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { validateDatabase, IMAGE, CLI_IMAGE, CLI_VERSION, CLI_SHA256 } from './guard.ts'
-import { commandFailure } from './command-error.ts'
+import { commandFailure, safeErrorCategories } from './command-error.ts'
 
 const token = 'a'.repeat(32)
 const receipt = 'b'.repeat(64)
@@ -295,4 +295,27 @@ test('missing explicit exec declaration refuses daemon start and cleanup', async
   const h = harness(); h.row.HostConfig.Tmpfs['/var/lib/docker'] = ''
   await assert.rejects(validateDatabase(h.options), /must permit nested executables/)
   assert.ok(!h.calls.some(a => a[0] === 'start' || a[0] === 'rm'))
+})
+test('Supabase diagnostics expose fixed categories without any original error text', () => {
+  const lines = safeErrorCategories([
+    'ordinary startup output not included', 'Error: no space left on device',
+    'Error: password=PRIVATE-PASSWORD', 'Error: Authorization: Bearer PRIVATE-BEARER',
+    'Error: connection to postgres://user:PRIVATE-PASSWORD@example.invalid/db refused',
+    'Error: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzZWNyZXQifQ.signature',
+    `Error: ${'q'.repeat(50)}`, 'Error: api_key=PRIVATE-KEY',
+    'ERROR: alice@example.invalid short-value',
+  ].join('\n'))
+  assert.equal(lines, 'disk_full')
+  for (const value of ['ordinary startup', 'PRIVATE-', 'eyJ', 'q'.repeat(50), 'example.invalid']) assert.ok(!lines.includes(value))
+})
+test('fixed owned Supabase stage receives only categories and numeric exit', () => {
+  const args = ['--host', 'unix:///outer.sock', 'exec', receipt, 'docker', '--host',
+    'unix:///var/run/docker.sock', 'exec', '--workdir', '/work', cliReceipt,
+    'env', '-i', 'PATH=/usr/local/bin', 'supabase', '--workdir', '/work', 'db', 'start']
+  const result = commandFailure('docker', args, { code: 1, stderr: 'Error: no space left on device\nError: token=PRIVATE', stdout: 'PRIVATE' })
+  assert.match(result.message, /supabase --workdir \/work db start \(exit 1\)/)
+  assert.match(result.message, /disk_full/)
+  assert.ok(!result.message.includes('PRIVATE'))
+  const arbitrary = commandFailure('docker', [...args, '--linked'], { stderr: 'Error: PRIVATE' })
+  assert.ok(!arbitrary.message.includes('PRIVATE'))
 })
