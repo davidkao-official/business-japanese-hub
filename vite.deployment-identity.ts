@@ -4,7 +4,7 @@ import {
   resolveBuildCommitSha,
   type DeploymentBuildInfo,
   type DeploymentProduct,
-} from './scripts/lib/deployment-identity'
+} from './scripts/lib/deployment-identity.ts'
 
 const BUILD_META_NAME = 'bjh-build'
 const BUILD_INFO_FILE = 'build-info.json'
