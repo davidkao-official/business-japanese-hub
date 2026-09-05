@@ -22,6 +22,8 @@ fall back to a shared stack. No frontend ports are published.
    Exclude worktree `.temp`, `.branches`, `.env`, credentials, backups, private
    rows and untracked files. The snapshot uses its own exclusive temporary
    directory and invocation-specific project ID; the ID alone is not ownership.
+   Its `bjh-` prefix plus the full 128-bit token fits the pinned CLI's 40-character
+   project-ID limit, so the config and exact resource-label proof remain equal.
 3. Require successful inventory and an unused cryptographically random name.
    `docker create` atomically reserves it. Only its full returned container ID
    grants mutation authority. A collision, missing receipt or malformed result
@@ -98,6 +100,11 @@ variables or health-check logs.
   TLS, nested Docker and resource capacity remain hosted-CI acceptance checks.
 - The [CLI reference](https://supabase.com/docs/reference/cli/supabase-db-reset)
   describes the local/linked/DB-URL distinction. Only `--local` is admitted.
+- Pinned [project-ID rules](https://github.com/supabase/cli/blob/v2.115.0/apps/cli/src/legacy/shared/legacy-docker-ids.ts)
+  cap IDs at 40 characters and define `com.supabase.cli.project`.
+  [Container/volume creation](https://github.com/supabase/cli/blob/v2.115.0/apps/cli/src/legacy/shared/db-bootstrap/container-lifecycle.ts)
+  and [DB network creation](https://github.com/supabase/cli/blob/v2.115.0/apps/cli/src/legacy/shared/db-bootstrap/start-database.ts)
+  apply that same sanitized project label to all three resource kinds.
 
 The first implementation was verified with mocks and non-DB source gates only
 on the incident workstation. A hosted CI success is required for real nested

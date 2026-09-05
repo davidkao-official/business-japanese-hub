@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto'
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { validateDatabase } from './db-validation/guard.ts'
+import { validateDatabase, validationProjectId } from './db-validation/guard.ts'
 import { commandFailure } from './db-validation/command-error.ts'
 
 const execute = promisify(execFile)
@@ -49,7 +49,7 @@ try {
     let data = await command('git', ['show', `${head}:${path}`])
     if (path === 'supabase/config.toml') {
       if (!/^project_id = "[\w-]+"$/m.test(data)) throw new Error('Unrecognized project config')
-      data = data.replace(/^project_id = "[\w-]+"$/m, `project_id = "bjh-validation-${token}"`)
+      data = data.replace(/^project_id = "[\w-]+"$/m, `project_id = "${validationProjectId(token)}"`)
     }
     await mkdir(dirname(join(source, path)), { recursive: true })
     await writeFile(join(source, path), data, { mode: 0o600 })

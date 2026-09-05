@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { validateDatabase, IMAGE, CLI_IMAGE, CLI_VERSION, CLI_SHA256, DATA_ROOT } from './guard.ts'
+import { validateDatabase, validationProjectId, IMAGE, CLI_IMAGE, CLI_VERSION, CLI_SHA256, DATA_ROOT } from './guard.ts'
 import { commandFailure, safeErrorCategories } from './command-error.ts'
 
 const token = 'a'.repeat(32)
@@ -323,4 +323,29 @@ test('fixed owned Supabase stage receives only categories and numeric exit', () 
   assert.ok(!result.message.includes('PRIVATE'))
   const arbitrary = commandFailure('docker', [...args, '--linked'], { stderr: 'Error: PRIVATE' })
   assert.ok(!arbitrary.message.includes('PRIVATE'))
+})
+test('Supabase 2.115 sanitized project labels match without losing invocation entropy', async () => {
+  const h = harness()
+  const project = validationProjectId(token)
+  // Pinned CLI contract: invalid runs are replaced, leading punctuation stripped, then capped at 40.
+  const cliProject = project.replace(/[^a-zA-Z0-9_.-]+/g, '_').replace(/^[_.-]+/, '').slice(0, 40)
+  assert.equal(cliProject, project)
+  assert.ok(cliProject.endsWith(token))
+  const dbId = 'd'.repeat(64)
+  h.override(a => {
+    if (!h.calls.some(c => c.includes('supabase') && c.includes('start'))) return
+    if (a[0] !== 'exec') return
+    if (a.includes('-aq')) return `${cliReceipt}\n${dbId}`
+    if (a.includes('volume') && a.includes('ls')) return `supabase_db_${cliProject}`
+    if (a.includes('network') && a.includes('ls')) return 'supabase-network-id'
+    if (a.includes('inspect') && a.at(-1) !== cliReceipt) {
+      const labels = { 'com.supabase.cli.project': cliProject, 'com.docker.compose.project': cliProject }
+      return JSON.stringify([a.includes('container')
+        ? { Id: dbId, Name: `/supabase_db_${cliProject}`, Config: { Labels: labels } }
+        : { Name: a.includes('volume') ? `supabase_db_${cliProject}` : `supabase_network_${cliProject}`, Labels: labels }])
+    }
+  })
+  await validateDatabase(h.options)
+  assert.ok(h.calls.flat().includes('reset'))
+  assert.deepEqual(h.calls.at(-1), ['rm', '--force', receipt])
 })

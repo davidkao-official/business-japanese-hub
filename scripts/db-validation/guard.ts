@@ -4,6 +4,8 @@ export const CLI_IMAGE = 'node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157
 export const CLI_SHA256 = 'ff099608ce758b625532ef03a61f4c9520b995e94ff6cd5480dc0428cad64cb3'
 export const CLI_VERSION = '2.115.0'
 export const DATA_ROOT = '/owned-docker-data'
+// Supabase 2.115 truncates project IDs to 40 characters; keep all 128 token bits.
+export const validationProjectId = (token: string) => `bjh-${token}`
 export type Runner = (args: string[]) => Promise<string>
 const OWNER = 'dev.business-japanese-hub.db-validation'
 const ID = /^[a-f0-9]{64}$/
@@ -136,7 +138,7 @@ export async function validateDatabase(options: Options): Promise<void> {
             if (kind === 'container' && row.Id === cliReceipt) { assertCli(row); continue }
             if (kind === 'network' && ['bridge', 'host', 'none'].includes(row.Name)) continue
             const labels = kind === 'container' ? row.Config?.Labels : row.Labels
-            requireProof(labels?.['com.supabase.cli.project'] === `bjh-validation-${token}`, 'unknown nested resource')
+            requireProof(labels?.['com.supabase.cli.project'] === validationProjectId(token), 'unknown nested resource')
           }
         }
       } catch (error) {
