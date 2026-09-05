@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
-import { deploymentIdentityPlugin } from './vite.deployment-identity'
+import { deploymentIdentityPlugin } from './vite.deployment-identity.ts'
 
 /**
  * Extracts the light/dark `--color-bg` values from the single canonical color
