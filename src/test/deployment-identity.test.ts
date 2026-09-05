@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createBuildInfo,
   resolveBuildCommitSha,
+  resolveExpectedDeploymentSha,
 } from '../../scripts/lib/deployment-identity'
 import { verifyDeployment } from '../../scripts/lib/deployment-smoke'
 
@@ -104,6 +105,29 @@ describe('deployment build identity', () => {
         readGitHead: () => expectedSha,
       }),
     ).toThrow(/commit SHA/i)
+  })
+
+  it('lets an aggregate production smoke carry independent product revisions', () => {
+    const env = {
+      EXPECTED_LIBRARY_DEPLOYMENT_SHA: expectedSha,
+      EXPECTED_CAREER_GAME_DEPLOYMENT_SHA: staleSha,
+    }
+
+    expect(resolveExpectedDeploymentSha('library', { env })).toBe(expectedSha)
+    expect(resolveExpectedDeploymentSha('career-game', { env })).toBe(staleSha)
+  })
+
+  it('uses explicit SHA before product-specific, generic, or Git fallbacks', () => {
+    expect(
+      resolveExpectedDeploymentSha('library', {
+        explicitSha: staleSha,
+        env: {
+          EXPECTED_LIBRARY_DEPLOYMENT_SHA: expectedSha,
+          EXPECTED_DEPLOYMENT_SHA: expectedSha,
+        },
+        readGitHead: () => expectedSha,
+      }),
+    ).toBe(staleSha)
   })
 
   it('emits a deterministic versioned public build record', () => {
