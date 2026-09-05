@@ -1,9 +1,9 @@
-import { resolveBuildCommitSha } from './lib/deployment-identity'
+import { resolveExpectedDeploymentSha } from './lib/deployment-identity'
 import { verifyDeployment, type DeploymentProduct } from './lib/deployment-smoke'
 
 const deploymentUrl = process.argv[2]
 const productArgument = process.argv[3] ?? 'library'
-const expectedArgument = process.argv[4] ?? process.env.EXPECTED_DEPLOYMENT_SHA
+const explicitExpectedSha = process.argv[4]
 const product: DeploymentProduct | undefined =
   productArgument === 'library' || productArgument === 'career-game'
     ? productArgument
@@ -14,7 +14,9 @@ if (!deploymentUrl || !product || process.argv.length > 5) {
   )
 }
 
-const expectedCommitSha = expectedArgument ?? resolveBuildCommitSha()
+const expectedCommitSha = resolveExpectedDeploymentSha(product, {
+  explicitSha: explicitExpectedSha,
+})
 await verifyDeployment(deploymentUrl, { expectedCommitSha, product })
 console.log(
   `ok   ${deploymentUrl}: ${product} exact commit ${expectedCommitSha}, cache policy, typed assets, and SPA routes verified`,
