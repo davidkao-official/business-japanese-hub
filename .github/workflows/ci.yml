@@ -55,7 +55,7 @@ jobs:
         run: pnpm lint
 
       - name: Test
-        run: pnpm test
+        run: pnpm test && pnpm test:db-guard
 
       - name: Build Library and Career Game frontends
         run: pnpm build
@@ -63,14 +63,5 @@ jobs:
       - name: Smoke built Library and Career Game frontends
         run: pnpm smoke:built-frontends
 
-      - name: Start clean local database
-        run: supabase db start
-
-      - name: Apply migrations from scratch
-        run: supabase db reset --local
-
-      - name: Test transactional database contracts
-        run: supabase test db --local supabase/tests
-
-      - name: Lint database schema
-        run: supabase db lint --local --schema public --level warning --fail-on error
+      - name: Validate database in an owned disposable daemon
+        run: pnpm validate:db

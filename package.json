@@ -33,7 +33,9 @@
     "workflow:verify-releases": "tsx scripts/verify-releases.ts && tsx scripts/verify-learning-catalog.ts",
     "workflow:update-learning-catalog": "tsx scripts/update-learning-catalog.ts",
     "workflow:verify-learning-catalog": "tsx scripts/verify-learning-catalog.ts",
-    "workflow:rollback": "tsx scripts/rollback.ts"
+    "workflow:rollback": "tsx scripts/rollback.ts",
+    "validate:db": "tsx scripts/validate-db.ts",
+    "test:db-guard": "tsx --test scripts/db-validation/guard.test.ts"
   },
   "dependencies": {
     "@business-japanese-hub/career-game": "workspace:*",
