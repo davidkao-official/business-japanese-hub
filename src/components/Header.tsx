@@ -7,6 +7,7 @@ import { Navigation } from './Navigation'
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+const BREAKPOINT_FOCUS_PROVENANCE_WINDOW_MS = 500
 
 type CloseFocusTarget = 'trigger' | 'desktop'
 
@@ -22,7 +23,9 @@ export function Header() {
   const desktopBrandRef = useRef<HTMLAnchorElement>(null)
   const desktopToolsRef = useRef<HTMLDivElement>(null)
   const lastDesktopToolsFocusRef = useRef<HTMLElement | null>(null)
+  const lastDesktopToolsBlurAtRef = useRef<number | null>(null)
   const lastTriggerFocusRef = useRef(false)
+  const lastTriggerBlurAtRef = useRef<number | null>(null)
   const menuWasOpen = useRef(false)
   const closeFocusTarget = useRef<CloseFocusTarget>('trigger')
   const lastLocationKey = useRef(location.key)
@@ -68,12 +71,16 @@ export function Header() {
 
       if (desktopToolsRef.current?.contains(target)) {
         lastDesktopToolsFocusRef.current = target
+        lastDesktopToolsBlurAtRef.current = null
         lastTriggerFocusRef.current = false
+        lastTriggerBlurAtRef.current = null
         return
       }
 
       lastDesktopToolsFocusRef.current = null
+      lastDesktopToolsBlurAtRef.current = null
       lastTriggerFocusRef.current = target === triggerRef.current
+      lastTriggerBlurAtRef.current = null
     }
 
     const handleBlur = (event: FocusEvent) => {
@@ -83,10 +90,13 @@ export function Header() {
       // A responsive display:none transition can blur the focused desktop
       // control before the matching media-query listener runs. Retain that
       // focus provenance so the listener can restore it to the mobile trigger.
+      const blurredToBody = event.relatedTarget === null || event.relatedTarget === document.body
       if (desktopToolsRef.current?.contains(target)) {
         lastDesktopToolsFocusRef.current = target
+        lastDesktopToolsBlurAtRef.current = blurredToBody ? Date.now() : null
       } else if (target === triggerRef.current) {
         lastTriggerFocusRef.current = true
+        lastTriggerBlurAtRef.current = blurredToBody ? Date.now() : null
       }
     }
 
@@ -102,12 +112,16 @@ export function Header() {
     if (typeof window.matchMedia !== 'function') return
 
     const desktopQuery = window.matchMedia('(min-width: 50rem)')
+    const isRecentBreakpointBlur = (blurredAt: number | null) =>
+      blurredAt !== null && Date.now() - blurredAt <= BREAKPOINT_FOCUS_PROVENANCE_WINDOW_MS
     const handleBreakpointChange = (event: MediaQueryListEvent) => {
       if (event.matches) {
         const shouldRestoreClosedMenuFocus =
           !menuOpen &&
           (document.activeElement === triggerRef.current ||
-            (document.activeElement === document.body && lastTriggerFocusRef.current))
+            (document.activeElement === document.body &&
+              lastTriggerFocusRef.current &&
+              isRecentBreakpointBlur(lastTriggerBlurAtRef.current)))
         closeMenuTo('desktop')
         if (shouldRestoreClosedMenuFocus) desktopBrandRef.current?.focus()
         return
@@ -116,7 +130,8 @@ export function Header() {
       setDesktopAccountOpen(false)
       const desktopToolsLostFocusToBreakpoint =
         document.activeElement === document.body &&
-        desktopToolsRef.current?.contains(lastDesktopToolsFocusRef.current)
+        desktopToolsRef.current?.contains(lastDesktopToolsFocusRef.current) &&
+        isRecentBreakpointBlur(lastDesktopToolsBlurAtRef.current)
       if (desktopToolsRef.current?.contains(document.activeElement) || desktopToolsLostFocusToBreakpoint) {
         triggerRef.current?.focus()
       }

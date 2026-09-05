@@ -300,4 +300,29 @@ describe('Header mobile navigation', () => {
       media.restore()
     }
   })
+
+  it('does not restore stale body blur provenance after the breakpoint window expires', () => {
+    const media = installHeaderMediaQueryHarness()
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+
+    try {
+      renderWithAppProviders(<Header />)
+
+      const trigger = screen.getByRole('button', { name: 'メニューを開く' })
+      const desktopBrand = screen.getByRole('link', { name: 'ビジネス日本語ハブ' })
+      trigger.focus()
+      trigger.blur()
+      expect(document.activeElement).toBe(document.body)
+
+      clock.mockReturnValue(1_501)
+      media.emitHeaderBreakpoint(true)
+
+      expect(document.activeElement).toBe(document.body)
+      expect(desktopBrand).not.toHaveFocus()
+      expect(trigger).not.toHaveFocus()
+    } finally {
+      clock.mockRestore()
+      media.restore()
+    }
+  })
 })

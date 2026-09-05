@@ -11,7 +11,7 @@
 
 ## Capture provenance (historical, non-repeatable)
 
-All images below were captured from the historical source head `bc0e016cfcb3d187b7fef8cc2bf8b30ce0066563`. No new screenshot or Lighthouse result is claimed for the refresh candidate.
+Before images below were captured from the historical baseline `81a5dfe812e37a78110311a0277a79bb0a920913`; after images were captured from the historical #81 source/capture anchor `bc0e016cfcb3d187b7fef8cc2bf8b30ce0066563`. No new screenshot or Lighthouse result is claimed for the refresh candidate.
 
 所有影像都是 1x PNG，使用獨立 Chromium context、固定 viewport、`document.fonts.ready`、viewport 內圖片完成後擷取；capture 前將 `scrollBehavior` 設為 `auto`。Before 與 after 使用不同的 production preview artifact，並以 `--strictPort` 固定埠：
 
