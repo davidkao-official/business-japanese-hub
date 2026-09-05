@@ -3,9 +3,11 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
+import type { DeploymentBuildInfo, DeploymentProduct } from '../../scripts/lib/deployment-identity'
 
 const libraryOutput = join(process.cwd(), 'dist')
 const careerGameOutput = join(process.cwd(), 'dist-career-game')
+const buildCommitSha = '3333333333333333333333333333333333333333'
 const publicSupabaseUrl = 'https://shared-browser-config.supabase.co'
 const publicSupabaseKey = 'public-anon-key-sentinel'
 const publicFunctionsBaseUrl = 'https://functions-public-config.example/functions/v1'
@@ -37,6 +39,7 @@ const serverSecretValues = [
 ] as const
 const buildEnvironment = {
   ...process.env,
+  CF_PAGES_COMMIT_SHA: buildCommitSha,
   VITE_SUPABASE_URL: publicSupabaseUrl,
   VITE_SUPABASE_ANON_KEY: publicSupabaseKey,
   VITE_EDGE_FUNCTIONS_BASE_URL: publicFunctionsBaseUrl,
@@ -89,6 +92,27 @@ function builtText(root: string): string {
   return contents.join('\n')
 }
 
+function expectBuildIdentity(
+  output: string,
+  html: string,
+  product: DeploymentProduct,
+): void {
+  const buildInfo = JSON.parse(
+    readFileSync(join(output, 'build-info.json'), 'utf8'),
+  ) as DeploymentBuildInfo
+  expect(buildInfo).toEqual({
+    schemaVersion: 1,
+    product,
+    commitSha: buildCommitSha,
+  })
+  expect(html).toContain(
+    `<meta name="bjh-build" content="${product}:${buildCommitSha}" />`,
+  )
+  expect(readFileSync(join(output, '_headers'), 'utf8')).toBe(
+    '/build-info.json\n  Cache-Control: no-store\n',
+  )
+}
+
 describe('dual-frontend build topology', () => {
   beforeAll(() => {
     rmSync(libraryOutput, { recursive: true, force: true })
@@ -115,6 +139,8 @@ describe('dual-frontend build topology', () => {
     )
     expect(libraryHtml).toContain('<title>ビジネス日本語ハブ</title>')
     expect(careerGameHtml).toContain('<title>キャリアゲーム | Business Japanese Hub</title>')
+    expectBuildIdentity(libraryOutput, libraryHtml, 'library')
+    expectBuildIdentity(careerGameOutput, careerGameHtml, 'career-game')
     expect(existsSync(join(libraryOutput, '404.html'))).toBe(false)
     expect(existsSync(join(careerGameOutput, '404.html'))).toBe(false)
     expect(outputFingerprint(libraryOutput)).not.toEqual(outputFingerprint(careerGameOutput))
