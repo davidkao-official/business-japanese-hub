@@ -217,7 +217,7 @@ export function Header() {
 
   return (
     <header className="site-header">
-      <div className="site-header__inner" aria-hidden={menuOpen}>
+      <div className="site-header__inner" aria-hidden={menuOpen} inert={menuOpen}>
         <Link ref={desktopBrandRef} className="site-header__brand" to="/">
           {strings.app.name}
         </Link>

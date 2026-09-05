@@ -96,6 +96,9 @@ describe('Header mobile navigation', () => {
     fireEvent.click(trigger)
 
     const menu = screen.getByRole('dialog', { name: 'メニュー' })
+    const headerShell = document.querySelector('.site-header__inner') as HTMLElement
+    expect(headerShell).toHaveAttribute('aria-hidden', 'true')
+    expect(headerShell).toHaveAttribute('inert')
     expect(trigger).toBeDisabled()
     const focusable = Array.from(
       menu.querySelectorAll<HTMLElement>(
@@ -122,6 +125,8 @@ describe('Header mobile navigation', () => {
     expect(screen.queryByRole('dialog', { name: 'メニュー' })).not.toBeInTheDocument()
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(trigger).not.toBeDisabled()
+    expect(headerShell).not.toHaveAttribute('aria-hidden', 'true')
+    expect(headerShell).not.toHaveAttribute('inert')
     expect(trigger).toHaveFocus()
     expect(document.body.style.overflow).toBe('')
   })
