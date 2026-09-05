@@ -1,6 +1,6 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
-import { deploymentIdentityPlugin } from './vite.deployment-identity'
+import { deploymentIdentityPlugin } from './vite.deployment-identity.ts'
 
 // Career Game is independently bootable and publishes its root-hosted SPA
 // artifact to the dedicated Cloudflare Pages project documented in
