@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+import { deploymentIdentityPlugin } from './vite.deployment-identity'
 
 // Career Game is independently bootable and publishes its root-hosted SPA
 // artifact to the dedicated Cloudflare Pages project documented in
@@ -7,7 +8,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   root: 'apps/career-game',
   envDir: '../..',
-  plugins: [react()],
+  plugins: [react(), deploymentIdentityPlugin('career-game')],
   build: {
     outDir: '../../dist-career-game',
     emptyOutDir: true,
