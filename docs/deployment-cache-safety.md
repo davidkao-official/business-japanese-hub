@@ -86,8 +86,26 @@ pnpm smoke:deployment \
   <40-character-commit-sha>
 ```
 
-`EXPECTED_DEPLOYMENT_SHA=<sha>` is also accepted. An explicit CLI SHA takes
-precedence over the environment variable.
+Expected-revision precedence is:
+
+1. explicit CLI SHA;
+2. `EXPECTED_LIBRARY_DEPLOYMENT_SHA` or `EXPECTED_CAREER_GAME_DEPLOYMENT_SHA`;
+3. generic `EXPECTED_DEPLOYMENT_SHA`;
+4. the exact local Git HEAD.
+
+The product-specific variables matter because Library and Career Game have
+independent deployment and rollback histories. To validate both canonical
+origins when they intentionally serve different commits, use the existing
+aggregate command with separate expected revisions:
+
+```bash
+EXPECTED_LIBRARY_DEPLOYMENT_SHA=<library-sha> \
+EXPECTED_CAREER_GAME_DEPLOYMENT_SHA=<career-game-sha> \
+pnpm smoke:deployment:production
+```
+
+Do not force one product back to the other's revision merely to make an
+aggregate smoke green.
 
 A successful smoke proves the requested origin returned the expected product,
 exact build identity, safe HTML/build-info cache policy, fingerprinted assets,
