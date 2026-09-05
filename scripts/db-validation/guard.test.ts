@@ -14,7 +14,7 @@ function harness() {
     Id: receipt, Name: `/bjh-db-validation-${token}`,
     Config: { Image: IMAGE, Labels: { 'dev.business-japanese-hub.db-validation': token } },
     HostConfig: { Privileged: true, Binds: [], PortBindings: {}, PublishAllPorts: false, NetworkMode: 'default',
-      Tmpfs: { '/var/lib/docker': '', '/certs/client': '', '/certs/server': '' } },
+      Tmpfs: { '/var/lib/docker': 'exec', '/certs/client': '', '/certs/server': '' } },
     Mounts: [] as { Type: string }[], Path: 'dockerd',
     Args: ['--host=unix:///var/run/docker.sock', '--data-root=/var/lib/docker', '--storage-driver=vfs'],
   }
@@ -43,6 +43,7 @@ function harness() {
       if (args[0] === 'exec' && args.includes('-aq') && calls.some(a => a[0] === 'exec' && a.includes('create'))) return cliReceipt
       if (args[0] === 'exec' && args.includes('container') && args.includes('inspect')) return JSON.stringify([cliRow])
       if (args[0] === 'exec' && args.includes('supabase') && args.includes('--version')) return CLI_VERSION
+      if (args[0] === 'exec' && args.some(a => a.includes("awk '$2"))) return 'rw,nosuid,nodev,relatime'
       return ''
     },
   }
@@ -281,4 +282,17 @@ test('bounded diagnostics apply only to the fixed pre-DB CLI start command', () 
     const suppressed = commandFailure('docker', rejectedArgs, { stderr: 'PRIVATE-OUTPUT', stdout: 'PRIVATE-OUTPUT', message: 'PRIVATE-OUTPUT' })
     assert.ok(!suppressed.message.includes('PRIVATE-OUTPUT'))
   }
+})
+test('noexec daemon data refuses nested startup with proved receipt cleanup', async () => {
+  const h = harness()
+  h.override(a => a[0] === 'exec' && a.some(v => v.includes("awk '$2")) ? 'rw,nosuid,nodev,noexec,relatime' : undefined)
+  await assert.rejects(validateDatabase(h.options), /cannot execute nested containers/)
+  assert.ok(!h.calls.flat().includes('reset'))
+  assert.ok(!h.calls.some(a => a[0] === 'exec' && a.includes('start') && a.includes(cliReceipt)))
+  assert.deepEqual(h.calls.at(-1), ['rm', '--force', receipt])
+})
+test('missing explicit exec declaration refuses daemon start and cleanup', async () => {
+  const h = harness(); h.row.HostConfig.Tmpfs['/var/lib/docker'] = ''
+  await assert.rejects(validateDatabase(h.options), /must permit nested executables/)
+  assert.ok(!h.calls.some(a => a[0] === 'start' || a[0] === 'rm'))
 })

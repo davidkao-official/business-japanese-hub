@@ -73,6 +73,7 @@ export async function validateDatabase(options: Options): Promise<void> {
       'persistent volume or host bind detected')
     requireProof(['/var/lib/docker', '/certs/client', '/certs/server'].every(path =>
       Object.hasOwn(row.HostConfig.Tmpfs ?? {}, path)), 'missing disposable filesystem declaration')
+    requireProof(row.HostConfig.Tmpfs['/var/lib/docker'] === 'exec', 'daemon data filesystem must permit nested executables')
     requireProof(!row.HostConfig.Binds?.length && !Object.keys(row.HostConfig.PortBindings ?? {}).length &&
       !row.HostConfig.PublishAllPorts && row.HostConfig.NetworkMode !== 'host', 'host resource attachment detected')
     requireProof(row.Path === 'dockerd' && JSON.stringify(row.Args) === JSON.stringify([
@@ -88,7 +89,7 @@ export async function validateDatabase(options: Options): Promise<void> {
   try {
     // create returns the only authority to mutate; never adopt by name or label.
     const created = (await docker(['create', '--platform', 'linux/amd64', '--name', name,
-      '--label', `${OWNER}=${token}`, '--privileged', '--tmpfs', '/var/lib/docker',
+      '--label', `${OWNER}=${token}`, '--privileged', '--tmpfs', '/var/lib/docker:exec',
       '--tmpfs', '/certs/client', '--tmpfs', '/certs/server', '--entrypoint', 'dockerd', IMAGE,
       '--host=unix:///var/run/docker.sock', '--data-root=/var/lib/docker', '--storage-driver=vfs'])).trim()
     requireProof(ID.test(created), 'invalid create receipt; resources preserved')
@@ -172,6 +173,8 @@ tar -xzf /tmp/cli.tar.gz -C /tmp supabase supabase-go`])
     await cliProof()
     const dataMountOptions = (await inner(['sh', '-ec', `awk '$2 == "/var/lib/docker" { print $4 }' /proc/mounts`])).trim()
     report(`Owned daemon /var/lib/docker mount options: ${dataMountOptions || 'unavailable'}`)
+    requireProof(dataMountOptions.split(',').includes('rw') && !dataMountOptions.split(',').includes('noexec'),
+      'daemon data filesystem cannot execute nested containers')
     await privateDocker(['start', cliReceipt])
     await privateDocker(['exec', cliReceipt, 'mkdir', '-p', '/work', '/etc/ssl/certs'])
     await privateDocker(['cp', '/work/.', `${cliReceipt}:/work/`])

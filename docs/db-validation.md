@@ -29,7 +29,10 @@ fall back to a shared stack. No frontend ports are published.
 4. Inspect the receipt ID, invocation label, pinned image and exact daemon
    command. Reject persistent volumes, bind mounts, published ports and host
    networking. Nested Docker data and image-declared certificate volumes are
-   replaced with tmpfs. The nested daemon has only its private Unix socket;
+   replaced with tmpfs. The daemon data tmpfs explicitly permits execution
+   because it contains nested container root filesystems; the default `noexec`
+   mount prevents their entrypoints from starting. Verify actual mount options
+   before CLI startup. The nested daemon has only its private Unix socket;
    neither the host socket nor host source is mounted into it.
 5. Require a distinct inner daemon with no containers or volumes. Before every
    gate and cleanup, inventory all nested containers, volumes and networks;
