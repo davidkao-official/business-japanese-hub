@@ -1,10 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { validateDatabase, IMAGE, CLI_VERSION, CLI_SHA256 } from './guard.ts'
+import { validateDatabase, IMAGE, CLI_IMAGE, CLI_VERSION, CLI_SHA256 } from './guard.ts'
 
 const token = 'a'.repeat(32)
 const receipt = 'b'.repeat(64)
+const cliReceipt = 'c'.repeat(64)
 function harness() {
   const calls: string[][] = []
   let cancelled = false
@@ -15,6 +16,12 @@ function harness() {
       Tmpfs: { '/var/lib/docker': '', '/certs/client': '', '/certs/server': '' } },
     Mounts: [] as { Type: string }[], Path: 'dockerd',
     Args: ['--host=unix:///var/run/docker.sock', '--data-root=/var/lib/docker', '--storage-driver=vfs'],
+  }
+  const cliRow = {
+    Id: cliReceipt, Name: `/bjh-validation-cli-${token}`,
+    Config: { Image: CLI_IMAGE, Labels: { 'dev.business-japanese-hub.db-validation': token }, Cmd: ['sleep', 'infinity'] },
+    HostConfig: { NetworkMode: 'host', Privileged: false, PortBindings: {} },
+    Mounts: [{ Type: 'bind', Source: '/var/run/docker.sock', Destination: '/var/run/docker.sock' }],
   }
   let override: (args: string[]) => string | void = () => undefined
   const options = {
@@ -31,10 +38,14 @@ function harness() {
       if (args[0] === 'create') return receipt
       if (args[0] === 'inspect') return JSON.stringify([row])
       if (args[0] === 'exec' && args.includes('info') && args.includes('--format')) return 'inner-daemon'
+      if (args[0] === 'exec' && args[2] === 'docker' && args.includes('create')) return cliReceipt
+      if (args[0] === 'exec' && args.includes('-aq') && calls.some(a => a[0] === 'exec' && a.includes('create'))) return cliReceipt
+      if (args[0] === 'exec' && args.includes('container') && args.includes('inspect')) return JSON.stringify([cliRow])
+      if (args[0] === 'exec' && args.includes('supabase') && args.includes('--version')) return CLI_VERSION
       return ''
     },
   }
-  return { options, calls, row, override: (fn: typeof override) => { override = fn }, cancel: () => { cancelled = true } }
+  return { options, calls, row, cliRow, override: (fn: typeof override) => { override = fn }, cancel: () => { cancelled = true } }
 }
 const destructive = (calls: string[][]) => calls.filter(a => ['create', 'start', 'rm', 'cp', 'exec'].includes(a[0]))
 
@@ -43,12 +54,14 @@ test('fixed gates run only in the receipt container, with isolated env and check
   await validateDatabase(h.options)
   const executions = h.calls.filter(a => a[0] === 'exec')
   assert.ok(executions.every(a => a[1] === receipt))
-  const gates = executions.filter(a => a.includes('supabase'))
+  const gates = executions.filter(a => a.includes('supabase') && !a.includes('--version'))
   assert.equal(gates.length, 4)
   assert.ok(gates.every(a => a.includes('-i') && a.includes('DOCKER_HOST=unix:///var/run/docker.sock')))
   assert.ok(gates.some(a => a.includes('reset') && a.includes('--local')))
   assert.ok(!h.calls.flat().some(a => ['--linked', '--db-url', 'stop', 'prune', '--volume', '-v'].includes(a)))
   assert.ok(executions.some(a => a.some(v => v.includes(CLI_SHA256) && v.includes(CLI_VERSION))))
+  assert.ok(gates.every(a => a.includes(cliReceipt)))
+  assert.ok(executions.some(a => a.includes('/usr/local/bin/docker') && a.includes(`${cliReceipt}:/usr/local/bin/docker`)))
   assert.deepEqual(h.calls.at(-1), ['rm', '--force', receipt])
 })
 
@@ -214,3 +227,21 @@ for (const stage of ['info', 'ps', 'volume', 'signal']) {
     assert.ok(!h.calls.some(a => a[0] === 'rm'))
   })
 }
+test('missing CLI create receipt is never adopted by name', async () => {
+  const h = harness(); h.override(a => a[0] === 'exec' && a.includes('create') ? '' : undefined)
+  await assert.rejects(validateDatabase(h.options), /invalid CLI create receipt/)
+  assert.ok(!h.calls.flat().includes('reset'))
+  assert.ok(!h.calls.some(a => a[0] === 'rm'))
+})
+test('CLI socket drift refuses execution and preserves the domain', async () => {
+  const h = harness(); h.cliRow.Mounts[0].Source = '/other/docker.sock'
+  await assert.rejects(validateDatabase(h.options), /CLI socket/)
+  assert.ok(!h.calls.flat().includes('reset'))
+  assert.ok(!h.calls.some(a => a[0] === 'rm'))
+})
+test('CLI image drift refuses execution and preserves the domain', async () => {
+  const h = harness(); h.cliRow.Config.Image = 'unowned/image'
+  await assert.rejects(validateDatabase(h.options), /CLI ownership/)
+  assert.ok(!h.calls.flat().includes('reset'))
+  assert.ok(!h.calls.some(a => a[0] === 'rm'))
+})

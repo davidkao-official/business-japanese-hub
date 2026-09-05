@@ -1,5 +1,6 @@
 /** Data-target isolation, not a security sandbox against a Docker administrator. */
 export const IMAGE = 'docker:28.5.2-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac'
+export const CLI_IMAGE = 'node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d'
 export const CLI_SHA256 = 'ff099608ce758b625532ef03a61f4c9520b995e94ff6cd5480dc0428cad64cb3'
 export const CLI_VERSION = '2.115.0'
 export type Runner = (args: string[]) => Promise<string>
@@ -42,6 +43,22 @@ export async function validateDatabase(options: Options): Promise<void> {
   let failure: unknown
   let unknownNestedResource = false
   let checkNested: (() => Promise<void>) | undefined
+  let cliReceipt: string | undefined
+  const cliName = `bjh-validation-cli-${token}`
+  const assertCli = (row: {
+    Id?: string; Name?: string; Config?: { Image?: string; Labels?: Record<string, string>; Cmd?: string[] }
+    HostConfig?: { NetworkMode?: string; Privileged?: boolean; PortBindings?: object }
+    Mounts?: { Type: string; Source: string; Destination: string }[]
+  }) => {
+    requireProof(cliReceipt && row.Id === cliReceipt && row.Name === `/${cliName}` && row.Config?.Image === CLI_IMAGE &&
+      row.Config.Labels?.[OWNER] === token, 'CLI ownership mismatch')
+    requireProof(row.HostConfig?.NetworkMode === 'host' && !row.HostConfig.Privileged &&
+      !Object.keys(row.HostConfig.PortBindings ?? {}).length &&
+      JSON.stringify(row.Config.Cmd) === JSON.stringify(['sleep', 'infinity']), 'CLI configuration drift')
+    requireProof(Array.isArray(row.Mounts) && row.Mounts.length === 1 &&
+      row.Mounts[0].Type === 'bind' && row.Mounts[0].Source === '/var/run/docker.sock' &&
+      row.Mounts[0].Destination === '/var/run/docker.sock', 'CLI socket is not the owned inner socket')
+  }
   const proof = async () => {
     await sameDaemon()
     requireProof(receipt && ID.test(receipt), 'missing create receipt; no name-based recovery')
@@ -111,6 +128,7 @@ export async function validateDatabase(options: Options): Promise<void> {
             const rows = JSON.parse(await nestedDocker([kind, 'inspect', id]))
             requireProof(Array.isArray(rows) && rows.length === 1, 'ambiguous nested inventory')
             const row = rows[0]
+            if (kind === 'container' && row.Id === cliReceipt) { assertCli(row); continue }
             if (kind === 'network' && ['bridge', 'host', 'none'].includes(row.Name)) continue
             const labels = kind === 'container' ? row.Config?.Labels : row.Labels
             requireProof(labels?.['com.supabase.cli.project'] === `bjh-validation-${token}`, 'unknown nested resource')
@@ -128,8 +146,40 @@ export async function validateDatabase(options: Options): Promise<void> {
     await owned(['cp', `${source}/.`, `${receipt}:/work/`])
     await inner(['sh', '-ec', `wget -q -O /tmp/cli.tar.gz https://github.com/supabase/cli/releases/download/v${CLI_VERSION}/supabase_${CLI_VERSION}_linux_amd64.tar.gz
 echo '${CLI_SHA256}  /tmp/cli.tar.gz' | sha256sum -c -
-tar -xzf /tmp/cli.tar.gz -C /usr/local/bin supabase
-test "$(supabase --version)" = '${CLI_VERSION}'`])
+tar -xzf /tmp/cli.tar.gz -C /tmp supabase supabase-go`])
+    // The official CLI is a glibc/Bun binary. Run the unmodified release in a
+    // Debian container inside the owned daemon, not the Alpine daemon image.
+    const privateDocker: Runner = args => inner(['docker', '--host', 'unix:///var/run/docker.sock', ...args])
+    cliReceipt = (await privateDocker(['create', '--name', cliName,
+      '--label', `${OWNER}=${token}`,
+      '--network', 'host', '--mount', 'type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock',
+      CLI_IMAGE, 'sleep', 'infinity'])).trim()
+    if (!ID.test(cliReceipt)) {
+      unknownNestedResource = true
+      throw new Error('DB validation refused: invalid CLI create receipt')
+    }
+    const cliProof = async () => {
+      try {
+        await proof()
+        const rows = JSON.parse(await docker(['exec', receipt!, 'docker', '--host', 'unix:///var/run/docker.sock', 'container', 'inspect', cliReceipt!]))
+        requireProof(Array.isArray(rows) && rows.length === 1, 'ambiguous CLI inventory')
+        assertCli(rows[0])
+      } catch (error) {
+        unknownNestedResource = true
+        throw error
+      }
+    }
+    await cliProof()
+    await privateDocker(['start', cliReceipt])
+    await privateDocker(['exec', cliReceipt, 'mkdir', '-p', '/work', '/etc/ssl/certs'])
+    await privateDocker(['cp', '/work/.', `${cliReceipt}:/work/`])
+    for (const binary of ['supabase', 'supabase-go']) {
+      await privateDocker(['cp', `/tmp/${binary}`, `${cliReceipt}:/usr/local/bin/${binary}`])
+    }
+    // The pinned CLI also spawns Docker's static client for local bootstrap.
+    await privateDocker(['cp', '/usr/local/bin/docker', `${cliReceipt}:/usr/local/bin/docker`])
+    await privateDocker(['cp', '/etc/ssl/certs/ca-certificates.crt', `${cliReceipt}:/etc/ssl/certs/ca-certificates.crt`])
+    requireProof((await privateDocker(['exec', cliReceipt, 'supabase', '--version'])).trim() === CLI_VERSION, 'CLI version mismatch')
     // No arbitrary CLI pass-through, linked metadata, DB URL, host env, sockets or source mounts.
     for (const args of [
       ['db', 'start'], ['db', 'reset', '--local'],
@@ -137,9 +187,10 @@ test "$(supabase --version)" = '${CLI_VERSION}'`])
       ['db', 'lint', '--local', '--schema', 'public', '--level', 'warning', '--fail-on', 'error'],
     ]) {
       await nestedInventory()
+      await cliProof()
       requireProof((await inner(['docker', '--host', 'unix:///var/run/docker.sock', 'info', '--format', '{{.ID}}'])).trim() === innerDaemon,
         'inner daemon identity changed')
-      const output = await inner(['env', '-i', 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+      const output = await privateDocker(['exec', '--workdir', '/work', cliReceipt, 'env', '-i', 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
         'HOME=/root', 'DOCKER_HOST=unix:///var/run/docker.sock', 'SUPABASE_TELEMETRY_DISABLED=true',
         'supabase', '--workdir', '/work', ...args])
       report(`PASS supabase ${args.join(' ')}`)

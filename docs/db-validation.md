@@ -33,12 +33,23 @@ fall back to a shared stack. No frontend ports are published.
    neither the host socket nor host source is mounted into it.
 5. Require a distinct inner daemon with no containers or volumes. Before every
    gate and cleanup, inventory all nested containers, volumes and networks;
-   only default networks or this invocation's Supabase project are allowed.
+   only default networks, this invocation's Supabase project, or the separately
+   proved CLI container receipt are allowed.
    Failure or unknown inventory blocks further gates and cleanup. The private
    daemon and empty initial inventory establish resource ownership; labels
    are additional drift detection, not permission to reuse pre-existing data.
-6. Copy the bounded source snapshot into the receipt container and install the
-   checksum-pinned CLI. Run only the four fixed local commands with an empty
+6. Copy the bounded source snapshot into the receipt container. Create a pinned
+   Debian-based Node container **inside the private daemon** to run the official
+   glibc/Bun CLI. Its own immutable create receipt, exact image, owner label,
+   command and sole socket mount are checked; missing ownership is never adopted.
+   This container's `host` network and `/var/run/docker.sock` refer exclusively
+   to the owned **inner daemon domain**, not the workstation/CI host. Its mount
+   source is interpreted by the private daemon inside the outer receipt.
+   No original host socket, source bind, credential or port is forwarded.
+   Copy both `supabase` and `supabase-go` from the checksum-verified release,
+   plus Docker's static client and CA bundle from the pinned outer image.
+   No Go-only substitution or floating package installation is used.
+   Run only the four fixed local commands with an empty
    environment plus explicit local Docker socket and tool paths. Never run
    `supabase stop`, prune, linked reset, DB-URL reset or destructive fallback.
 7. On success or failure, inspect ownership again. Remove only the exact created
@@ -66,6 +77,13 @@ must use the canonical entrypoint instead of issuing raw commands.
   was obtained from the [official release asset metadata](https://api.github.com/repos/supabase/cli/releases/tags/v2.115.0).
   The wrapper verifies SHA256 before extraction and verifies the CLI version.
   It does not upgrade or execute the host's Supabase binary.
+- CLI runtime `node:24.15.0-bookworm-slim` manifest digest
+  `sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d`
+  comes from the [official Node image tag API](https://registry.hub.docker.com/v2/repositories/library/node/tags/24.15.0-bookworm-slim).
+  Read-only archive inspection identified the CLI's ELF interpreter as
+  `/lib64/ld-linux-x86-64.so.2`, which the Alpine daemon image lacks. The Debian
+  runtime provides glibc and Node's required C++ libraries. Actual execution,
+  TLS, nested Docker and resource capacity remain hosted-CI acceptance checks.
 - The [CLI reference](https://supabase.com/docs/reference/cli/supabase-db-reset)
   describes the local/linked/DB-URL distinction. Only `--local` is admitted.
 
@@ -73,6 +91,10 @@ The first implementation was verified with mocks and non-DB source gates only
 on the incident workstation. A hosted CI success is required for real nested
 daemon / migration / pgTAP / lint evidence; do not relabel mock results as a
 database pass. Preserve the input HEAD and CI run with the review evidence.
+The private daemon uses tmpfs and Docker's `vfs` driver; image expansion can
+exhaust a small runner's memory. Treat such a failure as a failed gate, preserve
+its evidence, and fix only the disposable environment; never use an existing
+host volume or stack as a fallback.
 
 ## Incident preservation
 
