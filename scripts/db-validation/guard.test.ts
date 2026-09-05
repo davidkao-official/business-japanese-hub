@@ -200,3 +200,17 @@ test('readiness failure only removes the proved receipt', async () => {
   assert.ok(!h.calls.flat().includes('reset'))
   assert.deepEqual(h.calls.at(-1), ['rm', '--force', receipt])
 })
+for (const stage of ['info', 'ps', 'volume', 'signal']) {
+  test(`initial ${stage} inventory interruption preserves resources once daemon is ready`, async () => {
+    const h = harness()
+    h.override(a => {
+      if (stage === 'signal' && a[0] === 'exec' && a.some(v => v.includes('until docker'))) h.cancel()
+      if (a[0] !== 'exec' || a[2] !== 'docker') return
+      if ((stage === 'info' && a.includes('info')) || (stage === 'ps' && a.includes('-aq')) ||
+        (stage === 'volume' && a.includes('volume'))) throw new Error('initial inventory failed')
+    })
+    await assert.rejects(validateDatabase(h.options))
+    assert.ok(!h.calls.flat().includes('reset'))
+    assert.ok(!h.calls.some(a => a[0] === 'rm'))
+  })
+}

@@ -80,6 +80,8 @@ export async function validateDatabase(options: Options): Promise<void> {
     await owned(['start', receipt])
     // Readiness retries exist solely inside the new container; never restart a daemon.
     await inner(['sh', '-ec', 'i=0; until docker --host unix:///var/run/docker.sock info >/dev/null 2>&1; do i=$((i+1)); [ "$i" -lt 60 ] || exit 1; sleep 1; done'])
+    // Once ready, incomplete initial identity/inventory is UNKNOWN, not a partial start.
+    unknownNestedResource = true
     const innerDaemon = (await inner(['docker', '--host', 'unix:///var/run/docker.sock', 'info', '--format', '{{.ID}}'])).trim()
     if (!innerDaemon || innerDaemon === initialDaemon) {
       unknownNestedResource = true
@@ -120,6 +122,7 @@ export async function validateDatabase(options: Options): Promise<void> {
       }
     }
     await nestedInventory()
+    unknownNestedResource = false
     checkNested = nestedInventory
     await inner(['mkdir', '-p', '/work'])
     await owned(['cp', `${source}/.`, `${receipt}:/work/`])
