@@ -8,6 +8,7 @@ const liveValidationDocs = [
   'docs/career-game-validation.md',
   'docs/accounts-and-entitlement.md',
   'docs/payments/implementation-contract.md',
+  'docs/deployment.md',
 ] as const
 
 describe('database validation safety contract', () => {
@@ -17,7 +18,7 @@ describe('database validation safety contract', () => {
 
       expect(document, path).toContain('pnpm test:db-guard')
       expect(document, path).toContain('pnpm validate:db')
-      expect(document, path).toContain('docs/db-validation.md')
+      expect(document, path).toMatch(/(?:docs\/)?db-validation\.md/)
       expect(document, path).not.toMatch(rawDbCommand)
     }
   })
