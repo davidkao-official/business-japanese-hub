@@ -96,6 +96,7 @@ describe('Header mobile navigation', () => {
     fireEvent.click(trigger)
 
     const menu = screen.getByRole('dialog', { name: 'メニュー' })
+    expect(trigger).toBeDisabled()
     const focusable = Array.from(
       menu.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
@@ -120,6 +121,7 @@ describe('Header mobile navigation', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'メニュー' })).not.toBeInTheDocument()
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).not.toBeDisabled()
     expect(trigger).toHaveFocus()
     expect(document.body.style.overflow).toBe('')
   })

@@ -238,6 +238,7 @@ export function Header() {
           aria-controls={menuOpen ? menuId : undefined}
           aria-haspopup="dialog"
           aria-label={menuOpen ? strings.nav.closeMenu : strings.nav.openMenu}
+          disabled={menuOpen}
           onClick={() => setMenuOpen((current) => !current)}
         >
           <span aria-hidden="true">{menuOpen ? '×' : '☰'}</span>
