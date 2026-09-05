@@ -140,7 +140,9 @@ describe('storefront', () => {
 
     const feature = document.querySelector('.featured-book') as HTMLElement
     await waitFor(() => expect(within(feature).getByText('USD 12')).toBeInTheDocument())
-    expect(within(feature).getByRole('button', { name: '購入する（USD 12）' })).toBeInTheDocument()
+    expect(
+      await within(feature).findByRole('button', { name: '購入する（USD 12）' }),
+    ).toBeInTheDocument()
     expect(within(feature).getByRole('link', { name: '試し読み' })).toHaveAttribute(
       'href',
       '/books/meeting-japanese/read/meeting-purpose',
@@ -154,7 +156,9 @@ describe('storefront', () => {
     expect(offer).not.toBeNull()
     expect(within(offer).getByRole('heading', { name: '会議の日本語', level: 2 })).toBeInTheDocument()
     await waitFor(() => expect(within(offer).getByText('USD 12')).toBeInTheDocument())
-    expect(within(offer).getByRole('button', { name: '購入する（USD 12）' })).toBeInTheDocument()
+    expect(
+      await within(offer).findByRole('button', { name: '購入する（USD 12）' }),
+    ).toBeInTheDocument()
     expect(within(offer).getByRole('link', { name: '試し読み' })).toHaveAttribute(
       'href',
       '/books/meeting-japanese/read/meeting-purpose',
