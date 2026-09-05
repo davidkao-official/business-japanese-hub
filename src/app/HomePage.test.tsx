@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { vi } from 'vitest'
-import { renderWithAppProviders } from '../test/appProviders'
+import { createMockRepository, renderWithAppProviders } from '../test/appProviders'
 import { HomePage } from './HomePage'
 
 function clickWithoutNavigation(link: HTMLElement, init: MouseEventInit = {}) {
@@ -21,7 +21,9 @@ describe('storefront', () => {
   it('features the commercial Book and lists both free Books as a compact shelf', async () => {
     renderWithAppProviders(<HomePage />)
 
-    expect(screen.getByRole('heading', { name: '会議の日本語', level: 2 })).toBeInTheDocument()
+    const feature = document.querySelector('.featured-book') as HTMLElement
+    expect(feature).not.toBeNull()
+    expect(within(feature).getByRole('heading', { name: '会議の日本語', level: 2 })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'すべての書籍' })).toBeInTheDocument()
     await waitFor(() => {
       expect(screen.getByRole('link', { name: /ビジネス日本語：敬語の基礎/ })).toBeInTheDocument()
@@ -136,12 +138,73 @@ describe('storefront', () => {
   it('shows authoritative USD pricing plus purchase and preview actions for the paid feature', async () => {
     renderWithAppProviders(<HomePage />)
 
-    await waitFor(() => expect(screen.getAllByText('USD 12').length).toBeGreaterThan(0))
-    expect(screen.getByRole('button', { name: '購入する（USD 12）' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '試し読み' })).toHaveAttribute(
+    const feature = document.querySelector('.featured-book') as HTMLElement
+    await waitFor(() => expect(within(feature).getByText('USD 12')).toBeInTheDocument())
+    expect(
+      await within(feature).findByRole('button', { name: '購入する（USD 12）' }),
+    ).toBeInTheDocument()
+    expect(within(feature).getByRole('link', { name: '試し読み' })).toHaveAttribute(
       'href',
       '/books/meeting-japanese/read/meeting-purpose',
     )
+  })
+
+  it('closes with one catalog-driven paid Book offer and the existing CTA seam', async () => {
+    renderWithAppProviders(<HomePage />)
+
+    const offer = document.querySelector('.storefront-offer') as HTMLElement
+    expect(offer).not.toBeNull()
+    expect(within(offer).getByRole('heading', { name: '会議の日本語', level: 2 })).toBeInTheDocument()
+    await waitFor(() => expect(within(offer).getByText('USD 12')).toBeInTheDocument())
+    expect(
+      await within(offer).findByRole('button', { name: '購入する（USD 12）' }),
+    ).toBeInTheDocument()
+    expect(within(offer).getByRole('link', { name: '試し読み' })).toHaveAttribute(
+      'href',
+      '/books/meeting-japanese/read/meeting-purpose',
+    )
+    expect(within(offer).getByRole('link', { name: '詳細を見る' })).toHaveAttribute(
+      'href',
+      '/books/meeting-japanese',
+    )
+  })
+
+  it('shares paid ownership and reading state between the feature and closing offer', async () => {
+    const repository = createMockRepository({
+      entitlements: {
+        'book-meeting-japanese': {
+          bookId: 'book-meeting-japanese',
+          provider: 'manual',
+          grantedAt: '2026-08-01T00:00:00.000Z',
+        },
+      },
+      readingStates: {
+        'book-meeting-japanese': {
+          bookId: 'book-meeting-japanese',
+          chapterId: 'mj-ch-02',
+          updatedAt: '2026-08-01T00:00:00.000Z',
+        },
+      },
+    })
+    renderWithAppProviders(<HomePage />, {
+      session: { id: 'u-1', email: 'reader@example.com' },
+      repository,
+    })
+
+    const feature = document.querySelector('.featured-book') as HTMLElement
+    const offer = document.querySelector('.storefront-offer') as HTMLElement
+    expect(await within(feature).findByRole('link', { name: '続きを読む' })).toHaveAttribute(
+      'href',
+      '/books/meeting-japanese/read/enter-the-conversation',
+    )
+    expect(within(offer).getByRole('link', { name: '続きを読む' })).toHaveAttribute(
+      'href',
+      '/books/meeting-japanese/read/enter-the-conversation',
+    )
+    expect(within(feature).queryByText('USD 12')).not.toBeInTheDocument()
+    expect(within(offer).queryByText('USD 12')).not.toBeInTheDocument()
+    expect(vi.mocked(repository.getEntitlement).mock.calls.filter(([bookId]) => bookId === 'book-meeting-japanese')).toHaveLength(1)
+    expect(vi.mocked(repository.getReadingState).mock.calls.filter(([bookId]) => bookId === 'book-meeting-japanese')).toHaveLength(1)
   })
 
   it('keeps the two Prototype books visibly free without changing their access tier', async () => {

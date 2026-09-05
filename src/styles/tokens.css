@@ -32,6 +32,7 @@
   --bp-md: 48rem; /* 768px */
   --bp-lg: 64rem; /* 1024px */
   --bp-xl: 80rem; /* 1280px */
+  --bp-header: 50rem; /* 800px: desktop header controls fit above this width */
 
   /* ---------------------------------------------------------------
    * Color — Quiet Editorial Modernism paper / ink hierarchy
@@ -65,6 +66,7 @@
    * --------------------------------------------------------------- */
   --color-success: #3c6e4f;
   --color-warning: #a9712a;
+  --color-warning-text: #7a4f12;
   --color-danger: #b03a3a;
   --color-info: #2f6fb3;
 
@@ -113,6 +115,10 @@
   --lp-selection-title-max-width: 18ch;
   --lp-selection-cover-max-width: 20rem;
   --lp-sample-card-width: min(82vw, var(--lp-selection-cover-max-width));
+  --lp-offer-copy-max-width: 38rem;
+  --lp-offer-grid-columns: minmax(0, 1.2fr) minmax(12rem, 0.8fr);
+  --lp-offer-cover-max-width: 16rem;
+  --lp-menu-title-size: clamp(var(--text-2xl), 7vw, var(--text-3xl));
 
   /* ---------------------------------------------------------------
    * Typography — Japanese-first font stacks
@@ -322,6 +328,7 @@
 
   --color-success: #6fae83;
   --color-warning: #d0a165;
+  --color-warning-text: #d0a165;
   --color-danger: #e08585;
   --color-info: #8ab4e8;
 
