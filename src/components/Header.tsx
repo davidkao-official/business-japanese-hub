@@ -20,9 +20,11 @@ export function Header() {
   const closeRef = useRef<HTMLButtonElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const desktopBrandRef = useRef<HTMLAnchorElement>(null)
+  const desktopToolsRef = useRef<HTMLDivElement>(null)
   const menuWasOpen = useRef(false)
   const closeFocusTarget = useRef<CloseFocusTarget>('trigger')
   const lastLocationKey = useRef(location.key)
+  const [desktopAccountOpen, setDesktopAccountOpen] = useState(false)
 
   const closeMenu = () => {
     closeFocusTarget.current = 'trigger'
@@ -61,17 +63,25 @@ export function Header() {
     if (typeof window.matchMedia !== 'function') return
 
     const desktopQuery = window.matchMedia('(min-width: 50rem)')
-    const closeOnDesktop = (event: MediaQueryListEvent) => {
-      if (event.matches) closeMenuTo('desktop')
+    const handleBreakpointChange = (event: MediaQueryListEvent) => {
+      if (event.matches) {
+        closeMenuTo('desktop')
+        return
+      }
+
+      setDesktopAccountOpen(false)
+      if (desktopToolsRef.current?.contains(document.activeElement)) {
+        triggerRef.current?.focus()
+      }
     }
 
     if (typeof desktopQuery.addEventListener === 'function') {
-      desktopQuery.addEventListener('change', closeOnDesktop)
-      return () => desktopQuery.removeEventListener('change', closeOnDesktop)
+      desktopQuery.addEventListener('change', handleBreakpointChange)
+      return () => desktopQuery.removeEventListener('change', handleBreakpointChange)
     }
 
-    desktopQuery.addListener(closeOnDesktop)
-    return () => desktopQuery.removeListener(closeOnDesktop)
+    desktopQuery.addListener(handleBreakpointChange)
+    return () => desktopQuery.removeListener(handleBreakpointChange)
   }, [])
 
   useEffect(() => {
@@ -164,11 +174,11 @@ export function Header() {
         <Link ref={desktopBrandRef} className="site-header__brand" to="/">
           {strings.app.name}
         </Link>
-        <div className="site-header__tools">
+        <div ref={desktopToolsRef} className="site-header__tools">
           {!menuOpen && (
             <>
               <Navigation />
-              <AccountControl />
+              <AccountControl open={desktopAccountOpen} onOpenChange={setDesktopAccountOpen} />
               <AppearanceControl />
             </>
           )}

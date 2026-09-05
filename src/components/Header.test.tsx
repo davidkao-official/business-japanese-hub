@@ -14,6 +14,58 @@ function CurrentPath() {
   return <output>{location.pathname}</output>
 }
 
+function installHeaderMediaQueryHarness() {
+  const originalMatchMedia = window.matchMedia
+  const listenersByQuery = new Map<string, Array<(event: MediaQueryListEvent) => void>>()
+  const matchMediaMock = vi.fn((media: string) => {
+    const listeners = listenersByQuery.get(media) ?? []
+    listenersByQuery.set(media, listeners)
+
+    return {
+      matches: media === '(min-width: 50rem)',
+      media,
+      onchange: null,
+      addEventListener: (_event: string, listener: EventListenerOrEventListenerObject) => {
+        listeners.push(listener as (event: MediaQueryListEvent) => void)
+      },
+      removeEventListener: (_event: string, listener: EventListenerOrEventListenerObject) => {
+        const index = listeners.indexOf(listener as (event: MediaQueryListEvent) => void)
+        if (index >= 0) listeners.splice(index, 1)
+      },
+      addListener: (listener: (event: MediaQueryListEvent) => void) => listeners.push(listener),
+      removeListener: (listener: (event: MediaQueryListEvent) => void) => {
+        const index = listeners.indexOf(listener)
+        if (index >= 0) listeners.splice(index, 1)
+      },
+      dispatchEvent: () => false,
+    } as MediaQueryList
+  })
+
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: matchMediaMock,
+  })
+
+  return {
+    matchMediaMock,
+    emitHeaderBreakpoint(matches: boolean) {
+      act(() => {
+        for (const listener of listenersByQuery.get('(min-width: 50rem)') ?? []) {
+          listener({ matches } as MediaQueryListEvent)
+        }
+      })
+    },
+    restore() {
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        writable: true,
+        value: originalMatchMedia,
+      })
+    },
+  }
+}
+
 describe('Header mobile navigation', () => {
   it('opens the existing navigation with account and appearance controls', () => {
     renderWithAppProviders(<Header />)
@@ -129,26 +181,7 @@ describe('Header mobile navigation', () => {
   })
 
   it('closes and restores the desktop shell when the viewport crosses the breakpoint', () => {
-    const listeners: Array<(event: MediaQueryListEvent) => void> = []
-    const originalMatchMedia = window.matchMedia
-    const matchMediaMock = vi.fn((media: string) => ({
-      matches: false,
-      media,
-      onchange: null,
-      addEventListener: (_event: string, listener: EventListenerOrEventListenerObject) => {
-        listeners.push(listener as (event: MediaQueryListEvent) => void)
-      },
-      removeEventListener: () => {},
-      addListener: (listener: (event: MediaQueryListEvent) => void) => listeners.push(listener),
-      removeListener: () => {},
-      dispatchEvent: () => false,
-    }) as MediaQueryList)
-
-    Object.defineProperty(window, 'matchMedia', {
-      configurable: true,
-      writable: true,
-      value: matchMediaMock,
-    })
+    const media = installHeaderMediaQueryHarness()
 
     try {
       renderWithAppProviders(
@@ -157,12 +190,10 @@ describe('Header mobile navigation', () => {
           <button type="button">Focus probe</button>
         </>,
       )
-      expect(matchMediaMock).toHaveBeenCalledWith('(min-width: 50rem)')
+      expect(media.matchMediaMock).toHaveBeenCalledWith('(min-width: 50rem)')
       const focusProbe = screen.getByRole('button', { name: 'Focus probe' })
       focusProbe.focus()
-      act(() => {
-        listeners.forEach((listener) => listener({ matches: true } as MediaQueryListEvent))
-      })
+      media.emitHeaderBreakpoint(true)
       expect(focusProbe).toHaveFocus()
 
       const desktopBrand = screen.getByRole('link', { name: 'ビジネス日本語ハブ' })
@@ -174,9 +205,7 @@ describe('Header mobile navigation', () => {
         .getByRole('link', { name: 'ホーム' })
         .focus()
 
-      act(() => {
-        listeners.forEach((listener) => listener({ matches: true } as MediaQueryListEvent))
-      })
+      media.emitHeaderBreakpoint(true)
 
       expect(screen.queryByRole('dialog', { name: 'メニュー' })).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'メニューを開く' })).toHaveAttribute(
@@ -188,11 +217,67 @@ describe('Header mobile navigation', () => {
       expect(document.activeElement).not.toBe(screen.getByRole('button', { name: 'メニューを開く' }))
       expect(document.body.style.overflow).toBe('')
     } finally {
-      Object.defineProperty(window, 'matchMedia', {
-        configurable: true,
-        writable: true,
-        value: originalMatchMedia,
-      })
+      media.restore()
+    }
+  })
+
+  it('closes the desktop account panel and restores mobile login after entering the mobile breakpoint', async () => {
+    const media = installHeaderMediaQueryHarness()
+
+    try {
+      renderWithAppProviders(<Header />)
+
+      const desktopTools = document.querySelector('.site-header__tools') as HTMLElement
+      fireEvent.click(await within(desktopTools).findByRole('button', { name: 'ログイン' }))
+      const email = await screen.findByLabelText('メールアドレス')
+      email.focus()
+
+      media.emitHeaderBreakpoint(false)
+
+      expect(screen.queryByRole('region', { name: 'ログイン' })).not.toBeInTheDocument()
+      const trigger = screen.getByRole('button', { name: 'メニューを開く' })
+      expect(trigger).toHaveFocus()
+
+      fireEvent.click(trigger)
+      const menu = screen.getByRole('dialog', { name: 'メニュー' })
+      fireEvent.click(within(menu).getByRole('button', { name: 'ログイン' }))
+      expect(within(menu).getByRole('region', { name: 'ログイン' })).toBeInTheDocument()
+
+      fireEvent.keyDown(document, { key: 'Escape' })
+      media.emitHeaderBreakpoint(true)
+      expect(screen.queryByRole('region', { name: 'ログイン' })).not.toBeInTheDocument()
+    } finally {
+      media.restore()
+    }
+  })
+
+  it('protects focused desktop controls without stealing focus from external content', () => {
+    const media = installHeaderMediaQueryHarness()
+
+    try {
+      renderWithAppProviders(
+        <>
+          <Header />
+          <button type="button">Focus probe</button>
+        </>,
+      )
+
+      const desktopTools = document.querySelector('.site-header__tools') as HTMLElement
+      const trigger = screen.getByRole('button', { name: 'メニューを開く' })
+      within(desktopTools).getByRole('link', { name: 'ホーム' }).focus()
+      media.emitHeaderBreakpoint(false)
+      expect(trigger).toHaveFocus()
+
+      within(desktopTools).getByRole('radio', { name: 'システム' }).focus()
+      media.emitHeaderBreakpoint(false)
+      expect(trigger).toHaveFocus()
+
+      const focusProbe = screen.getByRole('button', { name: 'Focus probe' })
+      focusProbe.focus()
+      media.emitHeaderBreakpoint(false)
+      expect(focusProbe).toHaveFocus()
+    } finally {
+      media.restore()
     }
   })
 })

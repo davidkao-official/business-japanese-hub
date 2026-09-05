@@ -1462,7 +1462,7 @@
 
 .storefront-offer__body {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(12rem, 0.8fr);
+  grid-template-columns: var(--lp-offer-grid-columns);
   gap: var(--space-8);
   align-items: center;
   min-width: 0;

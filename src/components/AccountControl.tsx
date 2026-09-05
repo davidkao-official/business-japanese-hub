@@ -3,13 +3,24 @@ import { useAuth } from '@business-japanese-hub/platform-auth'
 import { useStrings } from '../i18n/strings'
 import { AuthPanel } from './AuthPanel'
 
-export function AccountControl() {
+export interface AccountControlProps {
+  /** Optional UI-only controlled state for shells that own the account panel. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+export function AccountControl({ open: controlledOpen, onOpenChange }: AccountControlProps = {}) {
   const strings = useStrings()
   const { user, loading, signOut } = useAuth()
-  const [open, setOpen] = useState(false)
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const [signOutFailed, setSignOutFailed] = useState(false)
   const panelId = useId()
+  const open = controlledOpen ?? uncontrolledOpen
+  const setOpen = (nextOpen: boolean) => {
+    onOpenChange?.(nextOpen)
+    if (controlledOpen === undefined) setUncontrolledOpen(nextOpen)
+  }
 
   const handleSignOut = async () => {
     setSigningOut(true)
@@ -42,7 +53,7 @@ export function AccountControl() {
         type="button"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => setOpen(!open)}
         disabled={loading}
       >
         {strings.auth.signIn}
