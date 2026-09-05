@@ -66,6 +66,9 @@ leave resources: there is deliberately no automated recovery/adoption command.
 The printed receipt is an investigation lead, not authorization to clean up a
 later invocation. A Docker administrator can bypass these controls; agents
 must use the canonical entrypoint instead of issuing raw commands.
+Only the fixed inner CLI container's pre-DB `docker start` failure includes a
+bounded (4 KiB) stderr diagnostic and numeric exit code. Supabase failures,
+arbitrary command output, environment dumps and private rows remain suppressed.
 
 ## Pinned tooling provenance
 

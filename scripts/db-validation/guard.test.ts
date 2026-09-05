@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { validateDatabase, IMAGE, CLI_IMAGE, CLI_VERSION, CLI_SHA256 } from './guard.ts'
+import { commandFailure } from './command-error.ts'
 
 const token = 'a'.repeat(32)
 const receipt = 'b'.repeat(64)
@@ -266,3 +267,18 @@ for (const stage of ['start', 'exec']) {
     assert.deepEqual(h.calls.at(-1), ['rm', '--force', receipt])
   })
 }
+test('bounded diagnostics apply only to the fixed pre-DB CLI start command', () => {
+  const args = ['--host', 'unix:///outer.sock', 'exec', receipt, 'docker', '--host',
+    'unix:///var/run/docker.sock', 'start', cliReceipt]
+  const result = commandFailure('docker', args, { code: 1, stderr: 'mount failed: read-only file system' })
+  assert.match(result.message, /owned CLI container start \(exit 1\); mount failed: read-only file system/)
+  const bounded = commandFailure('docker', args, { stderr: 'x'.repeat(6000) })
+  assert.ok(bounded.message.length < 4300)
+  for (const rejectedArgs of [
+    [...args, 'extra'], [...args.slice(0, 7), 'exec', cliReceipt, 'supabase', 'db', 'start'],
+    ['--host', 'unix:///outer.sock', 'exec', receipt, 'supabase', 'db', 'start'],
+  ]) {
+    const suppressed = commandFailure('docker', rejectedArgs, { stderr: 'PRIVATE-OUTPUT', stdout: 'PRIVATE-OUTPUT', message: 'PRIVATE-OUTPUT' })
+    assert.ok(!suppressed.message.includes('PRIVATE-OUTPUT'))
+  }
+})

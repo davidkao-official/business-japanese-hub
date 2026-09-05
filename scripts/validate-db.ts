@@ -5,6 +5,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { validateDatabase } from './db-validation/guard.ts'
+import { commandFailure } from './db-validation/command-error.ts'
 
 const execute = promisify(execFile)
 const safeEnv = { PATH: process.env.PATH, HOME: process.env.HOME }
@@ -18,9 +19,9 @@ for (const key of Object.keys(process.env)) {
 const command = async (file: string, args: string[]) => {
   try {
     return (await execute(file, args, { env: safeEnv, maxBuffer: 16 * 1024 * 1024, timeout: 900_000 })).stdout
-  } catch {
+  } catch (error) {
     // Do not dump subprocess environment or potentially sensitive command output.
-    throw new Error(`DB validation command failed: ${file} ${args[0] ?? ''}; no fallback performed`)
+    throw commandFailure(file, args, error)
   }
 }
 const context = (await command('docker', ['context', 'show'])).trim()
