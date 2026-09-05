@@ -25,7 +25,8 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Record checked out source
-        run: echo "CI source SHA: $(git rev-parse HEAD)"
+        run: |
+          echo "CI source SHA: $(git rev-parse HEAD)"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
@@ -76,7 +77,8 @@ jobs:
           persist-credentials: false
 
       - name: Record checked out source
-        run: echo "CI merge-result SHA: $(git rev-parse HEAD)"
+        run: |
+          echo "CI merge-result SHA: $(git rev-parse HEAD)"
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
