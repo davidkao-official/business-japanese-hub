@@ -170,6 +170,8 @@ tar -xzf /tmp/cli.tar.gz -C /tmp supabase supabase-go`])
       }
     }
     await cliProof()
+    const dataMountOptions = (await inner(['sh', '-ec', `awk '$2 == "/var/lib/docker" { print $4 }' /proc/mounts`])).trim()
+    report(`Owned daemon /var/lib/docker mount options: ${dataMountOptions || 'unavailable'}`)
     await privateDocker(['start', cliReceipt])
     await privateDocker(['exec', cliReceipt, 'mkdir', '-p', '/work', '/etc/ssl/certs'])
     await privateDocker(['cp', '/work/.', `${cliReceipt}:/work/`])
