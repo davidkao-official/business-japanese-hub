@@ -154,7 +154,7 @@ function assertSafeHtmlCache(response: Response, label: string): void {
     }
 
     if (directive.startsWith('max-age') || directive.startsWith('s-maxage')) {
-      const match = /^(s?max-age)\s*=\s*"?(\d+)"?$/.exec(directive)
+      const match = /^(max-age|s-maxage)\s*=\s*"?(\d+)"?$/.exec(directive)
       if (!match) {
         throw new Error(`Deployment smoke ${label} has unsafe cache-control: ${directive}`)
       }
