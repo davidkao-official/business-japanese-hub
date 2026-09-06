@@ -317,34 +317,19 @@ describe('deployment exact-head and cache smoke', () => {
     },
   )
 
-  it('inspects fingerprinted JS/CSS references outside the conventional assets directory', async () => {
+  it('accepts JS/CSS references outside the conventional assets directory without a filename shape', async () => {
     await expect(
       verifyDeployment('https://example.pages.dev/', {
         attempts: 1,
         expectedCommitSha: expectedSha,
-        fetcher: fakeLibraryDeployment({ assetPath: '/static' }),
+        fetcher: fakeLibraryDeployment({ assetPath: '/static', assetPrefix: 'index-production' }),
         product: 'library',
         retryDelayMs: 0,
       }),
     ).resolves.toBeUndefined()
   })
 
-  it('rejects descriptive JS/CSS suffixes even outside the conventional assets directory', async () => {
-    await expect(
-      verifyDeployment('https://example.pages.dev/', {
-        attempts: 1,
-        expectedCommitSha: expectedSha,
-        fetcher: fakeLibraryDeployment({
-          assetPath: '/static',
-          assetPrefix: 'index-production',
-        }),
-        product: 'library',
-        retryDelayMs: 0,
-      }),
-    ).rejects.toThrow(/fingerprinted asset/i)
-  })
-
-  it('rejects reusable JS/CSS asset URLs without a content fingerprint', async () => {
+  it('accepts reusable JS/CSS asset URLs when no local artifact map is supplied', async () => {
     await expect(
       verifyDeployment('https://example.pages.dev/', {
         attempts: 1,
@@ -353,10 +338,10 @@ describe('deployment exact-head and cache smoke', () => {
         product: 'library',
         retryDelayMs: 0,
       }),
-    ).rejects.toThrow(/fingerprinted asset/i)
+    ).resolves.toBeUndefined()
   })
 
-  it('rejects an eight-character descriptive suffix when the local artifact identity disagrees', async () => {
+  it('rejects an asset URL absent from the supplied local artifact map', async () => {
     const bodyDigest = createHash('sha256').update('console.log("built")').digest('hex')
     await expect(
       verifyDeployment('https://example.pages.dev/', {
@@ -370,10 +355,10 @@ describe('deployment exact-head and cache smoke', () => {
         product: 'library',
         retryDelayMs: 0,
       }),
-    ).rejects.toThrow(/unexpected built asset URL|fingerprinted asset/i)
+    ).rejects.toThrow(/unexpected built asset URL/i)
   })
 
-  it('parses legal unquoted JS references and rejects a non-fingerprinted runtime asset', async () => {
+  it('parses legal unquoted JS references without requiring a filename shape', async () => {
     const quotedHtml = libraryHtml(expectedSha)
     const html = quotedHtml.replace(
       'src="/assets/index-a1b2c3d4.js"',
@@ -387,6 +372,6 @@ describe('deployment exact-head and cache smoke', () => {
         product: 'library',
         retryDelayMs: 0,
       }),
-    ).rejects.toThrow(/fingerprinted asset/i)
+    ).resolves.toBeUndefined()
   })
 })

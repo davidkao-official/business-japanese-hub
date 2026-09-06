@@ -48,7 +48,8 @@ The emitted Cloudflare `_headers` file applies only this repository-owned rule:
 
 Do not add a broad `Cache-Control` rule for `/*` here. Cloudflare Pages' normal
 HTML behavior should continue to revalidate instead of giving the browser a
-positive freshness lifetime, and Vite JS/CSS files remain content-fingerprinted.
+positive freshness lifetime. The built-artifact smoke checks the exact bytes of
+same-origin JS/CSS files referenced by the generated HTML.
 
 The deployment smoke rejects:
 
@@ -61,17 +62,21 @@ The deployment smoke rejects:
   HTML policy (`no-store`, unqualified `no-cache`, or `max-age=0`) or the
   build-info policy (unqualified `no-store`);
 - `build-info.json` without `no-store`;
-- non-fingerprinted built JS/CSS URLs (including references outside `/assets/`);
+- same-origin built JS/CSS references that do not load as the expected asset
+  media type;
+- local built-artifact smoke responses whose JS/CSS path or bytes do not match
+  the checked-out artifact map;
 - a build-info SHA different from the expected commit;
 - HTML whose embedded build identity differs from build-info.
 
-The JS/CSS guard accepts the Vite/Rolldown eight-character base64url-safe
-filename shape, but does not pretend that the shape alone proves content
-identity. `smoke:built-frontends` additionally maps every same-origin JS/CSS
-reference to the exact SHA-256 bytes in the checked-out artifact and rejects a
-remote/local response whose path or body is not that map. Production smoke
-still verifies the emitted response and its cache/identity contract without
-assuming an undocumented Vite hash algorithm. Qualified directives such as
+The deployment smoke intentionally does not require a particular bundler
+filename or hash shape. The frontend build contract test runs isolated
+production-Vite baseline and test-only JS/CSS delta builds, then proves that
+changed asset bytes receive changed HTML-referenced URLs. `smoke:built-frontends`
+additionally maps every same-origin JS/CSS reference to the exact SHA-256 bytes
+in the checked-out artifact and rejects a local response whose path or body is
+not that map. Production smoke remains URL-shape agnostic while verifying the
+emitted response and its cache/identity contract. Qualified directives such as
 `no-cache="Set-Cookie"` do not count as full-response HTML revalidation.
 
 The smoke validates only the client-visible response headers returned by the
@@ -130,10 +135,10 @@ Do not force one product back to the other's revision merely to make an
 aggregate smoke green.
 
 A successful smoke proves the requested origin returned the expected product,
-exact build identity, safe HTML/build-info cache policy, fingerprinted assets,
-and the existing representative SPA routes. It does not replace Cloudflare's
-own deployment status, broader CI, payment/security gates, or human launch
-authorization.
+exact build identity, safe HTML/build-info cache policy, loadable same-origin
+assets, and the existing representative SPA routes. It does not replace
+Cloudflare's own deployment status, broader CI, payment/security gates, or
+human launch authorization.
 
 ## Diagnosing a stale-looking browser
 

@@ -142,10 +142,10 @@ const testOnlyBuildDelta = {
 }
 
 export default defineConfig(mergeConfig(productionConfig, {
+  cacheDir: ${JSON.stringify(cacheDir)},
   plugins: [testOnlyBuildDelta],
   build: {
     outDir: ${JSON.stringify(output)},
-    cacheDir: ${JSON.stringify(cacheDir)},
     emptyOutDir: true,
   },
 }))
@@ -176,11 +176,13 @@ function buildIsolatedProductionVariant(delta?: BuildDelta): IsolatedBuild {
 }
 
 function expectChangedAssetBytesUseChangedHtmlUrls(delta: BuildDelta): void {
-  const baseline = buildIsolatedProductionVariant()
-  const changed = buildIsolatedProductionVariant(delta)
-  const extension = `.${delta}` as `.${BuildDelta}`
+  let baseline: IsolatedBuild | undefined
+  let changed: IsolatedBuild | undefined
 
   try {
+    baseline = buildIsolatedProductionVariant()
+    changed = buildIsolatedProductionVariant(delta)
+    const extension = `.${delta}` as `.${BuildDelta}`
     const baselineHtml = readFileSync(join(baseline.output, 'index.html'), 'utf8')
     const changedHtml = readFileSync(join(changed.output, 'index.html'), 'utf8')
     const baselineAssets = referencedAssetRecords(baseline.output, baselineHtml, extension)
@@ -198,8 +200,8 @@ function expectChangedAssetBytesUseChangedHtmlUrls(delta: BuildDelta): void {
       expect(changedAssets[index]?.url).not.toBe(baselineAssets[index]?.url)
     }
   } finally {
-    rmSync(baseline.temporaryRoot, { recursive: true, force: true })
-    rmSync(changed.temporaryRoot, { recursive: true, force: true })
+    if (baseline) rmSync(baseline.temporaryRoot, { recursive: true, force: true })
+    if (changed) rmSync(changed.temporaryRoot, { recursive: true, force: true })
   }
 }
 

@@ -68,10 +68,6 @@ const SMOKE_CONTRACTS: Record<DeploymentProduct, DeploymentSmokeContract> = {
 const DEFAULT_ATTEMPTS = 6
 const DEFAULT_RETRY_DELAY_MS = 2_000
 const SCRIPT_OR_STYLE = /\.(?:css|m?js)$/i
-// Vite/Rolldown emits an eight-character base64url-safe content hash. Keep the
-// token length exact so a descriptive filename suffix cannot masquerade as a
-// reusable asset fingerprint.
-const FINGERPRINTED_SCRIPT_OR_STYLE = /(?:^|\/)[^/]+-[A-Za-z0-9_-]{8}\.(?:css|m?js)$/i
 const ASSET_ATTRIBUTE = /(?:^|[\s<])(src|href)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/gi
 const AUXILIARY_CACHE_CONTROL_HEADERS = [
   'CDN-Cache-Control',
@@ -257,12 +253,6 @@ function assertBuildInfoNoStore(response: Response): void {
   }
 }
 
-function assertFingerprintedAsset(assetUrl: URL): void {
-  if (SCRIPT_OR_STYLE.test(assetUrl.pathname) && !FINGERPRINTED_SCRIPT_OR_STYLE.test(assetUrl.pathname)) {
-    throw new Error(`Deployment smoke found a non-fingerprinted asset URL: ${assetUrl.pathname}`)
-  }
-}
-
 function sha256Hex(body: string): string {
   return createHash('sha256').update(body, 'utf8').digest('hex')
 }
@@ -405,7 +395,6 @@ export async function verifyDeployment(
   const javascriptBodies: string[] = []
   for (const ref of assetRefs) {
     const assetUrl = new URL(ref, base)
-    assertFingerprintedAsset(assetUrl)
     const response = await fetchWithRetry(
       assetUrl,
       (response) => isExpectedAssetResponse(assetUrl, response),

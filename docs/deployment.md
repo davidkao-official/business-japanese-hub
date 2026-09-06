@@ -141,7 +141,7 @@ commit. The first two facts do not establish the third. After Cloudflare reports
 the intended `main` deployment successful, check out that exact commit and run
 the two profile-specific commands above. They default to the checkout's Git
 HEAD and verify the deployed HTML marker, `build-info.json`, cache contract,
-fingerprinted assets, and representative SPA routes. The exact identity/cache
+loadable same-origin assets, and representative SPA routes. The exact identity/cache
 contract, including independent Library and Career Game rollback revisions, is
 defined in `docs/deployment-cache-safety.md`.
 
