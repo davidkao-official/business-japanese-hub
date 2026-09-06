@@ -39,7 +39,7 @@ Book / Universal Reader 是 `Read` 的 long-form editorial capability；Career G
 - **[`docs/shared-backend-and-identity.md`](docs/shared-backend-and-identity.md)** — Supabase identity、origin/session topology、client/server secret boundary 與 product data isolation。
 - **[`docs/learning-and-progress.md`](docs/learning-and-progress.md)** — 現有 shared skill/evidence seam、Library reading／Career Game progress isolation、version/reset 與 RLS contract。
 - **[`docs/content-model.md`](docs/content-model.md)** — `Book → Chapter → ContentBlock` 的 Library／long-form editorial content model；不是全平台 schema。
-- **[`docs/ui-ux-research.md`](docs/ui-ux-research.md)** — UI/UX canonical design direction、Japanese typography、tokens、Reader baseline 與 anti-patterns。
+- **[`docs/ui-ux-research.md`](docs/ui-ux-research.md)** — **視覺、Japanese typography、design tokens、Reader/editorial quality 與 accessibility 的 durable research/implementation guidance**。其中 2026-08 研究留下的 Storefront-first、Book-as-commerce-unit、`subscription-first` non-goal 或禁止 Practice/Progress IA 等產品假設已被 `docs/product-contract.md` 與 `docs/post-n1-learning-map.md` supersede，**不得再作為 current product IA / commerce authority**。
 - **[`docs/authoring.md`](docs/authoring.md)** — Book/editorial authoring、validation、preview、publish、version/rollback workflow。
 - **[`docs/deployment.md`](docs/deployment.md)** — Cloudflare Pages、production Supabase、secrets、migration/functions、smoke、rollback 與 observability runbook。
 
@@ -96,16 +96,17 @@ Book / Universal Reader 是 `Read` 的 long-form editorial capability；Career G
 舊的 `first paid Book sale` milestone 已 superseded。主要執行線為：
 
 - SPI / Web Test Acquisition：#113–#117、#119–#120
-- Product IA：#108
+- Product IA / visible skeleton：#108、#127
 - Learning System / My Learning：#109
 - Reusable Learn / Practice：#110
+- Business Reading Engagement：#122 → #125
+- Work in Japan Retention：#124 → #126
 - Recurring membership commerce：#107
+- Membership UX：#123
 - Recurring legal/compliance：#112
 - Membership Paid Launch：#111
 - Deployment safety：#101/#102（獨立）
 - Learning production readiness：#97（獨立）
-
-Business Reading 與 Work in Japan 依 `docs/product-contract.md` 分別承擔 Engagement 與 Retention，應以各自 bounded backlog 持續展開。
 
 ## 部署
 
