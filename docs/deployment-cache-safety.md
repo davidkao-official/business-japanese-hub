@@ -56,10 +56,17 @@ The deployment smoke rejects:
 - positive `max-age` / `s-maxage`;
 - `immutable` on HTML;
 - stale-serving directives such as `stale-while-revalidate` or `stale-if-error`;
+- positive/stale directives in `CDN-Cache-Control`,
+  `Cloudflare-CDN-Cache-Control`, or `Surrogate-Control`;
 - `build-info.json` without `no-store`;
-- non-fingerprinted built JS/CSS URLs;
+- non-fingerprinted built JS/CSS URLs (including references outside `/assets/`);
 - a build-info SHA different from the expected commit;
 - HTML whose embedded build identity differs from build-info.
+
+The JS/CSS fingerprint guard accepts Vite/Rolldown's eight-character
+base64url-safe content-hash token. A descriptive filename suffix is not a
+substitute for that token. Qualified directives such as
+`no-cache="Set-Cookie"` do not count as full-response HTML revalidation.
 
 This intentionally detects unsafe Cloudflare Dashboard Cache Rules rather than
 assuming the dashboard still matches repository defaults.
@@ -92,6 +99,11 @@ Expected-revision precedence is:
 2. `EXPECTED_LIBRARY_DEPLOYMENT_SHA` or `EXPECTED_CAREER_GAME_DEPLOYMENT_SHA`;
 3. generic `EXPECTED_DEPLOYMENT_SHA`;
 4. the exact local Git HEAD.
+
+The final fallback reads the checkout's Git HEAD directly, even if
+`CF_PAGES_COMMIT_SHA` is present in the ambient environment. That Pages
+variable identifies an emitted build; it does not change which revision an
+exact-checkout smoke expects by default.
 
 The product-specific variables matter because Library and Career Game have
 independent deployment and rollback histories. To validate both canonical

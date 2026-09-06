@@ -23,6 +23,22 @@ export interface ResolveBuildCommitShaOptions {
   readGitHead?: () => string
 }
 
+function readCheckoutGitHead(readGitHead?: () => string): string {
+  return (
+    readGitHead ??
+    (() =>
+      execFileSync('git', ['rev-parse', 'HEAD'], {
+        cwd: process.cwd(),
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      }))
+  )()
+}
+
+function resolveCheckoutGitHead(readGitHead?: () => string): string {
+  return normalizeCommitSha(readCheckoutGitHead(readGitHead), 'Git HEAD commit SHA')
+}
+
 /**
  * Resolve the immutable source identity embedded into a frontend build.
  * Cloudflare Pages injects CF_PAGES_COMMIT_SHA. Other exact-checkout builds use
@@ -37,15 +53,7 @@ export function resolveBuildCommitSha(
     return normalizeCommitSha(cloudflareCommit, 'CF_PAGES_COMMIT_SHA')
   }
 
-  const readGitHead =
-    options.readGitHead ??
-    (() =>
-      execFileSync('git', ['rev-parse', 'HEAD'], {
-        cwd: process.cwd(),
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      }))
-  return normalizeCommitSha(readGitHead(), 'Git HEAD commit SHA')
+  return resolveCheckoutGitHead(options.readGitHead)
 }
 
 export interface ResolveExpectedDeploymentShaOptions extends ResolveBuildCommitShaOptions {
@@ -76,7 +84,10 @@ export function resolveExpectedDeploymentSha(
     if (raw?.trim()) return normalizeCommitSha(raw, label)
   }
 
-  return resolveBuildCommitSha({ env, readGitHead: options.readGitHead })
+  // A Pages-provided CF_PAGES_COMMIT_SHA identifies the build being emitted;
+  // it must not silently become the expected revision for a checkout smoke.
+  // The no-override fallback is always the exact Git HEAD of this checkout.
+  return resolveCheckoutGitHead(options.readGitHead)
 }
 
 export function createBuildInfo(

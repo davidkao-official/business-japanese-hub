@@ -64,7 +64,16 @@ const SMOKE_CONTRACTS: Record<DeploymentProduct, DeploymentSmokeContract> = {
 
 const DEFAULT_ATTEMPTS = 6
 const DEFAULT_RETRY_DELAY_MS = 2_000
-const FINGERPRINTED_SCRIPT_OR_STYLE = /\/assets\/[^/]+-[A-Za-z0-9_-]{8,}\.(?:css|m?js)$/i
+const SCRIPT_OR_STYLE = /\.(?:css|m?js)$/i
+// Vite/Rolldown emits an eight-character base64url-safe content hash. Keep the
+// token length exact so a descriptive filename suffix cannot masquerade as a
+// reusable asset fingerprint.
+const FINGERPRINTED_SCRIPT_OR_STYLE = /(?:^|\/)[^/]+-[A-Za-z0-9_-]{8}\.(?:css|m?js)$/i
+const AUXILIARY_CACHE_CONTROL_HEADERS = [
+  'CDN-Cache-Control',
+  'Cloudflare-CDN-Cache-Control',
+  'Surrogate-Control',
+] as const
 
 function deploymentBase(raw: string): URL {
   const base = new URL(raw.endsWith('/') ? raw : `${raw}/`)
@@ -125,46 +134,71 @@ function assertRequestedUrl(response: Response, requestedUrl: URL, label: string
   }
 }
 
-function cacheControlDirectives(response: Response): string[] {
-  return (response.headers.get('cache-control') ?? '')
+function cacheControlDirectives(raw: string | null): string[] {
+  return (raw ?? '')
     .split(',')
     .map((directive) => directive.trim().toLowerCase())
     .filter(Boolean)
 }
 
+function isUnsafeCacheDirective(directive: string): boolean {
+  if (
+    directive === 'immutable' ||
+    directive.startsWith('stale-while-revalidate') ||
+    directive.startsWith('stale-if-error')
+  ) {
+    return true
+  }
+
+  if (directive.startsWith('max-age') || directive.startsWith('s-maxage')) {
+    const match = /^(max-age|s-maxage)\s*=\s*"?(\d+)"?$/.exec(directive)
+    return !match || Number(match[2]) > 0
+  }
+
+  return false
+}
+
+function assertNoUnsafeCacheDirectives(
+  directives: readonly string[],
+  label: string,
+  headerName: string,
+): void {
+  for (const directive of directives) {
+    if (isUnsafeCacheDirective(directive)) {
+      throw new Error(`Deployment smoke ${label} has unsafe ${headerName}: ${directive}`)
+    }
+  }
+}
+
+function assertNoUnsafeAuxiliaryCacheHeaders(response: Response, label: string): void {
+  for (const headerName of AUXILIARY_CACHE_CONTROL_HEADERS) {
+    assertNoUnsafeCacheDirectives(
+      cacheControlDirectives(response.headers.get(headerName)),
+      label,
+      headerName,
+    )
+  }
+}
+
 function assertSafeHtmlCache(response: Response, label: string): void {
-  const directives = cacheControlDirectives(response)
+  const directives = cacheControlDirectives(response.headers.get('cache-control'))
   if (directives.length === 0) {
     throw new Error(`Deployment smoke ${label} has unsafe cache-control: header is missing`)
   }
 
+  assertNoUnsafeCacheDirectives(directives, label, 'cache-control')
+
   let hasImmediateRevalidation = false
   for (const directive of directives) {
-    if (
-      directive === 'immutable' ||
-      directive.startsWith('stale-while-revalidate') ||
-      directive.startsWith('stale-if-error')
-    ) {
-      throw new Error(`Deployment smoke ${label} has unsafe cache-control: ${directive}`)
-    }
-
-    if (directive === 'no-store' || directive === 'no-cache' || directive.startsWith('no-cache=')) {
+    if (directive === 'no-store' || directive === 'no-cache') {
       hasImmediateRevalidation = true
       continue
     }
 
-    if (directive.startsWith('max-age') || directive.startsWith('s-maxage')) {
-      const match = /^(max-age|s-maxage)\s*=\s*"?(\d+)"?$/.exec(directive)
-      if (!match) {
-        throw new Error(`Deployment smoke ${label} has unsafe cache-control: ${directive}`)
-      }
-      const seconds = Number(match[2])
-      if (seconds > 0) {
-        throw new Error(`Deployment smoke ${label} has unsafe cache-control: ${directive}`)
-      }
-      if (match[1] === 'max-age') hasImmediateRevalidation = true
-    }
+    if (/^max-age\s*=\s*"?0"?$/.test(directive)) hasImmediateRevalidation = true
   }
+
+  assertNoUnsafeAuxiliaryCacheHeaders(response, label)
 
   if (!hasImmediateRevalidation) {
     throw new Error(
@@ -174,14 +208,15 @@ function assertSafeHtmlCache(response: Response, label: string): void {
 }
 
 function assertBuildInfoNoStore(response: Response): void {
-  const directives = cacheControlDirectives(response)
+  const directives = cacheControlDirectives(response.headers.get('cache-control'))
   if (!directives.includes('no-store')) {
     throw new Error('Deployment smoke build-info cache-control must include no-store')
   }
+  assertNoUnsafeAuxiliaryCacheHeaders(response, 'build-info')
 }
 
 function assertFingerprintedAsset(assetUrl: URL): void {
-  if (/\.(?:css|m?js)$/i.test(assetUrl.pathname) && !FINGERPRINTED_SCRIPT_OR_STYLE.test(assetUrl.pathname)) {
+  if (SCRIPT_OR_STYLE.test(assetUrl.pathname) && !FINGERPRINTED_SCRIPT_OR_STYLE.test(assetUrl.pathname)) {
     throw new Error(`Deployment smoke found a non-fingerprinted asset URL: ${assetUrl.pathname}`)
   }
 }
@@ -279,9 +314,15 @@ export async function verifyDeployment(
 
   const assetRefs = [
     ...new Set(
-      [...rootHtml.matchAll(/(?:src|href)="([^"]*\/assets\/[^"]+)"/g)].map(
-        (match) => match[1],
-      ),
+      [...rootHtml.matchAll(/(?:src|href)=["']([^"']+)["']/gi)]
+        .map((match) => match[1])
+        .filter((ref) => {
+          const assetUrl = new URL(ref, base)
+          return (
+            assetUrl.origin === base.origin &&
+            (assetUrl.pathname.includes('/assets/') || SCRIPT_OR_STYLE.test(assetUrl.pathname))
+          )
+        }),
     ),
   ]
   if (assetRefs.length === 0) throw new Error('Deployment smoke found no built assets')

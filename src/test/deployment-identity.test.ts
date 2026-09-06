@@ -10,39 +10,49 @@ const expectedSha = '1111111111111111111111111111111111111111'
 const staleSha = '2222222222222222222222222222222222222222'
 const safeHtmlCache = 'public, max-age=0, must-revalidate'
 
-function libraryHtml(commitSha: string, assetPrefix = 'index-a1b2c3d4'): string {
+function libraryHtml(
+  commitSha: string,
+  assetPrefix = 'index-a1b2c3d4',
+  assetPath = '/assets',
+): string {
   return `<!doctype html>
 <html>
   <head>
     <meta name="bjh-build" content="library:${commitSha}" />
     <title>ビジネス日本語ハブ</title>
-    <link rel="stylesheet" href="/assets/${assetPrefix}.css" />
+    <link rel="stylesheet" href="${assetPath}/${assetPrefix}.css" />
   </head>
   <body>
     <p>ビジネスシーンで役立つ日本語を学ぶためのプラットフォームです。</p>
-    <script type="module" src="/assets/${assetPrefix}.js"></script>
+    <script type="module" src="${assetPath}/${assetPrefix}.js"></script>
   </body>
 </html>`
 }
 
 interface FakeDeploymentOptions {
+  buildInfoHeaders?: Record<string, string>
   buildInfoCache?: string
   buildInfoSha?: string
+  htmlHeaders?: Record<string, string>
   htmlCache?: string
   htmlSha?: string
   routeCache?: Record<string, string>
   assetPrefix?: string
+  assetPath?: string
 }
 
 function fakeLibraryDeployment({
+  buildInfoHeaders = {},
   buildInfoCache = 'no-store',
   buildInfoSha = expectedSha,
+  htmlHeaders = {},
   htmlCache = safeHtmlCache,
   htmlSha = expectedSha,
   routeCache = {},
   assetPrefix = 'index-a1b2c3d4',
+  assetPath = '/assets',
 }: FakeDeploymentOptions = {}): (url: URL) => Promise<Response> {
-  const html = libraryHtml(htmlSha, assetPrefix)
+  const html = libraryHtml(htmlSha, assetPrefix, assetPath)
   return async (url) => {
     if (url.pathname === '/build-info.json') {
       return new Response(JSON.stringify(createBuildInfo('library', buildInfoSha)), {
@@ -50,11 +60,12 @@ function fakeLibraryDeployment({
         headers: {
           'cache-control': buildInfoCache,
           'content-type': 'application/json',
+          ...buildInfoHeaders,
         },
       })
     }
 
-    if (url.pathname.startsWith('/assets/')) {
+    if (/\.(?:css|m?js)$/i.test(url.pathname)) {
       const isCss = url.pathname.endsWith('.css')
       return new Response(isCss ? 'body{}' : 'console.log("built")', {
         status: 200,
@@ -69,6 +80,7 @@ function fakeLibraryDeployment({
       headers: {
         'cache-control': routeCache[url.pathname] ?? htmlCache,
         'content-type': 'text/html',
+        ...htmlHeaders,
       },
     })
   }
@@ -130,6 +142,15 @@ describe('deployment build identity', () => {
     ).toBe(staleSha)
   })
 
+  it('uses checkout Git HEAD for the default expected SHA despite ambient Pages build identity', () => {
+    expect(
+      resolveExpectedDeploymentSha('library', {
+        env: { CF_PAGES_COMMIT_SHA: staleSha },
+        readGitHead: () => expectedSha,
+      }),
+    ).toBe(expectedSha)
+  })
+
   it('emits a deterministic versioned public build record', () => {
     expect(createBuildInfo('career-game', expectedSha)).toEqual({
       schemaVersion: 1,
@@ -188,6 +209,34 @@ describe('deployment exact-head and cache smoke', () => {
     ).rejects.toThrow(/unsafe cache-control/i)
   })
 
+  it('does not treat a qualified no-cache field as full-response HTML revalidation', async () => {
+    await expect(
+      verifyDeployment('https://example.pages.dev/', {
+        attempts: 1,
+        expectedCommitSha: expectedSha,
+        fetcher: fakeLibraryDeployment({ htmlCache: 'public, no-cache="Set-Cookie"' }),
+        product: 'library',
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(/unsafe cache-control/i)
+  })
+
+  it.each([
+    ['CDN-Cache-Control', 'max-age=600'],
+    ['Cloudflare-CDN-Cache-Control', 'max-age=600'],
+    ['Surrogate-Control', 'max-age=600'],
+  ])('rejects positive %s on HTML', async (headerName, value) => {
+    await expect(
+      verifyDeployment('https://example.pages.dev/', {
+        attempts: 1,
+        expectedCommitSha: expectedSha,
+        fetcher: fakeLibraryDeployment({ htmlHeaders: { [headerName]: value } }),
+        product: 'library',
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(new RegExp('unsafe ' + headerName, 'i'))
+  })
+
   it('checks the cache policy on SPA fallback routes as well as the root', async () => {
     await expect(
       verifyDeployment('https://example.pages.dev/', {
@@ -212,6 +261,49 @@ describe('deployment exact-head and cache smoke', () => {
         retryDelayMs: 0,
       }),
     ).rejects.toThrow(/build-info.*no-store/i)
+  })
+
+  it.each([
+    ['CDN-Cache-Control', 'max-age=600'],
+    ['Cloudflare-CDN-Cache-Control', 'stale-while-revalidate=60'],
+    ['Surrogate-Control', 's-maxage=600'],
+  ])('rejects unsafe %s on build-info', async (headerName, value) => {
+    await expect(
+      verifyDeployment('https://example.pages.dev/', {
+        attempts: 1,
+        expectedCommitSha: expectedSha,
+        fetcher: fakeLibraryDeployment({ buildInfoHeaders: { [headerName]: value } }),
+        product: 'library',
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(new RegExp('unsafe ' + headerName, 'i'))
+  })
+
+  it('inspects fingerprinted JS/CSS references outside the conventional assets directory', async () => {
+    await expect(
+      verifyDeployment('https://example.pages.dev/', {
+        attempts: 1,
+        expectedCommitSha: expectedSha,
+        fetcher: fakeLibraryDeployment({ assetPath: '/static' }),
+        product: 'library',
+        retryDelayMs: 0,
+      }),
+    ).resolves.toBeUndefined()
+  })
+
+  it('rejects descriptive JS/CSS suffixes even outside the conventional assets directory', async () => {
+    await expect(
+      verifyDeployment('https://example.pages.dev/', {
+        attempts: 1,
+        expectedCommitSha: expectedSha,
+        fetcher: fakeLibraryDeployment({
+          assetPath: '/static',
+          assetPrefix: 'index-production',
+        }),
+        product: 'library',
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(/fingerprinted asset/i)
   })
 
   it('rejects reusable JS/CSS asset URLs without a content fingerprint', async () => {
