@@ -1,10 +1,45 @@
+import { useRef, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
+import {
+  createBrowserValidationAnalytics,
+  createCrossProductMovementDeduper,
+  type ValidationAnalytics,
+} from '@business-japanese-hub/validation-analytics'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { CAREER_GAME_HREF, PRODUCT_MODE_BY_ID, PRODUCT_MODES, type ProductModeId } from './productModes'
 
-export function ProductModePage({ mode }: { mode: ProductModeId }) {
+const browserValidationAnalytics = createBrowserValidationAnalytics({
+  functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,
+  supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+})
+
+export interface ProductModePageProps {
+  mode: ProductModeId
+  analytics?: ValidationAnalytics
+}
+
+export function ProductModePage({ mode, analytics = browserValidationAnalytics }: ProductModePageProps) {
   const content = PRODUCT_MODE_BY_ID[mode]
+  const careerGameMovementDeduper = useRef(createCrossProductMovementDeduper())
   useDocumentTitle(`${content.title} — Business Japanese Hub`)
+
+  function trackCareerGameLink(event: MouseEvent<HTMLAnchorElement>): void {
+    const isAuxiliaryClick = event.type === 'auxclick'
+    if (isAuxiliaryClick ? event.button !== 1 : event.button !== 0) return
+    const keepsPageMounted =
+      isAuxiliaryClick || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+    if (!careerGameMovementDeduper.current.shouldTrack(keepsPageMounted, event.currentTarget.href)) {
+      return
+    }
+    try {
+      analytics.track({
+        event: 'cross_product_link_clicked',
+        direction: 'library_to_career_game',
+      })
+    } catch {
+      // The ordinary cross-origin link remains usable if analytics is unavailable.
+    }
+  }
 
   return (
     <section className="page product-mode-page" aria-labelledby={`${content.id}-title`}>
@@ -19,7 +54,7 @@ export function ProductModePage({ mode }: { mode: ProductModeId }) {
       </div>
 
       {mode === 'read' ? <ReadModeLinks /> : null}
-      {mode === 'experience' ? <ExperienceModeLink /> : null}
+      {mode === 'experience' ? <ExperienceModeLink onNavigate={trackCareerGameLink} /> : null}
 
       <nav className="product-mode-page__next" aria-label="Learning modes">
         <h2>Continue exploring</h2>
@@ -43,28 +78,31 @@ function ReadModeLinks() {
     <section className="product-mode-page__capability" aria-labelledby="read-capability-title">
       <h2 id="read-capability-title">Long-form reading</h2>
       <p>
-        The existing Library and Book/Reader routes remain available as Read capabilities.
+        The existing Library remains the stable entry to long-form reading. Book and Reader routes
+        remain available as direct compatibility paths.
       </p>
       <div className="product-mode-page__actions">
         <Link className="btn btn--primary" to="/library">
           Browse the Library
-        </Link>
-        <Link className="btn btn--secondary" to="/books/meeting-japanese">
-          View a book
         </Link>
       </div>
     </section>
   )
 }
 
-function ExperienceModeLink() {
+function ExperienceModeLink({ onNavigate }: { onNavigate: (event: MouseEvent<HTMLAnchorElement>) => void }) {
   return (
     <section className="product-mode-page__capability" aria-labelledby="experience-capability-title">
       <h2 id="experience-capability-title">Career Game</h2>
       <p>
         Follow the separate Experience runtime to apply workplace judgment in a story-driven case.
       </p>
-      <a className="btn btn--primary" href={CAREER_GAME_HREF}>
+      <a
+        className="btn btn--primary"
+        href={CAREER_GAME_HREF}
+        onClick={onNavigate}
+        onAuxClick={onNavigate}
+      >
         Open Career Game
       </a>
     </section>

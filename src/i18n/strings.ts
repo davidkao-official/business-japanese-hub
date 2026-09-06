@@ -278,7 +278,7 @@ const ja: AppStrings = {
   },
   home: {
     title: 'ビジネス日本語ハブ',
-    lead: 'ビジネスシーンで役立つ日本語表現を、実践的な書籍を通して学べるプラットフォームです。',
+    lead: '日本求職から日本職場での成長まで、仕事で使える日本語能力を学び続けるためのサービスです。',
     featureLabel: '本の構造',
     featureTitle: '実務で使う言葉を、文脈の中で読む',
     samplesLabel: '表現のサンプル',
@@ -508,7 +508,7 @@ const en: AppStrings = {
   },
   home: {
     title: 'Business Japanese Hub',
-    lead: 'A platform for learning practical business Japanese through real-world reading materials.',
+    lead: 'A learning service for Japanese job hunting, business reading, and growth in the workplace.',
     featureLabel: 'How the books are structured',
     featureTitle: 'Read workplace language in context.',
     samplesLabel: 'Expression samples',
@@ -738,7 +738,7 @@ const zhTW: AppStrings = {
   },
   home: {
     title: '商務日語中心',
-    lead: '透過實際的商務日語讀物，學習職場實用日語的平台。',
+    lead: '從日本求職、商務閱讀到職場成長，持續學習工作中真正需要的日語能力。',
     featureLabel: '書本結構',
     featureTitle: '在真實脈絡中閱讀職場日語',
     samplesLabel: '表達範例',
