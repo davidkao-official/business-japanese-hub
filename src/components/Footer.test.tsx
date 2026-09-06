@@ -30,5 +30,6 @@ describe('footer', () => {
 
     // existing footer note is preserved
     expect(screen.getByText('© ビジネス日本語ハブ')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'ビジネス日本語ハブ' })).toHaveAttribute('href', '/')
   })
 })

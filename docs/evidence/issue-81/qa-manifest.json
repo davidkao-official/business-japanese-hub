@@ -1,0 +1,161 @@
+{
+  "issue": 81,
+  "baseline": {
+    "sha": "81a5dfe812e37a78110311a0277a79bb0a920913",
+    "url": "http://127.0.0.1:4183/",
+    "server": "pnpm exec vite preview --host 127.0.0.1 --port 4183 --strictPort"
+  },
+  "preIssue80Comparison": {
+    "sha": "4b3558ca8dd4443470df43b81bfce61a7ea523d1",
+    "url": "http://127.0.0.1:4184/",
+    "server": "pnpm exec vite preview --host 127.0.0.1 --port 4184 --strictPort"
+  },
+  "finalImplementationAnchor": "bc0e016cfcb3d187b7fef8cc2bf8b30ce0066563",
+  "measurementSourceHead": "bc0e016cfcb3d187b7fef8cc2bf8b30ce0066563",
+  "capture": {
+    "browser": "獨立 Chromium context",
+    "deviceScaleFactor": 1,
+    "titleAndBrand": "Business Japanese Hub",
+    "viewports": [
+      "1440x900",
+      "390x844",
+      "799x844",
+      "800x844",
+      "768x844",
+      "1024x900",
+      "1280x900"
+    ],
+    "guards": [
+      "document.documentElement.scrollWidth === viewport width",
+      "document.fonts.ready",
+      "scrollBehavior = auto",
+      "mobile menu focus entry, Escape return, and background inertness"
+    ],
+    "responsiveChecks": [
+      { "viewport": "390x844", "surface": "mobile menu" },
+      { "viewport": "768x844", "surface": "mobile menu" },
+      { "viewport": "799x844", "surface": "mobile menu" },
+      { "viewport": "800x844", "surface": "desktop header" },
+      { "viewport": "1024x900", "surface": "desktop header" },
+      { "viewport": "1280x900", "surface": "desktop header" },
+      { "viewport": "1440x900", "surface": "desktop header" }
+    ]
+  },
+  "lighthouse": {
+    "version": "13.4.1",
+    "runMode": "sequential runs per surface, without concurrent Lighthouse workers",
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+    "runs": [
+      {
+        "surface": "historical #78 / PR #88 authority",
+        "viewport": "1440x900",
+        "performance": 100,
+        "accessibility": 100,
+        "source": "latest handoff; not rerun in this task"
+      },
+      {
+        "surface": "historical #78 / PR #88 authority",
+        "viewport": "390x844",
+        "performance": 96,
+        "accessibility": 100,
+        "source": "latest handoff; not rerun in this task"
+      },
+      {
+        "surface": "pre-#80 comparison",
+        "viewport": "1440x900",
+        "performance": 100,
+        "accessibility": 100,
+        "bestPractices": 96,
+        "seo": 92,
+        "lcp": "0.5 s",
+        "fcp": "0.4 s",
+        "capturedAt": "2026-09-04T20:57:06.515Z",
+        "reportPath": "/tmp/bjh-issue81-pre80-1440.json",
+        "reportSha256": "f10e2552dde793903771844da9b840d23894cd43a346e7e75a64276540266826"
+      },
+      {
+        "surface": "pre-#80 comparison",
+        "viewport": "390x844",
+        "performance": 95,
+        "accessibility": 100,
+        "bestPractices": 96,
+        "seo": 92,
+        "lcp": "2.6 s",
+        "fcp": "2.0 s",
+        "capturedAt": "2026-09-04T20:57:18.644Z",
+        "reportPath": "/tmp/bjh-issue81-pre80-390.json",
+        "reportSha256": "d15a2b7271f0d0052a5b0550f6f5a0e7111b468ac14e459de920673a45f79888"
+      },
+      {
+        "surface": "origin/main after #80",
+        "viewport": "1440x900",
+        "performance": 100,
+        "accessibility": 100,
+        "bestPractices": 96,
+        "seo": 92,
+        "lcp": "0.8 s",
+        "fcp": "0.5 s",
+        "capturedAt": "2026-09-04T21:44:03.139Z",
+        "reportPath": "/tmp/bjh-issue81-main-fixed-1440.json",
+        "reportSha256": "622937c347888d8bc6550d8f8fe23cf1b9929c5c07be3638e9a321c2d9988bef"
+      },
+      {
+        "surface": "origin/main after #80",
+        "viewport": "390x844",
+        "performance": 83,
+        "accessibility": 100,
+        "bestPractices": 96,
+        "seo": 92,
+        "lcp": "4.4 s",
+        "fcp": "2.0 s",
+        "capturedAt": "2026-09-04T21:44:14.352Z",
+        "reportPath": "/tmp/bjh-issue81-main-fixed-390.json",
+        "reportSha256": "a42322d2f505025ff48621d5ac99844ab87ba17b337cd0512a4138bdd0b46b0b"
+      },
+      {
+        "surface": "final #81 implementation",
+        "viewport": "1440x900",
+        "performance": 100,
+        "accessibility": 100,
+        "bestPractices": 96,
+        "seo": 92,
+        "lcp": "0.8 s",
+        "fcp": "0.4 s",
+        "capturedAt": "2026-09-04T21:43:40.633Z",
+        "reportPath": "/tmp/bjh-issue81-final-fixed-1440.json",
+        "reportSha256": "b6c348157e382ff2fd1841f41b55e0a56b6eec0c7608436fa1ed9627e1fb1ed7"
+      },
+      {
+        "surface": "final #81 implementation",
+        "viewport": "390x844",
+        "performance": 83,
+        "accessibility": 100,
+        "bestPractices": 96,
+        "seo": 92,
+        "lcp": "4.4 s",
+        "fcp": "2.0 s",
+        "capturedAt": "2026-09-04T21:43:52.012Z",
+        "reportPath": "/tmp/bjh-issue81-final-fixed-390.json",
+        "reportSha256": "2ae3d0374db9f0def4834e1c44b12cb3d37f3a59498cfa59fcddbf963905db8e"
+      }
+    ],
+    "desktopCommand": "pnpm dlx lighthouse@13.4.1 http://127.0.0.1:<port>/ --preset=desktop --screenEmulation.width=1440 --screenEmulation.height=900 --screenEmulation.mobile=false --screenEmulation.deviceScaleFactor=1 --output=json --output-path=<tmp> --quiet",
+    "mobileCommand": "pnpm dlx lighthouse@13.4.1 http://127.0.0.1:<port>/ --form-factor=mobile --screenEmulation.mobile=true --screenEmulation.width=390 --screenEmulation.height=844 --screenEmulation.deviceScaleFactor=1 --output=json --output-path=<tmp> --quiet"
+  },
+  "performanceDisposition": {
+    "comparison": "pre-#80 versus origin/main after #80 versus final #81",
+    "lcpAsset": {
+      "path": "cover-B0Kzu4AB.jpg",
+      "bytes": 446868,
+      "mobileRender": "302x403",
+      "imageDeliveryEstimatedWastedBytes": 426601
+    },
+    "sharedCurrentMainAndFinalFindings": [
+      "150 ms render-blocking CSS",
+      "approximately 98 KiB unused JavaScript",
+      "catalog-rendered LCP image is not discoverable in initial HTML"
+    ],
+    "issue81Remediation": "Featured cover uses loading=eager and fetchPriority=high; final Lighthouse confirms both hints.",
+    "safeScopeBoundary": "Further compression or responsive variants require a versioned release asset/contentHash change under the immutable publish pipeline; removing the #80 editorial projection would change the approved surface. Defer that asset-pipeline decision rather than alter release truth in #81."
+  }
+}

@@ -150,13 +150,22 @@ Preview boundary 依 `docs/ui-ux-research.md` §4.2：有序章節前綴（可�
 
 ## 9. Environment dependency（真實驗證所需）
 
-程式碼層完成（mock 測試全綠）。真實端到端驗證需要一個已佈署的 Supabase instance：
+程式碼層完成（mock 測試全綠）。本機 migration/RLS/grant 驗證一律走 owned disposable boundary：
 
-1. Provision Supabase project（或 `supabase start` local）。
-2. `supabase db reset --local` 從頭套用 `supabase/migrations/` 的完整 ordered migration chain。
+```text
+pnpm test:db-guard
+pnpm validate:db
+```
+
+防護與操作限制見 `docs/db-validation.md`。若 guard 拒絕執行，停止並回報 DB gate unavailable；不得改用既有 local stack、raw `supabase db start/reset/stop`、linked/remote reset，或改 project/port 繞過防護。
+
+真實端到端驗證仍需要一個已佈署且獲授權的 Supabase instance：
+
+1. Provision／指定該驗證用 Supabase project；不要把本機 validation stack 當 production/auth E2E 證據。
+2. 依 canonical deployment/activation runbook 套用並核對 migrations；production／remote write 需要其獨立授權，不使用本機 guard 作為授權替代。
 3. 設定 `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`（build 時 bake）。
 4. 在 Supabase Auth 明確設定允許的 Site URL / redirect URLs、email confirmation policy 與 production mail delivery；這些 external settings 未有 live evidence 前不得宣稱 sign-up E2E 已驗證。
 5. 建立測試 user；以 service-role 呼叫 `grant_entitlement(...)` 授予測試 Book，並另留一條 revoked lifecycle fixture。
 6. 驗證：sign-in 與 sign-up confirmation round trip、另一 session/device 登入後的 `getEntitlement`／`getReadingState` 一致性、revoked row 不會出現在 ownership 查詢、未授予的 paid book 無法靠修改 client state 解鎖，以及 anon key 呼叫 `grant_entitlement` 被拒（`permission denied`）。
 
-未 provision instance 前，這些是文件化的環境 dependency，不是 code 缺陷。
+未 provision／授權 instance 前，這些是文件化的 environment dependency，不是 code 缺陷。
