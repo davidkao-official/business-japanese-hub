@@ -59,7 +59,8 @@ The deployment smoke rejects:
 - stale-serving directives such as `stale-while-revalidate` or `stale-if-error`;
 - any present `CDN-Cache-Control`, `Cloudflare-CDN-Cache-Control`, or
   `Surrogate-Control` header that does not independently carry the complete
-  HTML policy (`no-store`, unqualified `no-cache`, or `max-age=0`) or the
+  HTML policy (`no-store`, unqualified `no-cache`, or `max-age=0` together
+  with `must-revalidate`) or the
   build-info policy (unqualified `no-store`);
 - `build-info.json` without `no-store`;
 - same-origin built JS/CSS references that do not load as the expected asset

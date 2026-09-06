@@ -211,15 +211,17 @@ function assertHtmlCachePolicy(
 
   assertNoUnsafeCacheDirectives(directives, label, headerName)
 
-  const hasImmediateRevalidation = directives.some(
-    (directive) =>
-      directive === 'no-store' ||
-      directive === 'no-cache' ||
-      /^max-age\s*=\s*"?0"?$/.test(directive),
+  const hasUnqualifiedNoStoreOrNoCache = directives.some(
+    (directive) => directive === 'no-store' || directive === 'no-cache',
   )
+  const hasZeroMaxAgeWithMustRevalidate =
+    directives.some((directive) => /^max-age\s*=\s*"?0"?$/.test(directive)) &&
+    directives.includes('must-revalidate')
+  const hasImmediateRevalidation =
+    hasUnqualifiedNoStoreOrNoCache || hasZeroMaxAgeWithMustRevalidate
   if (!hasImmediateRevalidation) {
     throw new Error(
-      `Deployment smoke ${label} has unsafe ${headerName}: HTML must use no-store, no-cache, or max-age=0`,
+      `Deployment smoke ${label} has unsafe ${headerName}: HTML must use no-store, no-cache, or max-age=0 with must-revalidate`,
     )
   }
 }

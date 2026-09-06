@@ -217,6 +217,18 @@ describe('deployment exact-head and cache smoke', () => {
     ).rejects.toThrow(/unsafe cache-control/i)
   })
 
+  it('does not treat bare max-age=0 as complete HTML revalidation', async () => {
+    await expect(
+      verifyDeployment('https://example.pages.dev/', {
+        attempts: 1,
+        expectedCommitSha: expectedSha,
+        fetcher: fakeLibraryDeployment({ htmlCache: 'public, max-age=0' }),
+        product: 'library',
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(/unsafe cache-control/i)
+  })
+
   it('does not treat a qualified no-cache field as full-response HTML revalidation', async () => {
     await expect(
       verifyDeployment('https://example.pages.dev/', {
@@ -253,6 +265,21 @@ describe('deployment exact-head and cache smoke', () => {
           attempts: 1,
           expectedCommitSha: expectedSha,
           fetcher: fakeLibraryDeployment({ htmlHeaders: { [headerName]: 'no-cache="Set-Cookie"' } }),
+          product: 'library',
+          retryDelayMs: 0,
+        }),
+      ).rejects.toThrow(new RegExp(`unsafe ${headerName}`, 'i'))
+    },
+  )
+
+  it.each(['CDN-Cache-Control', 'Cloudflare-CDN-Cache-Control', 'Surrogate-Control'])(
+    'does not treat bare max-age=0 in %s as complete HTML revalidation',
+    async (headerName) => {
+      await expect(
+        verifyDeployment('https://example.pages.dev/', {
+          attempts: 1,
+          expectedCommitSha: expectedSha,
+          fetcher: fakeLibraryDeployment({ htmlHeaders: { [headerName]: 'max-age=0' } }),
           product: 'library',
           retryDelayMs: 0,
         }),
