@@ -3,6 +3,8 @@
 > **狀態：canonical / highest product authority**
 >
 > 本文件定義 Business Japanese Hub 的長期產品定位、商業模型、user journey、主要 product roles 與不可被下游 implementation issue 擅自改寫的 invariants。課程／內容 taxonomy 由 [`post-n1-learning-map.md`](post-n1-learning-map.md) 定義；技術 bounded-context 與 deployment 細節由相關 architecture docs 定義。若歷史 issue、PR、README 或 implementation 與本文件衝突，以本文件為準。
+>
+> **Reference stability:** §5–§10 刻意保留既有 repository 文件長期引用的語意位置：§5 platform abstraction、§6 book-agnostic/runtime boundary、§7 platform responsibility、§8 UI/Reader quality、§9 web-first/platform、§10 payment architecture。新增 Plus 產品契約不得再次讓這些既有 inbound references 指向無關規則。
 
 ## 1. 核心定位
 
@@ -179,7 +181,7 @@ Canonical placement：`My Learning` 是主要 member surface，但 Learning Syst
 
 不得為了 dashboard 製造假的 mastery%、AI diagnosis、streak、XP 或 universal event mega-schema。
 
-## 5. Canonical user-facing learning architecture
+## 5. Platform abstraction and canonical user-facing learning architecture
 
 Curriculum / IA 使用 [`post-n1-learning-map.md`](post-n1-learning-map.md) 定義的五個 modes：
 
@@ -193,9 +195,9 @@ Learn | Read | Practice | My Learning | Experience
 - **My Learning**：progress、mistakes、saved/review、weak-area signals、next step。
 - **Experience**：在具體敘事與上下文中套用能力；Career Game 是第一個 Experience product。
 
-這是 user-facing product architecture，不等於要求五個 modes 共用一個 runtime、database table 或 frontend app。
+這是 user-facing product abstraction / architecture，不等於要求五個 modes 共用一個 runtime、database table 或 frontend app。Platform-level identity、navigation 與 shared services 應讓這五個 modes 看起來屬於同一產品，但不能抹平各 bounded context 的 domain semantics。
 
-## 6. Content and runtime boundaries
+## 6. Book-agnostic content and runtime boundaries
 
 ### 6.1 Book / Reader
 
@@ -229,7 +231,9 @@ Career Game 是 `Experience` 的獨立 bounded runtime，持有自己的 scenari
 
 Learn 與 Practice 可以有 reusable presentation/runtime seams，但應只抽出真實共用部分。不得為每一課建立一套 runtime，也不得先做 generalized LMS framework。
 
-## 7. Learning System data principles
+## 7. Platform responsibility boundary and Learning System data principles
+
+各 product runtime 擁有自己的 domain state / progress semantics；shared platform 只擁有真正跨 bounded contexts 的 narrow responsibilities，例如 durable identity、server security、authoritative membership access、必要的 shared learning evidence/projection 與 operations primitives。不得因為 My Learning 或 Plus 需要跨 surface view，就把所有 runtime data 收斂成 universal mega-schema。
 
 不同 product runtime 可以保留自己的 progress semantics，再用 narrow adapters / read models 提供 member learning state。
 
@@ -250,29 +254,7 @@ Learn 與 Practice 可以有 reusable presentation/runtime seams，但應只抽�
 
 不要因為 My Learning 需要一個畫面，就建立一張「所有學習行為都一樣」的 universal table。
 
-## 8. Membership access and commerce invariants
-
-Recurring commerce 的 implementation contract 由 #107 定義，但以下產品／安全規則已鎖定：
-
-- Primary paid unit = **Business Japanese Hub Plus membership**。
-- Browser/client state 永遠不能 mint paid membership access。
-- Provider event 必須經 server-side verification / normalization / idempotent lifecycle transition 後，才可影響 authoritative subscription/access state。
-- Payment architecture 保持 provider-neutral；現有 ECPay／PayPal one-time work只能視為 reusable engineering，不等於 subscription readiness。
-- Historical Orders／Payments／Refunds／Book entitlements 保持可稽核，不 destructive-convert 成 subscriptions。
-- Cancellation、renewal、failed renewal、refund/reversal、reconciliation 必須有 deterministic contract。
-- Real billing activation 仍受 merchant/KYC、seller/legal/tax、email、provider capability 等真實 external gates 約束。
-
-## 9. Platform and deployment invariants
-
-- **Web-first**。mobile web 必須適合通勤使用，desktop 必須適合 focused reading / practice / reference。
-- **One repository**。
-- **One shared Supabase modular monolith backend boundary**；不得為新 learning mode 自動建立第二 backend 或 microservices。
-- Product-specific runtime/data 保持 bounded contexts，shared contracts 必須 narrow、consumer-driven。
-- Library 與 Career Game 目前可以維持獨立 Cloudflare Pages artifact/origin 與 release cadence；user-facing IA 不要求 deployment topology 變成單一 frontend。
-- Supabase service role、payment provider secrets、webhook secrets 永不進 frontend。
-- RLS / server authorization / exact production deployment safety 不得因 product pivot 弱化。
-
-## 10. UI / UX quality is P0
+## 8. UI / UX quality and Reader quality are P0
 
 Business Japanese Hub 必須感覺像成熟、premium、可信賴的日本職場／商業學習產品，而不是：
 
@@ -285,6 +267,30 @@ Business Japanese Hub 必須感覺像成熟、premium、可信賴的日本職場
 保留既有 editorial typography / Reader quality、System / Light / Dark、mobile accessibility、keyboard/focus、responsive 與 reduced-motion contracts。
 
 各 mode 可以有不同 presentation grammar，但必須在同一 brand family 內。
+
+`docs/ui-ux-research.md` 的 typography、Reader、design-token、editorial-quality 與 accessibility research 持續有效；其中 2026-08 Storefront-first、Book-as-commerce-unit、禁止 Practice/Progress IA 或 `subscription-first` non-goal 等舊產品假設已由本文件 supersede，不得反向覆蓋 current Plus product IA。
+
+## 9. Platform, web-first, and deployment invariants
+
+- **Web-first**。mobile web 必須適合通勤使用，desktop 必須適合 focused reading / practice / reference。
+- **One repository**。
+- **One shared Supabase modular monolith backend boundary**；不得為新 learning mode 自動建立第二 backend 或 microservices。
+- Product-specific runtime/data 保持 bounded contexts，shared contracts 必須 narrow、consumer-driven。
+- Library 與 Career Game 目前可以維持獨立 Cloudflare Pages artifact/origin 與 release cadence；user-facing IA 不要求 deployment topology 變成單一 frontend。
+- Supabase service role、payment provider secrets、webhook secrets 永不進 frontend。
+- RLS / server authorization / exact production deployment safety 不得因 product pivot 弱化。
+
+## 10. Membership access and payment architecture invariants
+
+Recurring commerce 的 implementation contract 由 #107 定義，但以下產品／安全規則已鎖定：
+
+- Primary paid unit = **Business Japanese Hub Plus membership**。
+- Browser/client state 永遠不能 mint paid membership access。
+- Provider event 必須經 server-side verification / normalization / idempotent lifecycle transition 後，才可影響 authoritative subscription/access state。
+- Payment architecture 保持 provider-neutral；現有 ECPay／PayPal one-time work只能視為 reusable engineering，不等於 subscription readiness。
+- Historical Orders／Payments／Refunds／Book entitlements 保持可稽核，不 destructive-convert 成 subscriptions。
+- Cancellation、renewal、failed renewal、refund/reversal、reconciliation 必須有 deterministic contract。
+- Real billing activation 仍受 merchant/KYC、seller/legal/tax、email、provider capability 等真實 external gates 約束。
 
 ## 11. AI boundary
 
@@ -343,11 +349,11 @@ AI 不是 first-slice engine，也不是 primary product abstraction。
 Canonical product contract (#105)
         │
         ├── Acquisition: SPI / Web Test (#113–#117, #119–#120)
-        ├── Engagement: Business Reading
-        ├── Retention: Work in Japan
+        ├── Engagement: Business Reading (#122 → #125)
+        ├── Retention: Work in Japan (#124 → #126)
         ├── Subscription Justification: Learning System / My Learning (#109 + practice evidence)
-        ├── Product IA / reusable surfaces (#108 / #110)
-        ├── Recurring commerce + access (#107)
+        ├── Product IA / reusable surfaces (#108 / #110 / #127)
+        ├── Recurring commerce + access (#107 / #123)
         └── Recurring legal/compliance (#112)
                          │
                          └── Plus Early Access Membership Paid Launch (#111)
