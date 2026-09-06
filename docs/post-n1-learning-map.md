@@ -28,10 +28,10 @@ Business Japanese Hub 對使用者的公開概念名稱是：
 
 `N1 之後` 是產品定位與主要入口，不是所有內容的硬編碼資格條件。
 
-- 主要受眾仍是已具備 N2 / N1 附近能力、準備進入或已在日本職場的進階學習者。
-- 依 `docs/product-contract.md`，同一套核心內容也必須能對日本的大學生與年輕職場人士提供實際價值。
+- 主要受眾是已具備 N2 / N1 附近能力、準備進入或已在日本職場的**華語進階學習者**；內容設計與優先級必須先服務這個 primary segment。
+- 日本的大學生與年輕職場人士可以從同一套 workplace-capability 內容獲得價值，但屬 secondary audience；**不得要求每一個核心內容同時為其最佳化，也不得因此弱化繁體中文 explanation/support 或華語學習者需求。**
 - Taxonomy 應圍繞 **workplace capability**，而不是把 `foreigner`、JLPT 等級或繁體中文支援寫死成每個內容型別的 schema identity。
-- 繁體中文是第一階段重要的 explanation/support layer，不代表核心能力只能服務中文母語者。
+- 繁體中文是第一階段重要的 explanation/support layer；核心能力本身仍應是可轉移、真實的日本職場能力，而不是只對某一母語有意義的教材分類。
 
 ---
 
