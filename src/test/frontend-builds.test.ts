@@ -1,7 +1,16 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { join, relative } from 'node:path'
+import { tmpdir } from 'node:os'
+import { pathToFileURL } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { DeploymentBuildInfo, DeploymentProduct } from '../../scripts/lib/deployment-identity'
 
@@ -47,6 +56,17 @@ const buildEnvironment = {
   VITE_CAREER_GAME_ORIGIN: publicCareerGameOrigin,
   ...Object.fromEntries(serverSecretNames.map((name, index) => [name, serverSecretValues[index]])),
 }
+type BuildDelta = 'js' | 'css'
+
+interface BuiltAssetRecord {
+  digest: string
+  url: string
+}
+
+interface IsolatedBuild {
+  output: string
+  temporaryRoot: string
+}
 
 function outputFingerprint(root: string): string[] {
   const paths: string[] = []
@@ -72,6 +92,115 @@ function builtAssetReferences(html: string): string[] {
   return [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
     .map((match) => match[1])
     .filter((reference): reference is string => reference?.startsWith('/assets/') === true)
+}
+
+function referencedAssetRecords(
+  output: string,
+  html: string,
+  extension: `.${'js' | 'css'}`,
+): BuiltAssetRecord[] {
+  return builtAssetReferences(html)
+    .filter((reference) => reference.endsWith(extension))
+    .map((url) => ({
+      url,
+      digest: createHash('sha256')
+        .update(readFileSync(join(output, url.slice(1))))
+        .digest('hex'),
+    }))
+}
+
+function writeIsolatedProductionConfig(
+  temporaryRoot: string,
+  output: string,
+  cacheDir: string,
+  delta: BuildDelta | undefined,
+): string {
+  const productionConfig = pathToFileURL(join(process.cwd(), 'vite.config.ts')).href
+  const config = `
+import productionConfig from ${JSON.stringify(productionConfig)}
+import { defineConfig, mergeConfig } from 'vite'
+
+const delta = ${JSON.stringify(delta)}
+const testOnlyBuildDelta = {
+  name: 'business-japanese-hub:test-only-build-delta',
+  transform(code, id) {
+    const sourceId = id.split('?')[0]
+    if (delta === 'js' && sourceId.endsWith('/src/main.tsx')) {
+      return {
+        code: code + '\\nglobalThis.__BJH_TEST_BUILD_DELTA__ = ' + JSON.stringify(delta) + ';',
+        map: null,
+      }
+    }
+    if (delta === 'css' && sourceId.endsWith('/src/styles/global.css')) {
+      return {
+        code: code + '\\n:root { --bjh-test-build-delta: "' + delta + '"; }',
+        map: null,
+      }
+    }
+    return undefined
+  },
+}
+
+export default defineConfig(mergeConfig(productionConfig, {
+  plugins: [testOnlyBuildDelta],
+  build: {
+    outDir: ${JSON.stringify(output)},
+    cacheDir: ${JSON.stringify(cacheDir)},
+    emptyOutDir: true,
+  },
+}))
+`
+  const configPath = join(temporaryRoot, 'vite.test.config.ts')
+  writeFileSync(configPath, config)
+  return configPath
+}
+
+function buildIsolatedProductionVariant(delta?: BuildDelta): IsolatedBuild {
+  const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-fingerprint-'))
+  const output = join(temporaryRoot, 'dist')
+  const cacheDir = join(temporaryRoot, 'vite-cache')
+  const configPath = writeIsolatedProductionConfig(temporaryRoot, output, cacheDir, delta)
+
+  try {
+    execFileSync('pnpm', ['exec', 'vite', 'build', '--config', configPath], {
+      cwd: process.cwd(),
+      env: buildEnvironment,
+      stdio: 'pipe',
+    })
+    expect(existsSync(join(output, 'index.html'))).toBe(true)
+    return { output, temporaryRoot }
+  } catch (error) {
+    rmSync(temporaryRoot, { recursive: true, force: true })
+    throw error
+  }
+}
+
+function expectChangedAssetBytesUseChangedHtmlUrls(delta: BuildDelta): void {
+  const baseline = buildIsolatedProductionVariant()
+  const changed = buildIsolatedProductionVariant(delta)
+  const extension = `.${delta}` as `.${BuildDelta}`
+
+  try {
+    const baselineHtml = readFileSync(join(baseline.output, 'index.html'), 'utf8')
+    const changedHtml = readFileSync(join(changed.output, 'index.html'), 'utf8')
+    const baselineAssets = referencedAssetRecords(baseline.output, baselineHtml, extension)
+    const changedAssets = referencedAssetRecords(changed.output, changedHtml, extension)
+
+    expect(baselineAssets).not.toHaveLength(0)
+    expect(changedAssets).toHaveLength(baselineAssets.length)
+
+    const changedByteIndexes = baselineAssets.flatMap((asset, index) =>
+      asset.digest !== changedAssets[index]?.digest ? [index] : [],
+    )
+    expect(changedByteIndexes.length).toBeGreaterThan(0)
+
+    for (const index of changedByteIndexes) {
+      expect(changedAssets[index]?.url).not.toBe(baselineAssets[index]?.url)
+    }
+  } finally {
+    rmSync(baseline.temporaryRoot, { recursive: true, force: true })
+    rmSync(changed.temporaryRoot, { recursive: true, force: true })
+  }
 }
 
 function builtText(root: string): string {
@@ -185,6 +314,14 @@ describe('dual-frontend build topology', () => {
       rmSync(sentinelPath, { force: true })
     }
   }, 30_000)
+
+  it('changes the HTML-referenced JS URL when test-only JS bytes change', () => {
+    expectChangedAssetBytesUseChangedHtmlUrls('js')
+  }, 120_000)
+
+  it('changes the HTML-referenced CSS URL when test-only CSS bytes change', () => {
+    expectChangedAssetBytesUseChangedHtmlUrls('css')
+  }, 120_000)
 
   it('shares public browser configuration without leaking server credentials', () => {
     for (const output of [libraryOutput, careerGameOutput]) {

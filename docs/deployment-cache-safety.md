@@ -74,8 +74,12 @@ still verifies the emitted response and its cache/identity contract without
 assuming an undocumented Vite hash algorithm. Qualified directives such as
 `no-cache="Set-Cookie"` do not count as full-response HTML revalidation.
 
-This intentionally detects unsafe Cloudflare Dashboard Cache Rules rather than
-assuming the dashboard still matches repository defaults.
+The smoke validates only the client-visible response headers returned by the
+URLs it requests. It cannot prove every Cloudflare Dashboard Edge Cache TTL or
+Cache Rule, including rules that do not appear in that response or affect
+other paths and variants. A dashboard-only suspicion requires operator
+inspection of the Cloudflare configuration; it is not resolved by a passing
+smoke alone.
 
 ## Exact-head verification
 
@@ -141,7 +145,9 @@ old:
    commit. Do not treat a matching product title alone as deployment proof.
 3. Inspect the root document response headers. Any positive browser/CDN cache
    lifetime or stale-serving directive is a configuration regression; inspect
-   Cloudflare Cache Rules before changing application code.
+   Cloudflare Cache Rules before changing application code. If the returned
+   headers are safe but a dashboard-only TTL or rule concern remains, an
+   operator must inspect the Cloudflare configuration directly.
 4. If smoke passes but one browser tab remains visually old, reload/navigate and
    inspect that tab's document request. The artifact identity now distinguishes
    a stale browser response from a failed deployment.
