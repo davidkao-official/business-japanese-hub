@@ -1,6 +1,9 @@
+import { createHash } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
+import { readFileSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { extname, resolve, sep } from 'node:path'
+import { resolveCheckoutCommitSha } from './lib/deployment-identity'
 import { verifyDeployment, type DeploymentProduct } from './lib/deployment-smoke'
 
 interface BuiltFrontend {
@@ -29,6 +32,23 @@ const MEDIA_TYPES: Readonly<Record<string, string>> = {
   '.woff2': 'font/woff2',
 }
 
+function assetDigests(outputDirectory: string): Readonly<Record<string, string>> {
+  const root = resolve(outputDirectory)
+  const html = readFileSync(resolve(root, 'index.html'), 'utf8')
+  const digests: Record<string, string> = {}
+  const attribute = /(?:^|[\s<])(src|href)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/gi
+  for (const match of html.matchAll(attribute)) {
+    const reference = match[2] ?? match[3] ?? match[4]
+    if (!reference) continue
+    const url = new URL(reference, 'http://127.0.0.1/')
+    if (!/\.(?:css|m?js)$/i.test(url.pathname)) continue
+    const filePath = resolve(root, `.${url.pathname}`)
+    if (!filePath.startsWith(`${root}${sep}`)) continue
+    digests[url.pathname] = createHash('sha256').update(readFileSync(filePath)).digest('hex')
+  }
+  return digests
+}
+
 function closeServer(server: Server): Promise<void> {
   return new Promise((resolveClose, reject) => {
     server.close((error) => (error ? reject(error) : resolveClose()))
@@ -50,9 +70,17 @@ async function startSpaServer(outputDirectory: string): Promise<{ baseUrl: strin
       const file = await stat(requestedFile).catch(() => undefined)
       const responsePath = file?.isFile() ? requestedFile : indexPath
       const body = await readFile(responsePath)
+      const isHtml = responsePath === indexPath || extname(responsePath).toLowerCase() === '.html'
+      const isBuildInfo = responsePath === resolve(root, 'build-info.json')
+      const cacheControl = isBuildInfo
+        ? 'no-store'
+        : isHtml
+          ? 'public, max-age=0, must-revalidate'
+          : undefined
       response.writeHead(200, {
         'content-length': body.byteLength,
         'content-type': MEDIA_TYPES[extname(responsePath).toLowerCase()] ?? 'application/octet-stream',
+        ...(cacheControl ? { 'cache-control': cacheControl } : {}),
       })
       response.end(body)
     } catch (error) {
@@ -73,6 +101,7 @@ async function startSpaServer(outputDirectory: string): Promise<{ baseUrl: strin
   return { baseUrl: `http://127.0.0.1:${address.port}/`, server }
 }
 
+const expectedCommitSha = resolveCheckoutCommitSha()
 const servers: Server[] = []
 try {
   for (const frontend of BUILT_FRONTENDS) {
@@ -80,11 +109,13 @@ try {
     servers.push(preview.server)
     await verifyDeployment(preview.baseUrl, {
       attempts: 1,
+      expectedCommitSha,
+      expectedAssetDigests: assetDigests(frontend.outputDirectory),
       product: frontend.product,
       retryDelayMs: 0,
     })
     console.log(
-      `ok   ${frontend.product}: ${frontend.outputDirectory}/ root, typed assets, and SPA direct routes`,
+      `ok   ${frontend.product}: ${frontend.outputDirectory}/ exact-head identity, cache policy, typed assets, and SPA direct routes`,
     )
   }
 } finally {

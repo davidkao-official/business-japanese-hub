@@ -134,6 +134,17 @@ boundary for #59 are documented in `docs/career-game-validation.md`.
 The commercial Book itself should additionally be checked manually through its
 current catalog route as part of the paid golden path.
 
+Keep three deployment facts separate: a GitHub merge makes a commit reachable
+from `main`; a successful Cloudflare Pages build reports that a project deployed;
+and production exact-head active means the canonical origin serves that intended
+commit. The first two facts do not establish the third. After Cloudflare reports
+the intended `main` deployment successful, check out that exact commit and run
+the two profile-specific commands above. They default to the checkout's Git
+HEAD and verify the deployed HTML marker, `build-info.json`, cache contract,
+loadable same-origin assets, and representative SPA routes. The exact identity/cache
+contract, including independent Library and Career Game rollback revisions, is
+defined in `docs/deployment-cache-safety.md`.
+
 Cloudflare PR previews use dynamic origins. They are valid for anonymous UI,
 route/reload and cross-link QA, but authenticated Edge Functions remain exact-
 origin and fail closed on arbitrary preview hosts. Do not introduce wildcard

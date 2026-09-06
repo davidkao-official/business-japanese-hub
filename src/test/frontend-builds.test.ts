@@ -1,11 +1,22 @@
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { join, relative } from 'node:path'
+import { tmpdir } from 'node:os'
+import { pathToFileURL } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
+import type { DeploymentBuildInfo, DeploymentProduct } from '../../scripts/lib/deployment-identity'
 
 const libraryOutput = join(process.cwd(), 'dist')
 const careerGameOutput = join(process.cwd(), 'dist-career-game')
+const buildCommitSha = '3333333333333333333333333333333333333333'
 const publicSupabaseUrl = 'https://shared-browser-config.supabase.co'
 const publicSupabaseKey = 'public-anon-key-sentinel'
 const publicFunctionsBaseUrl = 'https://functions-public-config.example/functions/v1'
@@ -37,12 +48,24 @@ const serverSecretValues = [
 ] as const
 const buildEnvironment = {
   ...process.env,
+  CF_PAGES_COMMIT_SHA: buildCommitSha,
   VITE_SUPABASE_URL: publicSupabaseUrl,
   VITE_SUPABASE_ANON_KEY: publicSupabaseKey,
   VITE_EDGE_FUNCTIONS_BASE_URL: publicFunctionsBaseUrl,
   VITE_LIBRARY_ORIGIN: publicLibraryOrigin,
   VITE_CAREER_GAME_ORIGIN: publicCareerGameOrigin,
   ...Object.fromEntries(serverSecretNames.map((name, index) => [name, serverSecretValues[index]])),
+}
+type BuildDelta = 'js' | 'css'
+
+interface BuiltAssetRecord {
+  digest: string
+  url: string
+}
+
+interface IsolatedBuild {
+  output: string
+  temporaryRoot: string
 }
 
 function outputFingerprint(root: string): string[] {
@@ -71,6 +94,117 @@ function builtAssetReferences(html: string): string[] {
     .filter((reference): reference is string => reference?.startsWith('/assets/') === true)
 }
 
+function referencedAssetRecords(
+  output: string,
+  html: string,
+  extension: `.${'js' | 'css'}`,
+): BuiltAssetRecord[] {
+  return builtAssetReferences(html)
+    .filter((reference) => reference.endsWith(extension))
+    .map((url) => ({
+      url,
+      digest: createHash('sha256')
+        .update(readFileSync(join(output, url.slice(1))))
+        .digest('hex'),
+    }))
+}
+
+function writeIsolatedProductionConfig(
+  temporaryRoot: string,
+  output: string,
+  cacheDir: string,
+  delta: BuildDelta | undefined,
+): string {
+  const productionConfig = pathToFileURL(join(process.cwd(), 'vite.config.ts')).href
+  const config = `
+import productionConfig from ${JSON.stringify(productionConfig)}
+import { defineConfig, mergeConfig } from 'vite'
+
+const delta = ${JSON.stringify(delta)}
+const testOnlyBuildDelta = {
+  name: 'business-japanese-hub:test-only-build-delta',
+  transform(code, id) {
+    const sourceId = id.split('?')[0]
+    if (delta === 'js' && sourceId.endsWith('/src/main.tsx')) {
+      return {
+        code: code + '\\nglobalThis.__BJH_TEST_BUILD_DELTA__ = ' + JSON.stringify(delta) + ';',
+        map: null,
+      }
+    }
+    if (delta === 'css' && sourceId.endsWith('/src/styles/global.css')) {
+      return {
+        code: code + '\\n:root { --bjh-test-build-delta: "' + delta + '"; }',
+        map: null,
+      }
+    }
+    return undefined
+  },
+}
+
+export default defineConfig(mergeConfig(productionConfig, {
+  cacheDir: ${JSON.stringify(cacheDir)},
+  plugins: [testOnlyBuildDelta],
+  build: {
+    outDir: ${JSON.stringify(output)},
+    emptyOutDir: true,
+  },
+}))
+`
+  const configPath = join(temporaryRoot, 'vite.test.config.ts')
+  writeFileSync(configPath, config)
+  return configPath
+}
+
+function buildIsolatedProductionVariant(delta?: BuildDelta): IsolatedBuild {
+  const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-fingerprint-'))
+  const output = join(temporaryRoot, 'dist')
+  const cacheDir = join(temporaryRoot, 'vite-cache')
+  const configPath = writeIsolatedProductionConfig(temporaryRoot, output, cacheDir, delta)
+
+  try {
+    execFileSync('pnpm', ['exec', 'vite', 'build', '--config', configPath], {
+      cwd: process.cwd(),
+      env: buildEnvironment,
+      stdio: 'pipe',
+    })
+    expect(existsSync(join(output, 'index.html'))).toBe(true)
+    return { output, temporaryRoot }
+  } catch (error) {
+    rmSync(temporaryRoot, { recursive: true, force: true })
+    throw error
+  }
+}
+
+function expectChangedAssetBytesUseChangedHtmlUrls(delta: BuildDelta): void {
+  let baseline: IsolatedBuild | undefined
+  let changed: IsolatedBuild | undefined
+
+  try {
+    baseline = buildIsolatedProductionVariant()
+    changed = buildIsolatedProductionVariant(delta)
+    const extension = `.${delta}` as `.${BuildDelta}`
+    const baselineHtml = readFileSync(join(baseline.output, 'index.html'), 'utf8')
+    const changedHtml = readFileSync(join(changed.output, 'index.html'), 'utf8')
+    const baselineAssets = referencedAssetRecords(baseline.output, baselineHtml, extension)
+    const changedAssets = referencedAssetRecords(changed.output, changedHtml, extension)
+
+    expect(baselineAssets).not.toHaveLength(0)
+    expect(changedAssets).toHaveLength(baselineAssets.length)
+
+    const changedByteIndexes = baselineAssets.flatMap((asset, index) =>
+      asset.digest !== changedAssets[index]?.digest ? [index] : [],
+    )
+    expect(changedByteIndexes.length).toBeGreaterThan(0)
+
+    for (const index of changedByteIndexes) {
+      expect(changedAssets[index]?.url).not.toBe(baselineAssets[index]?.url)
+    }
+  } finally {
+    if (baseline) rmSync(baseline.temporaryRoot, { recursive: true, force: true })
+    if (changed) rmSync(changed.temporaryRoot, { recursive: true, force: true })
+  }
+}
+
 function builtText(root: string): string {
   const contents: string[] = []
 
@@ -87,6 +221,27 @@ function builtText(root: string): string {
 
   visit(root)
   return contents.join('\n')
+}
+
+function expectBuildIdentity(
+  output: string,
+  html: string,
+  product: DeploymentProduct,
+): void {
+  const buildInfo = JSON.parse(
+    readFileSync(join(output, 'build-info.json'), 'utf8'),
+  ) as DeploymentBuildInfo
+  expect(buildInfo).toEqual({
+    schemaVersion: 1,
+    product,
+    commitSha: buildCommitSha,
+  })
+  expect(html).toContain(
+    `<meta name="bjh-build" content="${product}:${buildCommitSha}" />`,
+  )
+  expect(readFileSync(join(output, '_headers'), 'utf8')).toBe(
+    '/build-info.json\n  Cache-Control: no-store\n',
+  )
 }
 
 describe('dual-frontend build topology', () => {
@@ -115,6 +270,8 @@ describe('dual-frontend build topology', () => {
     )
     expect(libraryHtml).toContain('<title>ビジネス日本語ハブ</title>')
     expect(careerGameHtml).toContain('<title>キャリアゲーム | Business Japanese Hub</title>')
+    expectBuildIdentity(libraryOutput, libraryHtml, 'library')
+    expectBuildIdentity(careerGameOutput, careerGameHtml, 'career-game')
     expect(existsSync(join(libraryOutput, '404.html'))).toBe(false)
     expect(existsSync(join(careerGameOutput, '404.html'))).toBe(false)
     expect(outputFingerprint(libraryOutput)).not.toEqual(outputFingerprint(careerGameOutput))
@@ -159,6 +316,14 @@ describe('dual-frontend build topology', () => {
       rmSync(sentinelPath, { force: true })
     }
   }, 30_000)
+
+  it('changes the HTML-referenced JS URL when test-only JS bytes change', () => {
+    expectChangedAssetBytesUseChangedHtmlUrls('js')
+  }, 120_000)
+
+  it('changes the HTML-referenced CSS URL when test-only CSS bytes change', () => {
+    expectChangedAssetBytesUseChangedHtmlUrls('css')
+  }, 120_000)
 
   it('shares public browser configuration without leaking server credentials', () => {
     for (const output of [libraryOutput, careerGameOutput]) {
