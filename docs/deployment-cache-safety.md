@@ -87,6 +87,11 @@ other paths and variants. A dashboard-only suspicion requires operator
 inspection of the Cloudflare configuration; it is not resolved by a passing
 smoke alone.
 
+When an alias or edge is briefly serving a prior valid build, the smoke retries
+until `build-info.json` reports the expected commit and the HTML shell embeds
+that same identity. It does not accept an HTTP-successful stale identity as a
+final result.
+
 ## Exact-head verification
 
 After the intended `main` commit has a successful Cloudflare deployment, check

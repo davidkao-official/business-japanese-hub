@@ -205,6 +205,48 @@ describe('deployment exact-head and cache smoke', () => {
     ).rejects.toThrow(/HTML build identity/i)
   })
 
+  it('retries a stale build-info identity until the expected commit is active', async () => {
+    const stale = fakeLibraryDeployment({ buildInfoSha: staleSha })
+    const current = fakeLibraryDeployment()
+    let buildInfoRequests = 0
+
+    await expect(
+      verifyDeployment('https://example.pages.dev/', {
+        attempts: 2,
+        expectedCommitSha: expectedSha,
+        fetcher: async (url) => {
+          if (url.pathname !== '/build-info.json') return current(url)
+          buildInfoRequests += 1
+          return buildInfoRequests === 1 ? stale(url) : current(url)
+        },
+        product: 'library',
+        retryDelayMs: 0,
+      }),
+    ).resolves.toBeUndefined()
+    expect(buildInfoRequests).toBe(2)
+  })
+
+  it('retries stale HTML until it matches the current build-info identity', async () => {
+    const stale = fakeLibraryDeployment({ htmlSha: staleSha })
+    const current = fakeLibraryDeployment()
+    let rootRequests = 0
+
+    await expect(
+      verifyDeployment('https://example.pages.dev/', {
+        attempts: 2,
+        expectedCommitSha: expectedSha,
+        fetcher: async (url) => {
+          if (url.pathname !== '/') return current(url)
+          rootRequests += 1
+          return rootRequests === 1 ? stale(url) : current(url)
+        },
+        product: 'library',
+        retryDelayMs: 0,
+      }),
+    ).resolves.toBeUndefined()
+    expect(rootRequests).toBe(2)
+  })
+
   it('rejects browser-cacheable HTML with a positive max-age', async () => {
     await expect(
       verifyDeployment('https://example.pages.dev/', {

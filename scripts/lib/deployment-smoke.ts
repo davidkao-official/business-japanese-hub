@@ -301,7 +301,7 @@ function assetReferences(rootHtml: string, base: URL): string[] {
 
 async function fetchWithRetry(
   url: URL,
-  accept: (response: Response) => boolean,
+  accept: (response: Response) => boolean | Promise<boolean | string>,
   label: string,
   options: ResolvedDeploymentSmokeOptions,
 ): Promise<Response> {
@@ -310,7 +310,9 @@ async function fetchWithRetry(
     try {
       const response = await options.fetcher(url)
       lastStatus = `HTTP ${response.status}`
-      if (accept(response)) return response
+      const accepted = await accept(response)
+      if (accepted === true) return response
+      if (typeof accepted === 'string') lastStatus = accepted
     } catch (error) {
       lastStatus = error instanceof Error ? error.message : 'network error'
     }
@@ -344,24 +346,25 @@ export async function verifyDeployment(
     throw new Error('Deployment smoke attempts must be a positive integer')
   }
 
-  const rootResponse = await fetchWithRetry(base, (response) => response.ok, 'root', options)
-  assertRequestedUrl(rootResponse, base, 'root')
-  if (responseMediaType(rootResponse) !== 'text/html') {
-    throw new Error('Deployment smoke root has an unexpected content-type')
-  }
-  assertSafeHtmlCache(rootResponse, 'root')
-  const rootHtml = await rootResponse.text()
-  if (!rootHtml.includes(contract.fingerprint)) {
-    throw new Error(`Deployment smoke found the wrong ${contract.label} app fingerprint`)
-  }
-  if (!rootHtml.includes(`<title>${contract.title}</title>`)) {
-    throw new Error(`Deployment smoke found the wrong ${contract.label} document title`)
-  }
-
   const buildInfoUrl = new URL('build-info.json', base)
   const buildInfoResponse = await fetchWithRetry(
     buildInfoUrl,
-    (response) => response.ok && responseMediaType(response) === 'application/json',
+    async (response) => {
+      if (!response.ok || responseMediaType(response) !== 'application/json') return false
+      try {
+        const candidate = parseBuildInfo(await response.clone().json())
+        if (candidate.product !== product) {
+          return `build-info identifies ${candidate.product}, expected ${product}`
+        }
+        if (expectedCommitSha && candidate.commitSha !== expectedCommitSha) {
+          return `expected commit ${expectedCommitSha} but build-info reports ${candidate.commitSha}`
+        }
+        return true
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : 'invalid JSON'
+        return `invalid build-info: ${detail}`
+      }
+    },
     'build-info',
     options,
   )
@@ -387,6 +390,29 @@ export async function verifyDeployment(
   }
 
   const expectedHtmlMarker = `<meta name="bjh-build" content="${product}:${buildInfo.commitSha}" />`
+  const rootResponse = await fetchWithRetry(
+    base,
+    async (response) => {
+      if (!response.ok) return false
+      if (responseMediaType(response) !== 'text/html') {
+        return 'root has an unexpected content-type'
+      }
+      return (await response.clone().text()).includes(expectedHtmlMarker)
+        ? true
+        : 'HTML build identity does not match build-info'
+    },
+    'root',
+    options,
+  )
+  assertRequestedUrl(rootResponse, base, 'root')
+  assertSafeHtmlCache(rootResponse, 'root')
+  const rootHtml = await rootResponse.text()
+  if (!rootHtml.includes(contract.fingerprint)) {
+    throw new Error(`Deployment smoke found the wrong ${contract.label} app fingerprint`)
+  }
+  if (!rootHtml.includes(`<title>${contract.title}</title>`)) {
+    throw new Error(`Deployment smoke found the wrong ${contract.label} document title`)
+  }
   if (!rootHtml.includes(expectedHtmlMarker)) {
     throw new Error('Deployment smoke HTML build identity does not match build-info')
   }
@@ -414,7 +440,15 @@ export async function verifyDeployment(
     const routeUrl = new URL(route, base)
     const response = await fetchWithRetry(
       routeUrl,
-      (candidate) => candidate.ok,
+      async (candidate) => {
+        if (!candidate.ok) return false
+        if (responseMediaType(candidate) !== 'text/html') {
+          return `direct route ${route} has an unexpected content-type`
+        }
+        return (await candidate.clone().text()) === rootHtml
+          ? true
+          : 'received a non-SPA fallback'
+      },
       `direct route ${route}`,
       options,
     )
