@@ -1,202 +1,383 @@
-# Product Contract — Business Japanese Hub
+# Business Japanese Hub — Product Contract
 
-> **狀態：** durable（長期有效）的產品契約，是產品層面的 canonical source of truth。
-> 本文件的地位高於任何單一 issue / ticket / 實作 detail；與任何任務描述衝突時，以本契約為準。
-> 變更本契約前，必須先有明確的產品層決策依據，不得僅因某次實作便利而修改。
+> **狀態：canonical / highest product authority**
+>
+> 本文件定義 Business Japanese Hub 的長期產品定位、商業模型、user journey、主要 product roles 與不可被下游 implementation issue 擅自改寫的 invariants。課程／內容 taxonomy 由 [`post-n1-learning-map.md`](post-n1-learning-map.md) 定義；技術 bounded-context 與 deployment 細節由相關 architecture docs 定義。若歷史 issue、PR、README 或 implementation 與本文件衝突，以本文件為準。
+>
+> **Reference stability:** §5–§10 刻意保留既有 repository 文件長期引用的語意位置：§5 platform abstraction、§6 book-agnostic/runtime boundary、§7 platform responsibility、§8 UI/Reader quality、§9 web-first/platform、§10 payment architecture。新增 Plus 產品契約不得再次讓這些既有 inbound references 指向無關規則。
 
-## 1. 產品定義
+## 1. 核心定位
 
-Business Japanese Hub 是一個 **shared、premium、web-first 的 business-Japanese 平台**，服務對象是**進階專業日語學習者**。
+Business Japanese Hub 是一個 **web-first、subscription-based 的日本求職與日本職場日文學習服務**。
 
-- 平台包含兩個 first-class frontend products：
-  - **Library**：premium digital publishing／Reader，以一本一本獨立販售的 **Book** 為 current 商業單元。
-  - **Career Game**：story-driven workplace simulator，以工作情境的選擇、後果、回饋與 progression 建立真實職場能力。
-- 兩個產品共享必要的平台能力，但各自保有內容模型、UI/navigation、state 與 release cadence；bounded-context contract 見 `docs/platform-architecture.md`。
-- 使用者體驗必須具有 premium 日系 knowledge 產品的品質，**不是** generic LMS，也**不是**「外國人教科書」網站。Library 維持 editorial Reader grammar；Career Game 可採 distinct case-file／narrative grammar。
+核心受眾是：
 
-## 2. 核心問題陳述（gap）
+> **已經具備一定日文能力，特別是 JLPT N2～N1 程度，並希望在日本求職、讀懂日本商業資料、進入日本企業工作或提升日本職場溝通能力的華語學習者。**
 
-平台要橋接的關鍵 gap 是：
+產品要解決的不是「如何再考過一張日文檢定」，而是：
 
-> **從 JLPT N1 語言能力 → 真實日本職場能力。**
+> **從「考試日文」升級到「能用日文求職、閱讀、思考、溝通與工作」。**
 
-也就是說：使用者在考過 N1、具備高階語言能力之後，仍然缺少「在日本職場實際運用這套語言」的能力與產品。這是平台存在的理由。
+因此：
 
-## 3. 目標受眾
+- Business Japanese Hub **不是 JLPT preparation service**。
+- N2／N1 是主要使用者的 entry point／assumed proficiency，不是產品終點。
+- 核心能力依 workplace capability 組織，而不是依 JLPT 文法級別組織。
+- 繁體中文是第一階段主要 explanation/support layer；日文仍是主要學習、題目、閱讀與職場語境語言。
+- 日本母語者、大學生或年輕職場人士可以從內容中受益，但不是要求產品設計必須同時服務的 primary segment；不得因 secondary audience 而弱化華語進階學習者的核心需求。
 
-- **主要受眾：** 進階專業日語學習者（語言能力已接近或達到 JLPT N1）。
-- **必須同時吸引：** **日本的大學生與年輕職場人士**；內容與產品呈現不能預設使用者是「外國人」。
-- Library 的同一本 Book 必須對上述兩類讀者都有付費價值；Career Game 的同一 workplace experience 也必須對兩類使用者成立，不得把任一類當成次要對象。
+推薦的 user-facing brand promise：
 
-## 4. 商業模型：Book-based commerce
+> **從「日文檢定的日文」，走進「日本社會人的日文」。**
 
-- **Library 與 current Paid Launch 的商業單元是一本一本獨立販售的 Book**，不是 course / lesson pack / subscription。
-- Library 不得以 subscription-first 或 bundling 為主要商業模式；current 購買粒度是單本 Book。
-- Career Game Phase A 是 free validation。未來非 Book commerce 只被承認為待決問題：必須先有 #58 evidence，再由 #59 定義；本契約現在不指定 generalized commerce schema 或把 Book pricing/entitlement 強套到 Career Game。
+更直接的 acquisition wording 可以表達為：
 
-## 5. 平台 abstraction
+> **考過 N2，只代表你已經有日文基礎。接下來，要學的是怎麼用日文進入日本職場。**
 
-- 平台有兩個 bounded content abstractions，不存在一個強迫所有產品共用的 universal content schema：
-  - **Library：** `Book → Chapter → ContentBlock`；明確不是 LMS 的 `Course → Module → Lesson`。
-  - **Career Game：** generic scenario／case → scene → choice／action → outcome／consequence → explanation／feedback → progression。這是 semantic boundary，不在此鎖死 exact final type names。
-- Library 的資料模型、rendering 與 navigation 以 Book abstraction 為基礎；Career Game 以自己的 narrative/state model 為基礎。不得把 game content 塞進 Book/Chapter/ContentBlock，也不得讓 Library 依賴 game concepts。
-- 共用平台只抽取真實 consumer 需要的 narrow contracts；不得建立 generalized mega-schema。詳細 dependency direction 見 `docs/platform-architecture.md`。
+## 2. Canonical User Journey
 
-## 6. Book-agnostic 平台需求（硬性約束）
-
-- **本節是 Library bounded context 的硬性約束**；不代表 Career Game 必須使用 Book model。
-- Library 必須能承載**任意 business-Japanese 主題**的書。
-- Library platform **不得依賴第一本書的主題**；不得存在 first-book-specific code path。
-- 具體而言，不得新增：
-  - first-book 特有的 schema / 資料欄位
-  - first-book 特有的 component
-  - first-book 特有的 route / page
-  - first-book 特有的 hard-coded content
-- 任何新書都必須能只靠「提供新 book 的 metadata 與內容」上架，而不需要修改平台程式碼。
-
-## 7. 平台 vs Book 的責任分界
-
-**Shared platform 負責**（只在 consumer 實際需要時共用）：
-
-- repository 與 tooling boundary
-- shared Supabase/backend 與 secure server execution boundary
-- durable account/user identity namespace
-- shared assets 與 operational data
-- catalog、commerce、entitlement、progress 的 narrow contracts；不得預設每個產品都需要或共享相同 shape
-
-**Library platform 負責**（跨所有書通用的能力）：
-
-- rendering
-- navigation
-- access（存取權）
-- purchase state（購買狀態）
-- library（書庫）
-- reading state（閱讀狀態）
-- search
-- responsive（響應式）
-- accessibility（無障礙）
-
-**每本書負責**（Library 內容層）：
-
-- title
-- cover
-- author metadata
-- chapters
-- content
-- examples / exercises
-- audience（受眾）
-- difficulty metadata（難度資訊）
-- price
-
-Library platform 不應 embed 任何一本書的內容細節；書的內容與 metadata 由書本身提供。
-
-**Career Game 負責**其 scenario/case、scene、choice/action、outcome/consequence、explanation/feedback、progression，以及 product-specific UI/navigation/state。它不依賴 Book schema；Library 也不依賴這些 game concepts。
-
-預設 deployment topology 是 one repository + one shared Supabase modular monolith，不新增第二 backend 或 microservices。兩個產品仍保有自己的 release cadence；共用 backend 不等於共用所有資料表、domain objects 或 frontend release。
-
-## 8. UI / Reader quality 是 P0
-
-- **兩個產品的 UI quality 都是 P0**：屬於核心產品需求，**不是** post-MVP polish。
-- Library Reader 與整體 editorial surface 的品質被視為產品主體；Career Game 可使用 distinct case-file／narrative grammar。兩者優先級都等同功能正確性，不要求同一套 presentation。
-- 平台級品質目標：體驗要像 premium 日系 knowledge 產品，同時尊重各 bounded context 的 interaction grammar。
-
-## 9. Web-first 策略
-
-- **Web-first**；MVP 不做原生 iOS / Android app。
-- **Library 行動網頁**必須支援通勤閱讀；桌面必須支援專注閱讀與查閱。
-- Career Game 也必須在行動與桌面 web 提供適合其 narrative interaction 的 responsive experience。
-- 響應式設計由各 product surface 與 shared primitives 共同承擔（見第 7 節），不得以 native-app-only 假設設計。
-
-## 10. 付款：provider-neutral architecture
-
-- **Payment architecture 是 provider-neutral**；ECPay（綠界）是第一支 TWD adapter，不是平台架構。
-- JPY / USD 的 launch providers 依 `docs/payments/decision-record.md`（§17／§22）決定。
-- Provider-specific mechanics 不得污染 Book / Reader / Library / Entitlement architecture。
-- **Paid ownership 只能由 verified authoritative server event 驅動**；browser 結果永遠不能 mint entitlement。
-- 全部 payment `/api/*` logical endpoints 必須在 server-only Supabase Edge Functions boundary 執行；client 不得提供可信 amount、currency、provider success 或 ownership evidence。
-- **Payment 是 MVP 已定案的實作項目**：provider-neutral core 與 ECPay 第一支 TWD adapter 依 `docs/payments/decision-record.md` 實作。本節記錄 payment 方向與不可妥協的約束；實作 contract 由 decision-record 定義。
-- 本節定義 current Library Book commerce，不提前定義 Career Game commerce。未來非 Book commerce 等 #58 evidence 後由 #59 決策，且不得弱化 authoritative payment/entitlement 原則。
-- Canonical payment contract 見 `docs/payments/decision-record.md`。
-
-## 11. AI 的角色
-
-- **AI 不是 MVP 或 Career Game first slice 的必要項**，也**不得**成為主要產品 abstraction／engine。
-- 不得把 platform 設計成以 AI chat / agent 為主要體驗（見第 13 節 MVP non-goals）。
-- 若未來導入 AI，其定位是既有產品上的輔助能力，不能反客為主。
-
-## 12. 第一本書的主題：out-of-scope
-
-- **第一本書的主題／內容明確列為 Library platform implementation 的 out-of-scope。**
-- Library 建置（rendering、navigation、content model、reader、purchase state、library 等）不依賴、也不應假設第一本書的主題。
-- 第一本書的內容選擇與產出是另一個獨立的工作項，不在本契約內定義。
-- Library platform 只負責「能承載任意書」；具體是哪一本書由內容側決定。Career Game content 由自己的 bounded context 表達，不以第一本書為 template。
-
-## 13. MVP non-goals
-
-以下項目**不是** MVP 範圍，MVP 不得為了它們投入實作：
-
-- 原生 iOS / Android app
-- subscription-first 商業模式
-- 以 AI chat / agent 為主體的體驗
-- 完整 LMS（證書、cohorts、live classes、社群）
-- book-specific hard-coded reader components（任何針對特定書寫死的 Reader 元件）
-- 第二 backend／microservices（預設維持 shared Supabase modular monolith）
-- 跨 Library 與 Career Game 的 generalized content／commerce／progress mega-schema
-- 以 AI 動態生成作為 Career Game first-slice engine
-
-## 14. 不可變更的 product invariants（摘要）
-
-未來任何 agent 在實作時，必須遵守以下不變量（與本契約衝突的工作應被標記為錯誤方向）：
-
-1. Business Japanese Hub 是一個 shared web platform，含 Library 與 Career Game 兩個 first-class products；預設 one repository + one shared Supabase modular monolith。
-2. Library 商業單元是**單本 Book**；Library abstraction 是 **Book → Chapter → ContentBlock** 且 book-agnostic。
-3. Career Game 的 semantic boundary 是 scenario/case、scene、choice/action、outcome/consequence、explanation/feedback、progression；不得強塞 Book model，也不在此鎖死 final type names。
-4. 兩個 bounded contexts 不互相污染 model、UI/navigation 或 state，並保有 product-specific release cadence。
-5. **UI quality 是 P0**：Library Reader 是 premium editorial surface；Career Game 可採 distinct case-file／narrative grammar。
-6. **Web-first**：兩個產品兼顧行動與桌面；不做原生 app。
-7. Payment architecture 是 **provider-neutral**；paid ownership 只能由 verified authoritative server event 驅動（contract 見 `docs/payments/decision-record.md`）。
-8. **AI 不是 first-slice engine**，不得成為主要產品 abstraction。
-9. Paid Launch／first revenue 仍是 revenue priority；Career Game Phase A free validation 不得弱化或延後 Book purchase golden path。
-10. Future non-Book commerce 等 #58 evidence 後由 #59 決策；目前不得建立 generalized commerce schema。
-11. MVP non-goals 依第 13 節，不得為了它們投入實作資源。
-
-## 15. 產品階段：Paid Launch（Prototype MVP 已完成）
-
-本節記錄 Library 的 Prototype／Paid Launch 階段，以及 Career Game Phase A 與 current revenue priority 的關係。兩個產品共享必要的平台 boundaries，但不共享同一個 content abstraction 或強制共用 commerce/progress schema。
-
-### 15.1 Prototype MVP（已完成的里程碑）
-
-Prototype 的成功條件是 **user-value validation**，不是 commerce readiness。此里程碑已完成：陌生訪客可以在不需要登入、結帳或付款的前提下，透過真實的產品流程體驗平台：
+Business Japanese Hub 應沿著同一個長期 user journey 持續提供價值：
 
 ```text
-Storefront → Book Detail → free read → Universal Reader → chapter navigation
+準備日本求職
+    ↓
+通過日本企業選考
+    ↓
+進入日本企業
+    ↓
+適應日本職場
+    ↓
+持續提升專業商務日文能力
 ```
 
-- Prototype 公開 **1–2 本 free/public books**（或 prototype editions）。
-- Public prototype reading **不需要 login**。
-- 不得顯示 fake checkout UI 或 disabled payment CTA；改用清楚的 free-reading 語言。
-- UI / Reader quality 維持 P0，遵循 `docs/ui-ux-research.md`（§8 的具體化）。
-- 平台維持 book-agnostic；free/public access 必須以 generic catalog/access 語意表達（例如 `Price.tier: 'free'`），**不得 hard-code book slug**。
-- Prototype 階段曾 deferred 的 payment／compliance／legal 工作現依 Paid Launch 優先級處理；完成狀態以 live GitHub 與 repository 為準。
-- **既有 payment / entitlement / legal architecture 不得刪除、繞過或弱化**；free/public path 也不得因 Paid Launch 回歸。
+這個 journey 是產品 sequencing 與內容優先級的主要判斷基準。
 
-### 15.2 Paid Launch（現階段目標）
+- **求職前**：理解日本就活、SPI／Web Test、履歷／面試與求職日文。
+- **選考中**：提高讀題、推理、表達、面試與企業理解能力。
+- **入社後**：學會報連相、會議、email/chat、文件、敬語與 workplace pragmatics。
+- **持續成長**：能直接閱讀企業／產業／政府資料，理解更高階商務語彙與 reasoning，並在自己的職種中持續提升。
 
-Paid Launch 的成功條件是 **最快安全的第一筆真實營收**。依既有 provider-neutral payment core 與 server-authoritative entitlement contract（§10、`docs/payments/decision-record.md`）啟用商業化；Prototype 是已完成的前置里程碑，不取代長期 book-based commerce model。
+產品不能把「找到工作」視為學習旅程終點。找到工作之後仍必須有足夠的 retention value。
 
-- 至少一本真實、可信且可獨立販售的 paid Book，價格由 server-authoritative catalog 決定。
-- 先上線最小可合法、安全啟用的 currency／provider 組合；不得為等待所有未來 provider 延後第一筆營收。
-- Paid golden path 必須涵蓋 authentication、checkout、verified authoritative payment、exactly-one entitlement、Reader access、receipt／order confirmation、refund 與 reconciliation。
-- Seller identity、tax status、merchant/KYC、credentials、專業法律核准與真實 sandbox/live 結果必須由真實證據提供；缺失時 fail closed，不得捏造或以 client state 代替。
-- Free/public books 與免登入閱讀仍是正式產品能力，Paid Launch 不得破壞。
-- UI / Reader quality、responsive、accessibility 與 production operability 仍為 P0。
+## 3. Business Japanese Hub Plus
 
-### 15.3 Stage 判定
+### 3.1 Primary commercial model
 
-未來 agent 決定 revenue 實作優先級時，以 Paid Launch／first revenue 為當前 delivery target：先完成直接解鎖第一筆安全付費交易的 Book、pricing、payment、compliance、deployment 與 golden-path 品質；只支援未來 provider、額外 currency 或非必要擴張的工作不得阻塞。Prototype milestone 與 free/public reader path 必須持續回歸驗證。
+主要付費產品是：
 
-Career Game Phase A 的 free validation 可以並行，並使用同一 repository 與 shared Supabase modular-monolith boundary，但不得刪除、繞過、弱化或延後 Book purchase golden path。Career Game 的 product-specific UI/navigation/state/release cadence 保持獨立；是否需要非 Book commerce 必須先取得 #58 evidence，再由 #59 決策。
+> **Business Japanese Hub Plus**
 
----
+Plus 是 **recurring membership / subscription**。平台的主要付費單位是 membership access，不是單本 Book ownership。
 
-*相關文件：`README.md`（專案入口）、`docs/platform-architecture.md`（bounded contexts 與 shared platform）、`docs/content-model.md`（Library 內容資料模型）、`docs/ui-ux-research.md`（Library UI/UX 設計方向，§8 的具體化）、`docs/payments/decision-record.md`（canonical payment decision record）。*
+### 3.2 Approved pricing direction
+
+目前核准的產品價格方向：
+
+| Stage | Price | Product meaning |
+| --- | ---: | --- |
+| **Early Access** | **NT$299 / 月** | 早期會員價格；在題庫、Reading、Vocabulary、Learning System 持續完善期間驗證付費與留存 |
+| **Standard** | **NT$399 / 月** | 當 SPI 題庫、Business Reading、Vocabulary 與 Learning System 已達到更完整的持續訂閱價值後再切換 |
+| **Annual（later）** | 約 **NT$3,990 / 年** | 約 10 個月月費的年繳方向；不是 Early Access launch blocker |
+
+重要規則：
+
+- NT$299 → NT$399 **不是依日期自動漲價**；必須由 Product Owner 明確判定產品成熟度已足以支撐 Standard pricing。
+- Early Access 不需要先提供年繳；先驗證月繳 willingness-to-pay 與 subscription retention。
+- NT$3,990／年是已接受的 packaging direction，不代表 recurring provider、legal disclosure、tax display 或 checkout 已實作完成。
+- 真實收費前仍必須符合 #107 recurring-commerce contract 與 #112 recurring legal/compliance gates。
+
+### 3.3 Free vs Plus value proposition
+
+不要把 Plus 簡化成「付錢看更多文章」。
+
+產品原則：
+
+- **Free**：讓使用者能發現產品、理解價值、使用一部分內容／練習。
+- **Plus**：讓系統持續「認識你的學習狀態」，保存並串起你做過什麼、哪裡容易錯、哪些內容值得複習，以及下一步該做什麼。
+
+因此 Plus 的核心價值是：
+
+> **ongoing learning state + ongoing content/practice access**
+
+而不是單純 content paywall。
+
+Free/member 的精確 access matrix 必須由真實產品內容與 #107 access contract 驅動；不要為了 subscription 而把所有匿名/public value 全部鎖起來。
+
+## 4. Four product roles
+
+以下四個角色是 Business Japanese Hub 的 business/product funnel authority。它們和 Learn／Read／Practice／My Learning／Experience 是不同維度，不得混成第二套 curriculum taxonomy。
+
+### 4.1 SPI / Web Test Practice = Acquisition
+
+**目的：把正在準備日本求職的人帶進 Business Japanese Hub。**
+
+- 以 SPI 為第一個完整 test family，之後依 evidence 再擴充玉手箱等。
+- SEO / editorial explainer 與真正的刷題產品要互相導流，但不要塞成同一個超長頁面。
+- 使用者搜尋 SPI、Web Test、玉手箱，本身就是高度相關的日本求職 intent。
+- 免費 sample 可以降低第一次使用阻力；更完整的題庫、錯題、歷史與分析可形成 Plus conversion value。
+
+Canonical placement：`Practice → Job Hunting → 日本求職 Web Test`。
+
+### 4.2 Business Reading = Engagement
+
+**目的：讓使用者有持續回來的理由。**
+
+Business Reading 不只是「文章 + 單字」。核心 loop 應接近：
+
+```text
+日本商業內容／企業資料
+  → 關鍵 vocabulary / expressions
+  → sentence / logic analysis
+  → business context
+  → comprehension / practice
+  → save / review / next reading
+```
+
+內容可以涵蓋 business news、企業簡報、決算説明資料、統合報告書、中期経営計画、產業／政府資料，以及具合法使用權利的其他來源。
+
+Reading freshness、品質與持續更新是 engagement driver；不得退化成只賣一批固定 ebook。
+
+Canonical placement：`Read → Business Reading`，長篇 Book／Reader 也屬於 Read 的其中一種 presentation format。
+
+### 4.3 Work in Japan = Retention
+
+**目的：讓使用者進入日本企業之後，仍然有持續訂閱理由。**
+
+Work in Japan 是橫跨多個 learning modes 的產品主題，不是單一 runtime。可涵蓋：
+
+- 報連相、相談、escalation、bad-news reporting
+- meeting / 打合せ / facilitation / disagreement
+- Email、Slack / Teams、會議紀錄、報告、企画書
+- 敬語之外的 workplace pragmatics、hierarchy、distance、tone
+- KPI / OKR、1on1、人事評価、跨部門協作
+- 企業／產業／IR 資料閱讀
+- 工程師、PM、Sales 等職種的專業日文
+
+Canonical placement：主要跨 `Learn`、`Read`、`Practice` 與 `Experience`。
+
+### 4.4 Learning System = Subscription Justification
+
+**目的：把 Content Site 變成真正的 Subscription Product。**
+
+Learning System 至少應能逐步建立以下 user-owned learning state：
+
+- wrong answers / mistake review
+- saved items / saved expressions
+- vocabulary review
+- recent activity
+- progress / resume
+- weak-area signals（只在有 deterministic evidence 時）
+- review queue
+- explainable next activity / next step
+
+產品必須能回答 returning user：
+
+1. 我最近做到哪裡？
+2. 我哪些地方一直錯？
+3. 有什麼值得現在複習？
+4. 我下一步應該做什麼？
+
+Canonical placement：`My Learning` 是主要 member surface，但 Learning System 可以消費 Learn／Read／Practice／Experience 各自的 bounded evidence。
+
+不得為了 dashboard 製造假的 mastery%、AI diagnosis、streak、XP 或 universal event mega-schema。
+
+## 5. Platform abstraction and canonical user-facing learning architecture
+
+Curriculum / IA 使用 [`post-n1-learning-map.md`](post-n1-learning-map.md) 定義的五個 modes：
+
+```text
+Learn | Read | Practice | My Learning | Experience
+```
+
+- **Learn**：學會一個可轉移到真實工作的能力。
+- **Read**：直接讀懂日本 business information；Business Reading 與 Books 都在這裡。
+- **Practice**：可重複的 retrieval / judgment / Web Test 等練習。
+- **My Learning**：progress、mistakes、saved/review、weak-area signals、next step。
+- **Experience**：在具體敘事與上下文中套用能力；Career Game 是第一個 Experience product。
+
+這是 user-facing product abstraction / architecture，不等於要求五個 modes 共用一個 runtime、database table 或 frontend app。Platform-level identity、navigation 與 shared services 應讓這五個 modes 看起來屬於同一產品，但不能抹平各 bounded context 的 domain semantics。
+
+## 6. Book-agnostic content and runtime boundaries
+
+### 6.1 Book / Reader
+
+`Book → Chapter → ContentBlock` 繼續是 Library / long-form editorial 的 durable content abstraction。
+
+但：
+
+> **Book 是內容格式，不是平台 primary commerce unit。**
+
+必須保留：
+
+- released Books 與 versioned authoring workflow
+- Universal Reader
+- chapter navigation / reading state
+- public/free editorial content
+- historical Book purchase / entitlement evidence
+
+未來 UX 不得再把 Storefront / My Library 當成整個 Business Japanese Hub 的 primary mental model。
+
+### 6.2 Career Game
+
+Career Game 是 `Experience` 的獨立 bounded runtime，持有自己的 scenario／scene／choice／outcome／feedback／progression semantics。
+
+不要：
+
+- 把 Career Game 塞進 Book / Chapter / ContentBlock；
+- 把 Learn / Practice 變成 Career Game state；
+- 因為 membership 共用 access 就強迫所有內容進入同一 schema。
+
+### 6.3 Learn / Practice
+
+Learn 與 Practice 可以有 reusable presentation/runtime seams，但應只抽出真實共用部分。不得為每一課建立一套 runtime，也不得先做 generalized LMS framework。
+
+## 7. Platform responsibility boundary and Learning System data principles
+
+各 product runtime 擁有自己的 domain state / progress semantics；shared platform 只擁有真正跨 bounded contexts 的 narrow responsibilities，例如 durable identity、server security、authoritative membership access、必要的 shared learning evidence/projection 與 operations primitives。不得因為 My Learning 或 Plus 需要跨 surface view，就把所有 runtime data 收斂成 universal mega-schema。
+
+不同 product runtime 可以保留自己的 progress semantics，再用 narrow adapters / read models 提供 member learning state。
+
+可使用的 evidence 必須：
+
+- deterministic；
+- explainable；
+- version-aware where relevant；
+- user-owned / private；
+- server-authoritative when cross-device persistence or paid/member state is involved。
+
+例如：
+
+- SPI Practice：attempt、question version、correctness、response time、authored diagnostic checkpoint。
+- Reader：stable reading / content reference。
+- Learn / Practice：完成、答題、review evidence。
+- Career Game：scenario/version/outcome evidence。
+
+不要因為 My Learning 需要一個畫面，就建立一張「所有學習行為都一樣」的 universal table。
+
+## 8. UI / UX quality and Reader quality are P0
+
+Business Japanese Hub 必須感覺像成熟、premium、可信賴的日本職場／商業學習產品，而不是：
+
+- generic SaaS dashboard；
+- generic LMS template；
+- ebook marketplace clone；
+- childish gamified language app；
+- AI wrapper。
+
+保留既有 editorial typography / Reader quality、System / Light / Dark、mobile accessibility、keyboard/focus、responsive 與 reduced-motion contracts。
+
+各 mode 可以有不同 presentation grammar，但必須在同一 brand family 內。
+
+`docs/ui-ux-research.md` 的 typography、Reader、design-token、editorial-quality 與 accessibility research 持續有效；其中 2026-08 Storefront-first、Book-as-commerce-unit、禁止 Practice/Progress IA 或 `subscription-first` non-goal 等舊產品假設已由本文件 supersede，不得反向覆蓋 current Plus product IA。
+
+## 9. Platform, web-first, and deployment invariants
+
+- **Web-first**。mobile web 必須適合通勤使用，desktop 必須適合 focused reading / practice / reference。
+- **One repository**。
+- **One shared Supabase modular monolith backend boundary**；不得為新 learning mode 自動建立第二 backend 或 microservices。
+- Product-specific runtime/data 保持 bounded contexts，shared contracts 必須 narrow、consumer-driven。
+- Library 與 Career Game 目前可以維持獨立 Cloudflare Pages artifact/origin 與 release cadence；user-facing IA 不要求 deployment topology 變成單一 frontend。
+- Supabase service role、payment provider secrets、webhook secrets 永不進 frontend。
+- RLS / server authorization / exact production deployment safety 不得因 product pivot 弱化。
+
+## 10. Membership access and payment architecture invariants
+
+Recurring commerce 的 implementation contract 由 #107 定義，但以下產品／安全規則已鎖定：
+
+- Primary paid unit = **Business Japanese Hub Plus membership**。
+- Browser/client state 永遠不能 mint paid membership access。
+- Provider event 必須經 server-side verification / normalization / idempotent lifecycle transition 後，才可影響 authoritative subscription/access state。
+- Payment architecture 保持 provider-neutral；現有 ECPay／PayPal one-time work只能視為 reusable engineering，不等於 subscription readiness。
+- Historical Orders／Payments／Refunds／Book entitlements 保持可稽核，不 destructive-convert 成 subscriptions。
+- Cancellation、renewal、failed renewal、refund/reversal、reconciliation 必須有 deterministic contract。
+- Real billing activation 仍受 merchant/KYC、seller/legal/tax、email、provider capability 等真實 external gates 約束。
+
+## 11. AI boundary
+
+AI 可以未來輔助：
+
+- explanation / authoring workflow；
+- bounded recommendation support；
+- practice feedback where correctness can be safely constrained。
+
+AI 不是 first-slice engine，也不是 primary product abstraction。
+
+不得要求使用者相信 opaque AI mastery score，亦不得以 AI chat 取代 Business Japanese Hub 的內容、practice 與 learning-state core value。
+
+## 12. Current non-goals
+
+- Native iOS / Android app as current critical path。
+- AI tutor / agent 作為主要產品體驗。
+- Full LMS（certificate、cohort、live classes、enterprise training suite）。
+- Leaderboard、gems、streak economy、social graph。
+- Universal content / progress / entitlement mega-schema。
+- Microservices / second backend without demonstrated need。
+- Destructive rewrite of Reader、Career Game、historical commerce or production data。
+- 把 subscription 的主要價值做成「只多解鎖幾篇文章」。
+- 一次上線所有 Web Test families。
+
+**Subscription-first 不再是 non-goal；subscription 現在就是 primary commercial model。**
+
+## 13. Durable product invariants
+
+未經新的 explicit Product Owner decision，不得違反：
+
+1. Primary audience = **N2～N1 附近、有日本求職／日本職場需求的華語學習者**。
+2. Product goal = **exam Japanese → Japan job-hunting / business reading / workplace Japanese**。
+3. User journey 必須延伸到入社後與長期 professional growth。
+4. Primary paid product = **Business Japanese Hub Plus recurring membership**。
+5. Early Access price = **NT$299 / 月**；Standard direction = **NT$399 / 月** after product-readiness decision；annual direction later ≈ **NT$3,990 / 年**。
+6. SPI/Web Test = **Acquisition**；Business Reading = **Engagement**；Work in Japan = **Retention**；Learning System = **Subscription Justification**。
+7. User-facing learning architecture = **Learn / Read / Practice / My Learning / Experience**。
+8. Book 是 `Read` content format；不是 primary commerce unit。Reader 與 historical Book ownership 必須保留。
+9. Career Game 保持獨立 Experience/runtime semantics。
+10. Plus 的價值必須包含 persistent / personalized learning state，而不是只有 content access。
+11. Paid/member access 必須 server-authoritative；browser 不得 mint access。
+12. UI quality、accessibility、mobile usability 是 P0。
+13. One repo + shared Supabase modular monolith 是預設 architecture；不為了產品 taxonomy 做 infrastructure rewrite。
+14. AI 不是 primary learning engine 或 trust boundary。
+
+## 14. Current delivery phase
+
+目前是 **subscription-product convergence / Plus Early Access preparation**，不是舊的「first paid Book sale」Paid Launch。
+
+舊 #45 的 first-Book-revenue milestone 已被 supersede；舊 single-Book issues 僅保留歷史與 reusable engineering value。
+
+目前 P0 sequencing 應以以下產品能力收斂：
+
+```text
+Canonical product contract (#105)
+        │
+        ├── Acquisition: SPI / Web Test (#113–#117, #119–#120)
+        ├── Engagement: Business Reading (#122 → #125)
+        ├── Retention: Work in Japan (#124 → #126)
+        ├── Subscription Justification: Learning System / My Learning (#109 + practice evidence)
+        ├── Product IA / reusable surfaces (#108 / #110 / #127)
+        ├── Recurring commerce + access (#107 / #123)
+        └── Recurring legal/compliance (#112)
+                         │
+                         └── Plus Early Access Membership Paid Launch (#111)
+```
+
+Membership Paid Launch 不應只證明「可以扣款」。它必須同時證明：
+
+- 使用者知道 Plus 買的是什麼；
+- 有足以支撐 Early Access 的 real learning value；
+- 至少一條 acquisition → learning → saved/progress/review → return path 可成立；
+- recurring billing lifecycle 與 server-authoritative access 正確；
+- legal / payment / deployment external gates 已處理或明確阻塞。
+
+Deployment safety（#101/#102）與 learning production-readiness（#97）可獨立進行，不能重新把舊 Book revenue priority 帶回來。
+
+## 15. Authority order
+
+當文件或 issue 發生衝突時：
+
+1. `docs/product-contract.md` — product / commercial / user-journey authority
+2. `docs/post-n1-learning-map.md` — curriculum / content architecture authority
+3. `docs/platform-architecture.md` — technical bounded-context / dependency authority
+4. `docs/learning-and-progress.md` — existing shared learning-evidence implementation contract
+5. payment / deployment / security docs — respective technical safety authority
+6. live issue / PR — scoped execution instruction；不得覆蓋以上 canonical contracts
+
+歷史文件／issue 可以保留當時決策以維持 audit trail，但如果其中仍寫著 `single-Book commerce`、`first paid Book revenue`、`subscription-first non-goal` 或「Library + Career Game 是唯一產品 IA」，只能視為 historical context，不能作為新的 implementation authority。
