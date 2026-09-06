@@ -7,6 +7,7 @@ import './styles/reader.css'
 import './styles/shop.css'
 import './styles/legal.css'
 import './styles/editorial-v2.css'
+import './styles/about.css'
 
 const root = document.getElementById('root')
 

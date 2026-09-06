@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   // prefix match, /library/missing would wrongly mark Library as the current
   // page while the catch-all renders NotFound.
   { to: '/library', end: true, getLabel: (s: ReturnType<typeof useStrings>) => s.nav.library },
+  { to: '/about', end: true, getLabel: () => 'About' },
 ] as const
 
 /**
