@@ -6,6 +6,7 @@ import {
   type AuthClient,
 } from '@business-japanese-hub/platform-auth'
 import { BookPage } from './app/BookPage'
+import { AboutPage } from './app/AboutPage'
 import { HomePage } from './app/HomePage'
 import { LibraryPage } from './app/LibraryPage'
 import { LibraryLinkPage } from './app/LibraryLinkPage'
@@ -86,6 +87,7 @@ export default function App() {
                 <Routes>
                   <Route element={<Layout />}>
                     <Route index element={<HomePage />} />
+                    <Route path="about" element={<AboutPage />} />
                     <Route path="library" element={<LibraryPage />} />
                     <Route path="library-link" element={<LibraryLinkPage />} />
                     <Route path="books/:slug" element={<BookPage />} />
