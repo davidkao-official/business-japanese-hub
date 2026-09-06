@@ -160,11 +160,12 @@ deno check supabase/functions/*/index.ts
 pnpm lint
 pnpm test
 pnpm build
-supabase db start
-supabase db reset --local
-supabase test db --local supabase/tests
-supabase db lint --local --schema public --level warning --fail-on error
+pnpm test:db-guard
+pnpm validate:db
 ```
+
+The DB gate must use the [owned disposable validation runbook](db-validation.md).
+Never substitute raw local reset/start/stop commands when the guard refuses.
 
 ### 2.2 Link and preflight the intended project
 

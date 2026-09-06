@@ -26,6 +26,9 @@ export interface AppStrings {
     home: string
     library: string
     skipToContent: string
+    openMenu: string
+    closeMenu: string
+    mobileMenuTitle: string
   }
   appearance: {
     label: string
@@ -35,6 +38,7 @@ export interface AppStrings {
   }
   storefront: {
     catalog: string
+    bookLabel: string
     viewDetails: string
     featured: string
     free: string
@@ -250,6 +254,9 @@ const ja: AppStrings = {
     home: 'ホーム',
     library: 'マイライブラリ',
     skipToContent: '本文へスキップ',
+    openMenu: 'メニューを開く',
+    closeMenu: 'メニューを閉じる',
+    mobileMenuTitle: 'メニュー',
   },
   appearance: {
     label: '外観',
@@ -259,6 +266,7 @@ const ja: AppStrings = {
   },
   storefront: {
     catalog: 'すべての書籍',
+    bookLabel: 'BOOK',
     viewDetails: '詳細を見る',
     featured: '注目の一冊',
     free: '無料',
@@ -476,6 +484,9 @@ const en: AppStrings = {
     home: 'Home',
     library: 'My Library',
     skipToContent: 'Skip to content',
+    openMenu: 'Open menu',
+    closeMenu: 'Close menu',
+    mobileMenuTitle: 'Menu',
   },
   appearance: {
     label: 'Appearance',
@@ -485,6 +496,7 @@ const en: AppStrings = {
   },
   storefront: {
     catalog: 'All books',
+    bookLabel: 'BOOK',
     viewDetails: 'View details',
     featured: 'Featured',
     free: 'Free',
@@ -702,6 +714,9 @@ const zhTW: AppStrings = {
     home: '首頁',
     library: '我的書庫',
     skipToContent: '跳到主要內容',
+    openMenu: '開啟選單',
+    closeMenu: '關閉選單',
+    mobileMenuTitle: '選單',
   },
   appearance: {
     label: '外觀',
@@ -711,6 +726,7 @@ const zhTW: AppStrings = {
   },
   storefront: {
     catalog: '所有書籍',
+    bookLabel: 'BOOK',
     viewDetails: '查看詳情',
     featured: '主打書籍',
     free: '免費',

@@ -518,16 +518,26 @@ describe('Career Game playable slice', () => {
     const saved = loadGameSession(rookieSurvivalScenario, window.localStorage)
     expect(saved?.state.status).toBe('completed')
     expect(saved?.state.history).toHaveLength(5)
-    expect(track.mock.calls.map(([event]) => event)).toEqual([
-      { event: 'case_viewed', scenarioId: 'rookie-survival' },
-      { event: 'case_started', scenarioId: 'rookie-survival' },
-      ...Array.from({ length: 5 }, () => ({
-        event: 'case_outcome',
-        scenarioId: 'rookie-survival',
-        outcomeCategory: 'strong',
-      })),
-      { event: 'case_completed', scenarioId: 'rookie-survival' },
-    ])
+    await waitFor(() => {
+      const analyticsEvents = track.mock.calls.map(([event]) => event)
+      expect(analyticsEvents).toHaveLength(8)
+      expect(analyticsEvents.filter((event) => event.event === 'case_viewed')).toEqual([
+        { event: 'case_viewed', scenarioId: 'rookie-survival' },
+      ])
+      expect(analyticsEvents.filter((event) => event.event === 'case_started')).toEqual([
+        { event: 'case_started', scenarioId: 'rookie-survival' },
+      ])
+      expect(analyticsEvents.filter((event) => event.event === 'case_outcome')).toEqual(
+        Array.from({ length: 5 }, () => ({
+          event: 'case_outcome',
+          scenarioId: 'rookie-survival',
+          outcomeCategory: 'strong',
+        })),
+      )
+      expect(analyticsEvents.filter((event) => event.event === 'case_completed')).toEqual([
+        { event: 'case_completed', scenarioId: 'rookie-survival' },
+      ])
+    })
   })
 
   it('announces only the completed guest path when a branch skips a decision', async () => {

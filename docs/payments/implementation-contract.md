@@ -178,17 +178,20 @@ Checkout reads released-only: `WHERE book_id = $1 AND released_at IS NOT NULL AN
 
 ## Environment dependency
 
-Real end-to-end enforcement (RLS, triggers, grants) requires a Supabase database:
-`supabase db start` (or a project) + `supabase db reset --local` applies every
-migration. Run `supabase test db --local supabase/tests` for transactional pgTAP
-regressions and `supabase db lint --local --schema public --level warning` for
-schema errors. TypeScript migration contract tests remain a fast source-level
-guard, but do not replace database execution.
+Local execution of the real migration/RLS/trigger/grant contracts must use the owned disposable DB boundary:
+
+```text
+pnpm test:db-guard
+pnpm validate:db
+```
+
+See `docs/db-validation.md`. If the guard refuses, stop and report the DB gate unavailable; do not fall back to an existing stack, raw `supabase db start/reset/stop`, linked/remote reset, or a different project/port. TypeScript migration contract tests remain a fast source-level guard, but do not replace database execution.
 
 Edge Function entrypoints have a separate runtime gate:
-`deno check supabase/functions/*/index.ts`. The GitHub quality gate runs this,
-then recreates the local database, executes every pgTAP contract, and lints the
-resulting schema; Node-only typechecking is not a substitute for the Deno gate.
+`deno check supabase/functions/*/index.ts`. The GitHub quality gates run this,
+then validate migrations, every pgTAP contract and schema lint through the same
+owned disposable DB entrypoint; Node-only typechecking is not a substitute for
+the Deno gate.
 
 Provider credentials are scoped independently. A PayPal-only deployment may
 omit every `ECPAY_*` credential and an ECPay-only deployment may omit every

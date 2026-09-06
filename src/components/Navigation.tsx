@@ -14,7 +14,7 @@ const NAV_ITEMS = [
  * `<nav aria-label>` disambiguates it from any future in-page nav; NavLink
  * automatically exposes `aria-current="page"` for the active item.
  */
-export function Navigation() {
+export function Navigation({ onNavigate }: { onNavigate?: () => void } = {}) {
   const strings = useStrings()
 
   return (
@@ -22,7 +22,7 @@ export function Navigation() {
       <ul className="site-nav__list">
         {NAV_ITEMS.map((item) => (
           <li key={item.to}>
-            <NavLink to={item.to} end={item.end} className="site-nav__link">
+            <NavLink to={item.to} end={item.end} className="site-nav__link" onClick={onNavigate}>
               {item.getLabel(strings)}
             </NavLink>
           </li>
