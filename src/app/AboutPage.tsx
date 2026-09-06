@@ -46,18 +46,26 @@ export function AboutPage() {
         <p className="about-page__tagline">
           從「日文檢定的日文」，走進「日本社會人的日文」。
         </p>
-        <p className="about-page__lead">
-          Business Japanese Hub 是為已經具備中高階日文能力、希望真正進入日本職場與商業世界的人所打造的日文學習平台。
+        <p className="about-page__hero-copy">
+          通過 JLPT N1，不代表日文學習已經結束。
         </p>
+        <p className="about-page__hero-copy">
+          很多時候，反而只是另一個階段的開始。
+        </p>
+        <p className="about-page__lead">
+          <strong>
+            Business Japanese Hub 是為已經具備中高階日文能力、希望真正進入日本職場與商業世界的人所打造的日文學習平台。
+          </strong>
+        </p>
+        <p className="about-page__hero-copy">這裡不以「再考一張日文證書」為終點。</p>
+        <p className="about-page__hero-copy">我們想做的是，幫助你從：</p>
         <div className="about-page__contrast" aria-label="學習目標">
           <p>
-            <span>看得懂日文</span>
+            <strong>看得懂日文</strong>
           </p>
-          <span className="about-page__contrast-arrow" aria-hidden="true">
-            →
-          </span>
+          <p className="about-page__contrast-arrow">進階到：</p>
           <p className="about-page__contrast-emphasis">
-            <strong>能用日文閱讀、思考、討論與工作</strong>
+            <strong>能用日文閱讀、思考、討論與工作。</strong>
           </p>
         </div>
       </header>
@@ -68,11 +76,11 @@ export function AboutPage() {
             WHY THIS PLATFORM
           </p>
           <h2 id="about-purpose-title">為什麼想做這個平台？</h2>
+          <h3>因為我看過太多人，考過 N1 之後才遇到真正的日文瓶頸。</h3>
+          <p>在我身邊，有不少已經通過 JLPT N1 的朋友。</p>
+          <p>有人來到日本之後開始找工作，才第一次發現：</p>
           <p>
-            學會文法與通過檢定，是重要的起點；但真正進入日本社會之後，還需要理解資訊的脈絡、工作的判斷，以及語言背後的距離與語感。
-          </p>
-          <p>
-            我們希望把這段從學習到實踐之間的距離，整理成能持續使用的內容、練習與學習路徑，讓學習者可以逐步走向日本求職、選考與職場成長。
+            明明履歷上寫著 N1，面試時也大致聽得懂對方在說什麼，但真正要說明自己的經驗、回答追問、表達觀點時，卻很難像日本社會人一樣自然地組織語言。
           </p>
         </section>
 
@@ -81,12 +89,17 @@ export function AboutPage() {
             BEYOND THE TEST
           </p>
           <h2 id="about-distance-title">N1 與日本職場之間，存在一段很少有人教的距離。</h2>
-          <p>
-            很多人走過了 N5 → N4 → N3 → N2 → N1，卻在通過 N1 之後發現，原本清楚的學習地圖突然消失了。
-          </p>
-          <p>
-            你可能已經能夠看懂一般文章，卻還不熟悉日本企業的資訊如何被整理、工作的討論如何展開，以及一句話在不同關係中為什麼會有不同的重量。
-          </p>
+          <p>一般日文學習的路徑非常清楚：</p>
+          <p className="about-page__progression"><strong>N5 → N4 → N3 → N2 → N1</strong></p>
+          <p>你有教材。</p>
+          <p>有單字表。</p>
+          <p>有文法書。</p>
+          <p>有模擬考。</p>
+          <p>也知道下一步應該學什麼。</p>
+          <p>但是通過 N1 之後呢？</p>
+          <p>突然之間，學習地圖消失了。</p>
+          <p>真正的日本社會不會再按照 JLPT 等級替你整理內容。</p>
+          <p>你開始遇到的是：</p>
           <ol className="about-page__list about-page__list--examples">
             {REAL_WORLD_EXAMPLES.map((example) => (
               <li key={example}>{example}</li>
@@ -99,24 +112,23 @@ export function AboutPage() {
             FOR WHOM
           </p>
           <h2 id="about-audience-title">這個平台適合誰？</h2>
-          <p>
-            如果你想把已經累積的日文能力，轉成能在日本求職、閱讀商業資訊與工作現場使用的能力，這裡就是為你準備的。
-          </p>
+          <p>Business Japanese Hub 特別適合：</p>
           <ol className="about-page__list about-page__list--audience">
             {AUDIENCE_ITEMS.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ol>
-        </section>
-
-        <section className="about-page__section about-page__section--question" aria-labelledby="about-question-title">
-          <p className="about-page__section-label" lang="en">
-            THE QUESTION
-          </p>
-          <h2 id="about-question-title">從問題開始</h2>
-          <blockquote>
-            「N1 之後，我要怎麼讓日文真正變成工作能力？」
-          </blockquote>
+          <div className="about-page__audience-close">
+            <p>如果你的目標只是通過 JLPT，</p>
+            <p>市面上已經有很多優秀的教材。</p>
+            <p>但如果你開始問：</p>
+          </div>
+          <div className="about-page__question">
+            <blockquote>
+              <strong>「N1 之後，我要怎麼讓日文真正變成工作能力？」</strong>
+            </blockquote>
+            <p className="about-page__question-close">這就是我們想陪你解決的問題。</p>
+          </div>
         </section>
 
         <section className="about-page__section about-page__section--founders" aria-labelledby="about-founders-title">
@@ -125,15 +137,25 @@ export function AboutPage() {
           </p>
           <h2 id="about-founders-title">為什麼是我？</h2>
           <div className="about-page__founder-story">
+            <p>我自己也是從「學日文」一路走到「用日文工作」的人。</p>
             <p>
-              高中時，我通過了 JLPT N1，也通過台灣國家考試，取得台灣日語導遊、日語領隊國家資格。這些經驗讓我很早就知道，考試裡的正確答案和真實語境中的選擇，並不是同一件事。
+              高中時，我通過了 JLPT N1。
             </p>
             <p>
-              後來來到日本攻讀 MBA，進入日本四大事務所做 Consulting 之後，我更清楚看見語言能力如何影響一個人理解資料、參與討論，以及在工作中被理解的方式。
+              在大學期間取得台灣日語導遊、日語領隊國家資格，也累積許多的日文家教與中日口譯經驗。
             </p>
             <p>
-              考過 N1，和能不能在日本用日文工作，中間還隔著很長一段路。Business Japanese Hub 就是從這段路出發。
+              後來來到日本攻讀 MBA。
             </p>
+            <p>
+              進入日本四大事務所做 Consulting 之後，我每天閱讀日本企業與日本政府資料、製作商業文件、整理論點，並在日本職場裡以日文與不同的人溝通。
+            </p>
+            <p>也是在這個過程中，我才真正體會到：</p>
+            <h3>
+              <strong>考過 N1，和能不能在日本用日文工作，中間還隔著很長一段路。</strong>
+            </h3>
+            <p>而這段路，過去很少有一套清楚的學習地圖。</p>
+            <p>我想把自己曾經花很多年摸索的東西，重新整理成一條更清楚的路。</p>
           </div>
           <div className="about-page__profiles">
             <ProfileBlock profile={FOUNDER_PROFILE} />

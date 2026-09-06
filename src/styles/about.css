@@ -57,6 +57,14 @@
   line-height: var(--leading-relaxed);
 }
 
+.about-page__hero-copy {
+  max-width: 48rem;
+  margin-top: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+}
+
 .about-page__contrast {
   display: grid;
   grid-template-columns: minmax(0, auto) auto minmax(0, 1fr);
@@ -78,6 +86,11 @@
 .about-page__contrast-arrow {
   color: var(--color-accent);
   font-family: var(--font-sans);
+}
+
+.about-page__contrast-arrow::before {
+  content: '→';
+  margin-inline-end: var(--space-2);
 }
 
 .about-page__contrast-emphasis {
@@ -111,6 +124,15 @@
   overflow-wrap: anywhere;
 }
 
+.about-page__section > h3 {
+  max-width: 42rem;
+  margin-block: var(--space-5) var(--space-6);
+  font-family: var(--font-serif);
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--leading-tight);
+}
+
 .about-page__section > p:not(.about-page__section-label),
 .about-page__founder-story p {
   max-width: var(--measure-reading);
@@ -130,6 +152,14 @@
 
 .about-page__section--distance > h2 {
   max-width: 28ch;
+}
+
+.about-page__progression {
+  margin-top: var(--space-6);
+  font-family: var(--font-serif);
+  font-size: clamp(var(--text-xl), 3vw, var(--text-2xl));
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-wide);
 }
 
 .about-page__list {
@@ -159,17 +189,25 @@
   letter-spacing: var(--tracking-wide);
 }
 
-.about-page__section--question {
+.about-page__question {
   max-width: 48rem;
+  margin-top: var(--space-7);
 }
 
-.about-page__section--question blockquote {
-  margin-top: var(--space-7);
+.about-page__question blockquote {
   padding-inline-start: var(--space-5);
   border-inline-start: var(--space-1) solid var(--color-accent);
   color: var(--color-text);
   font-family: var(--font-serif);
   font-size: clamp(var(--text-xl), 3vw, var(--text-2xl));
+  line-height: var(--leading-relaxed);
+}
+
+.about-page__question-close {
+  max-width: var(--measure-reading);
+  margin-top: var(--space-5);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
   line-height: var(--leading-relaxed);
 }
 
@@ -180,6 +218,26 @@
 
 .about-page__founder-story {
   max-width: 52rem;
+}
+
+.about-page__founder-story > h3 {
+  margin-top: var(--space-6);
+  font-family: var(--font-serif);
+  font-size: var(--text-xl);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--leading-relaxed);
+}
+
+.about-page__audience-close {
+  max-width: var(--measure-reading);
+  margin-top: var(--space-7);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+}
+
+.about-page__audience-close p + p {
+  margin-top: var(--space-3);
 }
 
 .about-page__profiles {
