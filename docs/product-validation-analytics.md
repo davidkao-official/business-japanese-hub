@@ -44,6 +44,7 @@ default Case。`career_game_to_library` 從已解析的 Case surface 出發，�
   control，不是 authentication；無 wildcard，也不改 checkout／payment CORS。
 - React StrictMode、rapid repeated input 與 remote conflict/retry 不得製造新的 logical event；
   restored completed progress 也不算新的 completion。
+- 事件 delivery 與 server log 的相對順序不保證；不得由相對 event order 推導 attempt-level sequence。
 
 ## 4. Small funnel
 
