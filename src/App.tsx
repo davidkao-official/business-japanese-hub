@@ -11,6 +11,7 @@ import { HomePage } from './app/HomePage'
 import { LibraryPage } from './app/LibraryPage'
 import { LibraryLinkPage } from './app/LibraryLinkPage'
 import { NotFoundPage } from './app/NotFoundPage'
+import { ProductModePage } from './app/ProductModePage'
 import { PurchaseResultPage } from './app/PurchaseResultPage'
 import { LegalIndexPage } from './app/legal/LegalIndexPage'
 import { LegalPage } from './app/legal/LegalPage'
@@ -88,6 +89,11 @@ export default function App() {
                   <Route element={<Layout />}>
                     <Route index element={<HomePage />} />
                     <Route path="about" element={<AboutPage />} />
+                    <Route path="learn" element={<ProductModePage mode="learn" />} />
+                    <Route path="read" element={<ProductModePage mode="read" />} />
+                    <Route path="practice" element={<ProductModePage mode="practice" />} />
+                    <Route path="my-learning" element={<ProductModePage mode="my-learning" />} />
+                    <Route path="experience" element={<ProductModePage mode="experience" />} />
                     <Route path="library" element={<LibraryPage />} />
                     <Route path="library-link" element={<LibraryLinkPage />} />
                     <Route path="books/:slug" element={<BookPage />} />

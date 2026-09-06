@@ -83,7 +83,7 @@ describe('Header mobile navigation', () => {
     expect(menu).toHaveAttribute('aria-modal', 'true')
     expect(within(menu).getByRole('button', { name: 'メニューを閉じる' })).toHaveFocus()
     expect(within(menu).getByRole('link', { name: 'ホーム' })).toBeInTheDocument()
-    expect(within(menu).getByRole('link', { name: 'マイライブラリ' })).toBeInTheDocument()
+    expect(within(menu).getByRole('link', { name: 'Learn' })).toBeInTheDocument()
     expect(within(menu).getByRole('button', { name: 'ログイン' })).toBeInTheDocument()
     expect(within(menu).getByRole('radiogroup', { name: '外観' })).toBeInTheDocument()
     expect(document.body.style.overflow).toBe('hidden')
@@ -150,7 +150,7 @@ describe('Header mobile navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
 
     const menu = screen.getByRole('dialog', { name: 'メニュー' })
-    fireEvent.click(within(menu).getByRole('link', { name: 'マイライブラリ' }))
+    fireEvent.click(within(menu).getByRole('link', { name: 'Learn' }))
 
     expect(screen.queryByRole('dialog', { name: 'メニュー' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'メニューを開く' })).toHaveAttribute(

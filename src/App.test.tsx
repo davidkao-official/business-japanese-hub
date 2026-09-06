@@ -6,6 +6,7 @@ import { BookPage } from './app/BookPage'
 import { HomePage } from './app/HomePage'
 import { LibraryPage } from './app/LibraryPage'
 import { NotFoundPage } from './app/NotFoundPage'
+import { ProductModePage } from './app/ProductModePage'
 import { Layout } from './components/Layout'
 import { renderWithAppProviders } from './test/appProviders'
 
@@ -25,12 +26,13 @@ function RouterProbePage() {
   )
 }
 
-/** Renders the platform chrome (Layout) with the home + library routes. */
+/** Renders the platform chrome (Layout) with representative IA + legacy routes. */
 function renderShellRoutes(initialEntries: string[]) {
   return renderWithAppProviders(
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<HomePage />} />
+        <Route path="learn" element={<ProductModePage mode="learn" />} />
         <Route path="library" element={<LibraryPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
@@ -116,30 +118,29 @@ describe('application shell', () => {
     // A fresh page load must not steal focus.
     expect(document.activeElement).not.toBe(main)
 
-    fireEvent.click(screen.getByRole('link', { name: 'マイライブラリ' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Learn' }))
 
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: 'マイライブラリ' })).toBeInTheDocument(),
+      expect(screen.getByRole('heading', { name: 'Learn' })).toBeInTheDocument(),
     )
     expect(document.activeElement).toBe(main)
   })
 
-  it('marks the Library link as current on its exact route', () => {
+  it('keeps the historical Library route out of primary navigation', () => {
     renderShellRoutes(['/library'])
 
-    expect(screen.getByRole('link', { name: 'マイライブラリ' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
+    expect(screen.getByRole('heading', { name: 'マイライブラリ' })).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('banner')).getByRole('navigation').querySelector('a[href="/library"]'),
+    ).toBeNull()
   })
 
-  it('does not mark the Library link as current on an unmatched descendant route', () => {
+  it('does not expose an unmatched historical Library descendant as current', () => {
     renderShellRoutes(['/library/missing'])
 
-    expect(screen.getByRole('link', { name: 'マイライブラリ' })).not.toHaveAttribute(
-      'aria-current',
-      'page',
-    )
+    expect(
+      within(screen.getByRole('banner')).getByRole('navigation').querySelector('a[href="/library"]'),
+    ).toBeNull()
     expect(screen.getByRole('heading', { name: 'ページが見つかりません' })).toBeInTheDocument()
   })
 
@@ -147,7 +148,7 @@ describe('application shell', () => {
     const scrollToSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
     renderShellRoutes(['/'])
 
-    fireEvent.click(screen.getByRole('link', { name: 'マイライブラリ' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Learn' }))
     await waitFor(() => expect(scrollToSpy).toHaveBeenCalledWith(0, 0))
   })
 

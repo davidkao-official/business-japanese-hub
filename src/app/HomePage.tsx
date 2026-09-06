@@ -29,6 +29,7 @@ import {
   type EditorialSelection,
   type HomeContentSample,
 } from './homeEditorial'
+import { PRODUCT_MODES } from './productModes'
 
 const browserValidationAnalytics = createBrowserValidationAnalytics({
   functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,
@@ -96,6 +97,8 @@ export function HomePage({
         <p className="page__lead">{strings.home.lead}</p>
       </div>
 
+      <LearningModes />
+
       {featured && <FeaturedBook entry={featured} state={featuredState} />}
 
       {featured && (
@@ -125,6 +128,33 @@ export function HomePage({
 
       <PublicProfiles />
       {paidOffer && <StorefrontOffer entry={paidOffer} state={paidOfferState} />}
+    </section>
+  )
+}
+
+function LearningModes() {
+  return (
+    <section className="learning-modes" aria-labelledby="learning-modes-title">
+      <div className="learning-modes__intro">
+        <p className="learning-modes__label" lang="en">
+          Learning service
+        </p>
+        <h2 className="learning-modes__title" id="learning-modes-title">
+          Find your next useful mode
+        </h2>
+      </div>
+      <ul className="learning-modes__list">
+        {PRODUCT_MODES.map((mode) => (
+          <li className="learning-modes__item" key={mode.id}>
+            <Link className="learning-modes__link" to={mode.href}>
+              <span className="learning-modes__link-label" lang="en">
+                {mode.label}
+              </span>
+              <span className="learning-modes__link-summary">{mode.summary}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }

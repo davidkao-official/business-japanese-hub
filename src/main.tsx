@@ -8,6 +8,7 @@ import './styles/shop.css'
 import './styles/legal.css'
 import './styles/editorial-v2.css'
 import './styles/about.css'
+import './styles/product-ia.css'
 
 const root = document.getElementById('root')
 
