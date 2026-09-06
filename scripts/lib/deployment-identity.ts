@@ -39,6 +39,11 @@ function resolveCheckoutGitHead(readGitHead?: () => string): string {
   return normalizeCommitSha(readCheckoutGitHead(readGitHead), 'Git HEAD commit SHA')
 }
 
+/** Resolve the exact checkout identity, ignoring build-provider environment. */
+export function resolveCheckoutCommitSha(readGitHead?: () => string): string {
+  return resolveCheckoutGitHead(readGitHead)
+}
+
 /**
  * Resolve the immutable source identity embedded into a frontend build.
  * Cloudflare Pages injects CF_PAGES_COMMIT_SHA. Other exact-checkout builds use

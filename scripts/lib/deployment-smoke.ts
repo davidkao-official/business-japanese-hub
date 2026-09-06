@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import {
   normalizeCommitSha,
   parseBuildInfo,
@@ -7,6 +8,7 @@ import {
 export interface DeploymentSmokeOptions {
   attempts?: number
   expectedCommitSha?: string
+  expectedAssetDigests?: Readonly<Record<string, string>>
   fetcher?: (url: URL) => Promise<Response>
   product?: DeploymentProduct
   retryDelayMs?: number
@@ -24,6 +26,7 @@ interface DeploymentSmokeContract {
 
 interface ResolvedDeploymentSmokeOptions {
   attempts: number
+  expectedAssetDigests?: Readonly<Record<string, string>>
   expectedCommitSha?: string
   fetcher: (url: URL) => Promise<Response>
   product: DeploymentProduct
@@ -69,6 +72,7 @@ const SCRIPT_OR_STYLE = /\.(?:css|m?js)$/i
 // token length exact so a descriptive filename suffix cannot masquerade as a
 // reusable asset fingerprint.
 const FINGERPRINTED_SCRIPT_OR_STYLE = /(?:^|\/)[^/]+-[A-Za-z0-9_-]{8}\.(?:css|m?js)$/i
+const ASSET_ATTRIBUTE = /(?:^|[\s<])(src|href)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+))/gi
 const AUXILIARY_CACHE_CONTROL_HEADERS = [
   'CDN-Cache-Control',
   'Cloudflare-CDN-Cache-Control',
@@ -135,17 +139,47 @@ function assertRequestedUrl(response: Response, requestedUrl: URL, label: string
 }
 
 function cacheControlDirectives(raw: string | null): string[] {
-  return (raw ?? '')
-    .split(',')
-    .map((directive) => directive.trim().toLowerCase())
-    .filter(Boolean)
+  if (raw === null) return []
+
+  const directives: string[] = []
+  let directive = ''
+  let quoted = false
+  let escaped = false
+  for (const character of raw) {
+    if (escaped) {
+      directive += character
+      escaped = false
+      continue
+    }
+    if (character === '\\' && quoted) {
+      directive += character
+      escaped = true
+      continue
+    }
+    if (character === '"') {
+      quoted = !quoted
+      directive += character
+      continue
+    }
+    if (character === ',' && !quoted) {
+      const normalized = directive.trim().toLowerCase()
+      if (normalized) directives.push(normalized)
+      directive = ''
+      continue
+    }
+    directive += character
+  }
+  const normalized = directive.trim().toLowerCase()
+  if (normalized) directives.push(normalized)
+  return directives
 }
 
 function isUnsafeCacheDirective(directive: string): boolean {
   if (
     directive === 'immutable' ||
     directive.startsWith('stale-while-revalidate') ||
-    directive.startsWith('stale-if-error')
+    directive.startsWith('stale-if-error') ||
+    /^(?:no-store|no-cache|private)\s*=/.test(directive)
   ) {
     return true
   }
@@ -170,41 +204,41 @@ function assertNoUnsafeCacheDirectives(
   }
 }
 
+function assertHtmlCachePolicy(
+  directives: readonly string[],
+  label: string,
+  headerName: string,
+): void {
+  if (directives.length === 0) {
+    throw new Error(`Deployment smoke ${label} has unsafe ${headerName}: header is missing`)
+  }
+
+  assertNoUnsafeCacheDirectives(directives, label, headerName)
+
+  const hasImmediateRevalidation = directives.some(
+    (directive) =>
+      directive === 'no-store' ||
+      directive === 'no-cache' ||
+      /^max-age\s*=\s*"?0"?$/.test(directive),
+  )
+  if (!hasImmediateRevalidation) {
+    throw new Error(
+      `Deployment smoke ${label} has unsafe ${headerName}: HTML must use no-store, no-cache, or max-age=0`,
+    )
+  }
+}
+
 function assertNoUnsafeAuxiliaryCacheHeaders(response: Response, label: string): void {
   for (const headerName of AUXILIARY_CACHE_CONTROL_HEADERS) {
-    assertNoUnsafeCacheDirectives(
-      cacheControlDirectives(response.headers.get(headerName)),
-      label,
-      headerName,
-    )
+    if (!response.headers.has(headerName)) continue
+    assertHtmlCachePolicy(cacheControlDirectives(response.headers.get(headerName)), label, headerName)
   }
 }
 
 function assertSafeHtmlCache(response: Response, label: string): void {
   const directives = cacheControlDirectives(response.headers.get('cache-control'))
-  if (directives.length === 0) {
-    throw new Error(`Deployment smoke ${label} has unsafe cache-control: header is missing`)
-  }
-
-  assertNoUnsafeCacheDirectives(directives, label, 'cache-control')
-
-  let hasImmediateRevalidation = false
-  for (const directive of directives) {
-    if (directive === 'no-store' || directive === 'no-cache') {
-      hasImmediateRevalidation = true
-      continue
-    }
-
-    if (/^max-age\s*=\s*"?0"?$/.test(directive)) hasImmediateRevalidation = true
-  }
-
+  assertHtmlCachePolicy(directives, label, 'cache-control')
   assertNoUnsafeAuxiliaryCacheHeaders(response, label)
-
-  if (!hasImmediateRevalidation) {
-    throw new Error(
-      `Deployment smoke ${label} has unsafe cache-control: HTML must use no-store, no-cache, or max-age=0`,
-    )
-  }
 }
 
 function assertBuildInfoNoStore(response: Response): void {
@@ -212,13 +246,65 @@ function assertBuildInfoNoStore(response: Response): void {
   if (!directives.includes('no-store')) {
     throw new Error('Deployment smoke build-info cache-control must include no-store')
   }
-  assertNoUnsafeAuxiliaryCacheHeaders(response, 'build-info')
+  assertNoUnsafeCacheDirectives(directives, 'build-info', 'cache-control')
+  for (const headerName of AUXILIARY_CACHE_CONTROL_HEADERS) {
+    if (!response.headers.has(headerName)) continue
+    const auxiliaryDirectives = cacheControlDirectives(response.headers.get(headerName))
+    if (!auxiliaryDirectives.includes('no-store')) {
+      throw new Error(`Deployment smoke build-info has unsafe ${headerName}: must include no-store`)
+    }
+    assertNoUnsafeCacheDirectives(auxiliaryDirectives, 'build-info', headerName)
+  }
 }
 
 function assertFingerprintedAsset(assetUrl: URL): void {
   if (SCRIPT_OR_STYLE.test(assetUrl.pathname) && !FINGERPRINTED_SCRIPT_OR_STYLE.test(assetUrl.pathname)) {
     throw new Error(`Deployment smoke found a non-fingerprinted asset URL: ${assetUrl.pathname}`)
   }
+}
+
+function sha256Hex(body: string): string {
+  return createHash('sha256').update(body, 'utf8').digest('hex')
+}
+
+async function assetBody(
+  response: Response,
+  url: URL,
+  options: ResolvedDeploymentSmokeOptions,
+): Promise<string> {
+  const body = await response.text()
+  const expectedDigest = options.expectedAssetDigests?.[url.pathname]
+  if (SCRIPT_OR_STYLE.test(url.pathname) && options.expectedAssetDigests && !expectedDigest) {
+    throw new Error(`Deployment smoke found an unexpected built asset URL: ${url.pathname}`)
+  }
+  if (expectedDigest && sha256Hex(body) !== expectedDigest) {
+    throw new Error(`Deployment smoke asset content does not match the local artifact: ${url.pathname}`)
+  }
+  return body
+}
+
+function assetReferences(rootHtml: string, base: URL): string[] {
+  const references = new Set<string>()
+  for (const match of rootHtml.matchAll(ASSET_ATTRIBUTE)) {
+    const reference = match[2] ?? match[3] ?? match[4]
+    if (!reference) continue
+
+    let assetUrl: URL
+    try {
+      assetUrl = new URL(reference, base)
+    } catch {
+      continue
+    }
+
+    const isScriptOrStyle = SCRIPT_OR_STYLE.test(assetUrl.pathname)
+    if (
+      assetUrl.origin === base.origin &&
+      (isScriptOrStyle || assetUrl.pathname.includes('/assets/'))
+    ) {
+      references.add(reference)
+    }
+  }
+  return [...references]
 }
 
 async function fetchWithRetry(
@@ -254,6 +340,7 @@ export async function verifyDeployment(
     : undefined
   const options: ResolvedDeploymentSmokeOptions = {
     attempts: partialOptions.attempts ?? DEFAULT_ATTEMPTS,
+    expectedAssetDigests: partialOptions.expectedAssetDigests,
     expectedCommitSha,
     fetcher:
       partialOptions.fetcher ??
@@ -312,19 +399,7 @@ export async function verifyDeployment(
     throw new Error('Deployment smoke HTML build identity does not match build-info')
   }
 
-  const assetRefs = [
-    ...new Set(
-      [...rootHtml.matchAll(/(?:src|href)=["']([^"']+)["']/gi)]
-        .map((match) => match[1])
-        .filter((ref) => {
-          const assetUrl = new URL(ref, base)
-          return (
-            assetUrl.origin === base.origin &&
-            (assetUrl.pathname.includes('/assets/') || SCRIPT_OR_STYLE.test(assetUrl.pathname))
-          )
-        }),
-    ),
-  ]
+  const assetRefs = assetReferences(rootHtml, base)
   if (assetRefs.length === 0) throw new Error('Deployment smoke found no built assets')
 
   const javascriptBodies: string[] = []
@@ -338,8 +413,9 @@ export async function verifyDeployment(
       options,
     )
     assertRequestedUrl(response, assetUrl, `asset ${ref}`)
+    const body = await assetBody(response, assetUrl, options)
     if (/\.(?:m?js)$/i.test(assetUrl.pathname)) {
-      javascriptBodies.push(await response.text())
+      javascriptBodies.push(body)
     }
   }
 

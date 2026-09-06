@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
   createBuildInfo,
+  resolveCheckoutCommitSha,
   resolveBuildCommitSha,
   resolveExpectedDeploymentSha,
 } from '../../scripts/lib/deployment-identity'
@@ -36,6 +38,7 @@ interface FakeDeploymentOptions {
   htmlHeaders?: Record<string, string>
   htmlCache?: string
   htmlSha?: string
+  html?: string
   routeCache?: Record<string, string>
   assetPrefix?: string
   assetPath?: string
@@ -51,8 +54,9 @@ function fakeLibraryDeployment({
   routeCache = {},
   assetPrefix = 'index-a1b2c3d4',
   assetPath = '/assets',
+  html: htmlOverride,
 }: FakeDeploymentOptions = {}): (url: URL) => Promise<Response> {
-  const html = libraryHtml(htmlSha, assetPrefix, assetPath)
+  const html = htmlOverride ?? libraryHtml(htmlSha, assetPrefix, assetPath)
   return async (url) => {
     if (url.pathname === '/build-info.json') {
       return new Response(JSON.stringify(createBuildInfo('library', buildInfoSha)), {
@@ -108,6 +112,10 @@ describe('deployment build identity', () => {
         readGitHead: () => ` ${expectedSha}\n`,
       }),
     ).toBe(expectedSha)
+  })
+
+  it('resolves built-artifact smoke expectations from checkout HEAD even with ambient Pages identity', () => {
+    expect(resolveCheckoutCommitSha(() => ` ${expectedSha}\n`)).toBe(expectedSha)
   })
 
   it('rejects malformed source identities instead of publishing an ambiguous build', () => {
@@ -237,6 +245,21 @@ describe('deployment exact-head and cache smoke', () => {
     ).rejects.toThrow(new RegExp('unsafe ' + headerName, 'i'))
   })
 
+  it.each(['CDN-Cache-Control', 'Cloudflare-CDN-Cache-Control', 'Surrogate-Control'])(
+    'rejects an incomplete %s HTML policy',
+    async (headerName) => {
+      await expect(
+        verifyDeployment('https://example.pages.dev/', {
+          attempts: 1,
+          expectedCommitSha: expectedSha,
+          fetcher: fakeLibraryDeployment({ htmlHeaders: { [headerName]: 'no-cache="Set-Cookie"' } }),
+          product: 'library',
+          retryDelayMs: 0,
+        }),
+      ).rejects.toThrow(new RegExp(`unsafe ${headerName}`, 'i'))
+    },
+  )
+
   it('checks the cache policy on SPA fallback routes as well as the root', async () => {
     await expect(
       verifyDeployment('https://example.pages.dev/', {
@@ -279,6 +302,21 @@ describe('deployment exact-head and cache smoke', () => {
     ).rejects.toThrow(new RegExp('unsafe ' + headerName, 'i'))
   })
 
+  it.each(['CDN-Cache-Control', 'Cloudflare-CDN-Cache-Control', 'Surrogate-Control'])(
+    'requires an explicit no-store %s build-info policy',
+    async (headerName) => {
+      await expect(
+        verifyDeployment('https://example.pages.dev/', {
+          attempts: 1,
+          expectedCommitSha: expectedSha,
+          fetcher: fakeLibraryDeployment({ buildInfoHeaders: { [headerName]: 'public' } }),
+          product: 'library',
+          retryDelayMs: 0,
+        }),
+      ).rejects.toThrow(new RegExp(`build-info.*${headerName}.*no-store`, 'i'))
+    },
+  )
+
   it('inspects fingerprinted JS/CSS references outside the conventional assets directory', async () => {
     await expect(
       verifyDeployment('https://example.pages.dev/', {
@@ -312,6 +350,40 @@ describe('deployment exact-head and cache smoke', () => {
         attempts: 1,
         expectedCommitSha: expectedSha,
         fetcher: fakeLibraryDeployment({ assetPrefix: 'index' }),
+        product: 'library',
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(/fingerprinted asset/i)
+  })
+
+  it('rejects an eight-character descriptive suffix when the local artifact identity disagrees', async () => {
+    const bodyDigest = createHash('sha256').update('console.log("built")').digest('hex')
+    await expect(
+      verifyDeployment('https://example.pages.dev/', {
+        attempts: 1,
+        expectedCommitSha: expectedSha,
+        expectedAssetDigests: {
+          '/assets/index-a1b2c3d4.js': bodyDigest,
+          '/assets/index-a1b2c3d4.css': createHash('sha256').update('body{}').digest('hex'),
+        },
+        fetcher: fakeLibraryDeployment({ assetPrefix: 'index-release1' }),
+        product: 'library',
+        retryDelayMs: 0,
+      }),
+    ).rejects.toThrow(/unexpected built asset URL|fingerprinted asset/i)
+  })
+
+  it('parses legal unquoted JS references and rejects a non-fingerprinted runtime asset', async () => {
+    const quotedHtml = libraryHtml(expectedSha)
+    const html = quotedHtml.replace(
+      'src="/assets/index-a1b2c3d4.js"',
+      'src=/runtime.js',
+    )
+    await expect(
+      verifyDeployment('https://example.pages.dev/', {
+        attempts: 1,
+        expectedCommitSha: expectedSha,
+        fetcher: fakeLibraryDeployment({ html }),
         product: 'library',
         retryDelayMs: 0,
       }),

@@ -56,16 +56,22 @@ The deployment smoke rejects:
 - positive `max-age` / `s-maxage`;
 - `immutable` on HTML;
 - stale-serving directives such as `stale-while-revalidate` or `stale-if-error`;
-- positive/stale directives in `CDN-Cache-Control`,
-  `Cloudflare-CDN-Cache-Control`, or `Surrogate-Control`;
+- any present `CDN-Cache-Control`, `Cloudflare-CDN-Cache-Control`, or
+  `Surrogate-Control` header that does not independently carry the complete
+  HTML policy (`no-store`, unqualified `no-cache`, or `max-age=0`) or the
+  build-info policy (unqualified `no-store`);
 - `build-info.json` without `no-store`;
 - non-fingerprinted built JS/CSS URLs (including references outside `/assets/`);
 - a build-info SHA different from the expected commit;
 - HTML whose embedded build identity differs from build-info.
 
-The JS/CSS fingerprint guard accepts Vite/Rolldown's eight-character
-base64url-safe content-hash token. A descriptive filename suffix is not a
-substitute for that token. Qualified directives such as
+The JS/CSS guard accepts the Vite/Rolldown eight-character base64url-safe
+filename shape, but does not pretend that the shape alone proves content
+identity. `smoke:built-frontends` additionally maps every same-origin JS/CSS
+reference to the exact SHA-256 bytes in the checked-out artifact and rejects a
+remote/local response whose path or body is not that map. Production smoke
+still verifies the emitted response and its cache/identity contract without
+assuming an undocumented Vite hash algorithm. Qualified directives such as
 `no-cache="Set-Cookie"` do not count as full-response HTML revalidation.
 
 This intentionally detects unsafe Cloudflare Dashboard Cache Rules rather than
