@@ -71,6 +71,25 @@ function simulateResponsiveFocusLoss() {
 }
 
 describe('Header mobile navigation', () => {
+  it('language-scopes the canonical English mode labels in desktop and mobile navigation', () => {
+    const canonicalModes = ['Learn', 'Read', 'Practice', 'My Learning', 'Experience']
+    renderWithAppProviders(<Header />)
+
+    const assertModeLabelsAreEnglish = (navigation: HTMLElement) => {
+      for (const label of canonicalModes) {
+        const link = within(navigation).getByRole('link', { name: label })
+        expect(link.querySelector('span[lang="en"]')).toHaveTextContent(label)
+      }
+    }
+
+    assertModeLabelsAreEnglish(document.querySelector('.site-header__tools .site-nav') as HTMLElement)
+
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
+    assertModeLabelsAreEnglish(
+      within(screen.getByRole('dialog', { name: 'メニュー' })).getByRole('navigation'),
+    )
+  })
+
   it('opens the existing navigation with account and appearance controls', () => {
     renderWithAppProviders(<Header />)
 

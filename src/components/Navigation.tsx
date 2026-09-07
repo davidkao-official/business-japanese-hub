@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   ...PRODUCT_MODES.map((mode) => ({
     to: mode.href,
     end: true,
+    labelLanguage: 'en' as const,
     getLabel: () => mode.label,
   })),
   { to: '/about', end: true, getLabel: () => 'About' },
@@ -29,7 +30,11 @@ export function Navigation({ onNavigate }: { onNavigate?: () => void } = {}) {
         {NAV_ITEMS.map((item) => (
           <li key={item.to}>
             <NavLink to={item.to} end={item.end} className="site-nav__link" onClick={onNavigate}>
-              {item.getLabel(strings)}
+              {'labelLanguage' in item ? (
+                <span lang={item.labelLanguage}>{item.getLabel()}</span>
+              ) : (
+                item.getLabel(strings)
+              )}
             </NavLink>
           </li>
         ))}
