@@ -1613,7 +1613,7 @@
   min-width: 0;
 }
 
-@media (min-width: 50rem) {
+@media (min-width: 80rem) {
   .site-header__inner {
     grid-template-columns: auto minmax(0, 1fr);
   }
@@ -1621,8 +1621,8 @@
 
 @media (min-width: 80rem) {
   /* Keep the full desktop IA on one line when the account and appearance
-   * controls share the header. The existing mobile menu and compact desktop
-   * layout remain unchanged below the wide-header breakpoint. */
+   * controls share the header. The compact menu remains below this breakpoint
+   * so the navigation never collapses into an inaccessible wrapped desktop. */
   .site-header__tools {
     column-gap: var(--space-2);
   }
@@ -1636,7 +1636,7 @@
   }
 }
 
-@media (max-width: 49.99rem) {
+@media (max-width: 79.99rem) {
   .site-header__inner {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;

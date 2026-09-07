@@ -22,7 +22,7 @@ function installHeaderMediaQueryHarness() {
     listenersByQuery.set(media, listeners)
 
     return {
-      matches: media === '(min-width: 50rem)',
+      matches: media === '(min-width: 80rem)',
       media,
       onchange: null,
       addEventListener: (_event: string, listener: EventListenerOrEventListenerObject) => {
@@ -51,7 +51,7 @@ function installHeaderMediaQueryHarness() {
     matchMediaMock,
     emitHeaderBreakpoint(matches: boolean) {
       act(() => {
-        for (const listener of listenersByQuery.get('(min-width: 50rem)') ?? []) {
+        for (const listener of listenersByQuery.get('(min-width: 80rem)') ?? []) {
           listener({ matches } as MediaQueryListEvent)
         }
       })
@@ -220,7 +220,7 @@ describe('Header mobile navigation', () => {
           <button type="button">Focus probe</button>
         </>,
       )
-      expect(media.matchMediaMock).toHaveBeenCalledWith('(min-width: 50rem)')
+      expect(media.matchMediaMock).toHaveBeenCalledWith('(min-width: 80rem)')
       const focusProbe = screen.getByRole('button', { name: 'Focus probe' })
       focusProbe.focus()
       media.emitHeaderBreakpoint(true)
