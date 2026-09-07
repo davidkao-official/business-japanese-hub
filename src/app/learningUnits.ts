@@ -38,7 +38,7 @@ export interface LearningUnitRouteData {
   }
   readonly learn: {
     readonly lead: LearningTextBlock
-    readonly sequence: LearningText
+    readonly sequence: LearningTextBlock
     readonly steps: readonly LearningUnitStep[]
     readonly transfer: {
       readonly label: LearningText
@@ -86,7 +86,11 @@ const LEARNING_UNITS: readonly LearningUnitRouteData[] = [
           lang: 'zh-TW',
         },
       ],
-      sequence: { text: '承接 → Pivot → 收斂', lang: 'zh-TW' },
+      sequence: [
+        { text: '承接 → ', lang: 'zh-TW' },
+        { text: 'Pivot', lang: 'en' },
+        { text: ' → 收斂', lang: 'zh-TW' },
+      ],
       steps: [
         {
           number: '01',

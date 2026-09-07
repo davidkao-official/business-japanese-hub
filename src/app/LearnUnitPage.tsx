@@ -33,7 +33,7 @@ export function LearnUnitPage() {
       </div>
 
       <p className="learning-unit-page__sequence">
-        {renderLearningText([learningUnit.learn.sequence])}
+        {renderLearningText(learningUnit.learn.sequence)}
       </p>
 
       <ol className="learning-unit-flow" aria-label="Learn unit steps" lang="en">
