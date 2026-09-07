@@ -36,7 +36,7 @@ export function LearnUnitPage() {
         {renderLearningText([learningUnit.learn.sequence])}
       </p>
 
-      <ol className="learning-unit-flow" aria-label="Learn unit steps">
+      <ol className="learning-unit-flow" aria-label="Learn unit steps" lang="en">
         {learningUnit.learn.steps.map((step) => (
           <li key={step.number}>
             <span className="learning-unit-flow__number" aria-hidden="true">{step.number}</span>

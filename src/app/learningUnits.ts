@@ -173,9 +173,11 @@ const LEARNING_UNITS: readonly LearningUnitRouteData[] = [
           title: [{ text: '立場與上下關係', lang: 'zh-TW' }],
           body: [
             {
-              text: '依照對方是主管、同儕或跨部門夥伴，調整 cushion、直接程度與請對方做決定的方式。',
+              text: '依照對方是主管、同儕或跨部門夥伴，調整 ',
               lang: 'zh-TW',
             },
+            { text: 'cushion', lang: 'en' },
+            { text: '、直接程度與請對方做決定的方式。', lang: 'zh-TW' },
           ],
         },
       ],
