@@ -58,6 +58,49 @@ export interface AppStrings {
     selectionsLabel: string
     selectionsTitle: string
   }
+  learningModes: {
+    navigationLabel: string
+    serviceLabel: string
+    serviceTitle: string
+    continueTitle: string
+    modes: {
+      learn: {
+        title: string
+        summary: string
+        lead: string
+      }
+      read: {
+        title: string
+        summary: string
+        lead: string
+      }
+      practice: {
+        title: string
+        summary: string
+        lead: string
+      }
+      'my-learning': {
+        title: string
+        summary: string
+        lead: string
+      }
+      experience: {
+        title: string
+        summary: string
+        lead: string
+      }
+    }
+    read: {
+      capabilityTitle: string
+      capabilityLead: string
+      browseLibrary: string
+    }
+    experience: {
+      capabilityTitle: string
+      capabilityLead: string
+      openCareerGame: string
+    }
+  }
   library: {
     title: string
     signedOut: string
@@ -278,13 +321,57 @@ const ja: AppStrings = {
   },
   home: {
     title: 'ビジネス日本語ハブ',
-    lead: 'ビジネスシーンで役立つ日本語表現を、実践的な書籍を通して学べるプラットフォームです。',
+    lead: '日本求職から日本職場での成長まで、仕事で使える日本語能力を学び続けるためのサービスです。',
     featureLabel: '本の構造',
     featureTitle: '実務で使う言葉を、文脈の中で読む',
     samplesLabel: '表現のサンプル',
     samplesTitle: '実際の文章と会話から学ぶ',
     selectionsLabel: '書籍からの選書',
     selectionsTitle: '公開中の書籍から、読む場所を選ぶ',
+  },
+  learningModes: {
+    navigationLabel: '学習モード',
+    serviceLabel: '学習サービス',
+    serviceTitle: '次に役立つ学び方を選ぶ',
+    continueTitle: 'ほかのモードを見る',
+    modes: {
+      learn: {
+        title: 'Learn',
+        summary: '実際の職場場面から、使える判断力を身につける。',
+        lead: '日本の職場で必要な判断・表現・背景を学びます。',
+      },
+      read: {
+        title: 'Read',
+        summary: '日本のビジネス情報と長文コンテンツを文脈の中で読む。',
+        lead: '既存のライブラリとリーダーを通じて、日本語のビジネス情報を直接読みます。',
+      },
+      practice: {
+        title: 'Practice',
+        summary: '言語を職場の行動につなげる反復練習に取り組む。',
+        lead: '反復できる想起と判断の練習を、ここから整備していきます。',
+      },
+      'my-learning': {
+        title: 'My Learning',
+        summary: '実際の進捗・復習・保存項目・次の一歩に戻る。',
+        lead: '作られたスコアではなく、説明可能な実データから学習状態を育てます。',
+      },
+      experience: {
+        title: 'Experience',
+        summary: '具体的な物語の中で職場の判断を試し、その結果を知る。',
+        lead: '独立してデプロイされる Career Game 職場シミュレーターへの入口です。',
+      },
+    },
+    read: {
+      capabilityTitle: '長文を読む',
+      capabilityLead:
+        '公開中の書籍を下の一覧から選び、Book の詳細から Reader で長文読書を始められます。個人の書籍と読書の進捗はマイライブラリで確認できます。',
+      browseLibrary: 'マイライブラリを開く',
+    },
+    experience: {
+      capabilityTitle: 'Career Game',
+      capabilityLead: '独立した Experience ランタイムで、物語形式の職場ケースを通じて判断を試します。',
+      openCareerGame: 'Career Game を開く',
+    },
   },
   library: {
     title: 'マイライブラリ',
@@ -508,13 +595,57 @@ const en: AppStrings = {
   },
   home: {
     title: 'Business Japanese Hub',
-    lead: 'A platform for learning practical business Japanese through real-world reading materials.',
+    lead: 'A learning service for Japanese job hunting, business reading, and growth in the workplace.',
     featureLabel: 'How the books are structured',
     featureTitle: 'Read workplace language in context.',
     samplesLabel: 'Expression samples',
     samplesTitle: 'Start with real sentences and conversations.',
     selectionsLabel: 'Selected from the books',
     selectionsTitle: 'Find a place to begin in the published books.',
+  },
+  learningModes: {
+    navigationLabel: 'Learning modes',
+    serviceLabel: 'Learning service',
+    serviceTitle: 'Find your next useful mode',
+    continueTitle: 'Continue exploring',
+    modes: {
+      learn: {
+        title: 'Learn',
+        summary: 'Build a workplace capability from a real situation to a usable decision.',
+        lead: 'Study the judgment, language, and context behind Japanese workplace communication.',
+      },
+      read: {
+        title: 'Read',
+        summary: 'Read Japanese business information and long-form editorial content in context.',
+        lead: 'Read business information directly in Japanese, with the existing Library and Reader as long-form paths.',
+      },
+      practice: {
+        title: 'Practice',
+        summary: 'Repeat retrieval and judgment practice that connects language to workplace action.',
+        lead: 'Practice is the home for repeatable retrieval and judgment surfaces as they become available.',
+      },
+      'my-learning': {
+        title: 'My Learning',
+        summary: 'Return to real progress, review, saved items, and the next useful step.',
+        lead: 'Your learning state will grow from real, explainable evidence rather than an invented score.',
+      },
+      experience: {
+        title: 'Experience',
+        summary: 'Apply workplace judgment in a concrete story and see the consequences.',
+        lead: 'Experience is the gateway to the separately deployed Career Game workplace simulator.',
+      },
+    },
+    read: {
+      capabilityTitle: 'Long-form reading',
+      capabilityLead:
+        'Choose a published book from the catalog below to start long-form reading. Your owned books and reading progress remain available in My Library.',
+      browseLibrary: 'Open My Library',
+    },
+    experience: {
+      capabilityTitle: 'Career Game',
+      capabilityLead: 'Follow the separate Experience runtime to apply workplace judgment in a story-driven case.',
+      openCareerGame: 'Open Career Game',
+    },
   },
   library: {
     title: 'My Library',
@@ -738,13 +869,57 @@ const zhTW: AppStrings = {
   },
   home: {
     title: '商務日語中心',
-    lead: '透過實際的商務日語讀物，學習職場實用日語的平台。',
+    lead: '從日本求職、商務閱讀到職場成長，持續學習工作中真正需要的日語能力。',
     featureLabel: '書本結構',
     featureTitle: '在真實脈絡中閱讀職場日語',
     samplesLabel: '表達範例',
     samplesTitle: '從實際句子與對話開始學習',
     selectionsLabel: '書籍選讀',
     selectionsTitle: '從已公開的書籍中，找到開始閱讀的位置',
+  },
+  learningModes: {
+    navigationLabel: '學習模式',
+    serviceLabel: '學習服務',
+    serviceTitle: '選擇下一個有用的學習模式',
+    continueTitle: '繼續探索',
+    modes: {
+      learn: {
+        title: 'Learn',
+        summary: '從真實情境培養能用於職場的判斷力。',
+        lead: '學習日本職場溝通背後的判斷、語言與脈絡。',
+      },
+      read: {
+        title: 'Read',
+        summary: '在脈絡中閱讀日本商務資訊與長篇內容。',
+        lead: '透過既有書庫與閱讀器，直接閱讀日文商務資訊與長篇內容。',
+      },
+      practice: {
+        title: 'Practice',
+        summary: '反覆練習提取與判斷，將語言連結到職場行動。',
+        lead: '這裡會逐步提供可反覆使用的提取與判斷練習。',
+      },
+      'my-learning': {
+        title: 'My Learning',
+        summary: '回到真實進度、複習、已儲存項目與下一個有用步驟。',
+        lead: '以可解釋的真實紀錄培養學習狀態，而不是虛構的分數。',
+      },
+      experience: {
+        title: 'Experience',
+        summary: '在具體故事中應用職場判斷，了解不同選擇的結果。',
+        lead: '前往獨立部署的 Career Game 職場模擬器，體驗故事中的判斷。',
+      },
+    },
+    read: {
+      capabilityTitle: '長篇閱讀',
+      capabilityLead:
+        '從下方的公開書籍目錄選擇書籍，開始長篇閱讀；已擁有的書籍與閱讀進度仍可在我的書庫查看。',
+      browseLibrary: '開啟我的書庫',
+    },
+    experience: {
+      capabilityTitle: 'Career Game',
+      capabilityLead: '前往獨立的 Experience 執行環境，透過故事化職場個案應用判斷力。',
+      openCareerGame: '開啟 Career Game',
+    },
   },
   library: {
     title: '我的書庫',

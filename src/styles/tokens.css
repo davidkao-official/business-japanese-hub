@@ -32,7 +32,7 @@
   --bp-md: 48rem; /* 768px */
   --bp-lg: 64rem; /* 1024px */
   --bp-xl: 80rem; /* 1280px */
-  --bp-header: 50rem; /* 800px: desktop header controls fit above this width */
+  --bp-header: 80rem; /* 1280px: full desktop header controls fit above this width */
 
   /* ---------------------------------------------------------------
    * Color — Quiet Editorial Modernism paper / ink hierarchy

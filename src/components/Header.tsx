@@ -111,7 +111,7 @@ export function Header() {
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
 
-    const desktopQuery = window.matchMedia('(min-width: 50rem)')
+    const desktopQuery = window.matchMedia('(min-width: 80rem)')
     const isRecentBreakpointBlur = (blurredAt: number | null) =>
       blurredAt !== null && Date.now() - blurredAt <= BREAKPOINT_FOCUS_PROVENANCE_WINDOW_MS
     const handleBreakpointChange = (event: MediaQueryListEvent) => {

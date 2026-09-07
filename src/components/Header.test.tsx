@@ -22,7 +22,7 @@ function installHeaderMediaQueryHarness() {
     listenersByQuery.set(media, listeners)
 
     return {
-      matches: media === '(min-width: 50rem)',
+      matches: media === '(min-width: 80rem)',
       media,
       onchange: null,
       addEventListener: (_event: string, listener: EventListenerOrEventListenerObject) => {
@@ -51,7 +51,7 @@ function installHeaderMediaQueryHarness() {
     matchMediaMock,
     emitHeaderBreakpoint(matches: boolean) {
       act(() => {
-        for (const listener of listenersByQuery.get('(min-width: 50rem)') ?? []) {
+        for (const listener of listenersByQuery.get('(min-width: 80rem)') ?? []) {
           listener({ matches } as MediaQueryListEvent)
         }
       })
@@ -71,6 +71,25 @@ function simulateResponsiveFocusLoss() {
 }
 
 describe('Header mobile navigation', () => {
+  it('language-scopes the canonical English mode labels in desktop and mobile navigation', () => {
+    const canonicalModes = ['Learn', 'Read', 'Practice', 'My Learning', 'Experience']
+    renderWithAppProviders(<Header />)
+
+    const assertModeLabelsAreEnglish = (navigation: HTMLElement) => {
+      for (const label of canonicalModes) {
+        const link = within(navigation).getByRole('link', { name: label })
+        expect(link.querySelector('span[lang="en"]')).toHaveTextContent(label)
+      }
+    }
+
+    assertModeLabelsAreEnglish(document.querySelector('.site-header__tools .site-nav') as HTMLElement)
+
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
+    assertModeLabelsAreEnglish(
+      within(screen.getByRole('dialog', { name: 'メニュー' })).getByRole('navigation'),
+    )
+  })
+
   it('opens the existing navigation with account and appearance controls', () => {
     renderWithAppProviders(<Header />)
 
@@ -83,7 +102,7 @@ describe('Header mobile navigation', () => {
     expect(menu).toHaveAttribute('aria-modal', 'true')
     expect(within(menu).getByRole('button', { name: 'メニューを閉じる' })).toHaveFocus()
     expect(within(menu).getByRole('link', { name: 'ホーム' })).toBeInTheDocument()
-    expect(within(menu).getByRole('link', { name: 'マイライブラリ' })).toBeInTheDocument()
+    expect(within(menu).getByRole('link', { name: 'Learn' })).toBeInTheDocument()
     expect(within(menu).getByRole('button', { name: 'ログイン' })).toBeInTheDocument()
     expect(within(menu).getByRole('radiogroup', { name: '外観' })).toBeInTheDocument()
     expect(document.body.style.overflow).toBe('hidden')
@@ -150,7 +169,7 @@ describe('Header mobile navigation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
 
     const menu = screen.getByRole('dialog', { name: 'メニュー' })
-    fireEvent.click(within(menu).getByRole('link', { name: 'マイライブラリ' }))
+    fireEvent.click(within(menu).getByRole('link', { name: 'Learn' }))
 
     expect(screen.queryByRole('dialog', { name: 'メニュー' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'メニューを開く' })).toHaveAttribute(
@@ -201,7 +220,7 @@ describe('Header mobile navigation', () => {
           <button type="button">Focus probe</button>
         </>,
       )
-      expect(media.matchMediaMock).toHaveBeenCalledWith('(min-width: 50rem)')
+      expect(media.matchMediaMock).toHaveBeenCalledWith('(min-width: 80rem)')
       const focusProbe = screen.getByRole('button', { name: 'Focus probe' })
       focusProbe.focus()
       media.emitHeaderBreakpoint(true)
