@@ -126,8 +126,15 @@ function titleCaseSlug(slug: string): string {
 
 const ENGLISH_RUN_PATTERN = /[A-Za-z][A-Za-z0-9]*(?:['’/-][A-Za-z0-9]+)*/g
 
-function inferAuthoredLanguage(text: string, fallback: LearningTextLanguage): LearningTextLanguage {
+type AuthoredTextField = 'exercise' | 'japanese-step-title'
+
+function inferAuthoredLanguage(
+  text: string,
+  fallback: LearningTextLanguage,
+  field: AuthoredTextField,
+): LearningTextLanguage {
   if (
+    field === 'exercise' &&
     fallback === 'ja' &&
     /[\u3400-\u9fff]/.test(text) &&
     !/[\u3040-\u30ff]/.test(text)
@@ -152,13 +159,17 @@ function appendTextPart(
 }
 
 /**
- * Project authored exercise prose into accessible language runs. The release
- * model stores each field as a string, so this narrow seam keeps embedded
- * English terms separate while recognizing Chinese support prose without
+ * Project authored prose into accessible language runs. The release model
+ * stores each field as a string, so this narrow seam keeps embedded English
+ * terms separate while recognizing Chinese exercise support prose without
  * making the content model aware of presentation languages.
  */
-function projectAuthoredText(text: string, fallback: LearningTextLanguage): LearningTextBlock {
-  const baseLanguage = inferAuthoredLanguage(text, fallback)
+function projectAuthoredText(
+  text: string,
+  fallback: LearningTextLanguage,
+  field: AuthoredTextField = 'exercise',
+): LearningTextBlock {
+  const baseLanguage = inferAuthoredLanguage(text, fallback, field)
   const parts: LearningText[] = []
   let cursor = 0
 
@@ -213,7 +224,7 @@ function createAdmittedLearningUnit(): LearningUnitRouteData | undefined {
   const language = sourceLanguage(admittedBook.language)
   const steps = stepTable.rows.slice(0, 3).map((row, index) => ({
     number: String(index + 1).padStart(2, '0'),
-    title: projectAuthoredText(row[0], language),
+    title: projectAuthoredText(row[0], language, 'japanese-step-title'),
     body: [asText(row[1], language), asText(` ${row[2]}`, language)],
   }))
 
