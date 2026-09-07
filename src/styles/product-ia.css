@@ -198,6 +198,12 @@
   gap: var(--space-3);
 }
 
+.practice-activity-page .page__title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
 .learning-unit-page__sequence {
   padding-block: var(--space-4);
   border-block: var(--stroke-thin) solid var(--color-border);
@@ -267,10 +273,24 @@
 
 .practice-activity-card {
   display: grid;
+  align-content: start;
+  min-inline-size: 0;
   gap: var(--space-3);
   padding: var(--space-5);
   border: var(--stroke-thin) solid var(--color-border);
   background: var(--color-surface);
+}
+
+.practice-activity-card form,
+.practice-activity-card__choices,
+.practice-activity-card__response {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--space-3);
+}
+
+.practice-activity-card__choices label {
+  overflow-wrap: anywhere;
 }
 
 @media (min-width: 48rem) {
