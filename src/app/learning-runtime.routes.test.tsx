@@ -21,11 +21,15 @@ describe('learning runtime route identities', () => {
     const releasedChapter = getBookBySlug('meeting-japanese')?.chapters.find(
       ({ slug }) => slug === 'course-correction',
     )
+    const releasedExerciseIds = releasedChapter?.blocks.flatMap((block) =>
+      block.type === 'exercise' ? [block.id] : [],
+    )
 
     expect(releasedChapter).toBeDefined()
     expect(learnUnit?.title).toBe(releasedChapter?.title)
     expect(learnUnit?.learnSlug).toBe(`meeting-japanese-${releasedChapter?.slug}`)
     expect(learnUnit?.practiceSlug).toBe(releasedChapter?.slug)
+    expect(practiceUnit?.practice.exercises.map(({ id }) => id)).toEqual(releasedExerciseIds)
     expect(learnUnit?.practiceSlug).toBe(COURSE_CORRECTION_PRACTICE_SLUG)
     expect(practiceUnit?.learnSlug).toBe(COURSE_CORRECTION_LEARN_SLUG)
     expect(getLearningUnitByPracticeSlug(COURSE_CORRECTION_LEARN_SLUG)).toBeUndefined()

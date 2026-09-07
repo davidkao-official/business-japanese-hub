@@ -1,12 +1,18 @@
 import { getBookBySlug } from '../reader/catalog'
+import type {
+  CalloutBlock,
+  Chapter,
+  ExerciseBlock,
+  ParagraphBlock,
+  TableBlock,
+} from '../content/types'
 
 /**
- * Bounded Learn presentation registry.
+ * Bounded Learn presentation data for the admitted #110 slice.
  *
- * Route identity and the unit title come from the admitted released Book
- * chapter. The remaining fields are route-level presentation labels for this
- * first #110 slice; this is not a platform-wide content pipeline, learning
- * event model, or persistent learning state.
+ * The unit is projected from the released Book/chapter below. The route UI
+ * labels stay local to this presentation seam; this is not a universal
+ * content model, learning event schema, or persistence layer.
  */
 export type LearningTextLanguage = 'zh-TW' | 'ja' | 'en'
 
@@ -23,10 +29,13 @@ export interface LearningUnitStep {
   readonly body: LearningTextBlock
 }
 
-export interface LearningPracticeCard {
-  readonly label: LearningText
-  readonly title: LearningTextBlock
-  readonly body: LearningTextBlock
+export interface LearningPracticeExercise {
+  readonly id: string
+  readonly question: LearningTextBlock
+  readonly options: readonly LearningTextBlock[]
+  readonly hint?: LearningTextBlock
+  readonly answer?: LearningTextBlock
+  readonly explanation?: LearningTextBlock
 }
 
 export interface LearningUnitRouteData {
@@ -54,7 +63,8 @@ export interface LearningUnitRouteData {
   readonly practice: {
     readonly title: LearningTextBlock
     readonly lead: LearningTextBlock
-    readonly cards: readonly LearningPracticeCard[]
+    readonly activityLabel: LearningText
+    readonly exercises: readonly LearningPracticeExercise[]
     readonly backAction: LearningTextBlock
   }
 }
@@ -71,140 +81,128 @@ export const COURSE_CORRECTION_LEARN_SLUG = admittedBook && admittedChapter
   : ''
 export const COURSE_CORRECTION_PRACTICE_SLUG = admittedChapter?.slug ?? ''
 
-const LEARNING_UNITS: readonly LearningUnitRouteData[] = admittedBook && admittedChapter
-  ? [
-      {
-      learnSlug: COURSE_CORRECTION_LEARN_SLUG,
-      practiceSlug: COURSE_CORRECTION_PRACTICE_SLUG,
-      title: admittedChapter.title,
-      courseLabel: 'Course Correction',
-      gateway: {
-        title: { text: '會議中的議論整理', lang: 'zh-TW' },
-        summary: [
-          {
-            text: '從具體的會議場面，學習如何在保留對話關係的同時，把討論帶回主要論點。',
-            lang: 'zh-TW',
-          },
-        ],
-        linkSummary: [
-          { text: '承接對方的觀點，再 ', lang: 'zh-TW' },
-          { text: 'pivot', lang: 'en' },
-          { text: ' 回到可作決定的主題。', lang: 'zh-TW' },
-        ],
+function asText(text: string, lang: LearningTextLanguage): LearningText {
+  return { text, lang }
+}
+
+function asBlock(text: string, lang: LearningTextLanguage): LearningTextBlock {
+  return [asText(text, lang)]
+}
+
+function sourceLanguage(language: string): LearningTextLanguage {
+  if (language === 'zh-TW' || language === 'en') return language
+  return 'ja'
+}
+
+function firstParagraph(chapter: Chapter): ParagraphBlock | undefined {
+  return chapter.blocks.find((block): block is ParagraphBlock => block.type === 'paragraph')
+}
+
+function firstCallout(chapter: Chapter): CalloutBlock | undefined {
+  return chapter.blocks.find((block): block is CalloutBlock => block.type === 'callout')
+}
+
+function firstTable(chapter: Chapter): TableBlock | undefined {
+  return chapter.blocks.find((block): block is TableBlock => block.type === 'table')
+}
+
+function mixedPivotText(text: string): LearningTextBlock {
+  const pivotIndex = text.indexOf('Pivot')
+  if (pivotIndex < 0) return asBlock(text, 'zh-TW')
+
+  return [
+    asText(text.slice(0, pivotIndex), 'zh-TW'),
+    asText('Pivot', 'en'),
+    asText(text.slice(pivotIndex + 'Pivot'.length), 'zh-TW'),
+  ]
+}
+
+function titleCaseSlug(slug: string): string {
+  return slug
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+}
+
+function projectExercise(block: ExerciseBlock, language: LearningTextLanguage): LearningPracticeExercise {
+  return {
+    id: block.id,
+    question: asBlock(block.question, language),
+    options: (block.options ?? []).map((option) => asBlock(option, language)),
+    hint: block.hint ? asBlock(block.hint, language) : undefined,
+    answer: block.answer ? asBlock(block.answer, language) : undefined,
+    explanation: block.explanation ? asBlock(block.explanation, language) : undefined,
+  }
+}
+
+function createAdmittedLearningUnit(): LearningUnitRouteData | undefined {
+  if (!admittedBook || !admittedChapter || !admittedChapter.subtitle || !admittedChapter.summary) {
+    return undefined
+  }
+
+  const callout = firstCallout(admittedChapter)
+  const stepTable = firstTable(admittedChapter)
+  const intro = firstParagraph(admittedChapter)
+  const exercises = admittedChapter.blocks.filter(
+    (block): block is ExerciseBlock => block.type === 'exercise',
+  )
+  if (
+    !callout?.title ||
+    !callout.text ||
+    !stepTable ||
+    stepTable.rows.length === 0 ||
+    stepTable.rows.some((row) => row.length < 3) ||
+    exercises.length === 0
+  ) {
+    return undefined
+  }
+
+  const language = sourceLanguage(admittedBook.language)
+  const steps = stepTable.rows.slice(0, 3).map((row, index) => ({
+    number: String(index + 1).padStart(2, '0'),
+    title: asText(row[0], language),
+    body: [asText(row[1], language), asText(` ${row[2]}`, language)],
+  }))
+
+  return {
+    learnSlug: `${admittedBook.slug}-${admittedChapter.slug}`,
+    practiceSlug: admittedChapter.slug,
+    title: admittedChapter.title,
+    courseLabel: titleCaseSlug(admittedChapter.slug),
+    gateway: {
+      title: asText(admittedChapter.title, language),
+      summary: asBlock(admittedChapter.summary, language),
+      linkSummary: asBlock(admittedChapter.subtitle, language),
+    },
+    learn: {
+      lead: asBlock(intro?.text ?? admittedChapter.summary, language),
+      sequence: mixedPivotText(callout.title),
+      steps,
+      transfer: {
+        label: asText('Transfer to work', 'en'),
+        title: asText(admittedChapter.subtitle, language),
+        body: asBlock(callout.text, 'zh-TW'),
       },
-      learn: {
-        lead: [
-          {
-            text: '會議討論偏離主題時，先承接對方的意見，再把大家帶回可以做判斷與決定的主線。',
-            lang: 'zh-TW',
-          },
-        ],
-        sequence: [
-          { text: '承接 → ', lang: 'zh-TW' },
-          { text: 'Pivot', lang: 'en' },
-          { text: ' → 收斂', lang: 'zh-TW' },
-        ],
-        steps: [
-          {
-            number: '01',
-            title: { text: '承接', lang: 'zh-TW' },
-            body: [
-              { text: '先讓對方的關切被聽見，明確指出你接住的是哪個觀點。', lang: 'zh-TW' },
-            ],
-          },
-          {
-            number: '02',
-            title: { text: 'Pivot', lang: 'en' },
-            body: [
-              { text: '使用「', lang: 'zh-TW' },
-              { text: 'その点を踏まえて', lang: 'ja' },
-              { text: '」等緩衝表達，把注意力轉回本次會議的目的。', lang: 'zh-TW' },
-            ],
-          },
-          {
-            number: '03',
-            title: { text: '收斂', lang: 'zh-TW' },
-            body: [
-              { text: '確認下一個要決定的問題、負責人與時限，讓討論留下可執行的出口。', lang: 'zh-TW' },
-            ],
-          },
-        ],
-        transfer: {
-          label: { text: 'Transfer to work', lang: 'en' },
-          title: { text: '把語言選擇連回職場判斷', lang: 'zh-TW' },
-          body: [
-            { text: 'Course correction', lang: 'en' },
-            {
-              text: ' 的重點不是打斷別人，而是保留關係、重新標定議題，並讓團隊知道現在要收斂到哪個決定。',
-              lang: 'zh-TW',
-            },
-          ],
-        },
-        practiceAction: [
-          { text: '前往 ', lang: 'zh-TW' },
-          { text: 'Practice', lang: 'en' },
-          { text: '：練習改寫', lang: 'zh-TW' },
-        ],
-        backAction: [
-          { text: '返回 ', lang: 'zh-TW' },
-          { text: 'Learn', lang: 'en' },
-        ],
-      },
-      practice: {
-        title: [
-          { text: `${admittedChapter.title}：`, lang: 'ja' },
-          { text: 'Practice', lang: 'en' },
-        ],
-        lead: [
-          { text: '在可重複的 ', lang: 'zh-TW' },
-          { text: 'situational', lang: 'en' },
-          { text: ' 練習中，判斷哪一句話能承接對方、轉回主線，並完成收斂。', lang: 'zh-TW' },
-        ],
-        cards: [
-          {
-            label: { text: 'Situational', lang: 'en' },
-            title: [{ text: '場面：討論開始發散', lang: 'zh-TW' }],
-            body: [
-              {
-                text: '會議成員提出了重要但不屬於本次議題的問題。先辨識誰在意什麼，再決定如何保留這個關切。',
-                lang: 'zh-TW',
-              },
-            ],
-          },
-          {
-            label: { text: 'Rewrite', lang: 'en' },
-            title: [
-              { text: '書き換え', lang: 'ja' },
-              { text: '：調整語氣與焦點', lang: 'zh-TW' },
-            ],
-            body: [
-              { text: '將直接的「', lang: 'zh-TW' },
-              { text: 'それは今回の議題ではありません', lang: 'ja' },
-              { text: '」改寫成能承接、', lang: 'zh-TW' },
-              { text: 'pivot', lang: 'en' },
-              { text: '，再提出下一步的職場表達。', lang: 'zh-TW' },
-            ],
-          },
-          {
-            label: { text: 'Authority & context', lang: 'en' },
-            title: [{ text: '立場與上下關係', lang: 'zh-TW' }],
-            body: [
-              {
-                text: '依照對方是主管、同儕或跨部門夥伴，調整 ',
-                lang: 'zh-TW',
-              },
-              { text: 'cushion', lang: 'en' },
-              { text: '、直接程度與請對方做決定的方式。', lang: 'zh-TW' },
-            ],
-          },
-        ],
-        backAction: [
-          { text: '回到 ', lang: 'zh-TW' },
-          { text: 'Learn unit', lang: 'en' },
-        ],
-      },
-      },
-    ]
+      practiceAction: [
+        asText('前往 ', 'zh-TW'),
+        asText('Practice', 'en'),
+        asText('：練習改寫', 'zh-TW'),
+      ],
+      backAction: [asText('返回 ', 'zh-TW'), asText('Learn', 'en')],
+    },
+    practice: {
+      title: [asText(`${admittedChapter.title}：`, language), asText('Practice', 'en')],
+      lead: asBlock(admittedChapter.summary, language),
+      activityLabel: asText('Situational practice', 'en'),
+      exercises: exercises.map((exercise) => projectExercise(exercise, language)),
+      backAction: [asText('回到 ', 'zh-TW'), asText('Learn unit', 'en')],
+    },
+  }
+}
+
+const admittedLearningUnit = createAdmittedLearningUnit()
+const LEARNING_UNITS: readonly LearningUnitRouteData[] = admittedLearningUnit
+  ? [admittedLearningUnit]
   : []
 
 export function getLearningUnitByLearnSlug(
