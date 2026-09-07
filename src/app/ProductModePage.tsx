@@ -11,7 +11,7 @@ import { careerGameHomeHref } from '../lib/cross-product/careerGame'
 import { BookCover } from '../components/BookCover'
 import { listCatalogEntries } from '../reader/catalog'
 import { PRODUCT_MODE_BY_ID, PRODUCT_MODES, type ProductModeId } from './productModes'
-import { COURSE_CORRECTION_SLUG } from './LearnUnitPage'
+import { COURSE_CORRECTION_SLUG } from './learningUnits'
 
 const browserValidationAnalytics = createBrowserValidationAnalytics({
   functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,

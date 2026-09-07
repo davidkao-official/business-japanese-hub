@@ -1,7 +1,8 @@
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
+import { useStrings } from '../i18n/strings'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
-
-export const COURSE_CORRECTION_SLUG = 'meeting-course-correction'
+import { NotFoundPage } from './NotFoundPage'
+import { getLearningUnit } from './learningUnits'
 
 /**
  * The first reusable Learn presentation surface. Its route is deliberately
@@ -9,16 +10,21 @@ export const COURSE_CORRECTION_SLUG = 'meeting-course-correction'
  * coupling Learn to the Book / Reader content model.
  */
 export function LearnUnitPage() {
-  useDocumentTitle('議論を本筋に戻す — Learn')
+  const { slug } = useParams()
+  const learningUnit = getLearningUnit(slug)
+  const strings = useStrings()
+  useDocumentTitle(learningUnit ? `${learningUnit.title} — Learn` : strings.notFound.title)
+
+  if (!learningUnit) return <NotFoundPage />
 
   return (
     <section className="page learning-unit-page" aria-labelledby="learning-unit-title">
       <div className="learning-unit-page__intro">
         <p className="product-mode-page__eyebrow" lang="en">
-          Course Correction · Learn
+          {learningUnit.courseLabel} · Learn
         </p>
         <h1 className="page__title" id="learning-unit-title" lang="ja">
-          議論を本筋に戻す
+          {learningUnit.title}
         </h1>
         <p className="page__lead">
           會議討論偏離主題時，先承接對方的意見，再把大家帶回可以做判斷與決定的主線。
@@ -62,7 +68,7 @@ export function LearnUnitPage() {
       </section>
 
       <div className="learning-unit-page__actions">
-        <Link className="btn btn--primary" to={`/practice/${COURSE_CORRECTION_SLUG}`}>
+        <Link className="btn btn--primary" to={`/practice/${learningUnit.practiceSlug}`}>
           前往 Practice：練習改寫
         </Link>
         <Link className="btn btn--secondary" to="/learn">

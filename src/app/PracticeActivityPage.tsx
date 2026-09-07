@@ -1,6 +1,8 @@
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
+import { useStrings } from '../i18n/strings'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
-import { COURSE_CORRECTION_SLUG } from './LearnUnitPage'
+import { NotFoundPage } from './NotFoundPage'
+import { getLearningUnit } from './learningUnits'
 
 /**
  * A generic Practice destination for the course-correction activity family.
@@ -8,7 +10,12 @@ import { COURSE_CORRECTION_SLUG } from './LearnUnitPage'
  * remain outside this bounded issue.
  */
 export function PracticeActivityPage() {
-  useDocumentTitle('Course Correction Practice')
+  const { slug } = useParams()
+  const learningUnit = getLearningUnit(slug)
+  const strings = useStrings()
+  useDocumentTitle(learningUnit ? `${learningUnit.courseLabel} Practice` : strings.notFound.title)
+
+  if (!learningUnit) return <NotFoundPage />
 
   return (
     <section className="page practice-activity-page" aria-labelledby="practice-activity-title">
@@ -51,7 +58,7 @@ export function PracticeActivityPage() {
       </div>
 
       <div className="practice-activity-page__actions">
-        <Link className="btn btn--secondary" to={`/learn/${COURSE_CORRECTION_SLUG}`}>
+        <Link className="btn btn--secondary" to={`/learn/${learningUnit.slug}`}>
           回到 Learn unit
         </Link>
       </div>
