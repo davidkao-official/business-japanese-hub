@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import { CANONICAL_CAREER_GAME_ORIGIN } from '../lib/cross-product/careerGame'
 import { getStrings, setLocalePreference } from '../i18n/strings'
+import { listCatalogEntries } from '../reader/catalog'
 import { renderWithAppProviders } from '../test/appProviders'
 import { ProductModePage } from './ProductModePage'
 
@@ -11,17 +12,26 @@ beforeEach(() => {
 
 afterEach(() => {
   setLocalePreference(null)
+  vi.unstubAllEnvs()
 })
 
 describe('product mode gateways', () => {
-  it('keeps Read anchored to the stable Library route without a book-slug dependency', () => {
+  it('lists every published Book through generic Read detail routes and keeps personal Library separate', () => {
     renderWithAppProviders(<ProductModePage mode="read" />)
 
     expect(screen.getByRole('link', { name: getStrings('ja').learningModes.read.browseLibrary })).toHaveAttribute(
       'href',
       '/library',
     )
-    expect(document.querySelector('a[href="/books/meeting-japanese"]')).toBeNull()
+
+    const entries = listCatalogEntries()
+    expect(entries.length).toBeGreaterThan(0)
+    for (const { book } of entries) {
+      expect(screen.getByRole('link', { name: new RegExp(book.title) })).toHaveAttribute(
+        'href',
+        `/books/${book.slug}`,
+      )
+    }
   })
 
   it('keeps Experience linked to the separate Career Game origin', () => {
@@ -33,6 +43,15 @@ describe('product mode gateways', () => {
       'href',
       `${CANONICAL_CAREER_GAME_ORIGIN}/`,
     )
+  })
+
+  it('uses a configured Career Game origin through the canonical resolver seam', () => {
+    vi.stubEnv('VITE_CAREER_GAME_ORIGIN', 'https://game.example.jp/')
+    renderWithAppProviders(<ProductModePage mode="experience" />)
+
+    expect(
+      screen.getByRole('link', { name: getStrings('ja').learningModes.experience.openCareerGame }),
+    ).toHaveAttribute('href', 'https://game.example.jp/')
   })
 
   it('preserves cross-product activation analytics while keeping the external link usable', () => {

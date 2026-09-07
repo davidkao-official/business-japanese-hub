@@ -7,7 +7,10 @@ import {
 } from '@business-japanese-hub/validation-analytics'
 import { useStrings } from '../i18n/strings'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
-import { CAREER_GAME_HREF, PRODUCT_MODE_BY_ID, PRODUCT_MODES, type ProductModeId } from './productModes'
+import { careerGameHomeHref } from '../lib/cross-product/careerGame'
+import { BookCover } from '../components/BookCover'
+import { listCatalogEntries } from '../reader/catalog'
+import { PRODUCT_MODE_BY_ID, PRODUCT_MODES, type ProductModeId } from './productModes'
 
 const browserValidationAnalytics = createBrowserValidationAnalytics({
   functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,
@@ -78,6 +81,7 @@ export function ProductModePage({ mode, analytics = browserValidationAnalytics }
 
 function ReadModeLinks() {
   const strings = useStrings()
+  const entries = listCatalogEntries()
 
   return (
     <section className="product-mode-page__capability" aria-labelledby="read-capability-title">
@@ -88,6 +92,20 @@ function ReadModeLinks() {
           {strings.learningModes.read.browseLibrary}
         </Link>
       </div>
+      <ul className="book-card-grid">
+        {entries.map(({ book }) => (
+          <li className="book-card" key={book.id}>
+            <Link className="book-card__link" to={`/books/${book.slug}`}>
+              <BookCover book={book} className="book-card__cover" />
+              <span className="book-card__title">{book.title}</span>
+              {book.subtitle && <span className="book-card__subtitle">{book.subtitle}</span>}
+              {book.authors.length > 0 && (
+                <span className="book-card__author">{book.authors.map((author) => author.name).join(' / ')}</span>
+              )}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   )
 }
@@ -101,7 +119,7 @@ function ExperienceModeLink({ onNavigate }: { onNavigate: (event: MouseEvent<HTM
       <p>{strings.learningModes.experience.capabilityLead}</p>
       <a
         className="btn btn--primary"
-        href={CAREER_GAME_HREF}
+        href={careerGameHomeHref(import.meta.env.VITE_CAREER_GAME_ORIGIN)}
         onClick={onNavigate}
         onAuxClick={onNavigate}
       >

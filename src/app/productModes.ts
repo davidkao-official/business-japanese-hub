@@ -1,5 +1,3 @@
-import { CANONICAL_CAREER_GAME_ORIGIN } from '../lib/cross-product/careerGame'
-
 /**
  * The five user-facing learning modes are the platform IA contract. They are
  * navigation/presentation labels, not evidence IDs or a shared runtime schema.
@@ -39,5 +37,3 @@ export const PRODUCT_MODE_BY_ID: Record<ProductModeId, (typeof PRODUCT_MODES)[nu
     ProductModeId,
     (typeof PRODUCT_MODES)[number]
   >
-
-export const CAREER_GAME_HREF = `${CANONICAL_CAREER_GAME_ORIGIN}/`
