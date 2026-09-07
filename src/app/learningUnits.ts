@@ -124,14 +124,67 @@ function titleCaseSlug(slug: string): string {
     .join(' ')
 }
 
+const ENGLISH_RUN_PATTERN = /[A-Za-z][A-Za-z0-9]*(?:['’/-][A-Za-z0-9]+)*/g
+
+function inferAuthoredLanguage(text: string, fallback: LearningTextLanguage): LearningTextLanguage {
+  if (
+    fallback === 'ja' &&
+    /[\u3400-\u9fff]/.test(text) &&
+    !/[\u3040-\u30ff]/.test(text)
+  ) {
+    return 'zh-TW'
+  }
+  return fallback
+}
+
+function appendTextPart(
+  parts: LearningText[],
+  text: string,
+  language: LearningTextLanguage,
+): void {
+  if (!text) return
+  const previous = parts.at(-1)
+  if (previous?.lang === language) {
+    parts[parts.length - 1] = asText(`${previous.text}${text}`, language)
+    return
+  }
+  parts.push(asText(text, language))
+}
+
+/**
+ * Project authored exercise prose into accessible language runs. The release
+ * model stores each field as a string, so this narrow seam keeps embedded
+ * English terms separate while recognizing Chinese support prose without
+ * making the content model aware of presentation languages.
+ */
+function projectAuthoredText(text: string, fallback: LearningTextLanguage): LearningTextBlock {
+  const baseLanguage = inferAuthoredLanguage(text, fallback)
+  const parts: LearningText[] = []
+  let cursor = 0
+
+  for (const match of text.matchAll(ENGLISH_RUN_PATTERN)) {
+    const index = match.index ?? cursor
+    const prefix = text.slice(cursor, index)
+    const prefixLanguage = /^\s*$/.test(prefix) && parts.at(-1)?.lang === 'en'
+      ? 'en'
+      : baseLanguage
+    appendTextPart(parts, prefix, prefixLanguage)
+    appendTextPart(parts, match[0], 'en')
+    cursor = index + match[0].length
+  }
+
+  appendTextPart(parts, text.slice(cursor), baseLanguage)
+  return parts.length > 0 ? parts : [asText(text, baseLanguage)]
+}
+
 function projectExercise(block: ExerciseBlock, language: LearningTextLanguage): LearningPracticeExercise {
   return {
     id: block.id,
-    question: asBlock(block.question, language),
-    options: (block.options ?? []).map((option) => asBlock(option, language)),
-    hint: block.hint ? asBlock(block.hint, language) : undefined,
-    answer: block.answer ? asBlock(block.answer, language) : undefined,
-    explanation: block.explanation ? asBlock(block.explanation, language) : undefined,
+    question: projectAuthoredText(block.question, language),
+    options: (block.options ?? []).map((option) => projectAuthoredText(option, language)),
+    hint: block.hint ? projectAuthoredText(block.hint, language) : undefined,
+    answer: block.answer ? projectAuthoredText(block.answer, language) : undefined,
+    explanation: block.explanation ? projectAuthoredText(block.explanation, language) : undefined,
   }
 }
 

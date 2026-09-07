@@ -36,6 +36,33 @@ describe('learning runtime route identities', () => {
     expect(getLearningUnitByLearnSlug(COURSE_CORRECTION_PRACTICE_SLUG)).toBeUndefined()
   })
 
+  it('keeps authored Japanese, Traditional Chinese, and English exercise runs tagged', () => {
+    const unit = getLearningUnitByPracticeSlug(COURSE_CORRECTION_PRACTICE_SLUG)
+    const exerciseWithChineseExplanation = unit?.practice.exercises.find((exercise) =>
+      exercise.question.some((part) => part.text.includes('プロジェクト進捗会議')),
+    )
+    const exerciseWithEmbeddedEnglish = unit?.practice.exercises.find((exercise) =>
+      exercise.question.some((part) => part.text.includes('Pivot')),
+    )
+
+    expect(exerciseWithChineseExplanation?.question.some((part) => part.lang === 'ja')).toBe(true)
+    expect(exerciseWithChineseExplanation?.explanation?.some((part) => part.lang === 'zh-TW')).toBe(true)
+    expect(exerciseWithChineseExplanation?.explanation?.find((part) => part.text === 'framing')).toMatchObject({
+      lang: 'en',
+    })
+
+    expect(exerciseWithEmbeddedEnglish?.question.find((part) => part.text === 'Pivot')).toMatchObject({
+      lang: 'en',
+    })
+    expect(exerciseWithEmbeddedEnglish?.answer?.find((part) => part.text === 'defer')).toMatchObject({
+      lang: 'en',
+    })
+    expect(exerciseWithEmbeddedEnglish?.explanation?.find((part) => part.text === 'parking')).toMatchObject({
+      lang: 'en',
+    })
+    expect(exerciseWithEmbeddedEnglish?.explanation?.some((part) => part.lang === 'ja')).toBe(true)
+  })
+
   it.each([
     ['/learn/unknown-course', <LearnUnitPage />],
     ['/practice/unknown-activity', <PracticeActivityPage />],
