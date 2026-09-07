@@ -29,6 +29,12 @@ describe('learning runtime route identities', () => {
     expect(learnUnit?.title).toBe(releasedChapter?.title)
     expect(learnUnit?.learnSlug).toBe(`meeting-japanese-${releasedChapter?.slug}`)
     expect(learnUnit?.practiceSlug).toBe(releasedChapter?.slug)
+    const pivotStep = learnUnit?.learn.steps.find((step) =>
+      step.title.some((part) => part.text === 'Pivot'),
+    )
+    expect(pivotStep?.title.find((part) => part.text === 'Pivot')).toMatchObject({
+      lang: 'en',
+    })
     expect(practiceUnit?.practice.exercises.map(({ id }) => id)).toEqual(releasedExerciseIds)
     expect(learnUnit?.practiceSlug).toBe(COURSE_CORRECTION_PRACTICE_SLUG)
     expect(practiceUnit?.learnSlug).toBe(COURSE_CORRECTION_LEARN_SLUG)

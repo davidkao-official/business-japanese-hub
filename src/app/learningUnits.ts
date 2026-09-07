@@ -25,7 +25,7 @@ export type LearningTextBlock = readonly LearningText[]
 
 export interface LearningUnitStep {
   readonly number: string
-  readonly title: LearningText
+  readonly title: LearningTextBlock
   readonly body: LearningTextBlock
 }
 
@@ -213,7 +213,7 @@ function createAdmittedLearningUnit(): LearningUnitRouteData | undefined {
   const language = sourceLanguage(admittedBook.language)
   const steps = stepTable.rows.slice(0, 3).map((row, index) => ({
     number: String(index + 1).padStart(2, '0'),
-    title: asText(row[0], language),
+    title: projectAuthoredText(row[0], language),
     body: [asText(row[1], language), asText(` ${row[2]}`, language)],
   }))
 

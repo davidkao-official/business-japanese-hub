@@ -44,7 +44,7 @@ export function LearnUnitPage() {
           <li key={step.number}>
             <span className="learning-unit-flow__number" aria-hidden="true">{step.number}</span>
             <div>
-              <h2>{renderLearningText([step.title])}</h2>
+              <h2>{renderLearningText(step.title)}</h2>
               <p>{renderLearningText(step.body)}</p>
             </div>
           </li>

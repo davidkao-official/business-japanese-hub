@@ -44,6 +44,7 @@ export function PracticeActivityPage() {
           const response = responses[exercise.id] ?? ''
           const isRevealed = revealed[exercise.id] === true
           const titleId = `practice-exercise-title-${index}`
+          const questionId = `practice-exercise-question-${exercise.id}`
 
           return (
             <section
@@ -61,12 +62,14 @@ export function PracticeActivityPage() {
                   setRevealed((current) => ({ ...current, [exercise.id]: false }))
                 }}
               >
-                <p className="practice-activity-card__question">
+                <p className="practice-activity-card__question" id={questionId}>
                   {renderLearningText(exercise.question)}
                 </p>
                 {exercise.options.length > 0 ? (
-                  <fieldset className="practice-activity-card__choices">
-                    <legend className="visually-hidden">Choice</legend>
+                  <fieldset
+                    aria-labelledby={questionId}
+                    className="practice-activity-card__choices"
+                  >
                     {exercise.options.map((option, optionIndex) => {
                       const value = String(optionIndex)
                       return (

@@ -28,6 +28,11 @@ describe('Practice activity projection', () => {
 
     const firstCard = cards[0]
     if (!firstCard) throw new Error('missing first practice exercise')
+    expect(
+      within(firstCard).getByRole('group', {
+        name: /プロジェクト進捗会議で、先輩が過去案件の話を続けています。/,
+      }),
+    ).toBeInTheDocument()
     fireEvent.click(within(firstCard).getAllByRole('radio')[1]!)
     fireEvent.click(within(firstCard).getByRole('button', { name: 'Submit' }))
 
