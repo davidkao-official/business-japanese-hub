@@ -4,6 +4,7 @@ import { Route, Routes } from 'react-router-dom'
 import { renderWithAppProviders } from '../test/appProviders'
 import { LearnUnitPage } from './LearnUnitPage'
 import { PracticeActivityPage } from './PracticeActivityPage'
+import { getBookBySlug } from '../reader/catalog'
 import {
   COURSE_CORRECTION_LEARN_SLUG,
   COURSE_CORRECTION_PRACTICE_SLUG,
@@ -17,7 +18,14 @@ describe('learning runtime route identities', () => {
   it('maps Learn and Practice through separate route identities', () => {
     const learnUnit = getLearningUnitByLearnSlug(COURSE_CORRECTION_LEARN_SLUG)
     const practiceUnit = getLearningUnitByPracticeSlug(COURSE_CORRECTION_PRACTICE_SLUG)
+    const releasedChapter = getBookBySlug('meeting-japanese')?.chapters.find(
+      ({ slug }) => slug === 'course-correction',
+    )
 
+    expect(releasedChapter).toBeDefined()
+    expect(learnUnit?.title).toBe(releasedChapter?.title)
+    expect(learnUnit?.learnSlug).toBe(`meeting-japanese-${releasedChapter?.slug}`)
+    expect(learnUnit?.practiceSlug).toBe(releasedChapter?.slug)
     expect(learnUnit?.practiceSlug).toBe(COURSE_CORRECTION_PRACTICE_SLUG)
     expect(practiceUnit?.learnSlug).toBe(COURSE_CORRECTION_LEARN_SLUG)
     expect(getLearningUnitByPracticeSlug(COURSE_CORRECTION_LEARN_SLUG)).toBeUndefined()

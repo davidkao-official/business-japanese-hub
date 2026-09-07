@@ -163,13 +163,13 @@
   background: var(--color-surface-muted);
 }
 
-.learning-module-link span:first-child {
+.learning-module-link > span:first-child {
   font-family: var(--font-serif);
   font-size: var(--text-lg);
   font-weight: var(--font-weight-medium);
 }
 
-.learning-module-link span:nth-child(2),
+.learning-module-link > span:nth-child(2),
 .learning-unit-page__label,
 .practice-activity-card__label {
   color: var(--color-text-muted);
@@ -180,7 +180,7 @@
   text-transform: uppercase;
 }
 
-.learning-module-link span:last-child {
+.learning-module-link > span:last-child {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
