@@ -34,6 +34,20 @@ describe('product mode gateways', () => {
     }
   })
 
+  it.each([
+    ['ja', '公開中の書籍', 'マイライブラリを開く'],
+    ['en', 'published book', 'Open My Library'],
+    ['zh-TW', '公開書籍目錄', '開啟我的書庫'],
+  ] as const)('keeps the public Read catalog copy separate from the personal shelf in %s', (locale, catalogCue, shelfLabel) => {
+    setLocalePreference(locale)
+    renderWithAppProviders(<ProductModePage mode="read" />)
+
+    const strings = getStrings(locale)
+    expect(screen.getByText(strings.learningModes.read.capabilityLead)).toBeInTheDocument()
+    expect(strings.learningModes.read.capabilityLead).toContain(catalogCue)
+    expect(screen.getByRole('link', { name: shelfLabel })).toHaveAttribute('href', '/library')
+  })
+
   it('keeps Experience linked to the separate Career Game origin', () => {
     renderWithAppProviders(<ProductModePage mode="experience" />)
 

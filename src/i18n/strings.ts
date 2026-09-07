@@ -364,8 +364,8 @@ const ja: AppStrings = {
     read: {
       capabilityTitle: '長文を読む',
       capabilityLead:
-        '既存のライブラリを長文読書への安定した入口として利用できます。Book と Reader の既存互換ルートも引き続き利用できます。',
-      browseLibrary: 'ライブラリを開く',
+        '公開中の書籍を下の一覧から選び、Book の詳細から Reader で長文読書を始められます。個人の書籍と読書の進捗はマイライブラリで確認できます。',
+      browseLibrary: 'マイライブラリを開く',
     },
     experience: {
       capabilityTitle: 'Career Game',
@@ -638,8 +638,8 @@ const en: AppStrings = {
     read: {
       capabilityTitle: 'Long-form reading',
       capabilityLead:
-        'The existing Library remains the stable entry to long-form reading. Book and Reader routes remain available as direct compatibility paths.',
-      browseLibrary: 'Browse the Library',
+        'Choose a published book from the catalog below to start long-form reading. Your owned books and reading progress remain available in My Library.',
+      browseLibrary: 'Open My Library',
     },
     experience: {
       capabilityTitle: 'Career Game',
@@ -912,8 +912,8 @@ const zhTW: AppStrings = {
     read: {
       capabilityTitle: '長篇閱讀',
       capabilityLead:
-        '既有書庫是長篇閱讀的穩定入口；Book 與 Reader 的相容路徑也會繼續保留。',
-      browseLibrary: '開啟書庫',
+        '從下方的公開書籍目錄選擇書籍，開始長篇閱讀；已擁有的書籍與閱讀進度仍可在我的書庫查看。',
+      browseLibrary: '開啟我的書庫',
     },
     experience: {
       capabilityTitle: 'Career Game',
