@@ -5,6 +5,7 @@ import {
   createCrossProductMovementDeduper,
   type ValidationAnalytics,
 } from '@business-japanese-hub/validation-analytics'
+import { useStrings } from '../i18n/strings'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { CAREER_GAME_HREF, PRODUCT_MODE_BY_ID, PRODUCT_MODES, type ProductModeId } from './productModes'
 
@@ -20,8 +21,10 @@ export interface ProductModePageProps {
 
 export function ProductModePage({ mode, analytics = browserValidationAnalytics }: ProductModePageProps) {
   const content = PRODUCT_MODE_BY_ID[mode]
+  const strings = useStrings()
+  const modeStrings = strings.learningModes.modes[mode]
   const careerGameMovementDeduper = useRef(createCrossProductMovementDeduper())
-  useDocumentTitle(`${content.title} — Business Japanese Hub`)
+  useDocumentTitle(`${modeStrings.title} — ${strings.app.name}`)
 
   function trackCareerGameLink(event: MouseEvent<HTMLAnchorElement>): void {
     const isAuxiliaryClick = event.type === 'auxclick'
@@ -48,22 +51,22 @@ export function ProductModePage({ mode, analytics = browserValidationAnalytics }
           {content.label}
         </p>
         <h1 className="page__title" id={`${content.id}-title`}>
-          {content.title}
+          <span lang="en">{modeStrings.title}</span>
         </h1>
-        <p className="page__lead">{content.lead}</p>
+        <p className="page__lead">{modeStrings.lead}</p>
       </div>
 
       {mode === 'read' ? <ReadModeLinks /> : null}
       {mode === 'experience' ? <ExperienceModeLink onNavigate={trackCareerGameLink} /> : null}
 
-      <nav className="product-mode-page__next" aria-label="Learning modes">
-        <h2>Continue exploring</h2>
+      <nav className="product-mode-page__next" aria-label={strings.learningModes.navigationLabel}>
+        <h2>{strings.learningModes.continueTitle}</h2>
         <ul>
           {PRODUCT_MODES.filter((candidate) => candidate.id !== mode).map((candidate) => (
             <li key={candidate.id}>
               <Link to={candidate.href}>
                 <span lang="en">{candidate.label}</span>
-                <span>{candidate.summary}</span>
+                <span>{strings.learningModes.modes[candidate.id].summary}</span>
               </Link>
             </li>
           ))}
@@ -74,16 +77,15 @@ export function ProductModePage({ mode, analytics = browserValidationAnalytics }
 }
 
 function ReadModeLinks() {
+  const strings = useStrings()
+
   return (
     <section className="product-mode-page__capability" aria-labelledby="read-capability-title">
-      <h2 id="read-capability-title">Long-form reading</h2>
-      <p>
-        The existing Library remains the stable entry to long-form reading. Book and Reader routes
-        remain available as direct compatibility paths.
-      </p>
+      <h2 id="read-capability-title">{strings.learningModes.read.capabilityTitle}</h2>
+      <p>{strings.learningModes.read.capabilityLead}</p>
       <div className="product-mode-page__actions">
         <Link className="btn btn--primary" to="/library">
-          Browse the Library
+          {strings.learningModes.read.browseLibrary}
         </Link>
       </div>
     </section>
@@ -91,19 +93,19 @@ function ReadModeLinks() {
 }
 
 function ExperienceModeLink({ onNavigate }: { onNavigate: (event: MouseEvent<HTMLAnchorElement>) => void }) {
+  const strings = useStrings()
+
   return (
     <section className="product-mode-page__capability" aria-labelledby="experience-capability-title">
-      <h2 id="experience-capability-title">Career Game</h2>
-      <p>
-        Follow the separate Experience runtime to apply workplace judgment in a story-driven case.
-      </p>
+      <h2 id="experience-capability-title">{strings.learningModes.experience.capabilityTitle}</h2>
+      <p>{strings.learningModes.experience.capabilityLead}</p>
       <a
         className="btn btn--primary"
         href={CAREER_GAME_HREF}
         onClick={onNavigate}
         onAuxClick={onNavigate}
       >
-        Open Career Game
+        {strings.learningModes.experience.openCareerGame}
       </a>
     </section>
   )

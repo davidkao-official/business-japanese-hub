@@ -1,7 +1,16 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { screen, within } from '@testing-library/react'
+import { getStrings, setLocalePreference } from '../i18n/strings'
 import { renderWithAppProviders } from '../test/appProviders'
 import { HomePage } from './HomePage'
+
+beforeEach(() => {
+  setLocalePreference('ja')
+})
+
+afterEach(() => {
+  setLocalePreference(null)
+})
 
 describe('learning-service home', () => {
   it('makes the five learning modes primary without rendering a one-time Book sales shell', () => {
@@ -75,5 +84,22 @@ describe('learning-service home', () => {
     })
     expect(cofounderHeading.closest('article')).toHaveAttribute('lang', 'zh-TW')
     expect(screen.getByText('現居東京，並於東京的語言學校學習日文')).toBeInTheDocument()
+  })
+
+  it('uses locale-owned mode copy while language-scoping canonical mode names', () => {
+    setLocalePreference('zh-TW')
+    renderWithAppProviders(<HomePage />)
+
+    const strings = getStrings('zh-TW')
+    expect(
+      screen.getByRole('heading', { level: 2, name: strings.learningModes.serviceTitle }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(strings.learningModes.modes.read.summary)).toBeInTheDocument()
+
+    const readLabel = document.querySelector(
+      'a[href="/read"] .learning-modes__link-label',
+    )
+    expect(readLabel).toHaveAttribute('lang', 'en')
+    expect(readLabel).toHaveTextContent('Read')
   })
 })

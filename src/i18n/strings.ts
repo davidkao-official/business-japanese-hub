@@ -58,6 +58,49 @@ export interface AppStrings {
     selectionsLabel: string
     selectionsTitle: string
   }
+  learningModes: {
+    navigationLabel: string
+    serviceLabel: string
+    serviceTitle: string
+    continueTitle: string
+    modes: {
+      learn: {
+        title: string
+        summary: string
+        lead: string
+      }
+      read: {
+        title: string
+        summary: string
+        lead: string
+      }
+      practice: {
+        title: string
+        summary: string
+        lead: string
+      }
+      'my-learning': {
+        title: string
+        summary: string
+        lead: string
+      }
+      experience: {
+        title: string
+        summary: string
+        lead: string
+      }
+    }
+    read: {
+      capabilityTitle: string
+      capabilityLead: string
+      browseLibrary: string
+    }
+    experience: {
+      capabilityTitle: string
+      capabilityLead: string
+      openCareerGame: string
+    }
+  }
   library: {
     title: string
     signedOut: string
@@ -285,6 +328,50 @@ const ja: AppStrings = {
     samplesTitle: '実際の文章と会話から学ぶ',
     selectionsLabel: '書籍からの選書',
     selectionsTitle: '公開中の書籍から、読む場所を選ぶ',
+  },
+  learningModes: {
+    navigationLabel: '学習モード',
+    serviceLabel: '学習サービス',
+    serviceTitle: '次に役立つ学び方を選ぶ',
+    continueTitle: 'ほかのモードを見る',
+    modes: {
+      learn: {
+        title: 'Learn',
+        summary: '実際の職場場面から、使える判断力を身につける。',
+        lead: '日本の職場で必要な判断・表現・背景を学びます。',
+      },
+      read: {
+        title: 'Read',
+        summary: '日本のビジネス情報と長文コンテンツを文脈の中で読む。',
+        lead: '既存のライブラリとリーダーを通じて、日本語のビジネス情報を直接読みます。',
+      },
+      practice: {
+        title: 'Practice',
+        summary: '言語を職場の行動につなげる反復練習に取り組む。',
+        lead: '反復できる想起と判断の練習を、ここから整備していきます。',
+      },
+      'my-learning': {
+        title: 'My Learning',
+        summary: '実際の進捗・復習・保存項目・次の一歩に戻る。',
+        lead: '作られたスコアではなく、説明可能な実データから学習状態を育てます。',
+      },
+      experience: {
+        title: 'Experience',
+        summary: '具体的な物語の中で職場の判断を試し、その結果を知る。',
+        lead: '独立してデプロイされる Career Game 職場シミュレーターへの入口です。',
+      },
+    },
+    read: {
+      capabilityTitle: '長文を読む',
+      capabilityLead:
+        '既存のライブラリを長文読書への安定した入口として利用できます。Book と Reader の既存互換ルートも引き続き利用できます。',
+      browseLibrary: 'ライブラリを開く',
+    },
+    experience: {
+      capabilityTitle: 'Career Game',
+      capabilityLead: '独立した Experience ランタイムで、物語形式の職場ケースを通じて判断を試します。',
+      openCareerGame: 'Career Game を開く',
+    },
   },
   library: {
     title: 'マイライブラリ',
@@ -516,6 +603,50 @@ const en: AppStrings = {
     selectionsLabel: 'Selected from the books',
     selectionsTitle: 'Find a place to begin in the published books.',
   },
+  learningModes: {
+    navigationLabel: 'Learning modes',
+    serviceLabel: 'Learning service',
+    serviceTitle: 'Find your next useful mode',
+    continueTitle: 'Continue exploring',
+    modes: {
+      learn: {
+        title: 'Learn',
+        summary: 'Build a workplace capability from a real situation to a usable decision.',
+        lead: 'Study the judgment, language, and context behind Japanese workplace communication.',
+      },
+      read: {
+        title: 'Read',
+        summary: 'Read Japanese business information and long-form editorial content in context.',
+        lead: 'Read business information directly in Japanese, with the existing Library and Reader as long-form paths.',
+      },
+      practice: {
+        title: 'Practice',
+        summary: 'Repeat retrieval and judgment practice that connects language to workplace action.',
+        lead: 'Practice is the home for repeatable retrieval and judgment surfaces as they become available.',
+      },
+      'my-learning': {
+        title: 'My Learning',
+        summary: 'Return to real progress, review, saved items, and the next useful step.',
+        lead: 'Your learning state will grow from real, explainable evidence rather than an invented score.',
+      },
+      experience: {
+        title: 'Experience',
+        summary: 'Apply workplace judgment in a concrete story and see the consequences.',
+        lead: 'Experience is the gateway to the separately deployed Career Game workplace simulator.',
+      },
+    },
+    read: {
+      capabilityTitle: 'Long-form reading',
+      capabilityLead:
+        'The existing Library remains the stable entry to long-form reading. Book and Reader routes remain available as direct compatibility paths.',
+      browseLibrary: 'Browse the Library',
+    },
+    experience: {
+      capabilityTitle: 'Career Game',
+      capabilityLead: 'Follow the separate Experience runtime to apply workplace judgment in a story-driven case.',
+      openCareerGame: 'Open Career Game',
+    },
+  },
   library: {
     title: 'My Library',
     signedOut: 'Sign in to see the books you own and your reading progress here.',
@@ -745,6 +876,50 @@ const zhTW: AppStrings = {
     samplesTitle: '從實際句子與對話開始學習',
     selectionsLabel: '書籍選讀',
     selectionsTitle: '從已公開的書籍中，找到開始閱讀的位置',
+  },
+  learningModes: {
+    navigationLabel: '學習模式',
+    serviceLabel: '學習服務',
+    serviceTitle: '選擇下一個有用的學習模式',
+    continueTitle: '繼續探索',
+    modes: {
+      learn: {
+        title: 'Learn',
+        summary: '從真實情境培養能用於職場的判斷力。',
+        lead: '學習日本職場溝通背後的判斷、語言與脈絡。',
+      },
+      read: {
+        title: 'Read',
+        summary: '在脈絡中閱讀日本商務資訊與長篇內容。',
+        lead: '透過既有書庫與閱讀器，直接閱讀日文商務資訊與長篇內容。',
+      },
+      practice: {
+        title: 'Practice',
+        summary: '反覆練習提取與判斷，將語言連結到職場行動。',
+        lead: '這裡會逐步提供可反覆使用的提取與判斷練習。',
+      },
+      'my-learning': {
+        title: 'My Learning',
+        summary: '回到真實進度、複習、已儲存項目與下一個有用步驟。',
+        lead: '以可解釋的真實紀錄培養學習狀態，而不是虛構的分數。',
+      },
+      experience: {
+        title: 'Experience',
+        summary: '在具體故事中應用職場判斷，了解不同選擇的結果。',
+        lead: '前往獨立部署的 Career Game 職場模擬器，體驗故事中的判斷。',
+      },
+    },
+    read: {
+      capabilityTitle: '長篇閱讀',
+      capabilityLead:
+        '既有書庫是長篇閱讀的穩定入口；Book 與 Reader 的相容路徑也會繼續保留。',
+      browseLibrary: '開啟書庫',
+    },
+    experience: {
+      capabilityTitle: 'Career Game',
+      capabilityLead: '前往獨立的 Experience 執行環境，透過故事化職場個案應用判斷力。',
+      openCareerGame: '開啟 Career Game',
+    },
   },
   library: {
     title: '我的書庫',

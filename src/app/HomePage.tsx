@@ -55,14 +55,14 @@ export function HomePage() {
 }
 
 function LearningModes() {
+  const strings = useStrings()
+
   return (
     <section className="learning-modes" aria-labelledby="learning-modes-title">
       <div className="learning-modes__intro">
-        <p className="learning-modes__label" lang="en">
-          Learning service
-        </p>
+        <p className="learning-modes__label">{strings.learningModes.serviceLabel}</p>
         <h2 className="learning-modes__title" id="learning-modes-title">
-          Find your next useful mode
+          {strings.learningModes.serviceTitle}
         </h2>
       </div>
       <ul className="learning-modes__list">
@@ -72,7 +72,9 @@ function LearningModes() {
               <span className="learning-modes__link-label" lang="en">
                 {mode.label}
               </span>
-              <span className="learning-modes__link-summary">{mode.summary}</span>
+              <span className="learning-modes__link-summary">
+                {strings.learningModes.modes[mode.id].summary}
+              </span>
             </Link>
           </li>
         ))}
