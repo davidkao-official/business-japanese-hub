@@ -23,6 +23,8 @@ describe('Practice activity projection', () => {
     expect(screen.getAllByRole('textbox')).toHaveLength(3)
     expect(screen.getByText(/書き換えてください/)).toBeInTheDocument()
     expect(screen.getByText(/三つの立場/)).toBeInTheDocument()
+    expect(cards.every((card) => within(card).getAllByRole('heading', { level: 2 }).length === 1)).toBe(true)
+    expect(cards.every((card) => card.querySelector('.practice-activity-card__label') === null)).toBe(true)
 
     const firstCard = cards[0]
     if (!firstCard) throw new Error('missing first practice exercise')
@@ -35,5 +37,15 @@ describe('Practice activity projection', () => {
 
     expect(within(firstCard).getByText('二つ目')).toBeInTheDocument()
     expect(within(firstCard).getByText(/Feedback:/)).toBeInTheDocument()
+
+    const thirdCard = cards[2]
+    if (!thirdCard) throw new Error('missing third practice exercise')
+    fireEvent.change(within(thirdCard).getByRole('textbox'), { target: { value: '回到主線' } })
+    fireEvent.click(within(thirdCard).getByRole('button', { name: 'Submit' }))
+    fireEvent.click(within(thirdCard).getByRole('button', { name: 'Reveal answer' }))
+
+    expect(thirdCard.querySelectorAll('br')).toHaveLength(2)
+    expect(within(thirdCard).getByText(/①ここまでの意見/)).toBeInTheDocument()
+    expect(within(thirdCard).getByText(/②少し論点/)).toBeInTheDocument()
   })
 })

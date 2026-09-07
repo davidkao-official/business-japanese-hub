@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useStrings } from '../i18n/strings'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
@@ -51,9 +51,6 @@ export function PracticeActivityPage() {
               aria-labelledby={titleId}
               key={exercise.id}
             >
-              <p className="practice-activity-card__label" lang="en">
-                Exercise {String(index + 1).padStart(2, '0')}
-              </p>
               <h2 id={titleId} lang="en">
                 Exercise {String(index + 1).padStart(2, '0')}
               </h2>
@@ -80,9 +77,10 @@ export function PracticeActivityPage() {
                             value={value}
                             checked={response === value}
                             onChange={(event) => {
+                              const nextResponse = event.currentTarget.value
                               setResponses((current) => ({
                                 ...current,
-                                [exercise.id]: event.currentTarget.value,
+                                [exercise.id]: nextResponse,
                               }))
                               setSubmitted((current) => ({ ...current, [exercise.id]: false }))
                               setRevealed((current) => ({ ...current, [exercise.id]: false }))
@@ -100,9 +98,10 @@ export function PracticeActivityPage() {
                       rows={4}
                       value={response}
                       onChange={(event) => {
+                        const nextResponse = event.currentTarget.value
                         setResponses((current) => ({
                           ...current,
-                          [exercise.id]: event.currentTarget.value,
+                          [exercise.id]: nextResponse,
                         }))
                         setSubmitted((current) => ({ ...current, [exercise.id]: false }))
                         setRevealed((current) => ({ ...current, [exercise.id]: false }))
@@ -160,9 +159,13 @@ export function PracticeActivityPage() {
 }
 
 function renderLearningText(segments: LearningTextBlock) {
-  return segments.map((segment, index) => (
-    <span key={`${segment.lang}-${index}`} lang={segment.lang}>
-      {segment.text}
-    </span>
-  ))
+  return segments.flatMap((segment, index) => {
+    const lines = segment.text.split('\n')
+    return lines.map((line, lineIndex) => (
+      <Fragment key={`${segment.lang}-${index}-${lineIndex}`}>
+        <span lang={segment.lang}>{line}</span>
+        {lineIndex < lines.length - 1 ? <br /> : null}
+      </Fragment>
+    ))
+  })
 }
