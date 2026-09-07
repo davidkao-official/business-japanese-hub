@@ -11,6 +11,7 @@ import { careerGameHomeHref } from '../lib/cross-product/careerGame'
 import { BookCover } from '../components/BookCover'
 import { listCatalogEntries } from '../reader/catalog'
 import { PRODUCT_MODE_BY_ID, PRODUCT_MODES, type ProductModeId } from './productModes'
+import { COURSE_CORRECTION_SLUG } from './LearnUnitPage'
 
 const browserValidationAnalytics = createBrowserValidationAnalytics({
   functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,
@@ -60,6 +61,7 @@ export function ProductModePage({ mode, analytics = browserValidationAnalytics }
       </div>
 
       {mode === 'read' ? <ReadModeLinks /> : null}
+      {mode === 'learn' ? <LearnModeLinks /> : null}
       {mode === 'experience' ? <ExperienceModeLink onNavigate={trackCareerGameLink} /> : null}
 
       <nav className="product-mode-page__next" aria-label={strings.learningModes.navigationLabel}>
@@ -75,6 +77,27 @@ export function ProductModePage({ mode, analytics = browserValidationAnalytics }
           ))}
         </ul>
       </nav>
+    </section>
+  )
+}
+
+function LearnModeLinks() {
+  return (
+    <section className="product-mode-page__capability learn-module-list" aria-labelledby="learn-module-title">
+      <div>
+        <p className="product-mode-page__eyebrow" lang="en">
+          Course Correction
+        </p>
+        <h2 id="learn-module-title">會議中的議論整理</h2>
+        <p>
+          從具體的會議場面，學習如何在保留對話關係的同時，把討論帶回主要論點。
+        </p>
+      </div>
+      <Link className="learning-module-link" to={`/learn/${COURSE_CORRECTION_SLUG}`}>
+        <span lang="ja">議論を本筋に戻す</span>
+        <span lang="en">Course Correction</span>
+        <span>承接對方的觀點，再 pivot 回到可作決定的主題。</span>
+      </Link>
     </section>
   )
 }
