@@ -80,7 +80,7 @@ export function LibraryPage() {
       <LibraryShell>
         <div className="library-state">
           <p>{strings.library.empty}</p>
-          <Link className="btn btn--primary" to="/">
+          <Link className="btn btn--primary" to="/read">
             {strings.library.browseBooks}
           </Link>
         </div>

@@ -33,7 +33,7 @@ describe('personal library', () => {
     renderLibrary({ session: user, repository: createMockRepository() })
 
     expect(await screen.findByText('まだ書籍を購入していません。')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '書籍を探す' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: '書籍を探す' })).toHaveAttribute('href', '/read')
   })
 
   it('puts books with a reading state in the 続きを読む section with a resume href', async () => {
