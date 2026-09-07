@@ -33,7 +33,7 @@ export function LearnUnitPage() {
       </div>
 
       <p className="learning-unit-page__sequence">
-        <span aria-hidden="true">承接 → Pivot → 收斂</span>
+        <span aria-hidden="true">{learningUnit.learn.sequence.map((segment) => segment.text).join('')}</span>
         <span className="visually-hidden">
           {renderLearningText(learningUnit.learn.sequence)}
         </span>
