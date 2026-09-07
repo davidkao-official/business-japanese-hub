@@ -33,7 +33,10 @@ export function LearnUnitPage() {
       </div>
 
       <p className="learning-unit-page__sequence">
-        {renderLearningText(learningUnit.learn.sequence)}
+        <span aria-hidden="true">承接 → Pivot → 收斂</span>
+        <span className="visually-hidden">
+          {renderLearningText(learningUnit.learn.sequence)}
+        </span>
       </p>
 
       <ol className="learning-unit-flow" aria-label="Learn unit steps" lang="en">
