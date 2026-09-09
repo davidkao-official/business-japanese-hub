@@ -1,6 +1,6 @@
 begin;
 
-select plan(13);
+select plan(14);
 
 select has_table('public', 'private_content_release', 'private content delivery uses a server-only release table');
 select ok(
