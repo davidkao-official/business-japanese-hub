@@ -84,13 +84,26 @@ describe('content delivery', () => {
       db: dbFor('user-1'),
       membershipAccessFor: async () => 'active',
       getRelease: async () => ({
-        contentId,
-        revision,
-        contentKind: 'book',
-        payload: { example: 'private fixture only' },
+        kind: 'found',
+        release: {
+          contentId,
+          revision,
+          contentKind: 'book',
+          payload: { example: 'private fixture only' },
+        },
       }),
     })
     expect(result.status).toBe(200)
     expect(result.body).toContain('private fixture only')
+  })
+
+  it('fails closed when the server release store is unavailable', async () => {
+    const result = await handleContentDelivery(request(), {
+      db: dbFor('user-1'),
+      membershipAccessFor: async () => 'active',
+      getRelease: async () => ({ kind: 'unavailable' }),
+    })
+    expect(result.status).toBe(503)
+    expect(result.body).not.toContain('database')
   })
 })

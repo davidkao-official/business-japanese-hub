@@ -23,10 +23,15 @@ export interface PrivateContentRelease {
   payload: Record<string, unknown>
 }
 
+export type ReleaseLookup =
+  | { kind: 'found'; release: PrivateContentRelease }
+  | { kind: 'missing' }
+  | { kind: 'unavailable' }
+
 export interface ContentDeliveryDeps {
   db: DbClient
   membershipAccessFor: (userId: string) => Promise<MembershipAccess>
-  getRelease: (contentId: string, revision: string) => Promise<PrivateContentRelease | null>
+  getRelease: (contentId: string, revision: string) => Promise<ReleaseLookup>
 }
 
 function requestReference(url: string): { contentId: string; revision: string } | null {
@@ -61,8 +66,10 @@ export async function handleContentDelivery(
   if (access === 'unavailable') return jsonResult(503, { error: 'membership access unavailable' })
   if (access !== 'active') return forbidden('active membership required')
 
-  const release = await deps.getRelease(reference.contentId, reference.revision)
-  if (!release) return notFound('published member content not found')
+  const lookup = await deps.getRelease(reference.contentId, reference.revision)
+  if (lookup.kind === 'unavailable') return jsonResult(503, { error: 'content delivery unavailable' })
+  if (lookup.kind === 'missing') return notFound('published member content not found')
+  const { release } = lookup
   return jsonResult(200, {
     content: {
       contentId: release.contentId,

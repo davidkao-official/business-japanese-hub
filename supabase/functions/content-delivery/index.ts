@@ -10,13 +10,13 @@ import { browserCors, withCorsHeaders } from '../_shared/cors.ts'
 import { createServiceRoleClient, type DbClient } from '../_shared/db.ts'
 import { toHandlerRequest, toResponse } from '../_shared/deno.ts'
 import { readEnvFrom } from '../_shared/env.ts'
-import { handleContentDelivery, type PrivateContentRelease } from './handler.ts'
+import { handleContentDelivery, type ReleaseLookup } from './handler.ts'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function releaseStore(db: DbClient): (contentId: string, revision: string) => Promise<PrivateContentRelease | null> {
+function releaseStore(db: DbClient): (contentId: string, revision: string) => Promise<ReleaseLookup> {
   return async (contentId, revision) => {
     const { data, error } = await db
       .from('private_content_release')
@@ -24,17 +24,28 @@ function releaseStore(db: DbClient): (contentId: string, revision: string) => Pr
       .eq('content_id', contentId)
       .eq('revision', revision)
       .maybeSingle()
-    if (error || !data || !isRecord(data.payload)) return null
+    if (error) {
+      console.error('content-delivery release lookup failed', error.message)
+      return { kind: 'unavailable' }
+    }
+    if (!data) return { kind: 'missing' }
     if (
+      !isRecord(data.payload) ||
       typeof data.content_id !== 'string' ||
       typeof data.revision !== 'string' ||
       typeof data.content_kind !== 'string'
-    ) return null
+    ) {
+      console.error('content-delivery release lookup returned an invalid payload')
+      return { kind: 'unavailable' }
+    }
     return {
-      contentId: data.content_id,
-      revision: data.revision,
-      contentKind: data.content_kind,
-      payload: data.payload,
+      kind: 'found',
+      release: {
+        contentId: data.content_id,
+        revision: data.revision,
+        contentKind: data.content_kind,
+        payload: data.payload,
+      },
     }
   }
 }
