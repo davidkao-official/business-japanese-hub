@@ -44,6 +44,10 @@ function readBoundary(value: unknown): PreviewBoundary | null {
   return null
 }
 
+function hasUndeliverableAssets(book: Book): boolean {
+  return Boolean(book.cover) || book.chapters.some((chapter) => chapter.blocks.some((block) => block.type === 'image'))
+}
+
 /**
  * Validates a Book held outside this repository and prepares an immutable,
  * member-only server import. The full payload stays in process memory for the
@@ -58,6 +62,9 @@ export function preparePrivateBookRelease(
   if (!validated.ok) return { ok: false, reason: `invalid Book: ${validated.issues[0]?.message ?? 'unknown error'}` }
   if (validated.value.publication?.status !== 'published') {
     return { ok: false, reason: 'private Book must be explicitly published before server import' }
+  }
+  if (hasUndeliverableAssets(validated.value)) {
+    return { ok: false, reason: 'private Book assets require a server-authorized immutable asset adapter before import' }
   }
 
   const manifest = isRecord(rawManifest) ? rawManifest : {}

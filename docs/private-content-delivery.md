@@ -34,7 +34,7 @@ bounded renderer (future integration)
 
 目前 #107 的 authoritative Plus membership projection 尚未實作。因此 `content-delivery` 對任何已驗證 user 都回傳 truthful `503 membership access unavailable`，而且在該狀態不查詢/回傳 payload。這是刻意 fail-closed，不是 active-member claim。#107 必須以 verified server membership projection 替換 resolver，並在有真實 active/non-member/expired evidence 時才把 member release 接到 renderer。browser request、local storage 或 client flag 永遠不能取得 payload。
 
-私有資產目前沒有 server-delivery adapter；proprietary assets 不得暫時改走 `content-dist/assets` 或 Vite。擁有私有資產的 bounded runtime 必須先提供同等 server-authoritative asset authorization、immutable revision coverage 與 tests。
+私有資產目前沒有 server-delivery adapter；proprietary assets 不得暫時改走 `content-dist/assets` 或 Vite。private Book importer 會 fail closed，拒絕含 `cover` 或 `image` block 的 payload；擁有私有資產的 bounded runtime 必須先提供同等 server-authoritative asset authorization、immutable revision coverage 與 tests。
 
 ## Legacy static workflow is deliberately legacy-only
 
