@@ -1,21 +1,42 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
-import { renderWithAppProviders } from '../test/appProviders'
+import { createMockRepository, renderWithAppProviders } from '../test/appProviders'
+import { getBookBySlug } from '../reader/catalog'
 import { PracticeActivityPage } from './PracticeActivityPage'
 import { COURSE_CORRECTION_PRACTICE_SLUG } from './learningUnits'
 
 afterEach(() => cleanup())
 
+const meetingJapanese = getBookBySlug('meeting-japanese')
+if (!meetingJapanese) throw new Error('meeting-japanese released Book is required by #110 acceptance')
+
+const owner = { id: 'u-110-owner', email: 'owner@example.com' }
+
 describe('Practice activity projection', () => {
-  it('renders every released exercise and locally reveals answer feedback', () => {
+  it('renders every released exercise and locally reveals answer feedback for an owner', async () => {
+    const repository = createMockRepository({
+      entitlements: {
+        [meetingJapanese.id]: {
+          bookId: meetingJapanese.id,
+          provider: 'manual',
+          grantedAt: '2026-09-08T00:00:00.000Z',
+        },
+      },
+    })
+
     renderWithAppProviders(
       <Routes>
         <Route path="/practice/:slug" element={<PracticeActivityPage />} />
       </Routes>,
-      { initialEntries: [`/practice/${COURSE_CORRECTION_PRACTICE_SLUG}`] },
+      {
+        initialEntries: [`/practice/${COURSE_CORRECTION_PRACTICE_SLUG}`],
+        session: owner,
+        repository,
+      },
     )
 
+    await screen.findByRole('heading', { level: 2, name: 'Exercise 01' })
     const cards = Array.from(document.querySelectorAll<HTMLElement>('.practice-activity-card'))
     expect(cards).toHaveLength(4)
     expect(screen.getAllByRole('button', { name: 'Submit' })).toHaveLength(4)
