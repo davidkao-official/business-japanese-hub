@@ -1,6 +1,6 @@
 begin;
 
-select plan(9);
+select plan(10);
 
 select has_table('public', 'private_content_release', 'private content delivery uses a server-only release table');
 select ok(
@@ -15,6 +15,14 @@ select ok(
 select ok(
   has_table_privilege('service_role', 'public.private_content_release', 'select,insert'),
   'service role can perform controlled imports and server delivery reads'
+);
+select throws_ok(
+  $$ insert into public.private_content_release (
+       content_id, revision, content_kind, access_scope, payload
+     ) values ('book/private', repeat('c', 64), 'book', 'member', '{}'::jsonb) $$,
+  '23514',
+  'new row for relation "private_content_release" violates check constraint "private_content_release_id_bounded"',
+  'the database rejects content ids the delivery boundary cannot address'
 );
 
 insert into public.private_content_release (

@@ -12,6 +12,7 @@ import {
   type HandlerResult,
 } from '../_shared/http.ts'
 import type { DbClient } from '../_shared/db.ts'
+import { isPrivateContentId, PRIVATE_CONTENT_REVISION } from '../../../src/content-delivery/references.ts'
 
 export type MembershipAccess = 'active' | 'non-member' | 'unavailable'
 
@@ -28,16 +29,13 @@ export interface ContentDeliveryDeps {
   getRelease: (contentId: string, revision: string) => Promise<PrivateContentRelease | null>
 }
 
-const CONTENT_ID = /^[A-Za-z0-9._:-]{1,128}$/
-const REVISION = /^[a-f0-9]{64}$/
-
 function requestReference(url: string): { contentId: string; revision: string } | null {
   try {
     const parsed = new URL(url)
     if ([...parsed.searchParams.keys()].sort().join(',') !== 'contentId,revision') return null
     const contentId = parsed.searchParams.get('contentId')
     const revision = parsed.searchParams.get('revision')
-    if (!contentId || !revision || !CONTENT_ID.test(contentId) || !REVISION.test(revision)) return null
+    if (!contentId || !revision || !isPrivateContentId(contentId) || !PRIVATE_CONTENT_REVISION.test(revision)) return null
     return { contentId, revision }
   } catch {
     return null

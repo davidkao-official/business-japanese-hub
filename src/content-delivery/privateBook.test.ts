@@ -56,6 +56,21 @@ describe('private Book release preparation', () => {
     })).toEqual({ ok: false, reason: 'private Book must be explicitly published before server import' })
   })
 
+  it('rejects a structurally valid Book id that cannot be addressed by server delivery', () => {
+    const published = {
+      ...withoutAssets(paidKeigoBook),
+      id: 'book/private',
+      publication: { status: 'published' as const, releasedAt: '2026-09-10' },
+    }
+
+    expect(preparePrivateBookRelease(published, {
+      preview: { boundary: { kind: 'chapter', chapterId: 'ch-1' } },
+    })).toEqual({
+      ok: false,
+      reason: 'private Book id is not compatible with the server delivery reference contract',
+    })
+  })
+
   it('fails closed on covers and image blocks until immutable server asset delivery exists', () => {
     const published = {
       ...paidKeigoBook,

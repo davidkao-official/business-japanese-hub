@@ -10,6 +10,7 @@ import { createHash } from 'node:crypto'
 import { derivePreview, type PreviewBoundary, type PreviewContent } from '../authoring/preview'
 import type { Book } from '../content/types'
 import { validateBook } from '../content/validate'
+import { isPrivateContentId } from './references'
 
 export interface PrivateBookManifest {
   preview?: { boundary?: PreviewBoundary }
@@ -62,6 +63,9 @@ export function preparePrivateBookRelease(
   if (!validated.ok) return { ok: false, reason: `invalid Book: ${validated.issues[0]?.message ?? 'unknown error'}` }
   if (validated.value.publication?.status !== 'published') {
     return { ok: false, reason: 'private Book must be explicitly published before server import' }
+  }
+  if (!isPrivateContentId(validated.value.id)) {
+    return { ok: false, reason: 'private Book id is not compatible with the server delivery reference contract' }
   }
   if (hasUndeliverableAssets(validated.value)) {
     return { ok: false, reason: 'private Book assets require a server-authorized immutable asset adapter before import' }

@@ -19,10 +19,13 @@ function dbFor(userId: string | null): DbClient {
   } as unknown as DbClient
 }
 
-function request(authorization = 'Bearer valid-token') {
+function request(
+  authorization = 'Bearer valid-token',
+  reference: { contentId: string; revision: string } = { contentId, revision },
+) {
   return {
     method: 'GET',
-    url: `https://example.test/content-delivery?contentId=${contentId}&revision=${revision}`,
+    url: `https://example.test/content-delivery?contentId=${encodeURIComponent(reference.contentId)}&revision=${reference.revision}`,
     headers: { authorization },
     bodyText: '',
   }
@@ -59,6 +62,20 @@ describe('content delivery', () => {
       getRelease,
     })
     expect(result.status).toBe(401)
+    expect(getRelease).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unaddressable content id before authentication or release lookup', async () => {
+    const getRelease = vi.fn()
+    const result = await handleContentDelivery(request('Bearer valid-token', {
+      contentId: 'book/private',
+      revision,
+    }), {
+      db: dbFor('user-1'),
+      membershipAccessFor: async () => 'active',
+      getRelease,
+    })
+    expect(result.status).toBe(400)
     expect(getRelease).not.toHaveBeenCalled()
   })
 

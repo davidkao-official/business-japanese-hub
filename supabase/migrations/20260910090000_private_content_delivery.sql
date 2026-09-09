@@ -16,7 +16,7 @@ create table public.private_content_release (
   published_at timestamptz not null default now(),
   primary key (content_id, revision),
   constraint private_content_release_id_bounded check (
-    char_length(content_id) between 1 and 128 and content_id = btrim(content_id)
+    content_id ~ '^[A-Za-z0-9._:-]{1,128}$'
   ),
   constraint private_content_release_revision_sha256 check (revision ~ '^[a-f0-9]{64}$'),
   constraint private_content_release_kind_bounded check (

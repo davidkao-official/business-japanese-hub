@@ -150,10 +150,11 @@ route/reload and cross-link QA, but authenticated Edge Functions remain exact-
 origin and fail closed on arbitrary preview hosts. Do not introduce wildcard
 CORS merely to make a preview session persistent.
 
-The product contract explicitly accepts that static web Book content can be
-inspected in the browser bundle (`docs/accounts-and-entitlement.md` §7).
-Server-authoritative ownership and in-product access gates are enforced, but
-this is not DRM or a confidentiality boundary.
+The historical, already-disclosed legacy Book releases can be inspected in the
+browser bundle (`docs/accounts-and-entitlement.md` §7). Server-authoritative
+ownership and in-product access gates still are not DRM for those releases.
+This does not apply to future proprietary/member content: its source and
+delivery boundary are defined in `docs/private-content-delivery.md`.
 
 ## 2. Production Supabase activation
 
