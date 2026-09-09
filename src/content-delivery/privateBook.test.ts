@@ -118,4 +118,17 @@ describe('private Book release preparation', () => {
       reason: 'private Book cannot contain exponent-form numbers in server-delivered payloads',
     })
   })
+
+  it('rejects NUL and unpaired-surrogate strings that PostgreSQL jsonb cannot store', () => {
+    for (const value of ['\u0000', '\ud800']) {
+      const published = {
+        ...withoutAssets(paidKeigoBook),
+        publication: { status: 'published' as const, releasedAt: '2026-09-10' },
+        forwardCompatibleTextMetadata: value,
+      }
+      expect(preparePrivateBookRelease(published, {
+        preview: { boundary: { kind: 'chapter', chapterId: 'ch-1' } },
+      })).toEqual({ ok: false, reason: 'private Book contains strings incompatible with PostgreSQL jsonb' })
+    }
+  })
 })

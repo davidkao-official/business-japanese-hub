@@ -62,6 +62,26 @@ function hasExponentNumber(value: unknown): boolean {
   return Object.values(value).some(hasExponentNumber)
 }
 
+function hasPostgresIncompatibleString(value: unknown): boolean {
+  if (typeof value === 'string') {
+    if (value.includes('\u0000')) return true
+    for (let index = 0; index < value.length; index += 1) {
+      const code = value.charCodeAt(index)
+      if (code >= 0xd800 && code <= 0xdbff) {
+        const next = value.charCodeAt(index + 1)
+        if (!(next >= 0xdc00 && next <= 0xdfff)) return true
+        index += 1
+      } else if (code >= 0xdc00 && code <= 0xdfff) {
+        return true
+      }
+    }
+    return false
+  }
+  if (Array.isArray(value)) return value.some(hasPostgresIncompatibleString)
+  if (!isRecord(value)) return false
+  return Object.values(value).some(hasPostgresIncompatibleString)
+}
+
 /**
  * Validates a Book held outside this repository and prepares an immutable,
  * member-only server import. The full payload stays in process memory for the
@@ -88,6 +108,9 @@ export function preparePrivateBookRelease(
   // a conservative bound for the database payload-size constraint.
   if (hasExponentNumber(validated.value)) {
     return { ok: false, reason: 'private Book cannot contain exponent-form numbers in server-delivered payloads' }
+  }
+  if (hasPostgresIncompatibleString(validated.value)) {
+    return { ok: false, reason: 'private Book contains strings incompatible with PostgreSQL jsonb' }
   }
 
   const manifest = isRecord(rawManifest) ? rawManifest : {}
