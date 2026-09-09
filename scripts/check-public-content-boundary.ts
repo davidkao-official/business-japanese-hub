@@ -78,9 +78,7 @@ if (!legacySlugs || !legacyFiles) {
   const actualFiles: Record<string, string> = {}
   for (const path of [
     join(root, 'books'),
-    join(contentDistRoot(), 'books'),
-    join(contentDistRoot(), 'assets'),
-    join(contentDistRoot(), 'learning-catalog.json'),
+    contentDistRoot(),
     join(root, 'public'),
   ]) {
     collectFiles(path, root, actualFiles)
