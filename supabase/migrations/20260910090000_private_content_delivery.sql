@@ -34,6 +34,8 @@ comment on table public.private_content_release is
 revoke all on public.private_content_release from public;
 revoke all on public.private_content_release from anon;
 revoke all on public.private_content_release from authenticated;
+revoke update, delete, truncate on public.private_content_release from service_role;
+grant select, insert on public.private_content_release to service_role;
 alter table public.private_content_release enable row level security;
 -- Deliberately no client policies. service_role retains its Supabase-default
 -- privileges for the controlled private-source import command.
