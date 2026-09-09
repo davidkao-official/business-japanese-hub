@@ -1,14 +1,20 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
-import { renderWithAppProviders } from '../test/appProviders'
+import { createMockRepository, renderWithAppProviders } from '../test/appProviders'
+import { getBookBySlug } from '../reader/catalog'
 import { PracticeActivityPage } from './PracticeActivityPage'
 import { COURSE_CORRECTION_PRACTICE_SLUG } from './learningUnits'
 
 afterEach(() => cleanup())
 
+const meetingJapanese = getBookBySlug('meeting-japanese')
+if (!meetingJapanese) throw new Error('meeting-japanese released Book is required by #110 acceptance')
+
+const owner = { id: 'u-110-owner', email: 'owner@example.com' }
+
 describe('Practice activity projection', () => {
-  it('renders every released exercise and locally reveals answer feedback', () => {
+  it('fails closed for direct signed-out navigation', async () => {
     renderWithAppProviders(
       <Routes>
         <Route path="/practice/:slug" element={<PracticeActivityPage />} />
@@ -16,6 +22,36 @@ describe('Practice activity projection', () => {
       { initialEntries: [`/practice/${COURSE_CORRECTION_PRACTICE_SLUG}`] },
     )
 
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /Practice/i }),
+    ).toBeInTheDocument()
+    expect(document.querySelectorAll('.practice-activity-card')).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: /Submit|Reveal answer/i })).not.toBeInTheDocument()
+  })
+
+  it('renders every released exercise and locally reveals answer feedback for an owner', async () => {
+    const repository = createMockRepository({
+      entitlements: {
+        [meetingJapanese.id]: {
+          bookId: meetingJapanese.id,
+          provider: 'manual',
+          grantedAt: '2026-09-08T00:00:00.000Z',
+        },
+      },
+    })
+
+    renderWithAppProviders(
+      <Routes>
+        <Route path="/practice/:slug" element={<PracticeActivityPage />} />
+      </Routes>,
+      {
+        initialEntries: [`/practice/${COURSE_CORRECTION_PRACTICE_SLUG}`],
+        session: owner,
+        repository,
+      },
+    )
+
+    await screen.findByRole('heading', { level: 2, name: 'Exercise 01' })
     const cards = Array.from(document.querySelectorAll<HTMLElement>('.practice-activity-card'))
     expect(cards).toHaveLength(4)
     expect(screen.getAllByRole('button', { name: 'Submit' })).toHaveLength(4)

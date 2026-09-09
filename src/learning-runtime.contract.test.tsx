@@ -19,12 +19,13 @@ function renderAt(path: string) {
 
 const meetingJapanese = getBookBySlug('meeting-japanese')
 if (!meetingJapanese) throw new Error('meeting-japanese released Book is required by #110 acceptance')
+const meetingJapaneseId = meetingJapanese.id
 
 const owner = { id: 'u-110-owner', email: 'owner@example.com' }
 
 function ownedEntitlement() {
   return {
-    bookId: meetingJapanese.id,
+    bookId: meetingJapaneseId,
     provider: 'manual' as const,
     grantedAt: '2026-09-08T00:00:00.000Z',
   }
