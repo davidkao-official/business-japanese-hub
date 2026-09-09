@@ -215,6 +215,8 @@ Learn | Read | Practice | My Learning | Experience
 - public/free editorial content
 - historical Book purchase / entitlement evidence
 
+未來 proprietary production content 的 canonical source 不得預設是 public platform repository。private source control 也不是 delivery protection：member-only body/assets 必須經 server-authoritative delivery，不能 wholesale 編進公開 frontend bundle、CI artifact 或 preview。已公開的 legacy Book/release 保持 disclosed historical material；細節與 forward-only workflow 見 [`private-content-delivery.md`](private-content-delivery.md)。
+
 未來 UX 不得再把 Storefront / My Library 當成整個 Business Japanese Hub 的 primary mental model。
 
 ### 6.2 Career Game
@@ -279,6 +281,7 @@ Business Japanese Hub 必須感覺像成熟、premium、可信賴的日本職場
 - Library 與 Career Game 目前可以維持獨立 Cloudflare Pages artifact/origin 與 release cadence；user-facing IA 不要求 deployment topology 變成單一 frontend。
 - Supabase service role、payment provider secrets、webhook secrets 永不進 frontend。
 - RLS / server authorization / exact production deployment safety 不得因 product pivot 弱化。
+- Private production authoring / server delivery 必須維持 one shared Supabase modular-monolith boundary；不得因此建立第二 backend 或 universal content schema。
 
 ## 10. Membership access and payment architecture invariants
 

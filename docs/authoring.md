@@ -1,8 +1,8 @@
 # 作者出版工作流（Authoring, Validation, Preview, Publishing）
 
-本文說明 issue #10 建立的內容作者與出版工作流：**作者 → 驗證 → 本機預覽 → 審查 → 出版**。
+本文說明 issue #10 建立的**已公開 legacy Book** 作者與出版工作流：**作者 → 驗證 → 本機預覽 → 審查 → 出版**。
 
-MVP 的設計目標是「最小成本、適合重複出版書籍」：不是完整 CMS。非工程師只要編輯 `books/` 底下的 JSON 與圖片檔，不需要寫 React。Vite build 只讀 committed release snapshot；CLI 產生 preview、content-addressed release 與 server-authoritative catalog price 的共同輸入。
+MVP 的設計目標是「最小成本、適合重複出版書籍」：不是完整 CMS。現存 `books/`、`content-dist/` 與 Vite eager catalog 都是已 disclosed Book/Reader compatibility path；它們保留 Reader、release history 與 historical Book price/audit，不得成為 future proprietary Plus/member content 的 canonical authoring 或 delivery path。完整 forward-only rule 見 [`private-content-delivery.md`](private-content-delivery.md)。
 
 ---
 
@@ -42,7 +42,7 @@ books/<slug>/assets/**      ← 書的圖片素材
   committed current.json 與 release assets 自動進入 web catalog
 ```
 
-角色分工：
+角色分工（限 legacy static Book workflow）：
 
 - **作者（非工程師）**：只碰 `books/<slug>/` 的 JSON 與圖片。
 - **CLI（本工作流）**：驗證、預覽、出版、回滾，全部可重現、可被 CI 呼叫。`content-dist/preview/` 保持本機輸出；release snapshots、history 與 assets 必須 commit。
@@ -51,7 +51,7 @@ books/<slug>/assets/**      ← 書的圖片素材
 
 ---
 
-## 2. 作者格式（非工程師也能做）
+## 2. 作者格式（legacy static Book）
 
 ### 2.1 一本書 = 一個資料夾
 
@@ -294,21 +294,21 @@ pnpm workflow:rollback --slug=keigo-essentials --to=<完整 snapshot id>
 
 ---
 
-## 6. 未來的 CMS 遷移路徑
+## 6. Future source adapters
 
-MVP 的作者端是「檔案 + JSON + CLI」，**CMS 不是目前的工作流依賴**。
+MVP 的作者端曾是「檔案 + JSON + CLI」，**CMS 不是目前的工作流依賴**。Future proprietary source adapters must use the private canonical workflow instead of exporting full releases to this public checkout.
 
 遷移路徑：
 
-- 未來的 CMS 只需扮演「**來源 adapter**」：產出與現在相同的 `book.json` / `manifest.json` 契約，或直接產出 `content-dist/books/<slug>/current.json`。
-- 驗證（`validateBook`）、預覽（`derivePreview`）、出版管線都與 CMS 無關，可直接沿用。
-- 因此遷移到 CMS 時，平台端與出版邏輯不需改動；`books/` 資料夾可以變成 CMS 的「匯出」目標。
+- Future CMS/private repository may act as a **source adapter** and produce the bounded domain contract (for Book: `book.json` + `manifest.json`) in its private checkout.
+- `validateBook` and `derivePreview` are public tooling and can validate that external source through `pnpm workflow:validate-private-book --source=<absolute-private-book-directory>`.
+- A future proprietary Book must use `pnpm workflow:import-private-book` to the server-only delivery store. It must **not** export a full `content-dist/books/<slug>/current.json` into this public repo.
 
 ---
 
-## 7. Universal Reader 與 server catalog 的整合介面
+## 7. Legacy Universal Reader 與 server catalog 的整合介面
 
-Web build 以 `src/reader/catalog.ts` 的單一 seam 自動發現 committed `content-dist/books/*/current.json`，套用與 catalog sync 相同的 release／Book／preview validator、依 snapshot `catalog.order` 排序，並把 release assets 交給 Vite 打包。Universal Reader 只消費這個已驗證的 generic `CatalogEntry`，不依賴任何特定書籍。
+Web build 以 `src/reader/catalog.ts` 的單一 seam 自動發現 committed `content-dist/books/*/current.json`，套用與 catalog sync 相同的 release／Book／preview validator、依 snapshot `catalog.order` 排序，並把 release assets 交給 Vite 打包。這只適用於已 disclosed legacy releases；Universal Reader currently consumes this generic `CatalogEntry` for compatibility, not as the future member-delivery path.
 
 Server-authoritative price seam 只讀 release snapshot：
 

@@ -41,6 +41,7 @@ Book / Universal Reader 是 `Read` 的 long-form editorial capability；Career G
 - **[`docs/content-model.md`](docs/content-model.md)** — `Book → Chapter → ContentBlock` 的 Library／long-form editorial content model；不是全平台 schema。
 - **[`docs/ui-ux-research.md`](docs/ui-ux-research.md)** — **視覺、Japanese typography、design tokens、Reader/editorial quality 與 accessibility 的 durable research/implementation guidance**。其中 2026-08 研究留下的 Storefront-first、Book-as-commerce-unit、`subscription-first` non-goal 或禁止 Practice/Progress IA 等產品假設已被 `docs/product-contract.md` 與 `docs/post-n1-learning-map.md` supersede，**不得再作為 current product IA / commerce authority**。
 - **[`docs/authoring.md`](docs/authoring.md)** — Book/editorial authoring、validation、preview、publish、version/rollback workflow。
+- **[`docs/private-content-delivery.md`](docs/private-content-delivery.md)** — proprietary production content 的 private source、server-only import/delivery 與 disclosed legacy Book boundary。
 - **[`docs/deployment.md`](docs/deployment.md)** — Cloudflare Pages、production Supabase、secrets、migration/functions、smoke、rollback 與 observability runbook。
 
 ## 技術方向

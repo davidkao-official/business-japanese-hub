@@ -11,6 +11,9 @@ dist-ssr/
 # remains local; immutable snapshots/current pointers/assets are versioned.
 content-dist/preview/
 
+# Private canonical authoring checkouts belong outside this public repository.
+.private-content/
+
 # Logs
 logs/
 *.log
