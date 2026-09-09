@@ -79,7 +79,7 @@ function hasPostgresIncompatibleString(value: unknown): boolean {
   }
   if (Array.isArray(value)) return value.some(hasPostgresIncompatibleString)
   if (!isRecord(value)) return false
-  return Object.values(value).some(hasPostgresIncompatibleString)
+  return Object.entries(value).some(([key, entry]) => hasPostgresIncompatibleString(key) || hasPostgresIncompatibleString(entry))
 }
 
 /**

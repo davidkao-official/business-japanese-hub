@@ -131,4 +131,15 @@ describe('private Book release preparation', () => {
       })).toEqual({ ok: false, reason: 'private Book contains strings incompatible with PostgreSQL jsonb' })
     }
   })
+
+  it('rejects PostgreSQL-incompatible forward-compatible object keys', () => {
+    const published = {
+      ...withoutAssets(paidKeigoBook),
+      publication: { status: 'published' as const, releasedAt: '2026-09-10' },
+      ['\u0000']: 'forward-compatible key',
+    }
+    expect(preparePrivateBookRelease(published, {
+      preview: { boundary: { kind: 'chapter', chapterId: 'ch-1' } },
+    })).toEqual({ ok: false, reason: 'private Book contains strings incompatible with PostgreSQL jsonb' })
+  })
 })
