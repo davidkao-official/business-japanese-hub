@@ -7,6 +7,7 @@
  * server-only release store.
  */
 import { createHash } from 'node:crypto'
+import { Buffer } from 'node:buffer'
 import { derivePreview, type PreviewBoundary, type PreviewContent } from '../authoring/preview'
 import type { Book } from '../content/types'
 import { validateBook } from '../content/validate'
@@ -27,6 +28,11 @@ export interface PrivateBookRelease {
     preview: PreviewContent
   }
 }
+
+// Conservatively below the database's 1 MiB jsonb-text limit. JSONB's
+// canonical serialization can add structural whitespace, so preparation must
+// leave room instead of accepting a payload the controlled import cannot store.
+export const MAX_PRIVATE_BOOK_PAYLOAD_BYTES = 512 * 1024
 
 export type PrivateBookPreparation =
   | { ok: true; value: PrivateBookRelease }
@@ -82,9 +88,12 @@ export function preparePrivateBookRelease(
   // Private JSON delivery deliberately has no Vite-managed asset directory.
   // A future asset adapter must include its own bytes in the immutable revision
   // and apply the same server-side authorization before it is referenced.
-  const revision = createHash('sha256')
-    .update(JSON.stringify({ book: validated.value, preview: preview.value }))
-    .digest('hex')
+  const payload = { book: validated.value, preview: preview.value }
+  const serializedPayload = JSON.stringify(payload)
+  if (Buffer.byteLength(serializedPayload, 'utf8') > MAX_PRIVATE_BOOK_PAYLOAD_BYTES) {
+    return { ok: false, reason: 'private Book payload exceeds the server delivery size limit' }
+  }
+  const revision = createHash('sha256').update(serializedPayload).digest('hex')
   return {
     ok: true,
     value: {
@@ -93,7 +102,7 @@ export function preparePrivateBookRelease(
       revision,
       contentKind: 'book',
       accessScope: 'member',
-      payload: { book: validated.value, preview: preview.value },
+      payload,
     },
   }
 }

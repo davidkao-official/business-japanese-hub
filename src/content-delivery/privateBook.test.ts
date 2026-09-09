@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Book } from '../content/types'
 import { paidKeigoBook } from '../content/fixtures/paid-test-books'
-import { preparePrivateBookRelease } from './privateBook'
+import { MAX_PRIVATE_BOOK_PAYLOAD_BYTES, preparePrivateBookRelease } from './privateBook'
 
 function withoutAssets(book: Book): Book {
   const withoutCover: Book = { ...book }
@@ -83,5 +83,24 @@ describe('private Book release preparation', () => {
       ok: false,
       reason: 'private Book assets require a server-authorized immutable asset adapter before import',
     })
+  })
+
+  it('rejects a payload that cannot fit safely within the server release store limit', () => {
+    const assetFree = withoutAssets(paidKeigoBook)
+    const published = {
+      ...assetFree,
+      publication: { status: 'published' as const, releasedAt: '2026-09-10' },
+      chapters: [
+        {
+          ...assetFree.chapters[0]!,
+          blocks: [{ id: 'private-size-test', type: 'paragraph' as const, text: 'x'.repeat(MAX_PRIVATE_BOOK_PAYLOAD_BYTES) }],
+        },
+        ...assetFree.chapters.slice(1),
+      ],
+    }
+
+    expect(preparePrivateBookRelease(published, {
+      preview: { boundary: { kind: 'chapter', chapterId: 'ch-1' } },
+    })).toEqual({ ok: false, reason: 'private Book payload exceeds the server delivery size limit' })
   })
 })
