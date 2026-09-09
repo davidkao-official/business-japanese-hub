@@ -81,6 +81,7 @@ if (!legacySlugs || !legacyFiles) {
     join(contentDistRoot(), 'books'),
     join(contentDistRoot(), 'assets'),
     join(contentDistRoot(), 'learning-catalog.json'),
+    join(root, 'public'),
   ]) {
     collectFiles(path, root, actualFiles)
   }

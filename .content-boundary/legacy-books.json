@@ -33,6 +33,9 @@
     "content-dist/books/meeting-japanese/history.json": "c51c597e45114ced6a3cefbba964cb1390c9453a912e2a088616b400014e149d",
     "content-dist/books/meeting-japanese/snapshots/meeting-japanese@e1-r1-c6dba80886a2.json": "a0e60045578462b9932d826f6f4c64fcbae39cf8d6cb118f185c2667a1a0b672",
     "content-dist/books/meeting-japanese/snapshots/meeting-japanese@e1-r4-cbd9cb42a832.json": "53ab3a05fc0af88f7cf96f7a33e042a622eaa04c9038d5ac642e1b8656a3bebd",
-    "content-dist/learning-catalog.json": "c8ec247bf0f382338d6afb2382336f668207a23854c962ff6d4e6bc900f3c1b4"
+    "content-dist/learning-catalog.json": "c8ec247bf0f382338d6afb2382336f668207a23854c962ff6d4e6bc900f3c1b4",
+    "public/images/email-cover.svg": "9ec825d62e98a4c97b3212c5974ced87e8929b7731fcd1332d4c30baf8ed6677",
+    "public/images/keigo-cover.svg": "ad2f2dfd1493a2526d9df20d8faeb051d1a447fc94a77885899c37c9493b2c67",
+    "public/images/keigo-pyramid.svg": "efcb617931230f461694e7892edf958262174a8ea6d7ee65d0c2e6949f3151cb"
   }
 }

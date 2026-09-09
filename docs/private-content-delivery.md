@@ -40,7 +40,7 @@ bounded renderer (future integration)
 
 [`docs/authoring.md`](authoring.md) 所記錄的 `books/ → content-dist/ → Vite` 工作流只保留給上述 disclosed legacy Books。它的 full snapshot、asset 與 eager Vite import 因此不能作為 future Plus/member content delivery pattern；historical Book catalog price/audit projection 仍維持。
 
-`pnpm check:public-content-boundary` 是 CI guard：它比較 `books/`、`content-dist/books/` 與 legacy asset directories 對 allowlist，並以 committed SHA-256 inventory 固定每個 legacy source、release、asset 與 learning catalog 檔案，同時驗證 Reader 的 static glob 沒有 private source/release store dependency。加入或更動 static public Book 必須刻意更新 inventory 並在 PR 說明其 non-proprietary/disclosed status；不能默默讓 #114/#125/#126 的 production corpus 走進 bundle。
+`pnpm check:public-content-boundary` 是 CI guard：它比較 `books/`、`content-dist/books/` 與 legacy asset directories 對 allowlist，並以 committed SHA-256 inventory 固定每個 legacy source、release、asset、learning catalog 與 Vite `public/` 檔案，同時驗證 Reader 的 static glob 沒有 private source/release store dependency。加入或更動 static public Book 必須刻意更新 inventory 並在 PR 說明其 non-proprietary/disclosed status；不能默默讓 #114/#125/#126 的 production corpus 走進 bundle。
 
 ## Issue reconciliation
 
