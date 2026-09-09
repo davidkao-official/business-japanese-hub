@@ -101,13 +101,6 @@ export interface AppStrings {
       openCareerGame: string
     }
   }
-  learningUnitAccess: {
-    checking: string
-    signedOut: string
-    denied: string
-    failed: string
-    viewBook: string
-  }
   library: {
     title: string
     signedOut: string
@@ -379,13 +372,6 @@ const ja: AppStrings = {
       capabilityLead: '独立した Experience ランタイムで、物語形式の職場ケースを通じて判断を試します。',
       openCareerGame: 'Career Game を開く',
     },
-  },
-  learningUnitAccess: {
-    checking: 'この学習ユニットのアクセス権を確認しています。',
-    signedOut: 'この学習ユニットを続けるには、ログインしてアクセス権を確認してください。',
-    denied: 'この学習ユニットは、対象書籍のアクセス権があるアカウントで利用できます。',
-    failed: 'アクセス権を確認できませんでした。時間をおいてもう一度お試しください。',
-    viewBook: '書籍とアクセス方法を確認する',
   },
   library: {
     title: 'マイライブラリ',
@@ -661,13 +647,6 @@ const en: AppStrings = {
       openCareerGame: 'Open Career Game',
     },
   },
-  learningUnitAccess: {
-    checking: 'Checking access to this learning unit.',
-    signedOut: 'Sign in to confirm access before continuing this learning unit.',
-    denied: 'This learning unit is available to accounts with access to the related book.',
-    failed: 'We could not confirm access right now. Please try again later.',
-    viewBook: 'View the book and access options',
-  },
   library: {
     title: 'My Library',
     signedOut: 'Sign in to see the books you own and your reading progress here.',
@@ -941,13 +920,6 @@ const zhTW: AppStrings = {
       capabilityLead: '前往獨立的 Experience 執行環境，透過故事化職場個案應用判斷力。',
       openCareerGame: '開啟 Career Game',
     },
-  },
-  learningUnitAccess: {
-    checking: '正在確認此學習單元的存取權。',
-    signedOut: '請先登入，以確認存取權後繼續此學習單元。',
-    denied: '此學習單元僅提供給擁有相關書籍存取權的帳戶。',
-    failed: '目前無法確認存取權，請稍後再試。',
-    viewBook: '查看書籍與存取方式',
   },
   library: {
     title: '我的書庫',

@@ -2,9 +2,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useStrings } from '../i18n/strings'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { useBookState } from '../lib/persistence/useBookState'
-import { useUserState } from '../lib/persistence/UserStateContext'
 import { NotFoundPage } from './NotFoundPage'
-import { LearningUnitAccessState, type LearningUnitAccessStatus } from './LearningUnitAccessState'
 import {
   getLearningUnitByLearnSlug,
   type LearningTextBlock,
@@ -20,19 +18,11 @@ export function LearnUnitPage() {
   const learningUnit = getLearningUnitByLearnSlug(slug)
   const strings = useStrings()
   const { owned, loading, error } = useBookState(learningUnit?.bookId ?? '')
-  const { user } = useUserState()
   useDocumentTitle(learningUnit ? `${learningUnit.title} — Learn` : strings.notFound.title)
 
   if (!learningUnit) return <NotFoundPage />
 
   const canRenderBody = owned && !loading && !error
-  const accessStatus: LearningUnitAccessStatus = loading
-    ? 'checking'
-    : error
-      ? 'failed'
-      : user
-        ? 'denied'
-        : 'signed-out'
 
   return (
     <section className="page learning-unit-page" lang="zh-TW" aria-labelledby="learning-unit-title">
@@ -45,10 +35,6 @@ export function LearnUnitPage() {
         </h1>
         {canRenderBody && <p className="page__lead">{renderLearningText(learningUnit.learn.lead)}</p>}
       </div>
-
-      {!canRenderBody && (
-        <LearningUnitAccessState status={accessStatus} bookSlug={learningUnit.bookSlug} />
-      )}
 
       {canRenderBody && (
         <>

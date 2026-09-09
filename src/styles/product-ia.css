@@ -198,20 +198,6 @@
   gap: var(--space-3);
 }
 
-.learning-unit-access-state {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-5);
-  border: var(--stroke-thin) solid var(--color-border);
-  background: var(--color-surface-muted);
-}
-
-.learning-unit-access-state h2 {
-  font-family: var(--font-serif);
-  font-size: var(--text-lg);
-  font-weight: var(--font-weight-medium);
-}
-
 .practice-activity-page .page__title {
   display: flex;
   flex-wrap: wrap;

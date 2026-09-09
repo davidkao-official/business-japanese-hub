@@ -41,7 +41,6 @@ export interface LearningPracticeExercise {
 export interface LearningUnitRouteData {
   /** Released Book identity used by the authoritative access boundary. */
   readonly bookId: string
-  readonly bookSlug: string
   readonly learnSlug: string
   readonly practiceSlug: string
   readonly title: string
@@ -233,7 +232,6 @@ function createAdmittedLearningUnit(): LearningUnitRouteData | undefined {
 
   return {
     bookId: admittedBook.id,
-    bookSlug: admittedBook.slug,
     learnSlug: `${admittedBook.slug}-${admittedChapter.slug}`,
     practiceSlug: admittedChapter.slug,
     title: admittedChapter.title,

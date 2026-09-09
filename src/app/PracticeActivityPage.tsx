@@ -3,9 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useStrings } from '../i18n/strings'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { useBookState } from '../lib/persistence/useBookState'
-import { useUserState } from '../lib/persistence/UserStateContext'
 import { NotFoundPage } from './NotFoundPage'
-import { LearningUnitAccessState, type LearningUnitAccessStatus } from './LearningUnitAccessState'
 import {
   getLearningUnitByPracticeSlug,
   type LearningTextBlock,
@@ -21,7 +19,6 @@ export function PracticeActivityPage() {
   const learningUnit = getLearningUnitByPracticeSlug(slug)
   const strings = useStrings()
   const { owned, loading, error } = useBookState(learningUnit?.bookId ?? '')
-  const { user } = useUserState()
   const [responses, setResponses] = useState<Record<string, string>>({})
   const [submitted, setSubmitted] = useState<Record<string, boolean>>({})
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
@@ -30,13 +27,6 @@ export function PracticeActivityPage() {
   if (!learningUnit) return <NotFoundPage />
 
   const canRenderBody = owned && !loading && !error
-  const accessStatus: LearningUnitAccessStatus = loading
-    ? 'checking'
-    : error
-      ? 'failed'
-      : user
-        ? 'denied'
-        : 'signed-out'
 
   return (
     <section className="page practice-activity-page" lang="zh-TW" aria-labelledby="practice-activity-title">
@@ -52,10 +42,6 @@ export function PracticeActivityPage() {
         </p>
         {canRenderBody && <p className="page__lead">{renderLearningText(learningUnit.practice.lead)}</p>}
       </div>
-
-      {!canRenderBody && (
-        <LearningUnitAccessState status={accessStatus} bookSlug={learningUnit.bookSlug} />
-      )}
 
       {canRenderBody && <div className="practice-activity-grid">
         {learningUnit.practice.exercises.map((exercise, index) => {
