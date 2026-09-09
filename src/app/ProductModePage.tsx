@@ -11,6 +11,11 @@ import { careerGameHomeHref } from '../lib/cross-product/careerGame'
 import { BookCover } from '../components/BookCover'
 import { listCatalogEntries } from '../reader/catalog'
 import { PRODUCT_MODE_BY_ID, PRODUCT_MODES, type ProductModeId } from './productModes'
+import {
+  COURSE_CORRECTION_LEARN_SLUG,
+  getLearningUnitByLearnSlug,
+  type LearningTextBlock,
+} from './learningUnits'
 
 const browserValidationAnalytics = createBrowserValidationAnalytics({
   functionsBaseUrl: import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL,
@@ -60,6 +65,7 @@ export function ProductModePage({ mode, analytics = browserValidationAnalytics }
       </div>
 
       {mode === 'read' ? <ReadModeLinks /> : null}
+      {mode === 'learn' ? <LearnModeLinks /> : null}
       {mode === 'experience' ? <ExperienceModeLink onNavigate={trackCareerGameLink} /> : null}
 
       <nav className="product-mode-page__next" aria-label={strings.learningModes.navigationLabel}>
@@ -77,6 +83,40 @@ export function ProductModePage({ mode, analytics = browserValidationAnalytics }
       </nav>
     </section>
   )
+}
+
+function LearnModeLinks() {
+  const learningUnit = getLearningUnitByLearnSlug(COURSE_CORRECTION_LEARN_SLUG)
+  if (!learningUnit) return null
+
+  return (
+    <section
+      className="product-mode-page__capability learn-module-list"
+      lang="zh-TW"
+      aria-labelledby="learn-module-title"
+    >
+      <div>
+        <p className="product-mode-page__eyebrow" lang="en">
+          {learningUnit.courseLabel}
+        </p>
+        <h2 id="learn-module-title">{renderLearningText([learningUnit.gateway.title])}</h2>
+        <p>{renderLearningText(learningUnit.gateway.summary)}</p>
+      </div>
+      <Link className="learning-module-link" to={`/learn/${COURSE_CORRECTION_LEARN_SLUG}`}>
+        <span lang="ja">{learningUnit.title}</span>
+        <span lang="en">{learningUnit.courseLabel}</span>
+        <span>{renderLearningText(learningUnit.gateway.linkSummary)}</span>
+      </Link>
+    </section>
+  )
+}
+
+function renderLearningText(segments: LearningTextBlock) {
+  return segments.map((segment, index) => (
+    <span key={`${segment.lang}-${index}`} lang={segment.lang}>
+      {segment.text}
+    </span>
+  ))
 }
 
 function ReadModeLinks() {
