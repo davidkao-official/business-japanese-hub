@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useStrings } from '../i18n/strings'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
+import { useBookState } from '../lib/persistence/useBookState'
 import { NotFoundPage } from './NotFoundPage'
 import {
   getLearningUnitByPracticeSlug,
@@ -17,12 +18,15 @@ export function PracticeActivityPage() {
   const { slug } = useParams()
   const learningUnit = getLearningUnitByPracticeSlug(slug)
   const strings = useStrings()
+  const { owned, loading, error } = useBookState(learningUnit?.bookId ?? '')
   const [responses, setResponses] = useState<Record<string, string>>({})
   const [submitted, setSubmitted] = useState<Record<string, boolean>>({})
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
   useDocumentTitle(learningUnit ? `${learningUnit.courseLabel} Practice` : strings.notFound.title)
 
   if (!learningUnit) return <NotFoundPage />
+
+  const canRenderBody = owned && !loading && !error
 
   return (
     <section className="page practice-activity-page" lang="zh-TW" aria-labelledby="practice-activity-title">
@@ -36,10 +40,10 @@ export function PracticeActivityPage() {
         <p className="practice-activity-page__activity-label">
           {renderLearningText([learningUnit.practice.activityLabel])}
         </p>
-        <p className="page__lead">{renderLearningText(learningUnit.practice.lead)}</p>
+        {canRenderBody && <p className="page__lead">{renderLearningText(learningUnit.practice.lead)}</p>}
       </div>
 
-      <div className="practice-activity-grid">
+      {canRenderBody && <div className="practice-activity-grid">
         {learningUnit.practice.exercises.map((exercise, index) => {
           const response = responses[exercise.id] ?? ''
           const isRevealed = revealed[exercise.id] === true
@@ -150,13 +154,13 @@ export function PracticeActivityPage() {
             </section>
           )
         })}
-      </div>
+      </div>}
 
-      <div className="practice-activity-page__actions">
+      {canRenderBody && <div className="practice-activity-page__actions">
         <Link className="btn btn--secondary" to={`/learn/${learningUnit.learnSlug}`}>
           {renderLearningText(learningUnit.practice.backAction)}
         </Link>
-      </div>
+      </div>}
     </section>
   )
 }
