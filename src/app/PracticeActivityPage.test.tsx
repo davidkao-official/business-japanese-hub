@@ -14,6 +14,21 @@ if (!meetingJapanese) throw new Error('meeting-japanese released Book is require
 const owner = { id: 'u-110-owner', email: 'owner@example.com' }
 
 describe('Practice activity projection', () => {
+  it('fails closed for direct signed-out navigation', async () => {
+    renderWithAppProviders(
+      <Routes>
+        <Route path="/practice/:slug" element={<PracticeActivityPage />} />
+      </Routes>,
+      { initialEntries: [`/practice/${COURSE_CORRECTION_PRACTICE_SLUG}`] },
+    )
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /Practice/i }),
+    ).toBeInTheDocument()
+    expect(document.querySelectorAll('.practice-activity-card')).toHaveLength(0)
+    expect(screen.queryByRole('button', { name: /Submit|Reveal answer/i })).not.toBeInTheDocument()
+  })
+
   it('renders every released exercise and locally reveals answer feedback for an owner', async () => {
     const repository = createMockRepository({
       entitlements: {
