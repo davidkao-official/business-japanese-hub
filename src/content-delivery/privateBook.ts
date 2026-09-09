@@ -55,6 +55,13 @@ function hasUndeliverableAssets(book: Book): boolean {
   return Boolean(book.cover) || book.chapters.some((chapter) => chapter.blocks.some((block) => block.type === 'image'))
 }
 
+function hasExponentNumber(value: unknown): boolean {
+  if (typeof value === 'number') return JSON.stringify(value).includes('e')
+  if (Array.isArray(value)) return value.some(hasExponentNumber)
+  if (!isRecord(value)) return false
+  return Object.values(value).some(hasExponentNumber)
+}
+
 /**
  * Validates a Book held outside this repository and prepares an immutable,
  * member-only server import. The full payload stays in process memory for the
@@ -75,6 +82,12 @@ export function preparePrivateBookRelease(
   }
   if (hasUndeliverableAssets(validated.value)) {
     return { ok: false, reason: 'private Book assets require a server-authorized immutable asset adapter before import' }
+  }
+  // PostgreSQL jsonb canonicalizes exponent-form numbers to their expanded
+  // decimal representation. Reject them so the measured JSON wire size remains
+  // a conservative bound for the database payload-size constraint.
+  if (hasExponentNumber(validated.value)) {
+    return { ok: false, reason: 'private Book cannot contain exponent-form numbers in server-delivered payloads' }
   }
 
   const manifest = isRecord(rawManifest) ? rawManifest : {}

@@ -103,4 +103,19 @@ describe('private Book release preparation', () => {
       preview: { boundary: { kind: 'chapter', chapterId: 'ch-1' } },
     })).toEqual({ ok: false, reason: 'private Book payload exceeds the server delivery size limit' })
   })
+
+  it('rejects exponent-form numbers that PostgreSQL jsonb would expand beyond the measured wire size', () => {
+    const published = {
+      ...withoutAssets(paidKeigoBook),
+      publication: { status: 'published' as const, releasedAt: '2026-09-10' },
+      forwardCompatibleNumericMetadata: [1e308],
+    }
+
+    expect(preparePrivateBookRelease(published, {
+      preview: { boundary: { kind: 'chapter', chapterId: 'ch-1' } },
+    })).toEqual({
+      ok: false,
+      reason: 'private Book cannot contain exponent-form numbers in server-delivered payloads',
+    })
+  })
 })
