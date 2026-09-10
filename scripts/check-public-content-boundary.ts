@@ -96,6 +96,7 @@ function hasFixtureModuleGraphBypass(path: string, visited = new Set<string>()):
     if (ts.isCallExpression(node)) {
       if (node.expression.kind === ts.SyntaxKind.ImportKeyword && node.arguments[0]) inspectSpecifier(node.arguments[0], 'dynamic import')
       if (ts.isIdentifier(node.expression) && node.expression.text === 'require' && node.arguments[0]) inspectSpecifier(node.arguments[0], 'require')
+      if (ts.isPropertyAccessExpression(node.expression) && (node.expression.name.text === 'glob' || node.expression.name.text === 'globEager') && ts.isMetaProperty(node.expression.expression) && node.expression.expression.keywordToken === ts.SyntaxKind.ImportKeyword && node.arguments[0]) inspectSpecifier(node.arguments[0], 'import.meta.glob')
     }
     ts.forEachChild(node, visit)
   }
@@ -169,6 +170,7 @@ if (!legacySlugs || !legacyFiles) {
   // their TypeScript sources too, so a bare workspace import cannot hide a
   // transitive fixture edge from the deployment boundary.
   collectSourceFiles(join(root, 'packages'), sourceFiles)
+  collectSourceFiles(join(root, 'apps', 'career-game', 'src'), sourceFiles)
   for (const path of sourceFiles) {
     const relativePath = relative(root, path)
     if (relativePath.includes('/fixtures/') || /\.(?:test|contract)\.[tj]sx?$/.test(relativePath)) continue
