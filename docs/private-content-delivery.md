@@ -49,3 +49,24 @@ bounded renderer (future integration)
 - **#126**：workplace lessons/vocabulary corpus 在 private source；公開端擁有 Learn presentation、domain contract/tooling 以及 necessary non-proprietary example fixture。
 
 這不建立第二 backend、microservice 或新的 cross-product content schema；它只在 one shared Supabase modular monolith 中增加 server-only delivery primitive。沒有 production source、member projection、approved private asset path 或 external delivery credentials 時，狀態是 unavailable/blocked，不得以 public fixture 假裝已發布。
+
+## #114 Practice / Web Test private authoring path
+
+`PracticeQuestionBank` 是 Practice runtime 自己的 schema，不是 `Book`、Career Game 或 learning evidence 的替代 schema。第一個 test family 可標記為 `spi`，但 `testFamily`、`deliveryProfile` 與 `practiceProfile` 都是可延展的內容欄位；不得把「外國人」或中文 support 寫成 core identity。日文題幹／解答是 core，`zh-Hant` support overlay 則以 question ID、question version 與 overlay version 個別釘選。
+
+私有 checkout 的最小操作如下。這些命令只讀寫 public repository 之外的檔案，且不會印出題幹、選項或解說：
+
+```text
+private source: practice-question-bank-base.json + practice-questions.csv
+        ↓ pnpm workflow:convert-private-practice-question-csv --source=/absolute/private/practice-questions.csv --output=/absolute/private/practice-question-bank.json
+private source: practice-question-bank.json
+        ↓ pnpm workflow:validate-private-practice-question-bank --source=/absolute/private --content-id=practice-web-test-spi-v1
+        ↓ pnpm workflow:import-private-practice-question-bank --source=/absolute/private --content-id=practice-web-test-spi-v1
+service-role-only private_content_release
+        ↓ content-delivery Edge Function + verified #107 membership projection
+future bounded Practice renderer
+```
+
+CSV 是為 spreadsheet/editorial workflow 準備的 deterministic adapter；rich `answer`、`coreExplanation`、`itemAnalysis`、`provenance` 欄位以 JSON cell 保存，避免為不同 question input type 發明另一套 UI schema。`practice-question-bank-base.json` 保留 bank version 與 vocabulary catalog；converter 將 CSV rows 放入 question bank，之後 validator 才會檢查所有 cross-reference。
+
+受控 import 僅接受 status 為 `released` 的題目，並要求 reviewer、release notes、originality attestation、Japanese prompt/explanation、deterministic answer contract、正確的 category/subcategory、support-overlay vocabulary refs 與禁止 source/recalled/leaked/official-test fields。`targetSeconds` 是 internal practice target；schema 沒有 official-time metadata，帶有這類 field 的 artifact 必須 fail closed。#107 尚未提供 verified membership projection 時，delivery endpoint 仍然回 `503 membership access unavailable`，不會查詢或回傳題庫。
