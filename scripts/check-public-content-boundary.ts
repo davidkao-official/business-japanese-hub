@@ -4,6 +4,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, extname, join, relative, resolve } from 'node:path'
 import * as ts from 'typescript'
 import { contentDistRoot, repoRoot } from './lib/books'
+import { viteHtmlModuleScripts } from './lib/vite-html-entry'
 
 interface LegacyBooksFile {
   schemaVersion?: unknown
@@ -104,18 +105,10 @@ function hasFixtureModuleGraphBypass(path: string, visited = new Set<string>(), 
   return unsafe
 }
 
-function hasFixtureHtmlEntryBypass(path: string, viteRoot: string): boolean {
+export function hasFixtureHtmlEntryBypass(path: string, viteRoot: string): boolean {
   const html = readFileSync(path, 'utf8')
   let unsafe = false
-  const moduleScripts = html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)
-  const attributeValue = (attributes: string, name: string): string | undefined => {
-    const match = new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\\x60]+))`, 'i').exec(attributes)
-    return match?.[1] ?? match?.[2] ?? match?.[3]
-  }
-  for (const match of moduleScripts) {
-    const attributes = match[1] ?? ''
-    if (attributeValue(attributes, 'type')?.toLowerCase() !== 'module') continue
-    const source = attributeValue(attributes, 'src')
+  for (const { source, content } of viteHtmlModuleScripts(html)) {
     if (source) {
       if (isFixtureSpecifier(source, path)) {
         console.error(`ERR  Vite HTML entry imports a public Practice fixture: ${relative(root, path)}`)
@@ -123,7 +116,7 @@ function hasFixtureHtmlEntryBypass(path: string, viteRoot: string): boolean {
       }
       const imported = resolveLocalModule(source, path, viteRoot)
       if (imported && hasFixtureModuleGraphBypass(imported, new Set(), viteRoot)) unsafe = true
-    } else if (hasFixtureModuleGraphBypass(path, new Set(), viteRoot, match[2] ?? '')) unsafe = true
+    } else if (hasFixtureModuleGraphBypass(path, new Set(), viteRoot, content)) unsafe = true
   }
   return unsafe
 }
