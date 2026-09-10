@@ -174,6 +174,10 @@ Current delivery priority 是 **Plus Early Access preparation**：
 
 舊 `Paid Launch / first Book revenue` 不再是 product priority。Historical Book commerce 只能被保護，不得反過來阻塞或重定新 subscription product。
 
+### 11.1 Proprietary production content delivery
+
+Public repository 的 `books/ → content-dist/ → Vite` 是 disclosed legacy Reader workflow；它保留以維持 Reader 與 historical Book commerce/audit，不是 future Plus/member body/assets 的 delivery architecture。Future proprietary source lives in the private canonical authoring workflow, validates against public bounded-domain tooling, and imports through server-only storage/delivery. Membership authorization stays server-authoritative and fails closed until #107 provides the verified access projection. This is a delivery primitive, not a new universal content schema or backend; see [`private-content-delivery.md`](private-content-delivery.md).
+
 ## 12. Architecture non-goals
 
 - 把 Learn / Read / Practice / My Learning / Experience 一對一拆成 microservices 或 apps。

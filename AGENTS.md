@@ -52,6 +52,7 @@
 - 修改 cross-product architecture 前先讀 `docs/platform-architecture.md`；shared contract 必須 narrow、consumer-driven，不得建立 universal content mega-schema。
 - 新增／分類 Learn／Read／Practice／My Learning／Experience、Reading、SPI/Web Test、Career Game learning tags 前先讀 `docs/post-n1-learning-map.md`。
 - Library **不得新增單一本書特有的 schema、component、route 或 hard-coded content**；新 Book 應靠 metadata/content pipeline 上架。
+- 未來 proprietary/Plus production content 的 canonical source 必須在 private authoring remote；公開 repo 只擁有 domain schema/validator/import tooling 與明確 non-proprietary fixtures。先讀 [`docs/private-content-delivery.md`](docs/private-content-delivery.md)：不得把 future member body/assets 經 `content-dist`、Vite、public CI artifact 或 preview wholesale 發布；缺 #107 membership projection 時 delivery 必須 fail closed。
 - Career Game 不得依賴 Book／Chapter／ContentBlock；Library 也不得依賴 scenario／scene／choice／outcome／progression。
 - Learn／Practice 可抽 reusable surface，但不要一課一 runtime，也不要預先建立 full LMS framework。
 - My Learning 必須只顯示真實 evidence；沒有足夠資料時顯示 truthful empty/insufficient-data state，不要製造 mastery%、AI weakness、streak 或 percentile。
@@ -114,6 +115,7 @@ Current goal：
 - `docs/learning-and-progress.md` — 目前 Library／Career Game 的 bounded learning evidence implementation contract。
 - `docs/product-validation-analytics.md` — bounded analytics vocabulary / privacy / trust boundary。
 - `docs/content-model.md` — Library / long-form editorial `Book → Chapter → ContentBlock` model。
+- `docs/private-content-delivery.md` — private canonical source、server-only import/delivery、legacy disclosed Book inventory 與 #114/#125/#126 boundary。
 - `docs/payments/decision-record.md` — provider-neutral one-time payment implementation history與仍有效的 payment safety invariants；recurring membership另以 #107 收斂。
 - `docs/accounts-and-entitlement.md` — historical accounts / Book ownership / reading-state persistence contract；不得把其 Book ownership當成新的 Plus model。
 - `docs/legal-tax-launch-brief.md` — legal / tax / entity research；真實 launch 仍需依 recurring model重新確認相關要求。

@@ -10,7 +10,7 @@
 核心決定（由 arbiter 定案）：
 
 - **資料層選 Supabase**：managed auth + Postgres + RLS，作為 server-authoritative 資料來源。
-- **DB 不存書內容**：書內容留在 `src/content/`（靜態 bundle）；DB 只存 user-scoped state，以 content model 的 stable id（`Book.id` / `Chapter.id` / `BlockBase.id`，全域唯一 namespace，見 `docs/content-model.md` §2／§4.3）為 key。
+- **Historical legacy Book 不存 DB**：已 disclosed 的舊書內容留在 `src/content/`／static bundle；DB 的 historical ownership state 以 content model 的 stable id（`Book.id` / `Chapter.id` / `BlockBase.id`，全域唯一 namespace，見 `docs/content-model.md` §2／§4.3）為 key。未來 proprietary/member content 的 server-only delivery contract 見 `docs/private-content-delivery.md`。
 - **entitlement 邊界 provider-agnostic**：以 Repository interface（`src/lib/persistence/repository.ts`）包裹，Supabase 只是可替換 adapter。
 
 ## 2. Data model（`supabase/migrations/0001_accounts.sql`）
@@ -20,7 +20,7 @@
 | 欄位 | 型別 | 說明 |
 | --- | --- | --- |
 | `user_id` | `uuid` FK `auth.users` | 擁有者；`on delete cascade`。 |
-| `book_id` | `text` | 穩定的 content-model `Book.id`。非 DB FK（書 metadata 在靜態 bundle，不在 DB）。 |
+| `book_id` | `text` | historical legacy Book 的穩定 content-model `Book.id`。非 DB FK（該 legacy metadata 在靜態 bundle，不在 DB）；它不是 future proprietary release payload reference。 |
 | `provider` | `text` | provider-neutral grant source；目前允許 `manual`、`ecpay`、`newebpay`、`stripe`、`paypal`。 |
 | `provider_ref` | `text` | 選用；opaque generic grant provenance（operator 註記）。**不是 provider 交易參考**——provider 交易參考（ECPay `MerchantTradeNo` / `TradeNo`）只存在 payment domain（見 `docs/payments/decision-record.md` §9.2）。 |
 | `granted_at` | `timestamptz default now()` | 授予時間（server-authoritative）。 |
@@ -139,7 +139,7 @@ Preview boundary 依 `docs/ui-ux-research.md` §4.2：有序章節前綴（可�
 
 - **#7 範圍不實作 ECPay / payment**：只定義 `grant_entitlement` 寫入點與 `provider: 'ecpay'` 接縫。Payment 實作屬 #9，contract 見 `docs/payments/decision-record.md`。
 - **不做 bookmark UI、不做 profiles/dashboard UI**。
-- **不做內容加密**：web 靜態 bundle 的 DRM 是接受限制（non-goal）。書內容在 client bundle 可被檢視；RLS 保護的是「已登入使用者的擁有權／狀態」，不是內容本身。若未來需要內容保護，需在 Delivery 層另做（bounded follow-up）。
+- **不做 legacy Book 內容加密**：historical static bundle 的 DRM 是接受限制（non-goal）。該 legacy 書內容在 client bundle 可被檢視；RLS 保護的是「已登入使用者的擁有權／狀態」，不是內容本身。future proprietary/member content 已由 `docs/private-content-delivery.md` 定義 server-only delivery boundary，不能套用此限制。
 
 ## 8. 與 #5 / #6 的整合 interface
 

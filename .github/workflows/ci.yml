@@ -48,6 +48,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Guard public/private content boundary
+        run: pnpm check:public-content-boundary
+
       - name: Check Edge Function entrypoints
         run: deno check supabase/functions/*/index.ts
 
@@ -99,6 +102,9 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Guard public/private content boundary
+        run: pnpm check:public-content-boundary
 
       - name: Check Edge Function entrypoints
         run: deno check supabase/functions/*/index.ts

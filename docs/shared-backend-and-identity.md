@@ -30,6 +30,7 @@ production hostname 或第二套 backend。
 | Anonymous Career Game | local scenario runtime + `localStorage` checkpoint | none | no Supabase data path |
 | Authenticated Career Game | Supabase Auth + product-owned progress Edge Function | server-authoritative scenario/version checkpoint；shared skill evidence | owner-select RLS；actions由 verified JWT + authoritative scenario 驅動；no Library repository、Book entitlement、payment or finance access |
 | Payment／finance／email operations | Supabase Edge Functions or operator-only server tooling | existing commerce/compliance records | service-role or DB-backed operator role; never browser claims |
+| Future proprietary member delivery | authenticated `content-delivery` Edge Function only | immutable bounded-runtime release payload | browser has no table/RPC path; #107 verified membership projection must authorize before payload return, otherwise fail closed |
 
 Issue #57 新增的 bounded progress/evidence contract 與 role matrix 見
 [`learning-and-progress.md`](learning-and-progress.md)。其 migration 與 SQL tests 必須一起

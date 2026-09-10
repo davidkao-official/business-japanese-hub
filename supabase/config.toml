@@ -41,6 +41,9 @@ verify_jwt = true
 [functions.library-learning-evidence]
 verify_jwt = true
 
+[functions.content-delivery]
+verify_jwt = true
+
 [functions.product-analytics]
 verify_jwt = false
 
