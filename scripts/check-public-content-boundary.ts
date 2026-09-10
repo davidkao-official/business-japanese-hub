@@ -108,10 +108,14 @@ function hasFixtureHtmlEntryBypass(path: string, viteRoot: string): boolean {
   const html = readFileSync(path, 'utf8')
   let unsafe = false
   const moduleScripts = html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)
+  const attributeValue = (attributes: string, name: string): string | undefined => {
+    const match = new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\\x60]+))`, 'i').exec(attributes)
+    return match?.[1] ?? match?.[2] ?? match?.[3]
+  }
   for (const match of moduleScripts) {
     const attributes = match[1] ?? ''
-    if (!/\btype\s*=\s*(['"])module\1/i.test(attributes)) continue
-    const source = /\bsrc\s*=\s*(['"])(.*?)\1/i.exec(attributes)?.[2]
+    if (attributeValue(attributes, 'type')?.toLowerCase() !== 'module') continue
+    const source = attributeValue(attributes, 'src')
     if (source) {
       if (isFixtureSpecifier(source, path)) {
         console.error(`ERR  Vite HTML entry imports a public Practice fixture: ${relative(root, path)}`)
