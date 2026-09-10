@@ -165,6 +165,10 @@ if (!legacySlugs || !legacyFiles) {
   // intentionally not part of `src`, so this scan does not block them.
   const sourceFiles: string[] = []
   collectSourceFiles(join(root, 'src'), sourceFiles)
+  // Workspace packages are compiled into the same browser artifacts. Scan
+  // their TypeScript sources too, so a bare workspace import cannot hide a
+  // transitive fixture edge from the deployment boundary.
+  collectSourceFiles(join(root, 'packages'), sourceFiles)
   for (const path of sourceFiles) {
     const relativePath = relative(root, path)
     if (relativePath.includes('/fixtures/') || /\.(?:test|contract)\.[tj]sx?$/.test(relativePath)) continue

@@ -10,6 +10,7 @@ import { repoRoot } from '../lib/books'
 
 const REQUIRED_COLUMNS = ['id', 'version', 'status', 'testFamily', 'domain', 'category', 'subcategory', 'deliveryProfile', 'practiceProfile', 'difficulty', 'targetSeconds', 'releaseNotes', 'promptJa', 'answerJson', 'coreExplanationJson', 'itemAnalysisJson', 'provenanceJson'] as const
 const PROMPT_REPRESENTATION_COLUMN = 'promptRepresentationJson'
+const ALLOWED_COLUMNS = new Set<string>([...REQUIRED_COLUMNS, PROMPT_REPRESENTATION_COLUMN])
 
 function outsidePublicRepository(path: string): boolean {
   const relationship = relative(repoRoot(), path)
@@ -40,6 +41,7 @@ export function convertPracticeQuestionCsv(csv: string, base: unknown): unknown 
   const rows = parsePracticeCsv(csv)
   const [header, ...body] = rows
   if (!header || REQUIRED_COLUMNS.some((column) => !header.includes(column))) throw new Error('CSV header is missing a required authoring column')
+  if (new Set(header).size !== header.length || header.some((name) => !ALLOWED_COLUMNS.has(name))) throw new Error('CSV header contains an unknown or duplicate authoring column')
   const column = Object.fromEntries(header.map((name, index) => [name, index])) as Record<string, number>
   const questions = body.map((row, rowIndex) => {
     if (row.length !== header.length) throw new Error(`CSV row ${rowIndex + 2} has a different column count`)

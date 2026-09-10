@@ -27,4 +27,10 @@ describe('private Practice CSV converter', () => {
     const converted = convertPracticeQuestionCsv(csv, { questionBank: { schemaVersion: 1, version: 1, vocabularyCatalog: { version: 1, terms: {} } } }) as { questionBank: { questions: Array<{ promptRepresentation: unknown }> } }
     expect(converted.questionBank.questions[0]!.promptRepresentation).toEqual(JSON.parse(representation))
   })
+
+  it('rejects unknown or duplicate headers instead of discarding authoring fields', () => {
+    const row = `fixture-1,1,released,fixture,verbal,fixture,,web,untimed-learning,foundation,30,fixture release,${csvField('問題')},${csvField(answer)},${csvField(explanation)},${csvField(analysis)},${csvField(provenance)}`
+    expect(() => convertPracticeQuestionCsv(`${header},officialTimeSeconds\n${row},30\n`, { questionBank: {} })).toThrow('unknown or duplicate')
+    expect(() => convertPracticeQuestionCsv(`${header},promptJa\n${row},重複\n`, { questionBank: {} })).toThrow('unknown or duplicate')
+  })
 })
