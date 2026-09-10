@@ -1,11 +1,20 @@
 /** Private-source release preparation for the bounded Practice/Web Test bank. */
 import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
-import type { PrivatePracticeQuestionBankSource } from '../practice-web-test/contract'
+import type { PracticeCheckpoint, PracticeQuestion, PrivatePracticeQuestionBankSource } from '../practice-web-test/contract'
 import { validatePracticeQuestionBankSource } from '../practice-web-test/validate'
 import { isPrivateContentId } from './references'
 
 export const MAX_PRIVATE_PRACTICE_QUESTION_BANK_PAYLOAD_BYTES = 512 * 1024
+
+/** The browser receives learner-facing practice data, never editorial audit data. */
+export type PracticeRuntimeQuestion = Omit<PracticeQuestion, 'status' | 'releaseNotes' | 'provenance'>
+export type PracticeRuntimeCheckpoint = Omit<PracticeCheckpoint, 'provenance'>
+export type PracticeRuntimePayload = {
+  questionBank: Omit<PrivatePracticeQuestionBankSource['questionBank'], 'questions'> & { questions: PracticeRuntimeQuestion[] }
+  checkpointRegistry?: Omit<NonNullable<PrivatePracticeQuestionBankSource['checkpointRegistry']>, 'checkpoints'> & { checkpoints: PracticeRuntimeCheckpoint[] }
+  supportOverlays?: PrivatePracticeQuestionBankSource['supportOverlays']
+}
 
 export type PrivatePracticeQuestionBankRelease = {
   schemaVersion: 1
@@ -13,7 +22,7 @@ export type PrivatePracticeQuestionBankRelease = {
   revision: string
   contentKind: 'practice-question-bank'
   accessScope: 'member'
-  payload: PrivatePracticeQuestionBankSource
+  payload: PracticeRuntimePayload
 }
 
 export type PrivatePracticeQuestionBankPreparation =
@@ -45,6 +54,48 @@ function hasPostgresIncompatibleString(value: unknown): boolean {
   return Object.entries(value).some(([key, entry]) => hasPostgresIncompatibleString(key) || hasPostgresIncompatibleString(entry))
 }
 
+function projectQuestion(question: PracticeQuestion): PracticeRuntimeQuestion {
+  return {
+    id: question.id,
+    version: question.version,
+    testFamily: question.testFamily,
+    domain: question.domain,
+    category: question.category,
+    ...(question.subcategory === undefined ? {} : { subcategory: question.subcategory }),
+    deliveryProfile: question.deliveryProfile,
+    practiceProfile: question.practiceProfile,
+    difficulty: question.difficulty,
+    ...(question.targetSeconds === undefined ? {} : { targetSeconds: question.targetSeconds }),
+    promptJa: question.promptJa,
+    ...(question.promptRepresentation === undefined ? {} : { promptRepresentation: question.promptRepresentation }),
+    answer: question.answer,
+    coreExplanation: question.coreExplanation,
+    itemAnalysis: question.itemAnalysis,
+  }
+}
+
+function projectPayload(source: PrivatePracticeQuestionBankSource): PracticeRuntimePayload {
+  const { questions, ...questionBank } = source.questionBank
+  return {
+    questionBank: { ...questionBank, questions: questions.map(projectQuestion) },
+    ...(source.checkpointRegistry === undefined ? {} : {
+      checkpointRegistry: {
+        version: source.checkpointRegistry.version,
+        checkpoints: source.checkpointRegistry.checkpoints.map((checkpoint) => ({
+          id: checkpoint.id,
+          version: checkpoint.version,
+          questionId: checkpoint.questionId,
+          questionVersion: checkpoint.questionVersion,
+          dimension: checkpoint.dimension,
+          promptJa: checkpoint.promptJa,
+          answer: checkpoint.answer,
+        })),
+      },
+    }),
+    ...(source.supportOverlays === undefined ? {} : { supportOverlays: source.supportOverlays }),
+  }
+}
+
 /**
  * Produces the immutable server payload without writing it into the public
  * checkout, `content-dist`, or a browser module graph.
@@ -56,9 +107,10 @@ export function preparePrivatePracticeQuestionBankRelease(
   if (!isPrivateContentId(contentId)) return { ok: false, reason: 'practice question bank id is not compatible with the server delivery reference contract' }
   const validated = validatePracticeQuestionBankSource(raw, { requireReleased: true })
   if (!validated.ok) return { ok: false, reason: `invalid practice question bank: ${validated.issues[0]?.message ?? 'unknown error'}` }
-  if (hasExponentNumber(validated.value)) return { ok: false, reason: 'practice question bank cannot contain exponent-form numbers in server-delivered payloads' }
-  if (hasPostgresIncompatibleString(validated.value)) return { ok: false, reason: 'practice question bank contains strings incompatible with PostgreSQL jsonb' }
-  const serializedPayload = JSON.stringify(validated.value)
+  const payload = projectPayload(validated.value)
+  if (hasExponentNumber(payload)) return { ok: false, reason: 'practice question bank cannot contain exponent-form numbers in server-delivered payloads' }
+  if (hasPostgresIncompatibleString(payload)) return { ok: false, reason: 'practice question bank contains strings incompatible with PostgreSQL jsonb' }
+  const serializedPayload = JSON.stringify(payload)
   if (Buffer.byteLength(serializedPayload, 'utf8') > MAX_PRIVATE_PRACTICE_QUESTION_BANK_PAYLOAD_BYTES) return { ok: false, reason: 'practice question bank payload exceeds the server delivery size limit' }
   return {
     ok: true,
@@ -68,7 +120,7 @@ export function preparePrivatePracticeQuestionBankRelease(
       revision: createHash('sha256').update(serializedPayload).digest('hex'),
       contentKind: 'practice-question-bank',
       accessScope: 'member',
-      payload: validated.value,
+      payload,
     },
   }
 }

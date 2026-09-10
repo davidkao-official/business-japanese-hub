@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, join, relative } from 'node:path'
+import * as ts from 'typescript'
 import { contentDistRoot, repoRoot } from './lib/books'
 
 interface LegacyBooksFile {
@@ -56,6 +57,39 @@ function collectSourceFiles(path: string, files: string[]): void {
     return
   }
   if (stat.isFile() && /\.(?:ts|tsx)$/.test(path)) files.push(path)
+}
+
+function isFixtureSpecifier(specifier: string, sourcePath: string): boolean {
+  if (specifier.includes('/fixtures/') || specifier.startsWith('./fixtures/') || specifier.startsWith('../fixtures/')) return true
+  const resolved = join(sourcePath, '..', specifier)
+  return resolved.includes('/src/practice-web-test/fixtures/')
+}
+
+function hasFixtureModuleGraphBypass(path: string): boolean {
+  const source = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true)
+  let unsafe = false
+  const inspectSpecifier = (node: ts.Expression, label: string): void => {
+    if (!ts.isStringLiteralLike(node)) {
+      console.error(`ERR  production module has non-literal ${label}: ${relative(root, path)}`)
+      unsafe = true
+      return
+    }
+    if (isFixtureSpecifier(node.text, path)) {
+      console.error(`ERR  production module imports a public Practice fixture: ${relative(root, path)}`)
+      unsafe = true
+    }
+  }
+  const visit = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node) && node.moduleSpecifier) inspectSpecifier(node.moduleSpecifier, 'import')
+    if (ts.isExportDeclaration(node) && node.moduleSpecifier) inspectSpecifier(node.moduleSpecifier, 'export-from')
+    if (ts.isCallExpression(node)) {
+      if (node.expression.kind === ts.SyntaxKind.ImportKeyword && node.arguments[0]) inspectSpecifier(node.arguments[0], 'dynamic import')
+      if (ts.isIdentifier(node.expression) && node.expression.text === 'require' && node.arguments[0]) inspectSpecifier(node.arguments[0], 'require')
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  return unsafe
 }
 
 function sameFiles(left: Record<string, string>, right: Record<string, string>): boolean {
@@ -123,10 +157,7 @@ if (!legacySlugs || !legacyFiles) {
   for (const path of sourceFiles) {
     const relativePath = relative(root, path)
     if (relativePath.includes('/fixtures/') || /\.(?:test|contract)\.[tj]sx?$/.test(relativePath)) continue
-    if (/from\s+['"][^'"]*fixtures\//.test(readFileSync(path, 'utf8'))) {
-      console.error(`ERR  production module imports a public Practice fixture: ${relativePath}`)
-      process.exitCode = 1
-    }
+    if (hasFixtureModuleGraphBypass(path)) process.exitCode = 1
   }
 
   // A complete private artifact has a fixed filename. It belongs only outside

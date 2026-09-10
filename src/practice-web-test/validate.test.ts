@@ -47,6 +47,34 @@ describe('Practice/Web Test private-source contract', () => {
     if (!result.ok) expect(result.issues).toContainEqual(expect.objectContaining({ path: '$.sourceText' }))
   })
 
+  it('rejects camel-case official/source fields through strict allowed keys', () => {
+    const source = cloneFixture() as unknown as { questionBank: { questions: Array<Record<string, unknown>> } }
+    source.questionBank.questions[0]!.officialTimeSeconds = 30
+    source.questionBank.questions[0]!.sourceQuestionText = 'not permitted'
+    const result = validatePracticeQuestionBankSource(source)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.issues).toContainEqual(expect.objectContaining({ path: '$.questionBank.questions[0].officialTimeSeconds' }))
+      expect(result.issues).toContainEqual(expect.objectContaining({ path: '$.questionBank.questions[0].sourceQuestionText' }))
+    }
+  })
+
+  it('requires an exact matching registry whenever diagnostic checkpoints are declared', () => {
+    const source = cloneFixture()
+    source.questionBank.questions[0]!.itemAnalysis.diagnosticCheckpoints = { registryVersion: 1, ids: ['checkpoint-1'] }
+    const result = validatePracticeQuestionBankSource(source)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.issues).toContainEqual(expect.objectContaining({ path: '$.questionBank.questions[0].itemAnalysis.diagnosticCheckpoints' }))
+  })
+
+  it('turns malformed checkpoint registries and references into issues rather than throws', () => {
+    const source = cloneFixture() as unknown as { questionBank: { questions: Array<Record<string, unknown>> }; checkpointRegistry: unknown }
+    source.questionBank.questions[0]!.itemAnalysis = { languageLoads: [], reasoningLoads: [], executionLoads: [], diagnosticCheckpoints: { registryVersion: 1, ids: null } }
+    source.checkpointRegistry = { version: 1, checkpoints: [null] }
+    expect(() => validatePracticeQuestionBankSource(source)).not.toThrow()
+    expect(validatePracticeQuestionBankSource(source).ok).toBe(false)
+  })
+
   it('requires support-overlay key terms to resolve to this question vocabulary', () => {
     const source = cloneFixture()
     source.supportOverlays![0]!.byLocale['zh-Hant']!.keyTerms![0]!.termId = 'unknown-term'
@@ -60,5 +88,22 @@ describe('Practice/Web Test private-source contract', () => {
     source.questionBank.questions[0]!.itemAnalysis = null
     expect(() => validatePracticeQuestionBankSource(source)).not.toThrow()
     expect(validatePracticeQuestionBankSource(source).ok).toBe(false)
+  })
+
+  it('turns malformed vocabulary terms and overlays into issues rather than throws', () => {
+    const source = cloneFixture() as unknown as { questionBank: { vocabularyCatalog: Record<string, unknown> }; supportOverlays: unknown[] }
+    source.questionBank.vocabularyCatalog.terms = null
+    expect(() => validatePracticeQuestionBankSource(source)).not.toThrow()
+    expect(validatePracticeQuestionBankSource(source).ok).toBe(false)
+  })
+
+  it('projects editorial provenance out of the member release payload', () => {
+    const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', cloneFixture())
+    expect(release.ok).toBe(true)
+    if (!release.ok) return
+    const payload = JSON.stringify(release.value.payload)
+    for (const forbidden of ['reviewedBy', 'basis', 'releaseNotes', 'authoredBy', 'createdAt', 'updatedAt', 'provenance']) {
+      expect(payload).not.toContain(forbidden)
+    }
   })
 })
