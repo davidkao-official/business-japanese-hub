@@ -110,6 +110,14 @@ describe('Practice/Web Test private-source contract', () => {
     expect(validatePracticeQuestionBankSource(source)).toMatchObject({ ok: true })
   })
 
+  it('rejects a table representation without rows', () => {
+    const source = cloneFixture()
+    source.questionBank.questions[0]!.promptRepresentation = { kind: 'table', columns: ['A'], rows: [] }
+    const result = validatePracticeQuestionBankSource(source)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.issues).toContainEqual(expect.objectContaining({ path: '$.questionBank.questions[0].promptRepresentation.rows' }))
+  })
+
   it('projects editorial provenance out of the member release payload', () => {
     const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', cloneFixture())
     expect(release.ok).toBe(true)

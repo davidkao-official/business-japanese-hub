@@ -69,7 +69,10 @@ function validateRepresentation(value: unknown, path: string, ctx: Context): val
     case 'equation': return allowedKeys(value, path, ['kind', 'expression'], ctx) && string(value.expression, `${path}.expression`, ctx)
     case 'table': {
       allowedKeys(value, path, ['kind', 'columns', 'rows'], ctx)
-      if (!stringArray(value.columns, `${path}.columns`, ctx) || !Array.isArray(value.rows)) return false
+      if (!stringArray(value.columns, `${path}.columns`, ctx) || !Array.isArray(value.rows) || value.rows.length === 0) {
+        if (Array.isArray(value.rows) && value.rows.length === 0) issue(ctx, `${path}.rows`, 'must contain at least one row')
+        return false
+      }
       const columns = value.columns as unknown[]
       value.rows.forEach((row, index) => {
         if (!Array.isArray(row) || row.length !== columns.length) issue(ctx, `${path}.rows[${index}]`, 'must have one cell per column')
