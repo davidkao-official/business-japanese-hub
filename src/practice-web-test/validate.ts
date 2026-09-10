@@ -40,11 +40,11 @@ function id(value: unknown, path: string, ctx: Context): value is string {
 function unique(values: readonly string[], path: string, ctx: Context): void {
   if (new Set(values).size !== values.length) issue(ctx, path, 'must not contain duplicate values')
 }
-function stringArray(value: unknown, path: string, ctx: Context, required = true): value is string[] {
+function stringArray(value: unknown, path: string, ctx: Context, required = true, distinct = true): value is string[] {
   if (!Array.isArray(value) || (required && value.length === 0)) { issue(ctx, path, required ? 'must be a non-empty array' : 'must be an array'); return false }
   const values: string[] = []
   value.forEach((entry, index) => { if (string(entry, `${path}[${index}]`, ctx)) values.push(entry) })
-  unique(values, path, ctx)
+  if (distinct) unique(values, path, ctx)
   return true
 }
 function enumValue<T extends string>(value: unknown, allowed: readonly T[], path: string, ctx: Context): value is T {
@@ -73,7 +73,7 @@ function validateRepresentation(value: unknown, path: string, ctx: Context): val
       const columns = value.columns as unknown[]
       value.rows.forEach((row, index) => {
         if (!Array.isArray(row) || row.length !== columns.length) issue(ctx, `${path}.rows[${index}]`, 'must have one cell per column')
-        else stringArray(row, `${path}.rows[${index}]`, ctx)
+        else stringArray(row, `${path}.rows[${index}]`, ctx, true, false)
       })
       return true
     }
@@ -167,7 +167,7 @@ function validateCheckpointRegistry(value: unknown, questions: readonly Practice
 function validateOverlays(value: unknown, questions: readonly PracticeQuestion[], catalog: PracticeQuestionBank['vocabularyCatalog'], ctx: Context): value is PracticeQuestionSupportOverlay[] {
   if (!Array.isArray(value)) { issue(ctx, '$.supportOverlays', 'must be an array'); return false }
   const identities: string[] = []
-  value.forEach((overlay, index) => { const path = `$.supportOverlays[${index}]`; if (!allowedKeys(overlay, path, ['questionId', 'questionVersion', 'version', 'byLocale'], ctx)) return; id(overlay.questionId, `${path}.questionId`, ctx); integer(overlay.questionVersion, `${path}.questionVersion`, ctx); integer(overlay.version, `${path}.version`, ctx); const question = questions.find((entry) => entry.id === overlay.questionId && entry.version === overlay.questionVersion); if (!question) issue(ctx, `${path}.questionId`, 'must reference a question in this bank'); if (!isRecord(overlay.byLocale) || Object.keys(overlay.byLocale).length === 0) issue(ctx, `${path}.byLocale`, 'must have at least one locale'); else for (const [locale, content] of Object.entries(overlay.byLocale)) { if (!LOCALE.test(locale)) issue(ctx, `${path}.byLocale.${locale}`, 'must use a BCP-47-like locale tag'); if (!allowedKeys(content, `${path}.byLocale.${locale}`, ['concise', 'whatIsAsked', 'keyTerms', 'representationExplanation', 'commonMisread'], ctx)) continue; for (const field of ['concise', 'whatIsAsked', 'representationExplanation', 'commonMisread']) if (content[field] !== undefined) string(content[field], `${path}.byLocale.${locale}.${field}`, ctx); if (content.keyTerms !== undefined) { if (!Array.isArray(content.keyTerms)) issue(ctx, `${path}.byLocale.${locale}.keyTerms`, 'must be an array'); else content.keyTerms.forEach((term, termIndex) => { if (!allowedKeys(term, `${path}.byLocale.${locale}.keyTerms[${termIndex}]`, ['termId', 'surface', 'meaning', 'note'], ctx)) return; if (!string(term.termId, `${path}.byLocale.${locale}.keyTerms[${termIndex}].termId`, ctx) || !question?.itemAnalysis?.vocabularyTermIds?.includes(term.termId as string) || !Object.hasOwn(catalog.terms, term.termId as string)) issue(ctx, `${path}.byLocale.${locale}.keyTerms[${termIndex}].termId`, 'must reference this question\'s catalogued vocabulary term'); string(term.surface, `${path}.byLocale.${locale}.keyTerms[${termIndex}].surface`, ctx); string(term.meaning, `${path}.byLocale.${locale}.keyTerms[${termIndex}].meaning`, ctx); if (term.note !== undefined) string(term.note, `${path}.byLocale.${locale}.keyTerms[${termIndex}].note`, ctx) }) } }
+  value.forEach((overlay, index) => { const path = `$.supportOverlays[${index}]`; if (!allowedKeys(overlay, path, ['questionId', 'questionVersion', 'version', 'byLocale'], ctx)) return; id(overlay.questionId, `${path}.questionId`, ctx); integer(overlay.questionVersion, `${path}.questionVersion`, ctx); integer(overlay.version, `${path}.version`, ctx); const question = questions.find((entry) => entry.id === overlay.questionId && entry.version === overlay.questionVersion); const vocabularyTermIds = question?.itemAnalysis?.vocabularyTermIds; if (!question) issue(ctx, `${path}.questionId`, 'must reference a question in this bank'); if (!isRecord(overlay.byLocale) || Object.keys(overlay.byLocale).length === 0) issue(ctx, `${path}.byLocale`, 'must have at least one locale'); else for (const [locale, content] of Object.entries(overlay.byLocale)) { if (!LOCALE.test(locale)) issue(ctx, `${path}.byLocale.${locale}`, 'must use a BCP-47-like locale tag'); if (!allowedKeys(content, `${path}.byLocale.${locale}`, ['concise', 'whatIsAsked', 'keyTerms', 'representationExplanation', 'commonMisread'], ctx)) continue; for (const field of ['concise', 'whatIsAsked', 'representationExplanation', 'commonMisread']) if (content[field] !== undefined) string(content[field], `${path}.byLocale.${locale}.${field}`, ctx); if (content.keyTerms !== undefined) { if (!Array.isArray(content.keyTerms)) issue(ctx, `${path}.byLocale.${locale}.keyTerms`, 'must be an array'); else content.keyTerms.forEach((term, termIndex) => { if (!allowedKeys(term, `${path}.byLocale.${locale}.keyTerms[${termIndex}]`, ['termId', 'surface', 'meaning', 'note'], ctx)) return; if (!string(term.termId, `${path}.byLocale.${locale}.keyTerms[${termIndex}].termId`, ctx) || !Array.isArray(vocabularyTermIds) || !vocabularyTermIds.includes(term.termId as string) || !Object.hasOwn(catalog.terms, term.termId as string)) issue(ctx, `${path}.byLocale.${locale}.keyTerms[${termIndex}].termId`, 'must reference this question\'s catalogued vocabulary term'); string(term.surface, `${path}.byLocale.${locale}.keyTerms[${termIndex}].surface`, ctx); string(term.meaning, `${path}.byLocale.${locale}.keyTerms[${termIndex}].meaning`, ctx); if (term.note !== undefined) string(term.note, `${path}.byLocale.${locale}.keyTerms[${termIndex}].note`, ctx) }) } }
     identities.push(`${overlay.questionId}\u0000${overlay.questionVersion}\u0000${overlay.version}`) })
   unique(identities, '$.supportOverlays', ctx)
   return true
@@ -189,7 +189,11 @@ export function validatePracticeQuestionBankSource(raw: unknown, options: { requ
   else bank.questions.forEach((question, index) => validateQuestion(question, `$.questionBank.questions[${index}]`, ctx))
   const questions = Array.isArray(bank.questions) ? bank.questions.filter(isRecord) as PracticeQuestion[] : []
   unique(questions.map((question) => `${question.id}\u0000${question.version}`), '$.questionBank.questions', ctx)
-  if (vocabularyCatalog) for (const [index, question] of questions.entries()) for (const termId of question.itemAnalysis?.vocabularyTermIds ?? []) if (!Object.hasOwn(vocabularyCatalog.terms, termId)) issue(ctx, `$.questionBank.questions[${index}].itemAnalysis.vocabularyTermIds`, 'must reference a vocabulary-catalog term')
+  if (vocabularyCatalog) for (const [index, question] of questions.entries()) {
+    const vocabularyTermIds = question.itemAnalysis?.vocabularyTermIds
+    if (!Array.isArray(vocabularyTermIds)) continue
+    for (const termId of vocabularyTermIds) if (!Object.hasOwn(vocabularyCatalog.terms, termId)) issue(ctx, `$.questionBank.questions[${index}].itemAnalysis.vocabularyTermIds`, 'must reference a vocabulary-catalog term')
+  }
   if (options.requireReleased) questions.forEach((question, index) => { if (question.status !== 'released') issue(ctx, `$.questionBank.questions[${index}].status`, 'must be released before server import') })
   const declaredCheckpointRefs = questions.map((question) => isRecord(question.itemAnalysis) && question.itemAnalysis.diagnosticCheckpoints !== undefined ? question.itemAnalysis.diagnosticCheckpoints : undefined)
   if (raw.checkpointRegistry === undefined) declaredCheckpointRefs.forEach((reference, index) => { if (reference !== undefined) issue(ctx, `$.questionBank.questions[${index}].itemAnalysis.diagnosticCheckpoints`, 'requires a matching checkpoint registry') })

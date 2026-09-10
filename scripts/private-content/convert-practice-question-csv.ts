@@ -8,6 +8,7 @@ import { relative, resolve } from 'node:path'
 import { repoRoot } from '../lib/books'
 
 const REQUIRED_COLUMNS = ['id', 'version', 'status', 'testFamily', 'domain', 'category', 'subcategory', 'deliveryProfile', 'practiceProfile', 'difficulty', 'targetSeconds', 'releaseNotes', 'promptJa', 'answerJson', 'coreExplanationJson', 'itemAnalysisJson', 'provenanceJson'] as const
+const PROMPT_REPRESENTATION_COLUMN = 'promptRepresentationJson'
 
 function outsidePublicRepository(path: string): boolean {
   const relationship = relative(repoRoot(), path)
@@ -42,11 +43,14 @@ export function convertPracticeQuestionCsv(csv: string, base: unknown): unknown 
   const questions = body.map((row, rowIndex) => {
     if (row.length !== header.length) throw new Error(`CSV row ${rowIndex + 2} has a different column count`)
     const read = (name: string) => row[column[name]!]
+    const readOptional = (name: string) => column[name] === undefined ? undefined : row[column[name]!]
     try {
       return {
         id: read('id'), version: Number(read('version')), status: read('status'), testFamily: read('testFamily'), domain: read('domain'), category: read('category'),
         ...(read('subcategory') ? { subcategory: read('subcategory') } : {}), deliveryProfile: read('deliveryProfile'), practiceProfile: read('practiceProfile'), difficulty: read('difficulty'),
-        ...(read('targetSeconds') ? { targetSeconds: Number(read('targetSeconds')) } : {}), ...(read('releaseNotes') ? { releaseNotes: read('releaseNotes') } : {}), promptJa: read('promptJa'), answer: JSON.parse(read('answerJson')!), coreExplanation: JSON.parse(read('coreExplanationJson')!), itemAnalysis: JSON.parse(read('itemAnalysisJson')!), provenance: JSON.parse(read('provenanceJson')!),
+        ...(read('targetSeconds') ? { targetSeconds: Number(read('targetSeconds')) } : {}), ...(read('releaseNotes') ? { releaseNotes: read('releaseNotes') } : {}), promptJa: read('promptJa'),
+        ...(readOptional(PROMPT_REPRESENTATION_COLUMN) ? { promptRepresentation: JSON.parse(readOptional(PROMPT_REPRESENTATION_COLUMN)!) } : {}),
+        answer: JSON.parse(read('answerJson')!), coreExplanation: JSON.parse(read('coreExplanationJson')!), itemAnalysis: JSON.parse(read('itemAnalysisJson')!), provenance: JSON.parse(read('provenanceJson')!),
       }
     } catch { throw new Error(`CSV row ${rowIndex + 2} has invalid JSON or numeric metadata`) }
   })

@@ -19,4 +19,12 @@ describe('private Practice CSV converter', () => {
   it('rejects an unterminated quoted CSV field', () => {
     expect(() => parsePracticeCsv('id\n"unterminated')).toThrow('unterminated quoted CSV field')
   })
+
+  it('preserves an optional prompt representation JSON column', () => {
+    const representation = '{"kind":"table","columns":["A","B"],"rows":[["0","0"]]}'
+    const extendedHeader = `${header},promptRepresentationJson`
+    const csv = `${extendedHeader}\nfixture-1,1,released,fixture,verbal,fixture,,web,untimed-learning,foundation,30,fixture release,${csvField('表を読んで答える。')},${csvField(answer)},${csvField(explanation)},${csvField(analysis)},${csvField(provenance)},${csvField(representation)}\n`
+    const converted = convertPracticeQuestionCsv(csv, { questionBank: { schemaVersion: 1, version: 1, vocabularyCatalog: { version: 1, terms: {} } } }) as { questionBank: { questions: Array<{ promptRepresentation: unknown }> } }
+    expect(converted.questionBank.questions[0]!.promptRepresentation).toEqual(JSON.parse(representation))
+  })
 })

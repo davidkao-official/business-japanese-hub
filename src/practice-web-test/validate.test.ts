@@ -97,6 +97,19 @@ describe('Practice/Web Test private-source contract', () => {
     expect(validatePracticeQuestionBankSource(source).ok).toBe(false)
   })
 
+  it('reports non-array vocabulary IDs without throwing during catalog resolution', () => {
+    const source = cloneFixture() as unknown as { questionBank: { questions: Array<{ itemAnalysis: Record<string, unknown> }> } }
+    source.questionBank.questions[0]!.itemAnalysis.vocabularyTermIds = 7
+    expect(() => validatePracticeQuestionBankSource(source)).not.toThrow()
+    expect(validatePracticeQuestionBankSource(source).ok).toBe(false)
+  })
+
+  it('allows repeated cell text in table representations', () => {
+    const source = cloneFixture()
+    source.questionBank.questions[0]!.promptRepresentation = { kind: 'table', columns: ['A', 'B'], rows: [['0', '0']] }
+    expect(validatePracticeQuestionBankSource(source)).toMatchObject({ ok: true })
+  })
+
   it('projects editorial provenance out of the member release payload', () => {
     const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', cloneFixture())
     expect(release.ok).toBe(true)
