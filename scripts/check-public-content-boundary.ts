@@ -1,7 +1,7 @@
 /** CI guard for #132's forward-only content boundary. */
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { basename, join, relative } from 'node:path'
 import { contentDistRoot, repoRoot } from './lib/books'
 
 interface LegacyBooksFile {
@@ -40,11 +40,22 @@ function collectFiles(path: string, root: string, files: Record<string, string>)
   if (!existsSync(path)) return
   const stat = statSync(path)
   if (stat.isDirectory()) {
+    if (basename(path) === 'node_modules' || basename(path) === '.git') return
     for (const entry of readdirSync(path).sort()) collectFiles(join(path, entry), root, files)
     return
   }
   if (!stat.isFile()) return
   files[relative(root, path)] = createHash('sha256').update(readFileSync(path)).digest('hex')
+}
+
+function collectSourceFiles(path: string, files: string[]): void {
+  if (!existsSync(path)) return
+  const stat = statSync(path)
+  if (stat.isDirectory()) {
+    for (const entry of readdirSync(path).sort()) collectSourceFiles(join(path, entry), files)
+    return
+  }
+  if (stat.isFile() && /\.(?:ts|tsx)$/.test(path)) files.push(path)
 }
 
 function sameFiles(left: Record<string, string>, right: Record<string, string>): boolean {
@@ -101,5 +112,33 @@ if (!legacySlugs || !legacyFiles) {
   if (existsSync(join(root, '.private-content'))) {
     console.error('ERR  private authoring checkout must live outside the public repository')
     process.exitCode = 1
+  }
+
+  // #114 permits only deliberately tiny test fixtures. A production browser
+  // module must never import one, because that would make public Git/Vite a
+  // question-bank delivery path again. The external import commands below are
+  // intentionally not part of `src`, so this scan does not block them.
+  const sourceFiles: string[] = []
+  collectSourceFiles(join(root, 'src'), sourceFiles)
+  for (const path of sourceFiles) {
+    const relativePath = relative(root, path)
+    if (relativePath.includes('/fixtures/') || /\.(?:test|contract)\.[tj]sx?$/.test(relativePath)) continue
+    if (/from\s+['"][^'"]*fixtures\//.test(readFileSync(path, 'utf8'))) {
+      console.error(`ERR  production module imports a public Practice fixture: ${relativePath}`)
+      process.exitCode = 1
+    }
+  }
+
+  // A complete private artifact has a fixed filename. It belongs only outside
+  // this checkout; fixtures are TypeScript-only and cannot be mistaken for an
+  // importable production bank by the controlled server importer.
+  const forbiddenArtifacts = ['practice-question-bank.json', 'practice-question-bank.csv', 'practice-question-bank-base.json']
+  const publicFiles: Record<string, string> = {}
+  collectFiles(root, root, publicFiles)
+  for (const path of Object.keys(publicFiles)) {
+    if (forbiddenArtifacts.includes(path.split('/').at(-1) ?? '')) {
+      console.error(`ERR  private Practice authoring artifact found in public repository: ${path}`)
+      process.exitCode = 1
+    }
   }
 }
