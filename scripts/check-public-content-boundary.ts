@@ -65,17 +65,17 @@ function isFixtureSpecifier(specifier: string, sourcePath: string): boolean {
   return resolved.includes('/src/practice-web-test/fixtures/')
 }
 
-function resolveLocalModule(specifier: string, sourcePath: string): string | null {
-  if (!specifier.startsWith('.')) return null
-  const candidate = resolve(dirname(sourcePath), specifier)
+function resolveLocalModule(specifier: string, sourcePath: string, viteRoot = root): string | null {
+  if (!specifier.startsWith('.') && !specifier.startsWith('/')) return null
+  const candidate = specifier.startsWith('/') ? resolve(viteRoot, `.${specifier}`) : resolve(dirname(sourcePath), specifier)
   const paths = extname(candidate) ? [candidate] : [candidate, ...['.ts', '.tsx', '.js', '.jsx'].map((extension) => `${candidate}${extension}`), ...['.ts', '.tsx', '.js', '.jsx'].map((extension) => join(candidate, `index${extension}`))]
   return paths.find((path) => existsSync(path) && statSync(path).isFile()) ?? null
 }
 
-function hasFixtureModuleGraphBypass(path: string, visited = new Set<string>()): boolean {
+function hasFixtureModuleGraphBypass(path: string, visited = new Set<string>(), viteRoot = root, sourceText?: string): boolean {
   if (visited.has(path)) return false
   visited.add(path)
-  const source = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true)
+  const source = ts.createSourceFile(path, sourceText ?? readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true)
   let unsafe = false
   const inspectSpecifier = (node: ts.Expression, label: string): void => {
     if (!ts.isStringLiteralLike(node)) {
@@ -87,8 +87,8 @@ function hasFixtureModuleGraphBypass(path: string, visited = new Set<string>()):
       console.error(`ERR  production module imports a public Practice fixture: ${relative(root, path)}`)
       unsafe = true
     }
-    const imported = resolveLocalModule(node.text, path)
-    if (imported && hasFixtureModuleGraphBypass(imported, visited)) unsafe = true
+    const imported = resolveLocalModule(node.text, path, viteRoot)
+    if (imported && hasFixtureModuleGraphBypass(imported, visited, viteRoot)) unsafe = true
   }
   const visit = (node: ts.Node): void => {
     if (ts.isImportDeclaration(node) && node.moduleSpecifier) inspectSpecifier(node.moduleSpecifier, 'import')
@@ -101,6 +101,26 @@ function hasFixtureModuleGraphBypass(path: string, visited = new Set<string>()):
     ts.forEachChild(node, visit)
   }
   visit(source)
+  return unsafe
+}
+
+function hasFixtureHtmlEntryBypass(path: string, viteRoot: string): boolean {
+  const html = readFileSync(path, 'utf8')
+  let unsafe = false
+  const moduleScripts = html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)
+  for (const match of moduleScripts) {
+    const attributes = match[1] ?? ''
+    if (!/\btype\s*=\s*(['"])module\1/i.test(attributes)) continue
+    const source = /\bsrc\s*=\s*(['"])(.*?)\1/i.exec(attributes)?.[2]
+    if (source) {
+      if (isFixtureSpecifier(source, path)) {
+        console.error(`ERR  Vite HTML entry imports a public Practice fixture: ${relative(root, path)}`)
+        unsafe = true
+      }
+      const imported = resolveLocalModule(source, path, viteRoot)
+      if (imported && hasFixtureModuleGraphBypass(imported, new Set(), viteRoot)) unsafe = true
+    } else if (hasFixtureModuleGraphBypass(path, new Set(), viteRoot, match[2] ?? '')) unsafe = true
+  }
   return unsafe
 }
 
@@ -175,6 +195,9 @@ if (!legacySlugs || !legacyFiles) {
     const relativePath = relative(root, path)
     if (relativePath.includes('/fixtures/') || /\.(?:test|contract)\.[tj]sx?$/.test(relativePath)) continue
     if (hasFixtureModuleGraphBypass(path)) process.exitCode = 1
+  }
+  for (const [entry, viteRoot] of [[join(root, 'index.html'), root], [join(root, 'apps', 'career-game', 'index.html'), join(root, 'apps', 'career-game')]] as const) {
+    if (hasFixtureHtmlEntryBypass(entry, viteRoot)) process.exitCode = 1
   }
 
   // A complete private artifact has a fixed filename. It belongs only outside
