@@ -118,6 +118,15 @@ describe('Practice/Web Test private-source contract', () => {
     if (!result.ok) expect(result.issues).toContainEqual(expect.objectContaining({ path: '$.questionBank.questions[0].promptRepresentation.rows' }))
   })
 
+  it('rejects diagram and logic-grid representations without required entries', () => {
+    const diagram = cloneFixture()
+    diagram.questionBank.questions[0]!.promptRepresentation = { kind: 'diagram', altText: 'empty', nodes: [], edges: [] }
+    const logicGrid = cloneFixture()
+    logicGrid.questionBank.questions[0]!.promptRepresentation = { kind: 'logic-grid', columns: ['A'], rows: ['B'], cells: [] }
+    expect(validatePracticeQuestionBankSource(diagram).ok).toBe(false)
+    expect(validatePracticeQuestionBankSource(logicGrid).ok).toBe(false)
+  })
+
   it('projects editorial provenance out of the member release payload', () => {
     const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', cloneFixture())
     expect(release.ok).toBe(true)

@@ -1,7 +1,7 @@
 /** CI guard for #132's forward-only content boundary. */
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { basename, join, relative } from 'node:path'
+import { basename, dirname, extname, join, relative, resolve } from 'node:path'
 import * as ts from 'typescript'
 import { contentDistRoot, repoRoot } from './lib/books'
 
@@ -65,7 +65,16 @@ function isFixtureSpecifier(specifier: string, sourcePath: string): boolean {
   return resolved.includes('/src/practice-web-test/fixtures/')
 }
 
-function hasFixtureModuleGraphBypass(path: string): boolean {
+function resolveLocalModule(specifier: string, sourcePath: string): string | null {
+  if (!specifier.startsWith('.')) return null
+  const candidate = resolve(dirname(sourcePath), specifier)
+  const paths = extname(candidate) ? [candidate] : [candidate, ...['.ts', '.tsx', '.js', '.jsx'].map((extension) => `${candidate}${extension}`), ...['.ts', '.tsx', '.js', '.jsx'].map((extension) => join(candidate, `index${extension}`))]
+  return paths.find((path) => existsSync(path) && statSync(path).isFile()) ?? null
+}
+
+function hasFixtureModuleGraphBypass(path: string, visited = new Set<string>()): boolean {
+  if (visited.has(path)) return false
+  visited.add(path)
   const source = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true)
   let unsafe = false
   const inspectSpecifier = (node: ts.Expression, label: string): void => {
@@ -78,6 +87,8 @@ function hasFixtureModuleGraphBypass(path: string): boolean {
       console.error(`ERR  production module imports a public Practice fixture: ${relative(root, path)}`)
       unsafe = true
     }
+    const imported = resolveLocalModule(node.text, path)
+    if (imported && hasFixtureModuleGraphBypass(imported, visited)) unsafe = true
   }
   const visit = (node: ts.Node): void => {
     if (ts.isImportDeclaration(node) && node.moduleSpecifier) inspectSpecifier(node.moduleSpecifier, 'import')
@@ -163,7 +174,7 @@ if (!legacySlugs || !legacyFiles) {
   // A complete private artifact has a fixed filename. It belongs only outside
   // this checkout; fixtures are TypeScript-only and cannot be mistaken for an
   // importable production bank by the controlled server importer.
-  const forbiddenArtifacts = ['practice-question-bank.json', 'practice-question-bank.csv', 'practice-question-bank-base.json']
+  const forbiddenArtifacts = ['practice-question-bank.json', 'practice-question-bank.csv', 'practice-question-bank-base.json', 'practice-questions.csv']
   const publicFiles: Record<string, string> = {}
   collectFiles(root, root, publicFiles)
   for (const path of Object.keys(publicFiles)) {

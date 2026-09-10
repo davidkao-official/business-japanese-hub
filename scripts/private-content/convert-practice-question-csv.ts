@@ -5,6 +5,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { repoRoot } from '../lib/books'
 
 const REQUIRED_COLUMNS = ['id', 'version', 'status', 'testFamily', 'domain', 'category', 'subcategory', 'deliveryProfile', 'practiceProfile', 'difficulty', 'targetSeconds', 'releaseNotes', 'promptJa', 'answerJson', 'coreExplanationJson', 'itemAnalysisJson', 'provenanceJson'] as const
@@ -63,7 +64,7 @@ export function convertPracticeQuestionCsv(csv: string, base: unknown): unknown 
 const args = process.argv.slice(2)
 const arg = (name: string) => args.find((entry) => entry.startsWith(`${name}=`))?.slice(name.length + 1)
 const source = arg('--source'), output = arg('--output')
-if (source !== undefined || output !== undefined) {
+if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   if (!source || !output || !outsidePublicRepository(resolve(source)) || !outsidePublicRepository(resolve(output))) {
     console.error('ERR  pass --source=<private CSV> and --output=<private JSON outside the public repository>')
     process.exitCode = 1

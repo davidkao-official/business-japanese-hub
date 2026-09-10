@@ -82,7 +82,7 @@ function validateRepresentation(value: unknown, path: string, ctx: Context): val
     }
     case 'diagram': {
       allowedKeys(value, path, ['kind', 'altText', 'nodes', 'edges'], ctx)
-      if (!string(value.altText, `${path}.altText`, ctx) || !Array.isArray(value.nodes) || !Array.isArray(value.edges)) { issue(ctx, path, 'diagram needs nodes and edges'); return false }
+      if (!string(value.altText, `${path}.altText`, ctx) || !Array.isArray(value.nodes) || value.nodes.length === 0 || !Array.isArray(value.edges) || value.edges.length === 0) { issue(ctx, path, 'diagram needs non-empty nodes and edges'); return false }
       const nodes: string[] = []
       value.nodes.forEach((node, index) => { if (!allowedKeys(node, `${path}.nodes[${index}]`, ['id', 'label'], ctx)) return; if (id(node.id, `${path}.nodes[${index}].id`, ctx)) { nodes.push(node.id); string(node.label, `${path}.nodes[${index}].label`, ctx) } })
       unique(nodes, `${path}.nodes`, ctx)
@@ -92,7 +92,10 @@ function validateRepresentation(value: unknown, path: string, ctx: Context): val
     case 'elimination': return allowedKeys(value, path, ['kind', 'candidates', 'steps'], ctx) && stringArray(value.candidates, `${path}.candidates`, ctx) && stringArray(value.steps, `${path}.steps`, ctx)
     case 'logic-grid': {
       allowedKeys(value, path, ['kind', 'columns', 'rows', 'cells'], ctx)
-      if (!stringArray(value.columns, `${path}.columns`, ctx) || !stringArray(value.rows, `${path}.rows`, ctx) || !Array.isArray(value.cells)) return false
+      if (!stringArray(value.columns, `${path}.columns`, ctx) || !stringArray(value.rows, `${path}.rows`, ctx) || !Array.isArray(value.cells) || value.cells.length === 0) {
+        if (Array.isArray(value.cells) && value.cells.length === 0) issue(ctx, `${path}.cells`, 'must contain at least one cell')
+        return false
+      }
       const pairs = new Set<string>()
       value.cells.forEach((cell, index) => { if (!allowedKeys(cell, `${path}.cells[${index}]`, ['row', 'column', 'value'], ctx)) return; const row = cell.row; const column = cell.column; if (!string(row, `${path}.cells[${index}].row`, ctx) || !(value.rows as string[]).includes(row)) issue(ctx, `${path}.cells[${index}].row`, 'must reference a declared row'); if (!string(column, `${path}.cells[${index}].column`, ctx) || !(value.columns as string[]).includes(column)) issue(ctx, `${path}.cells[${index}].column`, 'must reference a declared column'); enumValue(cell.value, ['yes', 'no', 'unknown'], `${path}.cells[${index}].value`, ctx); const pair = `${row}\u0000${column}`; if (pairs.has(pair)) issue(ctx, `${path}.cells[${index}]`, 'duplicates a row/column cell'); pairs.add(pair) })
       return true
