@@ -14,7 +14,7 @@
     "build": "pnpm workflow:verify-releases && pnpm typecheck && pnpm build:library && pnpm build:career-game",
     "build:library": "vite build",
     "build:career-game": "vite build --config vite.career-game.config.ts",
-    "build:library:deploy": "pnpm workflow:verify-releases && pnpm typecheck:library && pnpm build:library",
+    "build:library:deploy": "pnpm check:public-content-boundary && pnpm workflow:verify-releases && pnpm typecheck:library && pnpm build:library",
     "build:career-game:deploy": "pnpm typecheck:career-game && pnpm build:career-game",
     "preview": "vite preview",
     "preview:library": "vite preview",
