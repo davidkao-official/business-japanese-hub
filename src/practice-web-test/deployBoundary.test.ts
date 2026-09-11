@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import { isPrivatePracticeAuthoringArtifact, stripViteSpecifierSuffix, viteBuildInputPaths } from '../../scripts/lib/practice-content-boundary'
 import { configuredViteBuildEntries, isApprovedVitePublicDir } from '../../scripts/lib/vite-build-input'
 import { hasFixtureHtmlEntryBypass, hasUnsafeBrowserModuleGraph } from '../../scripts/lib/browser-module-boundary'
-import { viteHtmlModuleScripts, viteHtmlStylesheets } from '../../scripts/lib/vite-html-entry'
+import { viteHtmlAssetReferences, viteHtmlModuleScripts, viteHtmlStylesheets } from '../../scripts/lib/vite-html-entry'
 import packageJson from '../../package.json'
 
 describe('canonical browser deployment boundary', () => {
@@ -17,6 +17,7 @@ describe('canonical browser deployment boundary', () => {
     expect(viteHtmlModuleScripts('<script type="module" src="./practice-web-test/fixtures/nonProprietaryPracticeFixture.ts"></script>')).toEqual([{ source: './practice-web-test/fixtures/nonProprietaryPracticeFixture.ts', content: '' }])
     expect(viteHtmlModuleScripts('<script type=module>import "./practice-web-test/fixtures/nonProprietaryPracticeFixture.ts"</script>')).toEqual([{ content: 'import "./practice-web-test/fixtures/nonProprietaryPracticeFixture.ts"' }])
     expect(viteHtmlStylesheets('<link rel="stylesheet" href="./style.css"><style>.a { color: red }</style>')).toEqual([{ source: './style.css', content: '' }, { content: '.a { color: red }' }])
+    expect(viteHtmlAssetReferences('<img src="./cover.png" srcset="./cover.png 1x, ./cover@2x.png 2x"><video poster="./poster.jpg"><link href="./icon.svg">')).toEqual(['./cover.png', './cover@2x.png', './poster.jpg', './icon.svg'])
   })
 
   it('rejects renamed contract-shaped private Practice JSON and CSV without blocking unrelated data files', () => {
@@ -137,6 +138,23 @@ describe('canonical browser deployment boundary', () => {
     }
   })
 
+  it('rejects arbitrary external browser assets rather than relying on a known file shape', () => {
+    const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-private-asset-shape-'))
+    const outsideRoot = mkdtempSync(join(tmpdir(), 'bjh-private-asset-'))
+    try {
+      const sourceDirectory = join(temporaryRoot, 'src')
+      mkdirSync(sourceDirectory)
+      writeFileSync(join(outsideRoot, 'diagram.svg'), '<svg><text>private</text></svg>')
+      writeFileSync(join(sourceDirectory, 'entry.ts'), "import './style.css'\n")
+      writeFileSync(join(sourceDirectory, 'style.css'), `.logo { background: url('${relative(sourceDirectory, join(outsideRoot, 'diagram.svg'))}') }`)
+
+      expect(hasUnsafeBrowserModuleGraph(join(sourceDirectory, 'entry.ts'), temporaryRoot)).toBe(true)
+    } finally {
+      rmSync(temporaryRoot, { recursive: true, force: true })
+      rmSync(outsideRoot, { recursive: true, force: true })
+    }
+  })
+
   it('follows HTML stylesheet links and inline CSS asset URLs into private authoring artifacts', () => {
     const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-private-html-css-'))
     try {
@@ -154,6 +172,21 @@ describe('canonical browser deployment boundary', () => {
     }
   })
 
+  it('follows Vite HTML image assets into private authoring artifacts', () => {
+    const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-private-html-asset-'))
+    const outsideRoot = mkdtempSync(join(tmpdir(), 'bjh-private-html-asset-source-'))
+    try {
+      writeFileSync(join(outsideRoot, 'renamed-bank.json'), JSON.stringify({ questionBank: { schemaVersion: 1, version: 1, vocabularyCatalog: { version: 1, terms: {} }, questions: [] } }))
+      const htmlPath = join(temporaryRoot, 'index.html')
+      writeFileSync(htmlPath, `<img src="${relative(temporaryRoot, join(outsideRoot, 'renamed-bank.json'))}">`)
+
+      expect(hasFixtureHtmlEntryBypass(htmlPath, temporaryRoot, temporaryRoot)).toBe(true)
+    } finally {
+      rmSync(temporaryRoot, { recursive: true, force: true })
+      rmSync(outsideRoot, { recursive: true, force: true })
+    }
+  })
+
   it('records a configured Vite publicDir so the deploy guard can reject external static inventory', async () => {
     const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-public-dir-'))
     const configPath = join(temporaryRoot, 'vite.config.ts')
@@ -165,6 +198,17 @@ describe('canonical browser deployment boundary', () => {
         { path: join(resolvedRoot, 'index.html'), viteRoot: resolvedRoot, configPath, publicDir: join(resolvedRoot, 'external') },
       ])
       expect(isApprovedVitePublicDir(join(resolvedRoot, 'external'), resolvedRoot, resolvedRoot)).toBe(false)
+    } finally {
+      rmSync(temporaryRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects custom Vite output plugins before they can emit browser assets', async () => {
+    const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-output-plugin-'))
+    const configPath = join(temporaryRoot, 'vite.config.ts')
+    try {
+      writeFileSync(configPath, "export default { plugins: [{ name: 'private-output', generateBundle() {} }] }\n")
+      await expect(configuredViteBuildEntries(temporaryRoot, [configPath])).resolves.toBeNull()
     } finally {
       rmSync(temporaryRoot, { recursive: true, force: true })
     }

@@ -31,3 +31,23 @@ export function viteHtmlStylesheets(html: string): ViteHtmlStylesheet[] {
   }
   return entries
 }
+
+/** Extract local-looking Vite HTML asset attributes beyond module/style roots. */
+export function viteHtmlAssetReferences(html: string): string[] {
+  const references: string[] = []
+  for (const match of html.matchAll(/<[A-Za-z][^>]*>/g)) {
+    const attributes = match[0]
+    for (const name of ['src', 'href', 'poster']) {
+      const source = attributeValue(attributes, name)
+      if (source) references.push(source)
+    }
+    const sourceSet = attributeValue(attributes, 'srcset')
+    if (sourceSet) {
+      for (const candidate of sourceSet.split(',')) {
+        const source = candidate.trim().split(/\s+/, 1)[0]
+        if (source) references.push(source)
+      }
+    }
+  }
+  return [...new Set(references)]
+}

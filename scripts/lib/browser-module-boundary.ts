@@ -1,9 +1,9 @@
-import { existsSync, readFileSync, statSync } from 'node:fs'
-import { dirname, extname, join, relative, resolve } from 'node:path'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import * as ts from 'typescript'
 import { isPrivatePracticeAuthoringArtifact, stripViteSpecifierSuffix } from './practice-content-boundary'
 import type { ViteAlias } from './vite-build-input'
-import { viteHtmlModuleScripts, viteHtmlStylesheets } from './vite-html-entry'
+import { viteHtmlAssetReferences, viteHtmlModuleScripts, viteHtmlStylesheets } from './vite-html-entry'
 
 function isFixtureSpecifier(specifier: string, sourcePath: string): boolean {
   const localSpecifier = stripViteSpecifierSuffix(specifier)
@@ -40,6 +40,13 @@ function isCssPath(path: string): boolean {
   return /\.(?:css|scss|sass|less|styl|stylus)$/i.test(path)
 }
 
+function isRepositoryFile(path: string, repositoryRoot: string): boolean {
+  const actualPath = realpathSync(path)
+  const actualRoot = realpathSync(repositoryRoot)
+  const pathFromRoot = relative(actualRoot, actualPath)
+  return pathFromRoot !== '' && !pathFromRoot.startsWith('..') && !isAbsolute(pathFromRoot)
+}
+
 /** Walk literal CSS asset edges that Vite turns into public browser assets. */
 export function hasUnsafeBrowserStylesheet(path: string, repositoryRoot: string, visited = new Set<string>(), viteRoot = repositoryRoot, sourceText?: string, aliases: readonly ViteAlias[] = []): boolean {
   const css = (sourceText ?? readFileSync(path, 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '')
@@ -63,6 +70,10 @@ export function hasUnsafeBrowserStylesheet(path: string, repositoryRoot: string,
 export function hasUnsafeBrowserModuleGraph(path: string, repositoryRoot: string, visited = new Set<string>(), viteRoot = repositoryRoot, sourceText?: string, aliases: readonly ViteAlias[] = []): boolean {
   if (visited.has(path)) return false
   visited.add(path)
+  if (!isRepositoryFile(path, repositoryRoot)) {
+    console.error(`ERR  browser module graph reaches a file outside the public repository: ${relative(repositoryRoot, path)}`)
+    return true
+  }
   if (isPrivatePracticeAuthoringArtifact(path, sourceText ?? readFileSync(path, 'utf8'))) {
     console.error(`ERR  private Practice authoring artifact is reachable from a browser module graph: ${relative(repositoryRoot, path)}`)
     return true
@@ -134,6 +145,14 @@ export function hasFixtureHtmlEntryBypass(path: string, repositoryRoot: string, 
       const imported = resolveLocalModule(source, path, viteRoot, aliases)
       if (imported && hasUnsafeBrowserModuleGraph(imported, repositoryRoot, new Set(), viteRoot, undefined, aliases)) unsafe = true
     } else if (hasUnsafeBrowserStylesheet(path, repositoryRoot, new Set(), viteRoot, content, aliases)) unsafe = true
+  }
+  for (const source of viteHtmlAssetReferences(html)) {
+    if (isFixtureSpecifier(source, path)) {
+      console.error(`ERR  Vite HTML entry imports a public Practice fixture: ${relative(repositoryRoot, path)}`)
+      unsafe = true
+    }
+    const imported = resolveLocalModule(source, path, viteRoot, aliases)
+    if (imported && hasUnsafeBrowserModuleGraph(imported, repositoryRoot, new Set(), viteRoot, undefined, aliases)) unsafe = true
   }
   return unsafe
 }

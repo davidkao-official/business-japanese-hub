@@ -14,7 +14,10 @@ export type ViteBuildEntry = {
 
 type InputConfig = {
   input?: unknown
-  build?: { rollupOptions?: { input?: unknown }; rolldownOptions?: { input?: unknown } }
+  build?: {
+    rollupOptions?: { input?: unknown; plugins?: unknown }
+    rolldownOptions?: { input?: unknown; plugins?: unknown }
+  }
 }
 
 function browserBuildInput(config: InputConfig & { environments?: { client?: InputConfig } }): unknown {
@@ -75,6 +78,35 @@ export function isApprovedVitePublicDir(publicDir: string, repositoryRoot: strin
   return publicDir === resolve(viteRoot, 'public') && !existsSync(publicDir)
 }
 
+const customOutputHooks = [
+  'resolveId', 'load', 'transform', 'transformIndexHtml', 'buildStart',
+  'renderStart', 'renderChunk', 'augmentChunkHash', 'generateBundle',
+  'writeBundle', 'closeBundle',
+] as const
+
+function hasUnsupportedBrowserPlugin(config: InputConfig & { plugins?: unknown }): boolean {
+  const plugins = config.plugins
+  if (!Array.isArray(plugins)) return true
+  for (const plugin of plugins) {
+    if (typeof plugin !== 'object' || plugin === null || typeof (plugin as { name?: unknown }).name !== 'string') return true
+    const candidate = plugin as { name: string } & Record<string, unknown>
+    // Vite/React's resolved plugins are part of the pinned build runtime.
+    // The two project plugins are reviewed, limited metadata emitters. An
+    // arbitrary custom plugin may remain config-only, but may not execute a
+    // browser-output hook that can read an external private checkout.
+    if (
+      candidate.name === 'alias' ||
+      candidate.name.startsWith('vite:') ||
+      candidate.name.startsWith('builtin:') ||
+      candidate.name.startsWith('native:') ||
+      candidate.name === 'business-japanese-hub:theme-color' ||
+      /^business-japanese-hub:deployment-identity:(?:library|career-game)$/.test(candidate.name)
+    ) continue
+    if (customOutputHooks.some((hook) => typeof candidate[hook] === 'function')) return true
+  }
+  return config.build?.rollupOptions?.plugins !== undefined || config.build?.rolldownOptions?.plugins !== undefined
+}
+
 /** Resolves each real Vite config so configured Rollup browser roots cannot bypass HTML entry checks. */
 export async function configuredViteBuildEntries(root: string, configPaths: readonly string[]): Promise<ViteBuildEntry[] | null> {
   const entries: ViteBuildEntry[] = []
@@ -89,6 +121,10 @@ export async function configuredViteBuildEntries(root: string, configPaths: read
       // point, so reproduce `vite build`'s working-directory behavior first.
       process.chdir(root)
       const config = await resolveConfig({ configFile: configPath }, 'build', 'production')
+      if (hasUnsupportedBrowserPlugin(config)) {
+        console.error(`ERR  Vite config has an unsupported browser-output plugin: ${relative(root, configPath)}`)
+        return null
+      }
       const aliases = browserAliases(config)
       if (aliases === null) {
         console.error(`ERR  Vite config has an unsupported browser alias: ${relative(root, configPath)}`)
