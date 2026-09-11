@@ -42,6 +42,10 @@ bounded renderer (future integration)
 
 `pnpm check:public-content-boundary` 是 CI guard：它比較 `books/`、`content-dist/books/` 與 legacy asset directories 對 allowlist，並以 committed SHA-256 inventory 固定每個 legacy source、release、asset、learning catalog 與 Vite `public/` 檔案，同時驗證 Reader 的 static glob 沒有 private source/release store dependency。加入或更動 static public Book 必須刻意更新 inventory 並在 PR 說明其 non-proprietary/disclosed status；不能默默讓 #114/#125/#126 的 production corpus 走進 bundle。
 
+對 Practice/Web Test，這個 source-control guard 也會在整個公開 checkout fail closed：四個 reserved authoring filename（`practice-question-bank.json`、`practice-question-bank.csv`、`practice-question-bank-base.json`、`practice-questions.csv`）以及帶有 documented question-bank／authoring CSV 結構的 renamed artifact 都不得存在。CSV adapter 接受 UTF-8 BOM，但不放寬其他 header 或 schema validation。這是 public-Git admission，不是對 developer machine 上任意 sibling path 的 artifact-isolation 證明。
+
+Frontend artifact isolation 的 authority 是 clean hosted checkout：GitHub exact-head／merge-result CI 為 source/test admission，Cloudflare Pages clean checkout build 為目前 topology 的 authoritative frontend artifact build。private canonical content repository 必須不被 mount、checkout、copy 或以任何方式提供給這些 hosted frontend build environments。local build 的用途僅限 functional、visual 與 smoke QA；不得以 Vite/Rollup provenance、CSS/HTML/resource parser 或 local success 宣稱已證明 private artifact isolation。Cloudflare dashboard/project settings 是 external deployment evidence，public repo 無法自行證明其 mount topology；對任何 deploy setting 變更或 admission，owner 必須確認這項 clean-hosted-checkout contract。
+
 ## Issue reconciliation
 
 - **#114**：original SPI questions、answers、explanations、review/provenance 與 source research 都在 private source；public repo 僅放 question schema/validator/converter/import tooling 與 small non-proprietary fixtures。36–48 題不得在此 repo 或 preview bundle 建立。

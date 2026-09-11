@@ -38,6 +38,28 @@ exercised by `src/test/frontend-builds.test.ts`. The Library command verifies
 released Books and the Library TypeScript graph before building; the Game
 command verifies the Career Game TypeScript graph before building.
 
+### Frontend artifact-admission authority
+
+**Clean hosted checkout is the frontend artifact-admission authority.** GitHub
+exact-head and PR merge-result CI are clean-checkout source/test gates;
+Cloudflare Pages clean-checkout builds, previews, and production are the
+authoritative frontend artifact builds for this topology. The two canonical
+Pages projects must use only this public repository checkout and its locked
+dependencies: they must not mount, check out, copy, or otherwise make the
+private canonical content repository available. This is an external Cloudflare
+project-setting/hosted-environment fact; owner confirmation and the resulting
+hosted build evidence are required before artifact admission.
+
+`pnpm build:library:deploy` and `pnpm build:career-game:deploy` both begin with
+`pnpm check:public-content-boundary`; CI runs the same guard in both exact-head
+and merge-result clean checkouts. The guard protects public source admission
+(including disclosed legacy inventory and reserved/contract-shaped Practice
+authoring artifacts). It does not claim to prove that arbitrary files visible
+to a developer's machine cannot be read by a local bundler. Local builds remain
+functional/visual/smoke QA only and must not be used as private-content
+artifact-isolation evidence. Do not reintroduce local Vite/Rollup provenance or
+Vite/CSS/HTML/module parser heuristics as a substitute for the hosted boundary.
+
 GitHub CI retains the combined root build as the cross-product gate for every
 pull request and `main` push:
 

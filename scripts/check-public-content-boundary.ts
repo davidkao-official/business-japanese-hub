@@ -1,10 +1,13 @@
 /** CI guard for #132's forward-only content boundary. */
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { basename, dirname, extname, join, relative, resolve } from 'node:path'
-import * as ts from 'typescript'
+import { basename, join, relative } from 'node:path'
 import { contentDistRoot, repoRoot } from './lib/books'
-import { viteHtmlModuleScripts } from './lib/vite-html-entry'
+import {
+  isCanonicalPrivatePracticeFilename,
+  isContractShapedPracticeAuthoringCsv,
+  isContractShapedPracticeQuestionBankJson,
+} from './lib/private-practice-artifact'
 
 interface LegacyBooksFile {
   schemaVersion?: unknown
@@ -48,77 +51,6 @@ function collectFiles(path: string, root: string, files: Record<string, string>)
   }
   if (!stat.isFile()) return
   files[relative(root, path)] = createHash('sha256').update(readFileSync(path)).digest('hex')
-}
-
-function collectSourceFiles(path: string, files: string[]): void {
-  if (!existsSync(path)) return
-  const stat = statSync(path)
-  if (stat.isDirectory()) {
-    for (const entry of readdirSync(path).sort()) collectSourceFiles(join(path, entry), files)
-    return
-  }
-  if (stat.isFile() && /\.(?:ts|tsx)$/.test(path)) files.push(path)
-}
-
-function isFixtureSpecifier(specifier: string, sourcePath: string): boolean {
-  if (specifier.includes('/fixtures/') || specifier.startsWith('./fixtures/') || specifier.startsWith('../fixtures/')) return true
-  const resolved = join(sourcePath, '..', specifier)
-  return resolved.includes('/src/practice-web-test/fixtures/')
-}
-
-function resolveLocalModule(specifier: string, sourcePath: string, viteRoot = root): string | null {
-  if (!specifier.startsWith('.') && !specifier.startsWith('/')) return null
-  const candidate = specifier.startsWith('/') ? resolve(viteRoot, `.${specifier}`) : resolve(dirname(sourcePath), specifier)
-  const paths = extname(candidate) ? [candidate] : [candidate, ...['.ts', '.tsx', '.js', '.jsx'].map((extension) => `${candidate}${extension}`), ...['.ts', '.tsx', '.js', '.jsx'].map((extension) => join(candidate, `index${extension}`))]
-  return paths.find((path) => existsSync(path) && statSync(path).isFile()) ?? null
-}
-
-function hasFixtureModuleGraphBypass(path: string, visited = new Set<string>(), viteRoot = root, sourceText?: string): boolean {
-  if (visited.has(path)) return false
-  visited.add(path)
-  const source = ts.createSourceFile(path, sourceText ?? readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true)
-  let unsafe = false
-  const inspectSpecifier = (node: ts.Expression, label: string): void => {
-    if (!ts.isStringLiteralLike(node)) {
-      console.error(`ERR  production module has non-literal ${label}: ${relative(root, path)}`)
-      unsafe = true
-      return
-    }
-    if (isFixtureSpecifier(node.text, path)) {
-      console.error(`ERR  production module imports a public Practice fixture: ${relative(root, path)}`)
-      unsafe = true
-    }
-    const imported = resolveLocalModule(node.text, path, viteRoot)
-    if (imported && hasFixtureModuleGraphBypass(imported, visited, viteRoot)) unsafe = true
-  }
-  const visit = (node: ts.Node): void => {
-    if (ts.isImportDeclaration(node) && node.moduleSpecifier) inspectSpecifier(node.moduleSpecifier, 'import')
-    if (ts.isExportDeclaration(node) && node.moduleSpecifier) inspectSpecifier(node.moduleSpecifier, 'export-from')
-    if (ts.isCallExpression(node)) {
-      if (node.expression.kind === ts.SyntaxKind.ImportKeyword && node.arguments[0]) inspectSpecifier(node.arguments[0], 'dynamic import')
-      if (ts.isIdentifier(node.expression) && node.expression.text === 'require' && node.arguments[0]) inspectSpecifier(node.arguments[0], 'require')
-      if (ts.isPropertyAccessExpression(node.expression) && (node.expression.name.text === 'glob' || node.expression.name.text === 'globEager') && ts.isMetaProperty(node.expression.expression) && node.expression.expression.keywordToken === ts.SyntaxKind.ImportKeyword && node.arguments[0]) inspectSpecifier(node.arguments[0], 'import.meta.glob')
-    }
-    ts.forEachChild(node, visit)
-  }
-  visit(source)
-  return unsafe
-}
-
-export function hasFixtureHtmlEntryBypass(path: string, viteRoot: string): boolean {
-  const html = readFileSync(path, 'utf8')
-  let unsafe = false
-  for (const { source, content } of viteHtmlModuleScripts(html)) {
-    if (source) {
-      if (isFixtureSpecifier(source, path)) {
-        console.error(`ERR  Vite HTML entry imports a public Practice fixture: ${relative(root, path)}`)
-        unsafe = true
-      }
-      const imported = resolveLocalModule(source, path, viteRoot)
-      if (imported && hasFixtureModuleGraphBypass(imported, new Set(), viteRoot)) unsafe = true
-    } else if (hasFixtureModuleGraphBypass(path, new Set(), viteRoot, content)) unsafe = true
-  }
-  return unsafe
 }
 
 function sameFiles(left: Record<string, string>, right: Record<string, string>): boolean {
@@ -177,35 +109,26 @@ if (!legacySlugs || !legacyFiles) {
     process.exitCode = 1
   }
 
-  // #114 permits only deliberately tiny test fixtures. A production browser
-  // module must never import one, because that would make public Git/Vite a
-  // question-bank delivery path again. The external import commands below are
-  // intentionally not part of `src`, so this scan does not block them.
-  const sourceFiles: string[] = []
-  collectSourceFiles(join(root, 'src'), sourceFiles)
-  // Workspace packages are compiled into the same browser artifacts. Scan
-  // their TypeScript sources too, so a bare workspace import cannot hide a
-  // transitive fixture edge from the deployment boundary.
-  collectSourceFiles(join(root, 'packages'), sourceFiles)
-  collectSourceFiles(join(root, 'apps', 'career-game', 'src'), sourceFiles)
-  for (const path of sourceFiles) {
-    const relativePath = relative(root, path)
-    if (relativePath.includes('/fixtures/') || /\.(?:test|contract)\.[tj]sx?$/.test(relativePath)) continue
-    if (hasFixtureModuleGraphBypass(path)) process.exitCode = 1
-  }
-  for (const [entry, viteRoot] of [[join(root, 'index.html'), root], [join(root, 'apps', 'career-game', 'index.html'), join(root, 'apps', 'career-game')]] as const) {
-    if (hasFixtureHtmlEntryBypass(entry, viteRoot)) process.exitCode = 1
-  }
-
-  // A complete private artifact has a fixed filename. It belongs only outside
-  // this checkout; fixtures are TypeScript-only and cannot be mistaken for an
-  // importable production bank by the controlled server importer.
-  const forbiddenArtifacts = ['practice-question-bank.json', 'practice-question-bank.csv', 'practice-question-bank-base.json', 'practice-questions.csv']
+  // A complete private artifact belongs only outside this checkout: not in a
+  // reserved filename (anywhere in the repository), and not as a renamed copy
+  // that still carries the documented question-bank/authoring shape. Fixtures
+  // are TypeScript-only, so they cannot be mistaken for an importable bank by
+  // the controlled server importer.
   const publicFiles: Record<string, string> = {}
   collectFiles(root, root, publicFiles)
   for (const path of Object.keys(publicFiles)) {
-    if (forbiddenArtifacts.includes(path.split('/').at(-1) ?? '')) {
+    if (isCanonicalPrivatePracticeFilename(path)) {
       console.error(`ERR  private Practice authoring artifact found in public repository: ${path}`)
+      process.exitCode = 1
+      continue
+    }
+    if (!/\.(?:json|csv)$/i.test(path)) continue
+    const text = readFileSync(join(root, path), 'utf8')
+    if (isContractShapedPracticeQuestionBankJson(text)) {
+      console.error(`ERR  renamed private Practice question bank found in public repository: ${path}`)
+      process.exitCode = 1
+    } else if (isContractShapedPracticeAuthoringCsv(text)) {
+      console.error(`ERR  renamed private Practice authoring CSV found in public repository: ${path}`)
       process.exitCode = 1
     }
   }
