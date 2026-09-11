@@ -7,8 +7,9 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { repoRoot } from '../lib/books'
+import { PRACTICE_AUTHORING_REQUIRED_COLUMNS, stripUtf8Bom } from '../lib/private-practice-artifact'
 
-const REQUIRED_COLUMNS = ['id', 'version', 'status', 'testFamily', 'domain', 'category', 'subcategory', 'deliveryProfile', 'practiceProfile', 'difficulty', 'targetSeconds', 'releaseNotes', 'promptJa', 'answerJson', 'coreExplanationJson', 'itemAnalysisJson', 'provenanceJson'] as const
+const REQUIRED_COLUMNS = PRACTICE_AUTHORING_REQUIRED_COLUMNS
 const PROMPT_REPRESENTATION_COLUMN = 'promptRepresentationJson'
 const ALLOWED_COLUMNS = new Set<string>([...REQUIRED_COLUMNS, PROMPT_REPRESENTATION_COLUMN])
 
@@ -19,16 +20,17 @@ function outsidePublicRepository(path: string): boolean {
 
 /** Minimal RFC-4180 reader for the one-sheet authoring interchange. */
 export function parsePracticeCsv(csv: string): string[][] {
+  const text = stripUtf8Bom(csv)
   const rows: string[][] = []
   let row: string[] = [], value = '', quoted = false
-  for (let index = 0; index < csv.length; index += 1) {
-    const char = csv[index]!
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]!
     if (quoted) {
-      if (char === '"' && csv[index + 1] === '"') { value += '"'; index += 1 } else if (char === '"') quoted = false
+      if (char === '"' && text[index + 1] === '"') { value += '"'; index += 1 } else if (char === '"') quoted = false
       else value += char
     } else if (char === '"') quoted = true
     else if (char === ',') { row.push(value); value = '' }
-    else if (char === '\n' || char === '\r') { if (char === '\r' && csv[index + 1] === '\n') index += 1; row.push(value); rows.push(row); row = []; value = '' }
+    else if (char === '\n' || char === '\r') { if (char === '\r' && text[index + 1] === '\n') index += 1; row.push(value); rows.push(row); row = []; value = '' }
     else value += char
   }
   if (quoted) throw new Error('unterminated quoted CSV field')

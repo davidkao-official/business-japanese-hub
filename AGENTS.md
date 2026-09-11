@@ -62,6 +62,8 @@
 - Provider-specific mechanics 不得污染 product domain；所有 payment `/api/*` endpoints 保持 server-only execution boundary（Supabase Edge Functions）。client 永不可提供可信 amount/currency/success/access state。
 - **Canonical current main frontend origin**：`https://business-japanese-hub.pages.dev/`。GitHub Pages 不是 deployment target，也不得重新引入其 project-path build／top-level `404.html` artifact。
 - **Canonical Career Game origin**：`https://business-japanese-career-game.pages.dev/`。兩個 SPA artifacts 可獨立 deploy／rollback；不得只為 URL symmetry 新增 custom gateway/path multiplexing。
+- **Frontend artifact admission authority**：只有 GitHub 的 clean exact-head／merge-result checkout 與 Cloudflare Pages 的 clean hosted checkout/build 可以證明 private canonical content 不可進入 frontend artifact。local build 僅為 functional／visual／smoke QA，不可作為私有內容隔離證據；不得再以 local Vite／CSS／HTML／module parser 或 provenance heuristic 模擬 hermetic build。
+- Hosted frontend build environment 不得 mount、checkout、copy 或以其他方式提供 private canonical content repository；Cloudflare project settings 屬 external deployment evidence，變更或驗證需由 owner 操作／確認。公開 repo 的 deploy commands 與 GitHub CI 必須持續執行 `check:public-content-boundary`。
 - Library 的 `PUBLIC_SITE_URL`／payment CORS 只指向 current main origin；Career Game 只使用 dedicated `CAREER_GAME_SITE_URL`。不要因 shared account 放寬 payment CORS 或自己發明 cross-domain SSO。
 - Supabase service role、payment secrets、webhook secrets、merchant credentials 永不進 client/repo。
 - 與 canonical product/security/deployment contract 衝突的實作方向應先停止，回到 issue / Product Owner 決策，不要「照舊 code path」把舊 single-Book 模型重新變成產品 authority。

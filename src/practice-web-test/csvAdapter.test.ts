@@ -20,6 +20,13 @@ describe('private Practice CSV converter', () => {
     expect(() => parsePracticeCsv('id\n"unterminated')).toThrow('unterminated quoted CSV field')
   })
 
+  it('accepts a UTF-8 BOM on the authoring header without dropping validation', () => {
+    const csv = `${header}\nfixture-1,1,released,fixture,verbal,fixture,,web,untimed-learning,foundation,30,fixture release,${csvField('「答」を選ぶ。')},${csvField(answer)},${csvField(explanation)},${csvField(analysis)},${csvField(provenance)}\n`
+    expect(parsePracticeCsv(`\uFEFF${csv}`)[0]).toEqual(header.split(','))
+    const converted = convertPracticeQuestionCsv(`\uFEFF${csv}`, { questionBank: { schemaVersion: 1, version: 1, vocabularyCatalog: { version: 1, terms: {} } } }) as { questionBank: { questions: Array<{ id: string; promptJa: string }> } }
+    expect(converted.questionBank.questions[0]).toMatchObject({ id: 'fixture-1', promptJa: '「答」を選ぶ。' })
+  })
+
   it('preserves an optional prompt representation JSON column', () => {
     const representation = '{"kind":"table","columns":["A","B"],"rows":[["0","0"]]}'
     const extendedHeader = `${header},promptRepresentationJson`
