@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { isPrivatePracticeAuthoringArtifact, viteBuildInputPaths } from '../../scripts/lib/practice-content-boundary'
@@ -45,9 +45,27 @@ describe('canonical browser deployment boundary', () => {
     const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-input-'))
     const configPath = join(temporaryRoot, 'vite.config.ts')
     try {
+      const resolvedRoot = realpathSync(temporaryRoot)
       writeFileSync(configPath, "export default { root: 'browser', build: { rollupOptions: { input: { privateWrapper: 'src/private-wrapper.ts' } } } }\n")
       await expect(configuredViteBuildEntries(temporaryRoot, [configPath])).resolves.toEqual([
-        { path: join(temporaryRoot, 'browser', 'src', 'private-wrapper.ts'), viteRoot: join(temporaryRoot, 'browser'), configPath },
+        { path: join(resolvedRoot, 'browser', 'src', 'private-wrapper.ts'), viteRoot: join(resolvedRoot, 'browser'), configPath },
+      ])
+    } finally {
+      rmSync(temporaryRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('includes Rollup browser roots added by Vite config plugins', async () => {
+    const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-plugin-entry-'))
+    const configPath = join(temporaryRoot, 'vite.config.ts')
+    try {
+      const resolvedRoot = realpathSync(temporaryRoot)
+      writeFileSync(
+        configPath,
+        "export default { plugins: [{ name: 'private-browser-entry', config() { return { build: { rollupOptions: { input: { privateWrapper: 'src/private-wrapper.ts' } } } } } }] }\n",
+      )
+      await expect(configuredViteBuildEntries(temporaryRoot, [configPath])).resolves.toEqual([
+        { path: join(resolvedRoot, 'src', 'private-wrapper.ts'), viteRoot: resolvedRoot, configPath },
       ])
     } finally {
       rmSync(temporaryRoot, { recursive: true, force: true })
@@ -58,9 +76,10 @@ describe('canonical browser deployment boundary', () => {
     const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-default-entry-'))
     const configPath = join(temporaryRoot, 'vite.config.ts')
     try {
+      const resolvedRoot = realpathSync(temporaryRoot)
       writeFileSync(configPath, "export default { root: 'browser' }\n")
       await expect(configuredViteBuildEntries(temporaryRoot, [configPath])).resolves.toEqual([
-        { path: join(temporaryRoot, 'browser', 'index.html'), viteRoot: join(temporaryRoot, 'browser'), configPath },
+        { path: join(resolvedRoot, 'browser', 'index.html'), viteRoot: join(resolvedRoot, 'browser'), configPath },
       ])
     } finally {
       rmSync(temporaryRoot, { recursive: true, force: true })

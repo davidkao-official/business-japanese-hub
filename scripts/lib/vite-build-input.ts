@@ -1,24 +1,23 @@
 import { relative, resolve } from 'node:path'
-import { loadConfigFromFile } from 'vite'
+import { resolveConfig } from 'vite'
 import { viteBuildInputPaths } from './practice-content-boundary'
 
 export type ViteBuildEntry = { path: string; viteRoot: string; configPath: string }
 
-/** Loads each real Vite config so configured Rollup browser roots cannot bypass HTML entry checks. */
+/** Resolves each real Vite config so configured Rollup browser roots cannot bypass HTML entry checks. */
 export async function configuredViteBuildEntries(root: string, configPaths: readonly string[]): Promise<ViteBuildEntry[] | null> {
   const entries: ViteBuildEntry[] = []
   for (const configPath of configPaths) {
+    const currentDirectory = process.cwd()
     try {
-      const loaded = await loadConfigFromFile({ command: 'build', mode: 'production' }, configPath, root)
-      if (!loaded) {
-        console.error(`ERR  cannot load Vite config for browser boundary: ${relative(root, configPath)}`)
-        return null
-      }
-      const config = loaded.config as { root?: unknown; build?: { rollupOptions?: { input?: unknown } } }
-      if (config.root !== undefined && typeof config.root !== 'string') {
-        console.error(`ERR  Vite config has an invalid root: ${relative(root, configPath)}`)
-        return null
-      }
+      // `loadConfigFromFile` intentionally stops before plugins' `config`
+      // hooks. The boundary must inspect the same config Vite will build, so
+      // a plugin cannot add a browser entry after this guard has run.
+      // Vite resolves a config's relative `root` from its invoking directory.
+      // The guard accepts an explicit repository root for its testable entry
+      // point, so reproduce `vite build`'s working-directory behavior first.
+      process.chdir(root)
+      const config = await resolveConfig({ configFile: configPath }, 'build', 'production')
       const configuredInput = config.build?.rollupOptions?.input
       const paths = viteBuildInputPaths(configuredInput)
       if (paths === null) {
@@ -32,6 +31,8 @@ export async function configuredViteBuildEntries(root: string, configPaths: read
     } catch {
       console.error(`ERR  cannot load Vite config for browser boundary: ${relative(root, configPath)}`)
       return null
+    } finally {
+      process.chdir(currentDirectory)
     }
   }
   return entries
