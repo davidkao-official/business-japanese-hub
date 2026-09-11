@@ -110,3 +110,14 @@ export function isContractShapedPracticeAuthoringCsv(text: string): boolean {
   const header = new Set(firstCsvRow(stripUtf8Bom(text)))
   return PRACTICE_AUTHORING_REQUIRED_COLUMNS.every((column) => header.has(column))
 }
+
+/**
+ * Applies the repository admission rule without trusting a filename extension:
+ * private authors may rename a bank to `.txt`, `.bak`, or another opaque name.
+ */
+export function privatePracticeArtifactReason(path: string, text: string): 'canonical filename' | 'question bank shape' | 'authoring CSV shape' | null {
+  if (isCanonicalPrivatePracticeFilename(path)) return 'canonical filename'
+  if (isContractShapedPracticeQuestionBankJson(text)) return 'question bank shape'
+  if (isContractShapedPracticeAuthoringCsv(text)) return 'authoring CSV shape'
+  return null
+}

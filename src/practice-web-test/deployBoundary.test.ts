@@ -5,6 +5,7 @@ import {
   isCanonicalPrivatePracticeFilename,
   isContractShapedPracticeAuthoringCsv,
   isContractShapedPracticeQuestionBankJson,
+  privatePracticeArtifactReason,
   stripQueryAndHash,
 } from '../../scripts/lib/private-practice-artifact'
 import packageJson from '../../package.json'
@@ -59,9 +60,11 @@ describe('canonical browser deployment boundary', () => {
   })
 
   it('detects a renamed contract-shaped private bank, BOM included', () => {
-    expect(isContractShapedPracticeQuestionBankJson(CONTRACT_BANK)).toBe(true)
+    expect(privatePracticeArtifactReason('private/opaque-bank.txt', CONTRACT_BANK)).toBe('question bank shape')
+    expect(privatePracticeArtifactReason('private/practice-question-bank.json.bak', CONTRACT_BANK)).toBe('question bank shape')
     expect(isContractShapedPracticeQuestionBankJson(`\uFEFF${CONTRACT_BANK}`)).toBe(true)
     expect(isContractShapedPracticeQuestionBankJson(JSON.stringify({ questionBank: { schemaVersion: 1, version: 1, vocabularyCatalog: { version: 1, terms: {} } } }))).toBe(true)
+    expect(isContractShapedPracticeQuestionBankJson(CONTRACT_BANK)).toBe(true)
   })
 
   it('does not flag ordinary JSON data or incomplete bank shapes', () => {
@@ -79,6 +82,7 @@ describe('canonical browser deployment boundary', () => {
     const csv = `${AUTHORING_HEADER}\nfixture-1,1,released,fixture,verbal,fixture,,web,untimed-learning,foundation,30,fixture release,問題,"{}","{}","{}","{}"\n`
     expect(isContractShapedPracticeAuthoringCsv(csv)).toBe(true)
     expect(isContractShapedPracticeAuthoringCsv(`\uFEFF${csv}`)).toBe(true)
+    expect(privatePracticeArtifactReason('archive/answers.backup', csv)).toBe('authoring CSV shape')
   })
 
   it('does not flag ordinary CSV data', () => {

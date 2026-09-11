@@ -4,9 +4,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, join, relative } from 'node:path'
 import { contentDistRoot, repoRoot } from './lib/books'
 import {
-  isCanonicalPrivatePracticeFilename,
-  isContractShapedPracticeAuthoringCsv,
-  isContractShapedPracticeQuestionBankJson,
+  privatePracticeArtifactReason,
 } from './lib/private-practice-artifact'
 
 interface LegacyBooksFile {
@@ -117,17 +115,16 @@ if (!legacySlugs || !legacyFiles) {
   const publicFiles: Record<string, string> = {}
   collectFiles(root, root, publicFiles)
   for (const path of Object.keys(publicFiles)) {
-    if (isCanonicalPrivatePracticeFilename(path)) {
+    const reason = privatePracticeArtifactReason(path, readFileSync(join(root, path), 'utf8'))
+    if (reason === 'canonical filename') {
       console.error(`ERR  private Practice authoring artifact found in public repository: ${path}`)
       process.exitCode = 1
       continue
     }
-    if (!/\.(?:json|csv)$/i.test(path)) continue
-    const text = readFileSync(join(root, path), 'utf8')
-    if (isContractShapedPracticeQuestionBankJson(text)) {
+    if (reason === 'question bank shape') {
       console.error(`ERR  renamed private Practice question bank found in public repository: ${path}`)
       process.exitCode = 1
-    } else if (isContractShapedPracticeAuthoringCsv(text)) {
+    } else if (reason === 'authoring CSV shape') {
       console.error(`ERR  renamed private Practice authoring CSV found in public repository: ${path}`)
       process.exitCode = 1
     }
