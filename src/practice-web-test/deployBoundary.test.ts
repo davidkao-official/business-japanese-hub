@@ -30,6 +30,8 @@ describe('canonical browser deployment boundary', () => {
 
     expect(isPrivatePracticeAuthoringArtifact('/tmp/renamed-bank.json', privateBank)).toBe(true)
     expect(isPrivatePracticeAuthoringArtifact('/tmp/renamed-bank.csv', csvHeader)).toBe(true)
+    expect(isPrivatePracticeAuthoringArtifact('/tmp/practice-question-bank-base.json', '{"incomplete":true}')).toBe(true)
+    expect(isPrivatePracticeAuthoringArtifact('/tmp/practice-questions.csv', 'id,name\n1,draft\n')).toBe(true)
     expect(isPrivatePracticeAuthoringArtifact('/tmp/ordinary.json', JSON.stringify({ version: 1, records: [] }))).toBe(false)
     expect(isPrivatePracticeAuthoringArtifact('/tmp/ordinary.csv', 'id,name\n1,fixture\n')).toBe(false)
   })

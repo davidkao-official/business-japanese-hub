@@ -1,10 +1,20 @@
-import { extname } from 'node:path'
+import { basename, extname } from 'node:path'
 
 const PRACTICE_CSV_REQUIRED_COLUMNS = [
   'id', 'version', 'status', 'testFamily', 'domain', 'category', 'subcategory',
   'deliveryProfile', 'practiceProfile', 'difficulty', 'targetSeconds', 'releaseNotes',
   'promptJa', 'answerJson', 'coreExplanationJson', 'itemAnalysisJson', 'provenanceJson',
 ]
+
+// These filenames are the canonical private source contract. Retain the
+// fail-closed name guard for incomplete authoring drafts whose contents do not
+// yet satisfy the complete JSON/CSV shape checks below.
+const CANONICAL_PRIVATE_PRACTICE_ARTIFACTS = new Set([
+  'practice-question-bank.json',
+  'practice-question-bank.csv',
+  'practice-question-bank-base.json',
+  'practice-questions.csv',
+])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -40,6 +50,7 @@ function hasPracticeQuestionBankShape(value: unknown): boolean {
 
 /** Detect the bounded #114 private authoring contracts without relying on filenames. */
 export function isPrivatePracticeAuthoringArtifact(path: string, content: string): boolean {
+  if (CANONICAL_PRIVATE_PRACTICE_ARTIFACTS.has(basename(path))) return true
   const extension = extname(path).toLowerCase()
   if (extension === '.json') {
     try {
