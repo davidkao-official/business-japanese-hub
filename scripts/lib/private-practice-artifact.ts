@@ -76,8 +76,8 @@ export function isContractShapedPracticeQuestionBankJson(text: string): boolean 
   return bank.questions === undefined || Array.isArray(bank.questions)
 }
 
-/** Reads only the first CSV row, honoring quoted cells and embedded commas. */
-function firstCsvRow(text: string): string[] {
+/** Reads the first non-empty CSV row, honoring quoted cells and embedded commas. */
+function firstNonEmptyCsvRow(text: string): string[] {
   const row: string[] = []
   let value = ''
   let quoted = false
@@ -95,7 +95,10 @@ function firstCsvRow(text: string): string[] {
       value = ''
     } else if (char === '\n' || char === '\r') {
       row.push(value)
-      return row
+      if (row.some((field) => field !== '')) return row
+      row.length = 0
+      value = ''
+      if (char === '\r' && text[index + 1] === '\n') index += 1
     } else value += char
   }
   row.push(value)
@@ -107,7 +110,7 @@ function firstCsvRow(text: string): string[] {
  * header. Ordinary data CSVs do not carry the full Practice authoring header.
  */
 export function isContractShapedPracticeAuthoringCsv(text: string): boolean {
-  const header = new Set(firstCsvRow(stripUtf8Bom(text)))
+  const header = new Set(firstNonEmptyCsvRow(stripUtf8Bom(text)))
   return PRACTICE_AUTHORING_REQUIRED_COLUMNS.every((column) => header.has(column))
 }
 

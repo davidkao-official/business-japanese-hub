@@ -82,6 +82,7 @@ describe('canonical browser deployment boundary', () => {
     const csv = `${AUTHORING_HEADER}\nfixture-1,1,released,fixture,verbal,fixture,,web,untimed-learning,foundation,30,fixture release,問題,"{}","{}","{}","{}"\n`
     expect(isContractShapedPracticeAuthoringCsv(csv)).toBe(true)
     expect(isContractShapedPracticeAuthoringCsv(`\uFEFF${csv}`)).toBe(true)
+    expect(isContractShapedPracticeAuthoringCsv(`\uFEFF\r\n\n${csv}`)).toBe(true)
     expect(privatePracticeArtifactReason('archive/answers.backup', csv)).toBe('authoring CSV shape')
   })
 
