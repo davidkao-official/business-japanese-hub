@@ -1,9 +1,16 @@
+import { existsSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
 import { resolveConfig } from 'vite'
 import { viteBuildInputPaths } from './practice-content-boundary'
 
 export type ViteAlias = { find: string | RegExp; replacement: string }
-export type ViteBuildEntry = { path: string; viteRoot: string; configPath: string; aliases?: readonly ViteAlias[] }
+export type ViteBuildEntry = {
+  path: string
+  viteRoot: string
+  configPath: string
+  publicDir?: string
+  aliases?: readonly ViteAlias[]
+}
 
 type InputConfig = {
   input?: unknown
@@ -51,6 +58,23 @@ function browserAliases(config: { resolve?: { alias?: unknown } }): ViteAlias[] 
   return aliases
 }
 
+function browserPublicDir(config: { publicDir?: unknown }, viteRoot: string): string | null | undefined {
+  // Vite resolves the default and configured public directory to a path before
+  // the build starts. `false` deliberately disables copying; every other
+  // value must be a path we can inspect before publishing an artifact.
+  if (config.publicDir === false) return undefined
+  if (typeof config.publicDir !== 'string') return null
+  return resolve(viteRoot, config.publicDir)
+}
+
+/** The allowlisted root/public inventory is the only Vite static-copy source. */
+export function isApprovedVitePublicDir(publicDir: string, repositoryRoot: string, viteRoot: string): boolean {
+  if (publicDir === resolve(repositoryRoot, 'public')) return true
+  // A nested Vite root gets this missing directory by default. It cannot copy
+  // anything, so tolerate it without allowing an arbitrary configured source.
+  return publicDir === resolve(viteRoot, 'public') && !existsSync(publicDir)
+}
+
 /** Resolves each real Vite config so configured Rollup browser roots cannot bypass HTML entry checks. */
 export async function configuredViteBuildEntries(root: string, configPaths: readonly string[]): Promise<ViteBuildEntry[] | null> {
   const entries: ViteBuildEntry[] = []
@@ -77,8 +101,19 @@ export async function configuredViteBuildEntries(root: string, configPaths: read
         return null
       }
       const viteRoot = resolve(root, config.root ?? '.')
+      const publicDir = browserPublicDir(config, viteRoot)
+      if (publicDir === null) {
+        console.error(`ERR  Vite config has an unsupported publicDir: ${relative(root, configPath)}`)
+        return null
+      }
       for (const path of configuredInput === undefined ? ['index.html'] : paths) {
-        entries.push({ path: resolve(viteRoot, path), viteRoot, configPath, ...(aliases.length === 0 ? {} : { aliases }) })
+        entries.push({
+          path: resolve(viteRoot, path),
+          viteRoot,
+          configPath,
+          ...(publicDir === undefined ? {} : { publicDir }),
+          ...(aliases.length === 0 ? {} : { aliases }),
+        })
       }
     } catch {
       console.error(`ERR  cannot load Vite config for browser boundary: ${relative(root, configPath)}`)

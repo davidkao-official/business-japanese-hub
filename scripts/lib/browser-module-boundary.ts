@@ -3,7 +3,7 @@ import { dirname, extname, join, relative, resolve } from 'node:path'
 import * as ts from 'typescript'
 import { isPrivatePracticeAuthoringArtifact, stripViteSpecifierSuffix } from './practice-content-boundary'
 import type { ViteAlias } from './vite-build-input'
-import { viteHtmlModuleScripts } from './vite-html-entry'
+import { viteHtmlModuleScripts, viteHtmlStylesheets } from './vite-html-entry'
 
 function isFixtureSpecifier(specifier: string, sourcePath: string): boolean {
   const localSpecifier = stripViteSpecifierSuffix(specifier)
@@ -31,9 +31,32 @@ export function resolveLocalModule(specifier: string, sourcePath: string, viteRo
   const candidate = aliasedSpecifier === undefined
     ? localSpecifier.startsWith('/') ? resolve(viteRoot, `.${localSpecifier}`) : resolve(dirname(sourcePath), localSpecifier)
     : resolve(viteRoot, aliasedSpecifier)
-  const extensions = ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.cts', '.cjs', '.json', '.csv']
+  const extensions = ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs', '.cts', '.cjs', '.json', '.csv', '.css', '.scss', '.sass', '.less', '.styl', '.stylus']
   const paths = extname(candidate) ? [candidate] : [candidate, ...extensions.map((extension) => `${candidate}${extension}`), ...extensions.map((extension) => join(candidate, `index${extension}`))]
   return paths.find((path) => existsSync(path) && statSync(path).isFile()) ?? null
+}
+
+function isCssPath(path: string): boolean {
+  return /\.(?:css|scss|sass|less|styl|stylus)$/i.test(path)
+}
+
+/** Walk literal CSS asset edges that Vite turns into public browser assets. */
+export function hasUnsafeBrowserStylesheet(path: string, repositoryRoot: string, visited = new Set<string>(), viteRoot = repositoryRoot, sourceText?: string, aliases: readonly ViteAlias[] = []): boolean {
+  const css = (sourceText ?? readFileSync(path, 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '')
+  const references = /(?:@import\s+(?:url\(\s*)?|url\(\s*)(?:"([^"]+)"|'([^']+)'|([^\s)]+))/g
+  let unsafe = false
+  for (const match of css.matchAll(references)) {
+    const specifier = match[1] ?? match[2] ?? match[3]
+    if (!specifier) continue
+    if (isFixtureSpecifier(specifier, path)) {
+      console.error(`ERR  production stylesheet imports a public Practice fixture: ${relative(repositoryRoot, path)}`)
+      unsafe = true
+      continue
+    }
+    const imported = resolveLocalModule(specifier, path, viteRoot, aliases)
+    if (imported !== null && hasUnsafeBrowserModuleGraph(imported, repositoryRoot, visited, viteRoot, undefined, aliases)) unsafe = true
+  }
+  return unsafe
 }
 
 /** Walks literal browser module edges and fails closed when private artifacts become reachable. */
@@ -44,7 +67,16 @@ export function hasUnsafeBrowserModuleGraph(path: string, repositoryRoot: string
     console.error(`ERR  private Practice authoring artifact is reachable from a browser module graph: ${relative(repositoryRoot, path)}`)
     return true
   }
-  const source = ts.createSourceFile(path, sourceText ?? readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true)
+  const sourceTextValue = sourceText ?? readFileSync(path, 'utf8')
+  if (isCssPath(path)) {
+    // Vite turns literal CSS @import and url() references into browser assets;
+    // they are module graph edges even though TypeScript cannot parse CSS.
+    // Remove comments first so an example or disabled declaration cannot create
+    // a false edge. Remote/data/hash URLs are intentionally ignored by the
+    // local resolver, matching Vite's asset processing boundary.
+    return hasUnsafeBrowserStylesheet(path, repositoryRoot, visited, viteRoot, sourceTextValue, aliases)
+  }
+  const source = ts.createSourceFile(path, sourceTextValue, ts.ScriptTarget.Latest, true)
   let unsafe = false
   const inspectSpecifier = (node: ts.Expression, label: string): void => {
     if (!ts.isStringLiteralLike(node)) {
@@ -92,6 +124,16 @@ export function hasFixtureHtmlEntryBypass(path: string, repositoryRoot: string, 
       const imported = resolveLocalModule(source, path, viteRoot, aliases)
       if (imported && hasUnsafeBrowserModuleGraph(imported, repositoryRoot, new Set(), viteRoot, undefined, aliases)) unsafe = true
     } else if (hasUnsafeBrowserModuleGraph(path, repositoryRoot, new Set(), viteRoot, content, aliases)) unsafe = true
+  }
+  for (const { source, content } of viteHtmlStylesheets(html)) {
+    if (source) {
+      if (isFixtureSpecifier(source, path)) {
+        console.error(`ERR  Vite HTML entry imports a public Practice fixture: ${relative(repositoryRoot, path)}`)
+        unsafe = true
+      }
+      const imported = resolveLocalModule(source, path, viteRoot, aliases)
+      if (imported && hasUnsafeBrowserModuleGraph(imported, repositoryRoot, new Set(), viteRoot, undefined, aliases)) unsafe = true
+    } else if (hasUnsafeBrowserStylesheet(path, repositoryRoot, new Set(), viteRoot, content, aliases)) unsafe = true
   }
   return unsafe
 }

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { contentDistRoot, repoRoot } from './lib/books'
 import { hasFixtureHtmlEntryBypass, hasUnsafeBrowserModuleGraph } from './lib/browser-module-boundary'
 import { isPrivatePracticeAuthoringArtifact } from './lib/practice-content-boundary'
-import { configuredViteBuildEntries, type ViteBuildEntry } from './lib/vite-build-input'
+import { configuredViteBuildEntries, isApprovedVitePublicDir, type ViteBuildEntry } from './lib/vite-build-input'
 
 interface LegacyBooksFile {
   schemaVersion?: unknown
@@ -133,6 +133,22 @@ export async function runPublicContentBoundary(): Promise<void> {
 
   const configuredEntries = await configuredViteBuildEntries(root, [join(root, 'vite.config.ts'), join(root, 'vite.career-game.config.ts')])
   if (configuredEntries === null) process.exitCode = 1
+
+  // Vite copies `publicDir` straight into the public artifact without an
+  // import edge. The only approved static public inventory is root/public,
+  // which is checked above against the legacy allowlist. Reject another live
+  // public directory before a config/plugin can copy private authoring files
+  // from an external checkout into a Pages build.
+  const publicDirs = new Map<string, string>()
+  for (const entry of configuredEntries ?? []) {
+    if (entry.publicDir !== undefined) publicDirs.set(entry.publicDir, entry.viteRoot)
+  }
+  for (const [publicDir, viteRoot] of publicDirs) {
+    if (!isApprovedVitePublicDir(publicDir, root, viteRoot)) {
+      console.error(`ERR  configured Vite publicDir is outside the approved static inventory: ${relative(root, publicDir)}`)
+      process.exitCode = 1
+    }
+  }
 
   // #114 permits only deliberately tiny test fixtures. A production browser
   // module must never import one, because that would make public Git/Vite a
