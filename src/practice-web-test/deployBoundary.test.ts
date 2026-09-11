@@ -53,4 +53,17 @@ describe('canonical browser deployment boundary', () => {
       rmSync(temporaryRoot, { recursive: true, force: true })
     }
   })
+
+  it('uses a Vite root default index.html when configured input is omitted', async () => {
+    const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-default-entry-'))
+    const configPath = join(temporaryRoot, 'vite.config.ts')
+    try {
+      writeFileSync(configPath, "export default { root: 'browser' }\n")
+      await expect(configuredViteBuildEntries(temporaryRoot, [configPath])).resolves.toEqual([
+        { path: join(temporaryRoot, 'browser', 'index.html'), viteRoot: join(temporaryRoot, 'browser'), configPath },
+      ])
+    } finally {
+      rmSync(temporaryRoot, { recursive: true, force: true })
+    }
+  })
 })

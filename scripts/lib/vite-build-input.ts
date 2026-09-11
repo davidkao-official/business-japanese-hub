@@ -19,13 +19,16 @@ export async function configuredViteBuildEntries(root: string, configPaths: read
         console.error(`ERR  Vite config has an invalid root: ${relative(root, configPath)}`)
         return null
       }
-      const paths = viteBuildInputPaths(config.build?.rollupOptions?.input)
+      const configuredInput = config.build?.rollupOptions?.input
+      const paths = viteBuildInputPaths(configuredInput)
       if (paths === null) {
         console.error(`ERR  Vite config has an unsupported build.rollupOptions.input: ${relative(root, configPath)}`)
         return null
       }
       const viteRoot = resolve(root, config.root ?? '.')
-      for (const path of paths) entries.push({ path: resolve(viteRoot, path), viteRoot, configPath })
+      for (const path of configuredInput === undefined ? ['index.html'] : paths) {
+        entries.push({ path: resolve(viteRoot, path), viteRoot, configPath })
+      }
     } catch {
       console.error(`ERR  cannot load Vite config for browser boundary: ${relative(root, configPath)}`)
       return null
