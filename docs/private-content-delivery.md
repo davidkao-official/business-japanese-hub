@@ -42,6 +42,8 @@ bounded renderer (future integration)
 
 `pnpm check:public-content-boundary` 是 CI guard：它比較 `books/`、`content-dist/books/` 與 legacy asset directories 對 allowlist，並以 committed SHA-256 inventory 固定每個 legacy source、release、asset、learning catalog 與 Vite `public/` 檔案，同時驗證 Reader 的 static glob 沒有 private source/release store dependency。加入或更動 static public Book 必須刻意更新 inventory 並在 PR 說明其 non-proprietary/disclosed status；不能默默讓 #114/#125/#126 的 production corpus 走進 bundle。
 
+兩個 production frontend build 都必須經過 `pnpm build:library`／`pnpm build:career-game` 的 provenance-checked builder：它使用固定的 Vite config factory、`configFile:false` 與 `assetsInlineLimit: 0` 建到 quarantine；只在 final Rollup module／asset origins 可證明在公開 repository 與 disclosed inventory 內、且 output file set 完全符合 provenance 後，才 promotion 到 `dist`／`dist-career-game`。未證明來源的 plugin asset、virtual module、external/symlink dependency、fixture 或 private artifact 一律 fail closed；這是 deploy artifact 的安全邊界，不由另一個 HTML/CSS parser 模擬 Vite resolution。
+
 ## Issue reconciliation
 
 - **#114**：original SPI questions、answers、explanations、review/provenance 與 source research 都在 private source；public repo 僅放 question schema/validator/converter/import tooling 與 small non-proprietary fixtures。36–48 題不得在此 repo 或 preview bundle 建立。

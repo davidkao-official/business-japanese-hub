@@ -1,12 +1,11 @@
 /** CI guard for #132's forward-only content boundary. */
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { basename, extname, join, relative, resolve } from 'node:path'
+import { basename, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { contentDistRoot, repoRoot } from './lib/books'
-import { hasFixtureHtmlEntryBypass, hasUnsafeBrowserModuleGraph } from './lib/browser-module-boundary'
 import { isPrivatePracticeAuthoringArtifact } from './lib/practice-content-boundary'
-import { configuredViteBuildEntries, isApprovedVitePublicDir, type ViteBuildEntry } from './lib/vite-build-input'
+import { assertNoExternalDependencyProtocols } from './lib/public-build-provenance'
 
 interface LegacyBooksFile {
   schemaVersion?: unknown
@@ -52,21 +51,6 @@ function collectFiles(path: string, root: string, files: Record<string, string>)
   files[relative(root, path)] = createHash('sha256').update(readFileSync(path)).digest('hex')
 }
 
-function collectSourceFiles(path: string, files: string[]): void {
-  if (!existsSync(path)) return
-  const stat = statSync(path)
-  if (stat.isDirectory()) {
-    if (basename(path) === 'node_modules' || basename(path) === '.git') return
-    for (const entry of readdirSync(path).sort()) collectSourceFiles(join(path, entry), files)
-    return
-  }
-  if (stat.isFile() && /\.(?:ts|tsx)$/.test(path)) files.push(path)
-}
-
-function isFixturePath(path: string): boolean {
-  return relative(root, path).split('/').includes('fixtures')
-}
-
 function sameFiles(left: Record<string, string>, right: Record<string, string>): boolean {
   const leftKeys = Object.keys(left).sort()
   const rightKeys = Object.keys(right).sort()
@@ -75,13 +59,6 @@ function sameFiles(left: Record<string, string>, right: Record<string, string>):
 
 const root = repoRoot()
 
-function browserModuleContext(path: string, entries: readonly ViteBuildEntry[]): Pick<ViteBuildEntry, 'viteRoot' | 'aliases'> | null {
-  const contexts = new Map<string, Pick<ViteBuildEntry, 'viteRoot' | 'aliases'>>()
-  for (const entry of entries) contexts.set(entry.configPath, entry)
-  return [...contexts.values()]
-    .filter((context) => !relative(context.viteRoot, path).startsWith('..'))
-    .sort((left, right) => right.viteRoot.length - left.viteRoot.length)[0] ?? null
-}
 export async function runPublicContentBoundary(): Promise<void> {
   const policy = JSON.parse(readFileSync(join(root, '.content-boundary', 'legacy-books.json'), 'utf8')) as LegacyBooksFile
   const legacySlugs = policy.schemaVersion === 2 ? exactStrings(policy.slugs) : null
@@ -131,54 +108,11 @@ export async function runPublicContentBoundary(): Promise<void> {
     console.error('ERR  private authoring checkout must live outside the public repository')
     process.exitCode = 1
   }
-
-  const configuredEntries = await configuredViteBuildEntries(root, [join(root, 'vite.config.ts'), join(root, 'vite.career-game.config.ts')])
-  if (configuredEntries === null) process.exitCode = 1
-
-  // Vite copies `publicDir` straight into the public artifact without an
-  // import edge. The only approved static public inventory is root/public,
-  // which is checked above against the legacy allowlist. Reject another live
-  // public directory before a config/plugin can copy private authoring files
-  // from an external checkout into a Pages build.
-  const publicDirs = new Map<string, string>()
-  for (const entry of configuredEntries ?? []) {
-    if (entry.publicDir !== undefined) publicDirs.set(entry.publicDir, entry.viteRoot)
-  }
-  for (const [publicDir, viteRoot] of publicDirs) {
-    if (!isApprovedVitePublicDir(publicDir, root, viteRoot)) {
-      console.error(`ERR  configured Vite publicDir is outside the approved static inventory: ${relative(root, publicDir)}`)
-      process.exitCode = 1
-    }
-  }
-
-  // #114 permits only deliberately tiny test fixtures. A production browser
-  // module must never import one, because that would make public Git/Vite a
-  // question-bank delivery path again. The external import commands below are
-  // intentionally not part of `src`, so this scan does not block them.
-  const sourceFiles: string[] = []
-  collectSourceFiles(join(root, 'src'), sourceFiles)
-  // Workspace packages are compiled into the same browser artifacts. Scan
-  // their TypeScript sources too, so a bare workspace import cannot hide a
-  // transitive fixture edge from the deployment boundary.
-  collectSourceFiles(join(root, 'packages'), sourceFiles)
-  collectSourceFiles(join(root, 'apps', 'career-game', 'src'), sourceFiles)
-  for (const path of sourceFiles) {
-    const relativePath = relative(root, path)
-    if (relativePath.includes('/fixtures/') || /\.(?:test|contract)\.[tj]sx?$/.test(relativePath)) continue
-    const context = browserModuleContext(path, configuredEntries ?? [])
-    if (hasUnsafeBrowserModuleGraph(path, root, new Set(), context?.viteRoot ?? root, undefined, context?.aliases)) process.exitCode = 1
-  }
-
-  for (const entry of configuredEntries ?? []) {
-    if (!existsSync(entry.path) || !statSync(entry.path).isFile()) {
-      console.error(`ERR  configured Vite build input is not a local file: ${relative(root, entry.path)} (${relative(root, entry.configPath)})`)
-      process.exitCode = 1
-    } else if (isFixturePath(entry.path)) {
-      console.error(`ERR  configured Vite build input is a public Practice fixture: ${relative(root, entry.path)}`)
-      process.exitCode = 1
-    } else if (extname(entry.path).toLowerCase() === '.html') {
-      if (hasFixtureHtmlEntryBypass(entry.path, root, entry.viteRoot, entry.aliases)) process.exitCode = 1
-    } else if (hasUnsafeBrowserModuleGraph(entry.path, root, new Set(), entry.viteRoot, undefined, entry.aliases)) process.exitCode = 1
+  try {
+    assertNoExternalDependencyProtocols(root)
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : 'ERR  public build manifest protocol check failed')
+    process.exitCode = 1
   }
 
   const publicFiles: Record<string, string> = {}
