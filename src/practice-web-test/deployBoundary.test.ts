@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { isPrivatePracticeAuthoringArtifact, stripViteSpecifierSuffix, viteBuildInputPaths } from '../../scripts/lib/practice-content-boundary'
 import { configuredViteBuildEntries } from '../../scripts/lib/vite-build-input'
+import { hasUnsafeBrowserModuleGraph } from '../../scripts/lib/browser-module-boundary'
 import { viteHtmlModuleScripts } from '../../scripts/lib/vite-html-entry'
 import packageJson from '../../package.json'
 
@@ -89,6 +90,29 @@ describe('canonical browser deployment boundary', () => {
         { path: join(resolvedRoot, 'src', 'top-level.ts'), viteRoot: resolvedRoot, configPath },
         { path: join(resolvedRoot, 'src', 'private-wrapper.ts'), viteRoot: resolvedRoot, configPath },
       ])
+    } finally {
+      rmSync(temporaryRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('follows Vite resource queries, aliases, extensionless wrappers, and static new URL assets', () => {
+    const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-private-asset-'))
+    try {
+      const privateDirectory = join(temporaryRoot, 'private')
+      const sourceDirectory = join(temporaryRoot, 'src')
+      mkdirSync(privateDirectory)
+      mkdirSync(sourceDirectory)
+      const privateBank = JSON.stringify({ questionBank: { schemaVersion: 1, version: 1, vocabularyCatalog: { version: 1, terms: {} }, questions: [] } })
+      writeFileSync(join(privateDirectory, 'renamed-bank.json'), privateBank)
+      writeFileSync(join(privateDirectory, 'wrapper.mts'), "export { default as questionBank } from './renamed-bank.json?raw'\n")
+      const aliasEntry = join(sourceDirectory, 'alias-entry.ts')
+      writeFileSync(aliasEntry, "import '@private/wrapper'\n")
+      const urlEntry = join(sourceDirectory, 'url-entry.ts')
+      writeFileSync(urlEntry, "new URL('../private/renamed-bank.json?raw', import.meta.url)\n")
+
+      const aliases = [{ find: '@private', replacement: privateDirectory }]
+      expect(hasUnsafeBrowserModuleGraph(aliasEntry, temporaryRoot, new Set(), temporaryRoot, undefined, aliases)).toBe(true)
+      expect(hasUnsafeBrowserModuleGraph(urlEntry, temporaryRoot)).toBe(true)
     } finally {
       rmSync(temporaryRoot, { recursive: true, force: true })
     }
