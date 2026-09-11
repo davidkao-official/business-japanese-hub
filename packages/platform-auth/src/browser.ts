@@ -3,11 +3,18 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 export type PlatformApplicationId = 'library' | 'career-game'
 
-/** Public browser configuration. Vite exposes only `VITE_`-prefixed values. */
+/** Exact public browser configuration admitted by the production build spec. */
 export interface BrowserPlatformEnvironment {
-  readonly [key: string]: unknown
   VITE_SUPABASE_URL?: string
   VITE_SUPABASE_ANON_KEY?: string
+}
+
+/** Do not pass whole import.meta.env: arbitrary VITE_* values are not build inputs. */
+export function defaultBrowserPlatformEnvironment(): BrowserPlatformEnvironment {
+  return {
+    VITE_SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+    VITE_SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
+  }
 }
 
 /**
@@ -20,7 +27,7 @@ export interface BrowserPlatformEnvironment {
  */
 export function createSupabaseClientFromEnv(
   applicationId: PlatformApplicationId,
-  environment: BrowserPlatformEnvironment = import.meta.env,
+  environment: BrowserPlatformEnvironment = defaultBrowserPlatformEnvironment(),
 ): SupabaseClient | null {
   const url = environment.VITE_SUPABASE_URL
   const anonKey = environment.VITE_SUPABASE_ANON_KEY

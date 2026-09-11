@@ -1,10 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { parseBuildInfo } from './deployment-identity'
+import { createBuildInfo, resolveBuildCommitSha, type DeploymentProduct } from './deployment-identity'
 import { isPrivatePracticeAuthoringArtifact, stripViteSpecifierSuffix } from './practice-content-boundary'
 
 const allowedVirtualModules = ['\0vite/', '\0rolldown/']
-const generatedAssets = new Set(['_headers', 'build-info.json'])
 const forbiddenDependencyProtocol = /^(?:file:|link:|portal:)/
 const buildInfoHeaders = '/build-info.json\n  Cache-Control: no-store\n'
 
@@ -67,29 +67,6 @@ function validateOutputFileName(fileName: string): void {
   }
 }
 
-function generatedAssetText(output: Extract<PublicOutput, { type: 'asset' }>): string {
-  return typeof output.source === 'string' ? output.source : new TextDecoder().decode(output.source)
-}
-
-function validateGeneratedAsset(output: Extract<PublicOutput, { type: 'asset' }>): void {
-  const source = generatedAssetText(output)
-  if (output.fileName === '_headers') {
-    if (source !== buildInfoHeaders) throw new Error('ERR  public build emitted an invalid generated _headers asset')
-    return
-  }
-  try {
-    const parsed = JSON.parse(source) as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed) ||
-      !['schemaVersion', 'product', 'commitSha'].every((key) => key in parsed) ||
-      Object.keys(parsed).length !== 3) {
-      throw new Error('invalid shape')
-    }
-    parseBuildInfo(parsed)
-  } catch {
-    throw new Error('ERR  public build emitted an invalid generated build-info asset')
-  }
-}
-
 function eachOutput(outputs: readonly PublicRollupOutput[]): Iterable<PublicOutput> {
   return outputs.flatMap((output) => output.output)
 }
@@ -106,11 +83,7 @@ export function validatePublicBuildProvenance(outputs: readonly PublicRollupOutp
       continue
     }
     if (output.originalFileNames.length === 0) {
-      if (!generatedAssets.has(output.fileName)) {
-        throw new Error(`ERR  public build emitted an unprovenanced asset: ${output.fileName}`)
-      }
-      validateGeneratedAsset(output)
-      continue
+      throw new Error(`ERR  public build emitted an unprovenanced asset: ${output.fileName}`)
     }
     for (const origin of output.originalFileNames) validateAssetOrigin(origin, root, viteRoot)
   }
@@ -125,7 +98,7 @@ function files(path: string, root: string, result: string[]): void {
 }
 
 /** Writes exactly the validated Rollup output into a quarantined artifact directory. */
-export function writeQuarantinedOutput(outputs: readonly PublicRollupOutput[], directory: string): void {
+export function writeQuarantinedOutput(outputs: readonly PublicRollupOutput[], directory: string): string[] {
   mkdirSync(directory, { recursive: true })
   const expected: string[] = []
   for (const output of eachOutput(outputs)) {
@@ -139,6 +112,79 @@ export function writeQuarantinedOutput(outputs: readonly PublicRollupOutput[], d
   files(directory, directory, actual)
   if (actual.length !== expected.length || actual.some((file, index) => file !== expected.sort()[index])) {
     throw new Error('ERR  quarantined public build output does not match Rollup provenance')
+  }
+  return expected.sort()
+}
+
+interface LegacyInventory {
+  schemaVersion?: unknown
+  files?: unknown
+}
+
+function approvedPublicInventory(root: string): Record<string, string> {
+  const policy = JSON.parse(readFileSync(join(root, '.content-boundary', 'legacy-books.json'), 'utf8')) as LegacyInventory
+  if (policy.schemaVersion !== 2 || !policy.files || typeof policy.files !== 'object' || Array.isArray(policy.files)) {
+    throw new Error('ERR  public build legacy inventory is invalid')
+  }
+  const entries = Object.entries(policy.files).filter(([path]) => path.startsWith('public/'))
+  if (entries.length === 0 || entries.some(([path, digest]) => path.includes('..') || typeof digest !== 'string' || !/^[a-f0-9]{64}$/.test(digest))) {
+    throw new Error('ERR  public build legacy public inventory is invalid')
+  }
+  return Object.fromEntries(entries as Array<[string, string]>)
+}
+
+/** Stages only the SHA-pinned legacy public inventory after Vite disables publicDir. */
+export function stageApprovedPublicFiles(root: string, directory: string): string[] {
+  const staged: string[] = []
+  for (const [path, digest] of Object.entries(approvedPublicInventory(root))) {
+    const source = safePath(join(root, path), root)
+    if (createHash('sha256').update(readFileSync(source)).digest('hex') !== digest) {
+      throw new Error(`ERR  public build legacy asset digest changed: ${path}`)
+    }
+    const fileName = relative('public', path)
+    const target = resolve(directory, fileName)
+    if (!target.startsWith(`${resolve(directory)}${sep}`)) throw new Error('ERR  public build legacy asset path is unsafe')
+    mkdirSync(dirname(target), { recursive: true })
+    copyFileSync(source, target)
+    staged.push(fileName)
+  }
+  return staged.sort()
+}
+
+function themeColors(root: string): { light: string; dark: string } {
+  const css = readFileSync(safePath(join(root, 'src/styles/tokens.css'), root), 'utf8')
+  const light = /:root\s*\{([^}]*)\}/.exec(css)?.[1]?.match(/--color-bg:\s*([^;]+);/)?.[1]?.trim()
+  const dark = /:root\[data-theme='dark'\]\s*\{([^}]*)\}/.exec(css)?.[1]?.match(/--color-bg:\s*([^;]+);/)?.[1]?.trim()
+  if (!light || !dark) throw new Error('ERR  public build cannot read canonical theme colors')
+  return { light, dark }
+}
+
+/** Adds exact build metadata only after Rollup provenance has been validated. */
+export function finalizePublicArtifact(root: string, directory: string, product: DeploymentProduct): string[] {
+  const index = join(directory, 'index.html')
+  if (!existsSync(index)) throw new Error('ERR  public build has no canonical index.html')
+  const { light, dark } = themeColors(root)
+  const info = createBuildInfo(product, resolveBuildCommitSha())
+  const html = readFileSync(index, 'utf8')
+    .replace(/\s*<meta\s+name="theme-color"[^>]*\/?>/gi, '')
+    .replace(/\s*<meta\s+name="bjh-build"[^>]*\/?>/gi, '')
+    .replace('</head>', `    <meta name="theme-color" media="(prefers-color-scheme: light)" content="${light}" />\n    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="${dark}" />\n    <meta name="bjh-build" content="${product}:${info.commitSha}" />\n  </head>`)
+  if (!html.includes(`<meta name="bjh-build" content="${product}:${info.commitSha}" />`)) {
+    throw new Error('ERR  public build cannot finalize canonical HTML identity')
+  }
+  writeFileSync(index, html)
+  writeFileSync(join(directory, 'build-info.json'), `${JSON.stringify(info, null, 2)}\n`)
+  writeFileSync(join(directory, '_headers'), buildInfoHeaders)
+  return ['_headers', 'build-info.json']
+}
+
+/** Reject an unexpected disk write before the quarantined artifact is promoted. */
+export function assertExactQuarantineFiles(directory: string, expected: readonly string[]): void {
+  const actual: string[] = []
+  files(directory, directory, actual)
+  const sortedExpected = [...new Set(expected)].sort()
+  if (actual.length !== sortedExpected.length || actual.some((file, index) => file !== sortedExpected[index])) {
+    throw new Error('ERR  quarantined public build has an unexpected output file')
   }
 }
 

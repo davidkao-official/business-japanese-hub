@@ -1,47 +1,48 @@
 import { mkdtempSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { build, type UserConfig } from 'vite'
-import { careerGameViteConfig, libraryViteConfig } from './lib/public-frontend-config'
+import { build } from 'vite'
 import {
+  assertPublicBuildEnvironment,
+  publicFrontendBuildSpec,
+  publicProductionViteConfig,
+  type PublicFrontendProduct,
+} from './lib/public-frontend-build-spec'
+import {
+  assertExactQuarantineFiles,
   assertNoExternalDependencyProtocols,
+  finalizePublicArtifact,
   type PublicRollupOutput,
   promoteQuarantinedOutput,
   removeQuarantine,
+  stageApprovedPublicFiles,
   validatePublicBuildProvenance,
   writeQuarantinedOutput,
 } from './lib/public-build-provenance'
 import { repoRoot } from './lib/books'
 
-const product = process.argv[2]
+const product = process.argv[2] as PublicFrontendProduct | undefined
 if (product !== 'library' && product !== 'career-game') {
   throw new Error('Usage: tsx scripts/build-public-frontend.ts <library|career-game>')
 }
 
 const root = repoRoot()
-const config: UserConfig = product === 'library' ? libraryViteConfig() : careerGameViteConfig()
+const spec = publicFrontendBuildSpec(root, product)
 const outputDirectory = resolve(root, product === 'library' ? 'dist' : 'dist-career-game')
-const viteRoot = resolve(root, config.root ?? '.')
 const quarantine = mkdtempSync(join(root, `.quarantine-${product}-`))
 const originalDirectory = process.cwd()
 
 try {
   process.chdir(root)
   assertNoExternalDependencyProtocols(root)
-  const result = await build({
-    ...config,
-    configFile: false,
-    build: {
-      ...config.build,
-      assetsInlineLimit: 0,
-      emptyOutDir: false,
-      outDir: quarantine,
-      write: false,
-    },
-  })
+  assertPublicBuildEnvironment()
+  const result = await build(publicProductionViteConfig(spec, quarantine))
   const outputs = (Array.isArray(result) ? result : [result]).filter((output) => output !== undefined) as unknown as PublicRollupOutput[]
   if (outputs.length === 0) throw new Error('ERR  Vite public build returned no Rollup output')
-  validatePublicBuildProvenance(outputs, root, viteRoot)
-  writeQuarantinedOutput(outputs, quarantine)
+  validatePublicBuildProvenance(outputs, root, spec.root)
+  const outputFiles = writeQuarantinedOutput(outputs, quarantine)
+  const legacyFiles = stageApprovedPublicFiles(root, quarantine)
+  const generatedFiles = finalizePublicArtifact(root, quarantine, product)
+  assertExactQuarantineFiles(quarantine, [...outputFiles, ...legacyFiles, ...generatedFiles])
   promoteQuarantinedOutput(quarantine, outputDirectory)
   console.log(`ok   ${product}: provenance-checked public build promoted`)
 } finally {

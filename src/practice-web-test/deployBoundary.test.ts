@@ -5,6 +5,7 @@ import { join, relative } from 'node:path'
 import { build, type Plugin } from 'vite'
 import { isPrivatePracticeAuthoringArtifact, stripViteSpecifierSuffix, viteBuildInputPaths } from '../../scripts/lib/practice-content-boundary'
 import { assertNoExternalDependencyProtocols, type PublicRollupOutput, validatePublicBuildProvenance } from '../../scripts/lib/public-build-provenance'
+import { assertPublicBuildEnvironment, publicBuildDefines, publicFrontendBuildSpec, publicProductionViteConfig } from '../../scripts/lib/public-frontend-build-spec'
 import packageJson from '../../package.json'
 
 function privateBank(): string {
@@ -94,7 +95,7 @@ describe('canonical browser deployment boundary', () => {
     }
   })
 
-  it('accepts only the exact deployment-identity generated asset contracts', () => {
+  it('rejects a plugin attempt to impersonate a builder-generated deployment asset', () => {
     const root = mkdtempSync(join(tmpdir(), 'bjh-generated-asset-'))
     try {
       const output: PublicRollupOutput[] = [{
@@ -105,7 +106,43 @@ describe('canonical browser deployment boundary', () => {
           source: '{"schemaVersion":1,"product":"library","commitSha":"0000000000000000000000000000000000000000","private":"no"}',
         }],
       }]
-      expect(() => validatePublicBuildProvenance(output, root, root)).toThrow(/invalid generated build-info asset/)
+      expect(() => validatePublicBuildProvenance(output, root, root)).toThrow(/unprovenanced asset/)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('admits only product-approved VITE keys and exact define values', () => {
+    const root = mkdtempSync(join(tmpdir(), 'bjh-public-env-'))
+    try {
+      const environment = {
+        VITE_SUPABASE_URL: 'https://public.example',
+        VITE_PRIVATE_PRACTICE: 'PROPRIETARY_PROMPT_SENTINEL',
+      }
+      const spec = publicFrontendBuildSpec(root, 'library', environment)
+      expect(() => assertPublicBuildEnvironment(environment)).toThrow(/VITE_PRIVATE_PRACTICE/)
+      const defines = publicBuildDefines(spec, { VITE_SUPABASE_URL: environment.VITE_SUPABASE_URL })
+      expect(defines['import.meta.env.VITE_SUPABASE_URL']).toBe(JSON.stringify(environment.VITE_SUPABASE_URL))
+      expect(defines).not.toHaveProperty('import.meta.env.VITE_PRIVATE_PRACTICE')
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('disables implicit Vite environment loading and PostCSS config discovery', async () => {
+    const { root, source } = fixtureRoot('bjh-closed-vite-config-')
+    try {
+      writeFileSync(join(source, 'main.ts'), "import './style.css'\nconsole.log(import.meta.env)\n")
+      writeFileSync(join(source, 'style.css'), '.public { color: green }\n')
+      writeFileSync(join(root, 'postcss.config.js'), `module.exports = { plugins: [{ postcssPlugin: 'private-read', Once(root) { root.append({ prop: 'content', value: 'PROPRIETARY_POSTCSS_SENTINEL' }) } }] }\nmodule.exports.plugins[0].postcss = true\n`)
+      const spec = publicFrontendBuildSpec(root, 'library', { VITE_SUPABASE_URL: 'https://approved.example' })
+      const result = await build({ ...publicProductionViteConfig(spec, join(root, 'quarantine'), { VITE_SUPABASE_URL: 'https://approved.example' }), logLevel: 'silent' })
+      const output = (Array.isArray(result) ? result : [result]) as unknown as PublicRollupOutput[]
+      const text = output.flatMap((entry) => entry.output)
+        .map((entry) => entry.type === 'chunk' ? entry.code : String(entry.source))
+        .join('\n')
+      expect(text).toContain('https://approved.example')
+      expect(text).not.toContain('PROPRIETARY_POSTCSS_SENTINEL')
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

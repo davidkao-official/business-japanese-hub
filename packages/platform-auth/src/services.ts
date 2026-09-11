@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   createSupabaseClientFromEnv,
+  defaultBrowserPlatformEnvironment,
   type BrowserPlatformEnvironment,
   type PlatformApplicationId,
 } from './browser'
@@ -16,7 +17,7 @@ export interface BrowserPlatformServices {
 /** One construction seam shared by Library and Career Game browser bootstraps. */
 export function createBrowserPlatformServices(
   applicationId: PlatformApplicationId,
-  environment: BrowserPlatformEnvironment = import.meta.env,
+  environment: BrowserPlatformEnvironment = defaultBrowserPlatformEnvironment(),
 ): BrowserPlatformServices {
   const client = createSupabaseClientFromEnv(applicationId, environment)
   return {
