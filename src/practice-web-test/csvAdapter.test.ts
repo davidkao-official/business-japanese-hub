@@ -16,6 +16,12 @@ describe('private Practice CSV converter', () => {
     expect(converted.questionBank.questions[0]).toMatchObject({ promptJa: '「答」を選ぶ。', answer: { input: { kind: 'short-text' } } })
   })
 
+  it('accepts a spreadsheet-exported initial UTF-8 BOM on the authoring header only', () => {
+    const csv = `\uFEFF${header}\nfixture-1,1,released,fixture,verbal,fixture,,web,untimed-learning,foundation,30,fixture release,${csvField('「答」を選ぶ。')},${csvField(answer)},${csvField(explanation)},${csvField(analysis)},${csvField(provenance)}\n`
+    const converted = convertPracticeQuestionCsv(csv, { questionBank: { schemaVersion: 1, version: 1, vocabularyCatalog: { version: 1, terms: {} } } }) as { questionBank: { questions: Array<{ id: string; promptJa: string }> } }
+    expect(converted.questionBank.questions).toMatchObject([{ id: 'fixture-1', promptJa: '「答」を選ぶ。' }])
+  })
+
   it('rejects an unterminated quoted CSV field', () => {
     expect(() => parsePracticeCsv('id\n"unterminated')).toThrow('unterminated quoted CSV field')
   })

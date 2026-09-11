@@ -2,8 +2,11 @@
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, extname, join, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import * as ts from 'typescript'
 import { contentDistRoot, repoRoot } from './lib/books'
+import { isPrivatePracticeAuthoringArtifact } from './lib/practice-content-boundary'
+import { configuredViteBuildEntries } from './lib/vite-build-input'
 import { viteHtmlModuleScripts } from './lib/vite-html-entry'
 
 interface LegacyBooksFile {
@@ -66,16 +69,25 @@ function isFixtureSpecifier(specifier: string, sourcePath: string): boolean {
   return resolved.includes('/src/practice-web-test/fixtures/')
 }
 
+function isFixturePath(path: string): boolean {
+  return relative(root, path).split('/').includes('fixtures')
+}
+
 function resolveLocalModule(specifier: string, sourcePath: string, viteRoot = root): string | null {
   if (!specifier.startsWith('.') && !specifier.startsWith('/')) return null
   const candidate = specifier.startsWith('/') ? resolve(viteRoot, `.${specifier}`) : resolve(dirname(sourcePath), specifier)
-  const paths = extname(candidate) ? [candidate] : [candidate, ...['.ts', '.tsx', '.js', '.jsx'].map((extension) => `${candidate}${extension}`), ...['.ts', '.tsx', '.js', '.jsx'].map((extension) => join(candidate, `index${extension}`))]
+  const extensions = ['.ts', '.tsx', '.js', '.jsx', '.json', '.csv']
+  const paths = extname(candidate) ? [candidate] : [candidate, ...extensions.map((extension) => `${candidate}${extension}`), ...extensions.slice(0, 4).map((extension) => join(candidate, `index${extension}`))]
   return paths.find((path) => existsSync(path) && statSync(path).isFile()) ?? null
 }
 
-function hasFixtureModuleGraphBypass(path: string, visited = new Set<string>(), viteRoot = root, sourceText?: string): boolean {
+function hasUnsafeBrowserModuleGraph(path: string, visited = new Set<string>(), viteRoot = root, sourceText?: string): boolean {
   if (visited.has(path)) return false
   visited.add(path)
+  if (isPrivatePracticeAuthoringArtifact(path, sourceText ?? readFileSync(path, 'utf8'))) {
+    console.error(`ERR  private Practice authoring artifact is reachable from a browser module graph: ${relative(root, path)}`)
+    return true
+  }
   const source = ts.createSourceFile(path, sourceText ?? readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true)
   let unsafe = false
   const inspectSpecifier = (node: ts.Expression, label: string): void => {
@@ -89,7 +101,7 @@ function hasFixtureModuleGraphBypass(path: string, visited = new Set<string>(), 
       unsafe = true
     }
     const imported = resolveLocalModule(node.text, path, viteRoot)
-    if (imported && hasFixtureModuleGraphBypass(imported, visited, viteRoot)) unsafe = true
+    if (imported && hasUnsafeBrowserModuleGraph(imported, visited, viteRoot)) unsafe = true
   }
   const visit = (node: ts.Node): void => {
     if (ts.isImportDeclaration(node) && node.moduleSpecifier) inspectSpecifier(node.moduleSpecifier, 'import')
@@ -115,8 +127,8 @@ export function hasFixtureHtmlEntryBypass(path: string, viteRoot: string): boole
         unsafe = true
       }
       const imported = resolveLocalModule(source, path, viteRoot)
-      if (imported && hasFixtureModuleGraphBypass(imported, new Set(), viteRoot)) unsafe = true
-    } else if (hasFixtureModuleGraphBypass(path, new Set(), viteRoot, content)) unsafe = true
+      if (imported && hasUnsafeBrowserModuleGraph(imported, new Set(), viteRoot)) unsafe = true
+    } else if (hasUnsafeBrowserModuleGraph(path, new Set(), viteRoot, content)) unsafe = true
   }
   return unsafe
 }
@@ -128,14 +140,15 @@ function sameFiles(left: Record<string, string>, right: Record<string, string>):
 }
 
 const root = repoRoot()
-const policy = JSON.parse(readFileSync(join(root, '.content-boundary', 'legacy-books.json'), 'utf8')) as LegacyBooksFile
-const legacySlugs = policy.schemaVersion === 2 ? exactStrings(policy.slugs) : null
-const legacyFiles = policy.schemaVersion === 2 ? expectedFiles(policy.files) : null
+export async function runPublicContentBoundary(): Promise<void> {
+  const policy = JSON.parse(readFileSync(join(root, '.content-boundary', 'legacy-books.json'), 'utf8')) as LegacyBooksFile
+  const legacySlugs = policy.schemaVersion === 2 ? exactStrings(policy.slugs) : null
+  const legacyFiles = policy.schemaVersion === 2 ? expectedFiles(policy.files) : null
 
-if (!legacySlugs || !legacyFiles) {
-  console.error('ERR  invalid legacy Book allowlist')
-  process.exitCode = 1
-} else {
+  if (!legacySlugs || !legacyFiles) {
+    console.error('ERR  invalid legacy Book allowlist')
+    process.exitCode = 1
+  } else {
   const paths = [
     join(root, 'books'),
     join(contentDistRoot(), 'books'),
@@ -191,22 +204,41 @@ if (!legacySlugs || !legacyFiles) {
   for (const path of sourceFiles) {
     const relativePath = relative(root, path)
     if (relativePath.includes('/fixtures/') || /\.(?:test|contract)\.[tj]sx?$/.test(relativePath)) continue
-    if (hasFixtureModuleGraphBypass(path)) process.exitCode = 1
+    if (hasUnsafeBrowserModuleGraph(path)) process.exitCode = 1
   }
   for (const [entry, viteRoot] of [[join(root, 'index.html'), root], [join(root, 'apps', 'career-game', 'index.html'), join(root, 'apps', 'career-game')]] as const) {
     if (hasFixtureHtmlEntryBypass(entry, viteRoot)) process.exitCode = 1
   }
 
-  // A complete private artifact has a fixed filename. It belongs only outside
-  // this checkout; fixtures are TypeScript-only and cannot be mistaken for an
-  // importable production bank by the controlled server importer.
-  const forbiddenArtifacts = ['practice-question-bank.json', 'practice-question-bank.csv', 'practice-question-bank-base.json', 'practice-questions.csv']
+  const configuredEntries = await configuredViteBuildEntries(root, [join(root, 'vite.config.ts'), join(root, 'vite.career-game.config.ts')])
+  if (configuredEntries === null) process.exitCode = 1
+  for (const entry of configuredEntries ?? []) {
+    if (!existsSync(entry.path) || !statSync(entry.path).isFile()) {
+      console.error(`ERR  configured Vite build input is not a local file: ${relative(root, entry.path)} (${relative(root, entry.configPath)})`)
+      process.exitCode = 1
+    } else if (isFixturePath(entry.path)) {
+      console.error(`ERR  configured Vite build input is a public Practice fixture: ${relative(root, entry.path)}`)
+      process.exitCode = 1
+    } else if (extname(entry.path).toLowerCase() === '.html') {
+      if (hasFixtureHtmlEntryBypass(entry.path, entry.viteRoot)) process.exitCode = 1
+    } else if (hasUnsafeBrowserModuleGraph(entry.path, new Set(), entry.viteRoot)) process.exitCode = 1
+  }
+
   const publicFiles: Record<string, string> = {}
   collectFiles(root, root, publicFiles)
   for (const path of Object.keys(publicFiles)) {
-    if (forbiddenArtifacts.includes(path.split('/').at(-1) ?? '')) {
+    const absolutePath = join(root, path)
+    if (isPrivatePracticeAuthoringArtifact(absolutePath, readFileSync(absolutePath, 'utf8'))) {
       console.error(`ERR  private Practice authoring artifact found in public repository: ${path}`)
       process.exitCode = 1
     }
   }
+  }
+}
+
+if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  void runPublicContentBoundary().catch(() => {
+    console.error('ERR  public-content boundary check failed before completion')
+    process.exitCode = 1
+  })
 }

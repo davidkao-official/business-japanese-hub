@@ -38,7 +38,7 @@ export function parsePracticeCsv(csv: string): string[][] {
 
 export function convertPracticeQuestionCsv(csv: string, base: unknown): unknown {
   if (typeof base !== 'object' || base === null || Array.isArray(base)) throw new Error('base artifact must be an object')
-  const rows = parsePracticeCsv(csv)
+  const rows = parsePracticeCsv(csv.replace(/^\uFEFF/, ''))
   const [header, ...body] = rows
   if (!header || REQUIRED_COLUMNS.some((column) => !header.includes(column))) throw new Error('CSV header is missing a required authoring column')
   if (new Set(header).size !== header.length || header.some((name) => !ALLOWED_COLUMNS.has(name))) throw new Error('CSV header contains an unknown or duplicate authoring column')
