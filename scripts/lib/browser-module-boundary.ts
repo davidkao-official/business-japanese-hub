@@ -3,7 +3,7 @@ import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path
 import * as ts from 'typescript'
 import { isPrivatePracticeAuthoringArtifact, stripViteSpecifierSuffix } from './practice-content-boundary'
 import type { ViteAlias } from './vite-build-input'
-import { viteHtmlAssetReferences, viteHtmlModuleScripts, viteHtmlStylesheets } from './vite-html-entry'
+import { viteHtmlAssetReferences, viteHtmlInlineScripts, viteHtmlInlineStyles, viteHtmlModuleScripts, viteHtmlStylesheets } from './vite-html-entry'
 
 function isFixtureSpecifier(specifier: string, sourcePath: string): boolean {
   const localSpecifier = stripViteSpecifierSuffix(specifier)
@@ -21,6 +21,30 @@ function aliasMatch(specifier: string, alias: ViteAlias): string | null {
   if (specifier === alias.find) return alias.replacement
   if (specifier.startsWith(alias.find.endsWith('/') ? alias.find : `${alias.find}/`)) return `${alias.replacement}${specifier.slice(alias.find.length)}`
   return null
+}
+
+function isBareSpecifier(specifier: string, aliases: readonly ViteAlias[]): boolean {
+  const localSpecifier = stripViteSpecifierSuffix(specifier)
+  return !localSpecifier.startsWith('node:') && !localSpecifier.startsWith('.') && !localSpecifier.startsWith('/') &&
+    !aliases.some((alias) => aliasMatch(localSpecifier, alias) !== null)
+}
+
+function packageName(specifier: string): string {
+  const segments = stripViteSpecifierSuffix(specifier).split('/')
+  return specifier.startsWith('@') ? segments.slice(0, 2).join('/') : segments[0] ?? ''
+}
+
+function isDeclaredBrowserDependency(specifier: string, repositoryRoot: string): boolean {
+  try {
+    const packageJson = JSON.parse(readFileSync(join(repositoryRoot, 'package.json'), 'utf8')) as Record<string, unknown>
+    const packageNameValue = packageName(specifier)
+    return ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'].some((field) => {
+      const dependencies = packageJson[field]
+      return typeof dependencies === 'object' && dependencies !== null && packageNameValue in dependencies
+    })
+  } catch {
+    return false
+  }
 }
 
 /** Resolves local Vite module edges, including resource queries and string aliases. */
@@ -60,6 +84,10 @@ export function hasUnsafeBrowserStylesheet(path: string, repositoryRoot: string,
       unsafe = true
       continue
     }
+    if (isBareSpecifier(specifier, aliases) && !isDeclaredBrowserDependency(specifier, repositoryRoot)) {
+      console.error(`ERR  production stylesheet imports an undeclared browser package: ${specifier} (${relative(repositoryRoot, path)})`)
+      unsafe = true
+    }
     const imported = resolveLocalModule(specifier, path, viteRoot, aliases)
     if (imported !== null && hasUnsafeBrowserModuleGraph(imported, repositoryRoot, visited, viteRoot, undefined, aliases)) unsafe = true
   }
@@ -97,6 +125,10 @@ export function hasUnsafeBrowserModuleGraph(path: string, repositoryRoot: string
     }
     if (isFixtureSpecifier(node.text, path)) {
       console.error(`ERR  production module imports a public Practice fixture: ${relative(repositoryRoot, path)}`)
+      unsafe = true
+    }
+    if (isBareSpecifier(node.text, aliases) && !isDeclaredBrowserDependency(node.text, repositoryRoot)) {
+      console.error(`ERR  production module imports an undeclared browser package: ${node.text} (${relative(repositoryRoot, path)})`)
       unsafe = true
     }
     const imported = resolveLocalModule(node.text, path, viteRoot, aliases)
@@ -145,6 +177,12 @@ export function hasFixtureHtmlEntryBypass(path: string, repositoryRoot: string, 
       const imported = resolveLocalModule(source, path, viteRoot, aliases)
       if (imported && hasUnsafeBrowserModuleGraph(imported, repositoryRoot, new Set(), viteRoot, undefined, aliases)) unsafe = true
     } else if (hasUnsafeBrowserStylesheet(path, repositoryRoot, new Set(), viteRoot, content, aliases)) unsafe = true
+  }
+  for (const style of viteHtmlInlineStyles(html)) {
+    if (hasUnsafeBrowserStylesheet(path, repositoryRoot, new Set(), viteRoot, style, aliases)) unsafe = true
+  }
+  for (const content of viteHtmlInlineScripts(html)) {
+    if (hasUnsafeBrowserModuleGraph(path, repositoryRoot, new Set(), viteRoot, content, aliases)) unsafe = true
   }
   for (const source of viteHtmlAssetReferences(html)) {
     if (isFixtureSpecifier(source, path)) {

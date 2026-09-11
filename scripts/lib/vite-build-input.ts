@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
-import { resolveConfig } from 'vite'
+import { loadConfigFromFile, resolveConfig } from 'vite'
 import { viteBuildInputPaths } from './practice-content-boundary'
 
 export type ViteAlias = { find: string | RegExp; replacement: string }
@@ -84,6 +84,22 @@ const customOutputHooks = [
   'writeBundle', 'closeBundle',
 ] as const
 
+const approvedConfiguredPluginNames = new Set([
+  'vite:react-babel',
+  'vite:react:refresh-wrapper',
+  'vite:react:config-post',
+  'vite:react-refresh-fbm',
+  'vite:react-refresh',
+  'vite:react-virtual-preamble',
+  'business-japanese-hub:theme-color',
+  'business-japanese-hub:deployment-identity:library',
+  'business-japanese-hub:deployment-identity:career-game',
+])
+
+function flattenPlugins(value: unknown): unknown[] {
+  return Array.isArray(value) ? value.flatMap(flattenPlugins) : [value]
+}
+
 function hasUnsupportedBrowserPlugin(config: InputConfig & { plugins?: unknown }): boolean {
   const plugins = config.plugins
   if (!Array.isArray(plugins)) return true
@@ -102,9 +118,23 @@ function hasUnsupportedBrowserPlugin(config: InputConfig & { plugins?: unknown }
       candidate.name === 'business-japanese-hub:theme-color' ||
       /^business-japanese-hub:deployment-identity:(?:library|career-game)$/.test(candidate.name)
     ) continue
-    if (customOutputHooks.some((hook) => typeof candidate[hook] === 'function')) return true
+    if (customOutputHooks.some((hook) => candidate[hook] !== undefined)) return true
   }
   return config.build?.rollupOptions?.plugins !== undefined || config.build?.rolldownOptions?.plugins !== undefined
+}
+
+function hasUnsupportedConfiguredPlugin(config: { plugins?: unknown; build?: InputConfig['build'] }): boolean {
+  const plugins = config.plugins
+  if (plugins === undefined) return config.build?.rollupOptions?.plugins !== undefined || config.build?.rolldownOptions?.plugins !== undefined
+  // User-configured plugins can execute arbitrary browser-output hooks before
+  // Vite's pinned internal list exists. Fail closed to the known React and
+  // project plugins; any newly introduced plugin needs an explicit boundary
+  // review rather than silently becoming a public-content transport.
+  return flattenPlugins(plugins).some((plugin) => {
+    if (typeof plugin !== 'object' || plugin === null || typeof (plugin as { name?: unknown }).name !== 'string') return true
+    const candidate = plugin as Record<string, unknown>
+    return !approvedConfiguredPluginNames.has(candidate.name as string)
+  })
 }
 
 /** Resolves each real Vite config so configured Rollup browser roots cannot bypass HTML entry checks. */
@@ -120,6 +150,11 @@ export async function configuredViteBuildEntries(root: string, configPaths: read
       // The guard accepts an explicit repository root for its testable entry
       // point, so reproduce `vite build`'s working-directory behavior first.
       process.chdir(root)
+      const loaded = await loadConfigFromFile({ command: 'build', mode: 'production' }, configPath)
+      if (loaded === null || hasUnsupportedConfiguredPlugin(loaded.config)) {
+        console.error(`ERR  Vite config has an unsupported browser-output plugin: ${relative(root, configPath)}`)
+        return null
+      }
       const config = await resolveConfig({ configFile: configPath }, 'build', 'production')
       if (hasUnsupportedBrowserPlugin(config)) {
         console.error(`ERR  Vite config has an unsupported browser-output plugin: ${relative(root, configPath)}`)

@@ -56,6 +56,7 @@ function collectSourceFiles(path: string, files: string[]): void {
   if (!existsSync(path)) return
   const stat = statSync(path)
   if (stat.isDirectory()) {
+    if (basename(path) === 'node_modules' || basename(path) === '.git') return
     for (const entry of readdirSync(path).sort()) collectSourceFiles(join(path, entry), files)
     return
   }

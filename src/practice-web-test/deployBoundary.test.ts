@@ -5,7 +5,7 @@ import { join, relative } from 'node:path'
 import { isPrivatePracticeAuthoringArtifact, stripViteSpecifierSuffix, viteBuildInputPaths } from '../../scripts/lib/practice-content-boundary'
 import { configuredViteBuildEntries, isApprovedVitePublicDir } from '../../scripts/lib/vite-build-input'
 import { hasFixtureHtmlEntryBypass, hasUnsafeBrowserModuleGraph } from '../../scripts/lib/browser-module-boundary'
-import { viteHtmlAssetReferences, viteHtmlModuleScripts, viteHtmlStylesheets } from '../../scripts/lib/vite-html-entry'
+import { viteHtmlAssetReferences, viteHtmlInlineScripts, viteHtmlInlineStyles, viteHtmlModuleScripts, viteHtmlStylesheets } from '../../scripts/lib/vite-html-entry'
 import packageJson from '../../package.json'
 
 describe('canonical browser deployment boundary', () => {
@@ -17,7 +17,9 @@ describe('canonical browser deployment boundary', () => {
     expect(viteHtmlModuleScripts('<script type="module" src="./practice-web-test/fixtures/nonProprietaryPracticeFixture.ts"></script>')).toEqual([{ source: './practice-web-test/fixtures/nonProprietaryPracticeFixture.ts', content: '' }])
     expect(viteHtmlModuleScripts('<script type=module>import "./practice-web-test/fixtures/nonProprietaryPracticeFixture.ts"</script>')).toEqual([{ content: 'import "./practice-web-test/fixtures/nonProprietaryPracticeFixture.ts"' }])
     expect(viteHtmlStylesheets('<link rel="stylesheet" href="./style.css"><style>.a { color: red }</style>')).toEqual([{ source: './style.css', content: '' }, { content: '.a { color: red }' }])
-    expect(viteHtmlAssetReferences('<img src="./cover.png" srcset="./cover.png 1x, ./cover@2x.png 2x"><video poster="./poster.jpg"><link href="./icon.svg">')).toEqual(['./cover.png', './cover@2x.png', './poster.jpg', './icon.svg'])
+    expect(viteHtmlInlineScripts('<script>import("./private.json?raw")</script>')).toEqual(['import("./private.json?raw")'])
+    expect(viteHtmlInlineStyles('<img title=">" style="background: url(./cover.png)">')).toEqual(['background: url(./cover.png)'])
+    expect(viteHtmlAssetReferences('<img title=">" src="./cover.png" srcset="./cover.png 1x, ./cover@2x.png 2x"><video poster="./poster.jpg"><object data="./diagram.svg"><meta content="./social.png"><link href="./icon.svg" imagesrcset="./preload.png 1x">')).toEqual(['./cover.png', './cover@2x.png', './poster.jpg', './diagram.svg', './social.png', './icon.svg', './preload.png'])
   })
 
   it('rejects renamed contract-shaped private Practice JSON and CSV without blocking unrelated data files', () => {
@@ -69,7 +71,7 @@ describe('canonical browser deployment boundary', () => {
       const resolvedRoot = realpathSync(temporaryRoot)
       writeFileSync(
         configPath,
-        "export default { plugins: [{ name: 'private-browser-entry', config() { return { build: { rollupOptions: { input: { privateWrapper: 'src/private-wrapper.ts' } } } } } }] }\n",
+        "export default { plugins: [{ name: 'business-japanese-hub:theme-color', config() { return { build: { rollupOptions: { input: { privateWrapper: 'src/private-wrapper.ts' } } } } } }] }\n",
       )
       await expect(configuredViteBuildEntries(temporaryRoot, [configPath])).resolves.toEqual([
         { path: join(resolvedRoot, 'src', 'private-wrapper.ts'), viteRoot: resolvedRoot, configPath, publicDir: join(resolvedRoot, 'public') },
@@ -86,7 +88,7 @@ describe('canonical browser deployment boundary', () => {
       const resolvedRoot = realpathSync(temporaryRoot)
       writeFileSync(
         configPath,
-        "export default { plugins: [{ name: 'private-browser-entry', config() { return { input: 'src/top-level.ts', environments: { client: { input: 'src/private-wrapper.ts' } } } } }] }\n",
+        "export default { plugins: [{ name: 'business-japanese-hub:theme-color', config() { return { input: 'src/top-level.ts', environments: { client: { input: 'src/private-wrapper.ts' } } } } }] }\n",
       )
       await expect(configuredViteBuildEntries(temporaryRoot, [configPath])).resolves.toEqual([
         { path: join(resolvedRoot, 'src', 'top-level.ts'), viteRoot: resolvedRoot, configPath, publicDir: join(resolvedRoot, 'public') },
@@ -187,6 +189,24 @@ describe('canonical browser deployment boundary', () => {
     }
   })
 
+  it('follows inline classic scripts and style attributes into private authoring artifacts', () => {
+    const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-private-inline-asset-'))
+    const outsideRoot = mkdtempSync(join(tmpdir(), 'bjh-private-inline-asset-source-'))
+    try {
+      writeFileSync(join(outsideRoot, 'diagram.svg'), '<svg><text>private</text></svg>')
+      writeFileSync(join(outsideRoot, 'bank.json'), JSON.stringify({ questionBank: { schemaVersion: 1, version: 1, vocabularyCatalog: { version: 1, terms: {} }, questions: [] } }))
+      const htmlPath = join(temporaryRoot, 'index.html')
+      const privateDiagram = relative(temporaryRoot, join(outsideRoot, 'diagram.svg'))
+      const privateBank = relative(temporaryRoot, join(outsideRoot, 'bank.json'))
+      writeFileSync(htmlPath, `<img title=">" style="background: url('${privateDiagram}')"><script>import('${privateBank}?raw')</script>`)
+
+      expect(hasFixtureHtmlEntryBypass(htmlPath, temporaryRoot, temporaryRoot)).toBe(true)
+    } finally {
+      rmSync(temporaryRoot, { recursive: true, force: true })
+      rmSync(outsideRoot, { recursive: true, force: true })
+    }
+  })
+
   it('records a configured Vite publicDir so the deploy guard can reject external static inventory', async () => {
     const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-public-dir-'))
     const configPath = join(temporaryRoot, 'vite.config.ts')
@@ -209,6 +229,31 @@ describe('canonical browser deployment boundary', () => {
     try {
       writeFileSync(configPath, "export default { plugins: [{ name: 'private-output', generateBundle() {} }] }\n")
       await expect(configuredViteBuildEntries(temporaryRoot, [configPath])).resolves.toBeNull()
+    } finally {
+      rmSync(temporaryRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects a custom Vite plugin even when it impersonates an internal name or uses an object-form hook', async () => {
+    const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-spoofed-output-plugin-'))
+    const configPath = join(temporaryRoot, 'vite.config.ts')
+    try {
+      writeFileSync(configPath, "export default { plugins: [{ name: 'vite:private-output', transform: { handler() {} } }] }\n")
+      await expect(configuredViteBuildEntries(temporaryRoot, [configPath])).resolves.toBeNull()
+    } finally {
+      rmSync(temporaryRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects an undeclared bare browser package before Vite can traverse it', () => {
+    const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-bare-package-'))
+    try {
+      const sourceDirectory = join(temporaryRoot, 'src')
+      mkdirSync(sourceDirectory)
+      writeFileSync(join(sourceDirectory, 'entry.ts'), "import 'private-wrapper'\n")
+      writeFileSync(join(temporaryRoot, 'package.json'), '{"dependencies":{}}\n')
+
+      expect(hasUnsafeBrowserModuleGraph(join(sourceDirectory, 'entry.ts'), temporaryRoot)).toBe(true)
     } finally {
       rmSync(temporaryRoot, { recursive: true, force: true })
     }
