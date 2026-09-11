@@ -4,6 +4,24 @@ import { viteBuildInputPaths } from './practice-content-boundary'
 
 export type ViteBuildEntry = { path: string; viteRoot: string; configPath: string }
 
+type InputConfig = {
+  input?: unknown
+  build?: { rollupOptions?: { input?: unknown }; rolldownOptions?: { input?: unknown } }
+}
+
+function browserBuildInput(config: InputConfig & { environments?: { client?: InputConfig } }): unknown {
+  const client = config.environments?.client
+  // Vite 8 builds the resolved client environment. Mirror its input precedence
+  // so legacy Rollup, current Rolldown, top-level, and client-environment
+  // entries are all checked before falling back to index.html.
+  return client?.build?.rolldownOptions?.input ??
+    client?.build?.rollupOptions?.input ??
+    config.build?.rolldownOptions?.input ??
+    config.build?.rollupOptions?.input ??
+    client?.input ??
+    config.input
+}
+
 /** Resolves each real Vite config so configured Rollup browser roots cannot bypass HTML entry checks. */
 export async function configuredViteBuildEntries(root: string, configPaths: readonly string[]): Promise<ViteBuildEntry[] | null> {
   const entries: ViteBuildEntry[] = []
@@ -18,10 +36,10 @@ export async function configuredViteBuildEntries(root: string, configPaths: read
       // point, so reproduce `vite build`'s working-directory behavior first.
       process.chdir(root)
       const config = await resolveConfig({ configFile: configPath }, 'build', 'production')
-      const configuredInput = config.build?.rollupOptions?.input
+      const configuredInput = browserBuildInput(config)
       const paths = viteBuildInputPaths(configuredInput)
       if (paths === null) {
-        console.error(`ERR  Vite config has an unsupported build.rollupOptions.input: ${relative(root, configPath)}`)
+        console.error(`ERR  Vite config has an unsupported browser build input: ${relative(root, configPath)}`)
         return null
       }
       const viteRoot = resolve(root, config.root ?? '.')

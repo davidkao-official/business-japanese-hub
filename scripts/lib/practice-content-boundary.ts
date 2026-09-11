@@ -16,6 +16,11 @@ const CANONICAL_PRIVATE_PRACTICE_ARTIFACTS = new Set([
   'practice-questions.csv',
 ])
 
+/** Removes Vite resource-query/hash suffixes before inspecting local source paths. */
+export function stripViteSpecifierSuffix(specifier: string): string {
+  return specifier.replace(/[?#].*$/, '')
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
@@ -50,8 +55,9 @@ function hasPracticeQuestionBankShape(value: unknown): boolean {
 
 /** Detect the bounded #114 private authoring contracts without relying on filenames. */
 export function isPrivatePracticeAuthoringArtifact(path: string, content: string): boolean {
-  if (CANONICAL_PRIVATE_PRACTICE_ARTIFACTS.has(basename(path))) return true
-  const extension = extname(path).toLowerCase()
+  const sourcePath = stripViteSpecifierSuffix(path)
+  if (CANONICAL_PRIVATE_PRACTICE_ARTIFACTS.has(basename(sourcePath))) return true
+  const extension = extname(sourcePath).toLowerCase()
   if (extension === '.json') {
     try {
       return hasPracticeQuestionBankShape(JSON.parse(content.replace(/^\uFEFF/, '')) as unknown)

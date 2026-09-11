@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { isPrivatePracticeAuthoringArtifact, viteBuildInputPaths } from '../../scripts/lib/practice-content-boundary'
+import { isPrivatePracticeAuthoringArtifact, stripViteSpecifierSuffix, viteBuildInputPaths } from '../../scripts/lib/practice-content-boundary'
 import { configuredViteBuildEntries } from '../../scripts/lib/vite-build-input'
 import { viteHtmlModuleScripts } from '../../scripts/lib/vite-html-entry'
 import packageJson from '../../package.json'
@@ -32,8 +32,10 @@ describe('canonical browser deployment boundary', () => {
     expect(isPrivatePracticeAuthoringArtifact('/tmp/renamed-bank.csv', csvHeader)).toBe(true)
     expect(isPrivatePracticeAuthoringArtifact('/tmp/practice-question-bank-base.json', '{"incomplete":true}')).toBe(true)
     expect(isPrivatePracticeAuthoringArtifact('/tmp/practice-questions.csv', 'id,name\n1,draft\n')).toBe(true)
+    expect(isPrivatePracticeAuthoringArtifact('/tmp/practice-question-bank.json?raw', '{"incomplete":true}')).toBe(true)
     expect(isPrivatePracticeAuthoringArtifact('/tmp/ordinary.json', JSON.stringify({ version: 1, records: [] }))).toBe(false)
     expect(isPrivatePracticeAuthoringArtifact('/tmp/ordinary.csv', 'id,name\n1,fixture\n')).toBe(false)
+    expect(stripViteSpecifierSuffix('../../private-content/practice-question-bank.json?raw#cache')).toBe('../../private-content/practice-question-bank.json')
   })
 
   it('normalizes all supported configured Vite input forms and rejects unknown forms', () => {
@@ -67,6 +69,24 @@ describe('canonical browser deployment boundary', () => {
         "export default { plugins: [{ name: 'private-browser-entry', config() { return { build: { rollupOptions: { input: { privateWrapper: 'src/private-wrapper.ts' } } } } } }] }\n",
       )
       await expect(configuredViteBuildEntries(temporaryRoot, [configPath])).resolves.toEqual([
+        { path: join(resolvedRoot, 'src', 'private-wrapper.ts'), viteRoot: resolvedRoot, configPath },
+      ])
+    } finally {
+      rmSync(temporaryRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('includes Vite 8 top-level and client-environment inputs from config plugins', async () => {
+    const temporaryRoot = mkdtempSync(join(tmpdir(), 'bjh-vite-environment-entry-'))
+    const configPath = join(temporaryRoot, 'vite.config.ts')
+    try {
+      const resolvedRoot = realpathSync(temporaryRoot)
+      writeFileSync(
+        configPath,
+        "export default { plugins: [{ name: 'private-browser-entry', config() { return { input: 'src/top-level.ts', environments: { client: { input: 'src/private-wrapper.ts' } } } } }] }\n",
+      )
+      await expect(configuredViteBuildEntries(temporaryRoot, [configPath])).resolves.toEqual([
+        { path: join(resolvedRoot, 'src', 'top-level.ts'), viteRoot: resolvedRoot, configPath },
         { path: join(resolvedRoot, 'src', 'private-wrapper.ts'), viteRoot: resolvedRoot, configPath },
       ])
     } finally {

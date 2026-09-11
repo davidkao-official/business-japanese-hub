@@ -5,7 +5,7 @@ import { basename, dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as ts from 'typescript'
 import { contentDistRoot, repoRoot } from './lib/books'
-import { isPrivatePracticeAuthoringArtifact } from './lib/practice-content-boundary'
+import { isPrivatePracticeAuthoringArtifact, stripViteSpecifierSuffix } from './lib/practice-content-boundary'
 import { configuredViteBuildEntries } from './lib/vite-build-input'
 import { viteHtmlModuleScripts } from './lib/vite-html-entry'
 
@@ -64,8 +64,9 @@ function collectSourceFiles(path: string, files: string[]): void {
 }
 
 function isFixtureSpecifier(specifier: string, sourcePath: string): boolean {
-  if (specifier.includes('/fixtures/') || specifier.startsWith('./fixtures/') || specifier.startsWith('../fixtures/')) return true
-  const resolved = join(sourcePath, '..', specifier)
+  const localSpecifier = stripViteSpecifierSuffix(specifier)
+  if (localSpecifier.includes('/fixtures/') || localSpecifier.startsWith('./fixtures/') || localSpecifier.startsWith('../fixtures/')) return true
+  const resolved = join(sourcePath, '..', localSpecifier)
   return resolved.includes('/src/practice-web-test/fixtures/')
 }
 
@@ -74,8 +75,9 @@ function isFixturePath(path: string): boolean {
 }
 
 function resolveLocalModule(specifier: string, sourcePath: string, viteRoot = root): string | null {
-  if (!specifier.startsWith('.') && !specifier.startsWith('/')) return null
-  const candidate = specifier.startsWith('/') ? resolve(viteRoot, `.${specifier}`) : resolve(dirname(sourcePath), specifier)
+  const localSpecifier = stripViteSpecifierSuffix(specifier)
+  if (!localSpecifier.startsWith('.') && !localSpecifier.startsWith('/')) return null
+  const candidate = localSpecifier.startsWith('/') ? resolve(viteRoot, `.${localSpecifier}`) : resolve(dirname(sourcePath), localSpecifier)
   const extensions = ['.ts', '.tsx', '.js', '.jsx', '.json', '.csv']
   const paths = extname(candidate) ? [candidate] : [candidate, ...extensions.map((extension) => `${candidate}${extension}`), ...extensions.slice(0, 4).map((extension) => join(candidate, `index${extension}`))]
   return paths.find((path) => existsSync(path) && statSync(path).isFile()) ?? null
