@@ -6,4 +6,3 @@ export async function requestWithBody(req: Request) {
   request.bodyText = await req.text()
   return request
 }
-
