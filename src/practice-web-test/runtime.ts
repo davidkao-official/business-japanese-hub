@@ -19,6 +19,19 @@ export function validateRuntimePayload(raw: unknown): PracticeRuntimePayload | n
   const payload = raw as Partial<PracticeRuntimePayload>
   if (!payload.questionBank || typeof payload.questionBank !== 'object') return null
   const questions = Array.isArray(payload.questionBank.questions) ? payload.questionBank.questions : []
+  const checkpointRegistry = payload.checkpointRegistry === undefined ? undefined : {
+    ...payload.checkpointRegistry,
+    checkpoints: Array.isArray(payload.checkpointRegistry.checkpoints) ? payload.checkpointRegistry.checkpoints.map((checkpoint) => ({
+      ...checkpoint,
+      provenance: {
+        authoredBy: 'runtime',
+        reviewedBy: ['runtime'],
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        originalContentAttestation: true as const,
+      },
+    })) : payload.checkpointRegistry.checkpoints,
+  }
   const source = {
     questionBank: {
       ...payload.questionBank,
@@ -32,7 +45,7 @@ export function validateRuntimePayload(raw: unknown): PracticeRuntimePayload | n
         },
       })),
     },
-    ...(payload.checkpointRegistry ? { checkpointRegistry: payload.checkpointRegistry } : {}),
+    ...(checkpointRegistry ? { checkpointRegistry } : {}),
     ...(payload.supportOverlays ? { supportOverlays: payload.supportOverlays } : {}),
   }
   if (!validatePracticeQuestionBankSource(source, { requireReleased: true }).ok) return null

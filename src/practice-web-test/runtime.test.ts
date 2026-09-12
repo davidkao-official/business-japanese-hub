@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { preparePrivatePracticeQuestionBankRelease } from '../content-delivery/privatePracticeQuestionBank'
 import { nonProprietaryPracticeQuestionBankFixture } from './fixtures/nonProprietaryPracticeFixture'
-import { scoreAnswer, scoreQuestion, selectableQuestions, supportOverlay, validateRuntimePayload } from './runtime'
+import { resolveQuestionCheckpoints, scoreAnswer, scoreQuestion, selectableQuestions, supportOverlay, validateRuntimePayload } from './runtime'
 
 describe('SPI runner runtime seam', () => {
   it('validates a projected synthetic release, filters the selected category, and scores deterministically', () => {
@@ -65,5 +65,29 @@ describe('SPI runner runtime seam', () => {
     const multi = { input: { kind: 'multi-select' as const, choices: [{ id: 'a', textJa: 'A' }, { id: 'b', textJa: 'B' }] }, expectedAnswer: { kind: 'multi-select' as const, choiceIds: ['a', 'b'] }, scoring: { kind: 'exact-set' as const } }
     expect(scoreAnswer(multi, ['b', 'a'])).toBe(true)
     expect(scoreAnswer(multi, ['a'])).toBe(false)
+  })
+
+  it('validates an authored checkpoint after runtime provenance projection', () => {
+    const source = structuredClone(nonProprietaryPracticeQuestionBankFixture)
+    const question = source.questionBank.questions[0]!
+    question.itemAnalysis.diagnosticCheckpoints = { registryVersion: 1, ids: ['synthetic-checkpoint-01'] }
+    source.checkpointRegistry = {
+      version: 1,
+      checkpoints: [{
+        id: 'synthetic-checkpoint-01', version: 1, questionId: question.id, questionVersion: question.version,
+        dimension: 'meaning', promptJa: '選択肢を選んでください。',
+        answer: { input: { kind: 'single-choice', choices: [{ id: 'two', textJa: '二番' }] }, expectedAnswer: { kind: 'single-choice', choiceId: 'two' }, scoring: { kind: 'exact-choice' } },
+        provenance: { authoredBy: 'fixture-author', createdAt: '2026-09-10T00:00:00.000Z', updatedAt: '2026-09-10T00:00:00.000Z', originalContentAttestation: true },
+      }],
+    }
+    const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', source)
+    expect(release.ok).toBe(true)
+    if (!release.ok) return
+    const payload = validateRuntimePayload(release.value.payload)
+    expect(payload).not.toBeNull()
+    if (!payload) return
+    const resolved = resolveQuestionCheckpoints(payload, payload.questionBank.questions[0]!)
+    expect(resolved).toHaveLength(1)
+    expect(resolved?.[0]?.id).toBe('synthetic-checkpoint-01')
   })
 })
