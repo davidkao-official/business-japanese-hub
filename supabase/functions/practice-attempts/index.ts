@@ -48,4 +48,3 @@ Deno.serve(async (req) => {
   })
   return toResponse(withCorsHeaders(result, cors.headers))
 })
-
