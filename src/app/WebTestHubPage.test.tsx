@@ -118,7 +118,7 @@ describe('Web Test discovery and runner-entry routes', () => {
       promptJa: '表示を順番に並べてください。',
       promptRepresentation: { kind: 'table' as const, columns: ['項目'], rows: [['合成問題']] },
       answer: { input: { kind: 'ordering' as const, choices: [{ id: 'one', textJa: '一番', representation: { kind: 'equation' as const, expression: '1' } }, { id: 'two', textJa: '二番', representation: { kind: 'diagram' as const, altText: '合成図', nodes: [{ id: 'a', label: '起点' }, { id: 'b', label: '終点' }], edges: [{ from: 'a', to: 'b', label: '進む' }] } }] }, expectedAnswer: { kind: 'ordering' as const, choiceIds: ['two', 'one'] }, scoring: { kind: 'exact-order' as const } },
-      coreExplanation: { concise: '順序を確認します。', whatIsAskedJa: '二番を先にすることが求められています。', representation: { kind: 'logic-grid' as const, columns: ['項目', '結果'], rows: ['合成行'], cells: [{ row: '合成行', column: '結果', value: 'yes' as const }] } },
+      coreExplanation: { concise: '順序を確認します。', whatIsAskedJa: '二番を先にすることが求められています。', representation: { kind: 'logic-grid' as const, columns: ['職位'], rows: ['甲'], cells: [{ row: '甲', column: '職位', value: 'yes' as const }] } },
       itemAnalysis: { ...sourceQuestion.itemAnalysis, diagnosticCheckpoints: { registryVersion: 1, ids: ['synthetic-checkpoint-01'] } },
     }
     const second = {
@@ -155,6 +155,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: /理解檢查/ }))
     expect(screen.getByText('這是合成表示。')).toBeInTheDocument()
     expect(screen.getByText('不要倒置順序。')).toBeInTheDocument()
+    expect(screen.getByRole('rowheader', { name: '甲' })).toBeInTheDocument()
     expect(screen.getByText('yes')).not.toHaveAttribute('lang', 'ja')
     expect(screen.getByText('請輸入三。')).toHaveAttribute('lang', 'ja')
     rendered.authClient.emitAuthStateChange({ id: 'synthetic-member', email: 'refreshed@example.com' })
