@@ -5,6 +5,10 @@ import { validatePracticeQuestionBankSource } from './validate'
 export type RunnerResponse = string | string[] | number
 export type RuntimeQuestion = PracticeRuntimeQuestion
 
+function hasAnyOwnKey(value: unknown, keys: readonly string[]): boolean {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) && keys.some((key) => Object.hasOwn(value, key))
+}
+
 export function scoreAnswer(answer: PracticeAnswer, response: RunnerResponse): boolean {
   if (answer.input.kind === 'single-choice' && answer.expectedAnswer.kind === 'single-choice') return typeof response === 'string' && response === answer.expectedAnswer.choiceId
   if (answer.input.kind === 'multi-select' && answer.expectedAnswer.kind === 'multi-select') return Array.isArray(response) && [...response].sort().join('\0') === [...answer.expectedAnswer.choiceIds].sort().join('\0')
@@ -19,10 +23,12 @@ export function validateRuntimePayload(raw: unknown): PracticeRuntimePayload | n
   const payload = raw as Partial<PracticeRuntimePayload>
   if (!payload.questionBank || typeof payload.questionBank !== 'object') return null
   const questions = Array.isArray(payload.questionBank.questions) ? payload.questionBank.questions : []
+  if (questions.some((question) => hasAnyOwnKey(question, ['status', 'releaseNotes', 'provenance']))) return null
   if (payload.checkpointRegistry !== undefined && (typeof payload.checkpointRegistry !== 'object' || payload.checkpointRegistry === null || Array.isArray(payload.checkpointRegistry))) return null
+  if (payload.supportOverlays !== undefined && !Array.isArray(payload.supportOverlays)) return null
   const checkpointRegistry = payload.checkpointRegistry === undefined ? undefined : {
     ...payload.checkpointRegistry,
-    checkpoints: Array.isArray(payload.checkpointRegistry.checkpoints) ? payload.checkpointRegistry.checkpoints.map((checkpoint) => ({
+    checkpoints: Array.isArray(payload.checkpointRegistry.checkpoints) ? (payload.checkpointRegistry.checkpoints.some((checkpoint) => hasAnyOwnKey(checkpoint, ['provenance'])) ? null : payload.checkpointRegistry.checkpoints.map((checkpoint) => ({
       ...checkpoint,
       provenance: {
         authoredBy: 'runtime',
@@ -31,8 +37,9 @@ export function validateRuntimePayload(raw: unknown): PracticeRuntimePayload | n
         updatedAt: '2026-01-01T00:00:00.000Z',
         originalContentAttestation: true as const,
       },
-    })) : payload.checkpointRegistry.checkpoints,
+    }))) : payload.checkpointRegistry.checkpoints,
   }
+  if (checkpointRegistry?.checkpoints === null) return null
   const source = {
     questionBank: {
       ...payload.questionBank,

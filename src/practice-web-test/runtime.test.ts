@@ -95,4 +95,39 @@ describe('SPI runner runtime seam', () => {
     expect(() => validateRuntimePayload({ questionBank: { questions: [] }, checkpointRegistry: null })).not.toThrow()
     expect(validateRuntimePayload({ questionBank: { questions: [] }, checkpointRegistry: null })).toBeNull()
   })
+
+  it('rejects source-only audit fields and malformed overlays without throwing', () => {
+    const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', nonProprietaryPracticeQuestionBankFixture)
+    expect(release.ok).toBe(true)
+    if (!release.ok) return
+    const question = release.value.payload.questionBank.questions[0]!
+    const questionWithAudit = { ...release.value.payload, questionBank: { ...release.value.payload.questionBank, questions: [{ ...question, provenance: { authoredBy: 'private-audit' } }] } }
+    expect(() => validateRuntimePayload(questionWithAudit)).not.toThrow()
+    expect(validateRuntimePayload(questionWithAudit)).toBeNull()
+    expect(() => validateRuntimePayload({ ...release.value.payload, supportOverlays: '' })).not.toThrow()
+    expect(validateRuntimePayload({ ...release.value.payload, supportOverlays: '' })).toBeNull()
+  })
+
+  it('rejects checkpoint provenance instead of returning audit fields', () => {
+    const source = structuredClone(nonProprietaryPracticeQuestionBankFixture)
+    const question = source.questionBank.questions[0]!
+    question.itemAnalysis.diagnosticCheckpoints = { registryVersion: 1, ids: ['synthetic-checkpoint-01'] }
+    source.checkpointRegistry = {
+      version: 1,
+      checkpoints: [{
+        id: 'synthetic-checkpoint-01', version: 1, questionId: question.id, questionVersion: question.version,
+        dimension: 'meaning', promptJa: '選択肢を選んでください。',
+        answer: { input: { kind: 'single-choice', choices: [{ id: 'two', textJa: '二番' }] }, expectedAnswer: { kind: 'single-choice', choiceId: 'two' }, scoring: { kind: 'exact-choice' } },
+        provenance: { authoredBy: 'fixture-author', createdAt: '2026-09-10T00:00:00.000Z', updatedAt: '2026-09-10T00:00:00.000Z', originalContentAttestation: true },
+      }],
+    }
+    const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', source)
+    expect(release.ok).toBe(true)
+    if (!release.ok) return
+    const projected = release.value.payload
+    const checkpoint = projected.checkpointRegistry!.checkpoints[0]!
+    const withAudit = { ...projected, checkpointRegistry: { ...projected.checkpointRegistry!, checkpoints: [{ ...checkpoint, provenance: { authoredBy: 'private-audit' } }] } }
+    expect(() => validateRuntimePayload(withAudit)).not.toThrow()
+    expect(validateRuntimePayload(withAudit)).toBeNull()
+  })
 })
