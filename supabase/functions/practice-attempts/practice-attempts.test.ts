@@ -22,9 +22,8 @@ function request(overrides: Record<string, unknown> = {}) {
   return {
     method: 'POST', url: 'https://example.test/practice-attempts', headers: { authorization: 'Bearer token' },
     bodyText: JSON.stringify({
-      contentId, revision: release.value.revision, family: 'fixture', domain: 'verbal', category: 'fixture-category',
-      mode: 'untimed-learning', questionId: 'fixture-choice-01', questionVersion: 1,
-      clientAttemptId, response: 'two', responseMs: 1200, ...overrides,
+      contentId, revision: release.value.revision, questionId: 'fixture-choice-01', questionVersion: 1,
+      answer: 'two', responseTimeMs: 1200, clientIdempotencyKey: clientAttemptId, ...overrides,
     }),
   }
 }
@@ -42,10 +41,11 @@ describe('practice-attempts handler', () => {
     const database = db(userId)
     const result = await handlePracticeAttempts(request(), deps(database))
     expect(result.status).toBe(200)
-    expect(JSON.parse(result.body)).toMatchObject({ kind: 'persisted', result: { correct: true, score: 1 } })
+    expect(JSON.parse(result.body)).toEqual({ persisted: true })
     expect(database.rpc).toHaveBeenCalledWith('record_practice_attempt', expect.objectContaining({
       p_user_id: userId, p_client_attempt_id: clientAttemptId, p_content_revision: release.value.revision,
-      p_question_id: 'fixture-choice-01', p_question_version: 1, p_correct: true, p_response_ms: 1200,
+      p_question_id: 'fixture-choice-01', p_question_version: 1, p_test_family: 'fixture', p_domain: 'verbal',
+      p_category: 'fixture-category', p_practice_mode: 'untimed-learning', p_correct: true, p_response_ms: 1200,
     }))
   })
 
@@ -72,9 +72,19 @@ describe('practice-attempts handler', () => {
   it('rejects malformed and oversized learner input before persistence', async () => {
     const database = db(userId)
     const d = deps(database)
-    expect((await handlePracticeAttempts(request({ response: { correct: true } }), d)).status).toBe(400)
-    expect((await handlePracticeAttempts(request({ responseMs: -1 }), d)).status).toBe(400)
-    expect((await handlePracticeAttempts(request({ clientAttemptId: 'not-uuid' }), d)).status).toBe(400)
+    expect((await handlePracticeAttempts(request({ answer: { correct: true } }), d)).status).toBe(400)
+    expect((await handlePracticeAttempts(request({ responseTimeMs: -1 }), d)).status).toBe(400)
+    expect((await handlePracticeAttempts(request({ clientIdempotencyKey: 'not-uuid' }), d)).status).toBe(400)
+    expect((await handlePracticeAttempts(request({ family: 'forged' }), d)).status).toBe(400)
+    expect((await handlePracticeAttempts(request({ correct: true }), d)).status).toBe(400)
+    expect(database.rpc).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed or mismatched checkpoint versions', async () => {
+    const database = db(userId)
+    const d = deps(database)
+    const checkpoint = { checkpointId: 'checkpoint-1', checkpointVersion: 0, response: 'two' }
+    expect((await handlePracticeAttempts(request({ checkpointResponses: [checkpoint] }), d)).status).toBe(400)
     expect(database.rpc).not.toHaveBeenCalled()
   })
 
