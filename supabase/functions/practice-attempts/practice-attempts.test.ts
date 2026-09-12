@@ -107,14 +107,38 @@ describe('practice-attempts handler', () => {
     expect((await handlePracticeAttempts(request({ revision: 'b'.repeat(64) }), stale)).status).toBe(404)
   })
 
-  it('rejects a question whose availability revision or version is stale before persistence', async () => {
+  it('lets the database reconcile a replay after availability advances while rejecting new stale attempts', async () => {
     const staleRevision = deps(db(userId))
     staleRevision.getQuestionAvailability.mockResolvedValue({ kind: 'found', revision: 'b'.repeat(64), version: 1 })
+    staleRevision.db.rpc.mockResolvedValue({ data: null, error: { message: 'practice question is no longer available' } })
     expect((await handlePracticeAttempts(request(), staleRevision)).status).toBe(400)
     const staleVersion = deps(db(userId))
     staleVersion.getQuestionAvailability.mockResolvedValue({ kind: 'found', revision: release.value.revision, version: 2 })
+    staleVersion.db.rpc.mockResolvedValue({ data: null, error: { message: 'practice question is no longer available' } })
     expect((await handlePracticeAttempts(request(), staleVersion)).status).toBe(400)
-    expect(staleVersion.db.rpc).not.toHaveBeenCalled()
+    expect(staleRevision.db.rpc).toHaveBeenCalledOnce()
+    expect(staleVersion.db.rpc).toHaveBeenCalledOnce()
+  })
+
+  it('reconciles an exact replay after the release advances without accepting a changed or unseen stale attempt', async () => {
+    const database = db(userId)
+    const d = deps(database)
+    expect((await handlePracticeAttempts(request(), d)).status).toBe(200)
+    d.getQuestionAvailability.mockResolvedValue({ kind: 'found', revision: 'b'.repeat(64), version: 1 })
+    database.rpc.mockResolvedValueOnce({ data: { kind: 'conflict', replayable: true }, error: null })
+    const replay = await handlePracticeAttempts(request(), d)
+    expect(replay.status).toBe(409)
+    expect(JSON.parse(replay.body)).toEqual({ error: 'practice attempt already recorded', replayable: true })
+
+    database.rpc.mockResolvedValueOnce({ data: { kind: 'conflict' }, error: null })
+    const changed = await handlePracticeAttempts(request({ answer: 'one' }), d)
+    expect(changed.status).toBe(409)
+    expect(JSON.parse(changed.body)).toEqual({ error: 'practice attempt conflict' })
+
+    database.rpc.mockResolvedValueOnce({ data: null, error: { message: 'practice question is no longer available' } })
+    const unseen = await handlePracticeAttempts(request({ clientIdempotencyKey: '20000000-0000-4000-8000-000000000002' }), d)
+    expect(unseen.status).toBe(400)
+    expect(JSON.parse(unseen.body)).toEqual({ error: 'invalid question selection' })
   })
 
   it('rejects malformed and oversized learner input before persistence', async () => {

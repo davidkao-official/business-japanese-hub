@@ -194,7 +194,7 @@ export async function handlePracticeAttempts(req: HandlerRequest, deps: Practice
   if (!selected) return badRequest('invalid question selection')
   const availability = await deps.getQuestionAvailability(release.contentId, selected.id)
   if (availability.kind === 'unavailable') return privateResult(jsonResult(503, { error: 'practice content unavailable' }))
-  if (availability.kind !== 'found' || availability.revision !== release.revision || availability.version !== selected.version) return badRequest('invalid question selection')
+  const availabilityIsCurrent = availability.kind === 'found' && availability.revision === release.revision && availability.version === selected.version
   if (!response(input.answer) || !validResponseForAnswer(selected.answer, input.answer)) return badRequest('invalid response')
   const checkpointResults = safeCheckpointResults(input, payload, selected)
   if (checkpointResults === null) return badRequest('invalid checkpoint responses')
@@ -216,7 +216,12 @@ export async function handlePracticeAttempts(req: HandlerRequest, deps: Practice
     p_response_ms: input.responseTimeMs,
     p_checkpoint_results: checkpointResults,
   })
-  if (error || !record(data) || (data.kind !== 'persisted' && data.kind !== 'conflict')) return privateResult(jsonResult(502, { error: 'practice attempt persistence failed' }))
+  if (error || !record(data) || (data.kind !== 'persisted' && data.kind !== 'conflict')) {
+    return availabilityIsCurrent
+      ? privateResult(jsonResult(502, { error: 'practice attempt persistence failed' }))
+      : badRequest('invalid question selection')
+  }
+  if (!availabilityIsCurrent && data.kind === 'persisted') return badRequest('invalid question selection')
   if (data.kind !== 'persisted') {
     return data.replayable === true
       ? privateResult(jsonResult(409, { error: 'practice attempt already recorded', replayable: true }))
