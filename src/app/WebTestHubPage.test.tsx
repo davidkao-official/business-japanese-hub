@@ -99,7 +99,7 @@ describe('Web Test discovery and runner-entry routes', () => {
       promptJa: '表示を順番に並べてください。',
       promptRepresentation: { kind: 'table' as const, columns: ['項目'], rows: [['合成問題']] },
       answer: { input: { kind: 'ordering' as const, choices: [{ id: 'one', textJa: '一番', representation: { kind: 'equation' as const, expression: '1' } }, { id: 'two', textJa: '二番' }] }, expectedAnswer: { kind: 'ordering' as const, choiceIds: ['two', 'one'] }, scoring: { kind: 'exact-order' as const } },
-      coreExplanation: { concise: '順序を確認します。', whatIsAskedJa: '二番を先にすることが求められています。', representation: { kind: 'equation' as const, expression: '2 → 1' } },
+      coreExplanation: { concise: '順序を確認します。', whatIsAskedJa: '二番を先にすることが求められています。', representation: { kind: 'logic-grid' as const, columns: ['項目', '結果'], rows: ['合成行'], cells: [{ row: '合成行', column: '結果', value: 'yes' as const }] } },
     }
     const second = {
       ...sourceQuestion,
@@ -133,6 +133,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: '解答與說明' }))
     expect(screen.getByText('這是合成表示。')).toBeInTheDocument()
     expect(screen.getByText('不要倒置順序。')).toBeInTheDocument()
+    expect(screen.getByText('yes')).not.toHaveAttribute('lang', 'ja')
     expect(screen.queryByText('第 2／2 題')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '下一題' }))
     expect(screen.getByText('第 2／2 題')).toBeInTheDocument()
