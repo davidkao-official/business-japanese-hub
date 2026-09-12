@@ -12,10 +12,12 @@ import { preparePrivatePracticeQuestionBankRelease } from '../content-delivery/p
 import { nonProprietaryPracticeQuestionBankFixture } from '../practice-web-test/fixtures/nonProprietaryPracticeFixture'
 
 const fetchPracticePayloadMock = vi.hoisted(() => vi.fn().mockResolvedValue({ kind: 'signed-out' }))
-vi.mock('../practice-web-test/client', () => ({ fetchPracticePayload: fetchPracticePayloadMock }))
+const submitPracticeAttemptMock = vi.hoisted(() => vi.fn().mockResolvedValue({ kind: 'ok' }))
+vi.mock('../practice-web-test/client', () => ({ fetchPracticePayload: fetchPracticePayloadMock, submitPracticeAttempt: submitPracticeAttemptMock }))
 
 afterEach(() => {
   cleanup()
+  submitPracticeAttemptMock.mockClear()
   document.querySelector('meta[data-test-web-test-description]')?.remove()
 })
 
@@ -183,6 +185,31 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: '練習完成' }))
     expect(screen.getByText('文脈語彙：2／2')).toBeInTheDocument()
     expect(screen.getByText('已觀測到檢查點未通過：0／2')).toBeInTheDocument()
+    expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(2)
+    expect(submitPracticeAttemptMock.mock.calls[0]![0]).toEqual(expect.objectContaining({
+      contentId: 'practice-web-test-spi-v1',
+      revision: expect.any(String),
+      questionId: first.id,
+      questionVersion: first.version,
+      answer: ['two', 'one'],
+      checkpointResponses: [
+        { checkpointId: 'synthetic-checkpoint-01', checkpointVersion: 1, response: 3 },
+        { checkpointId: 'synthetic-checkpoint-02', checkpointVersion: 1, response: 4 },
+      ],
+    }))
+    expect(JSON.stringify(submitPracticeAttemptMock.mock.calls[0]![0])).not.toMatch(/userId|correct|category|mode|diagnosis|promptJa/)
+  })
+
+  it('keeps local feedback truthful when durable attempt storage fails', async () => {
+    fetchPracticePayloadMock.mockClear()
+    submitPracticeAttemptMock.mockResolvedValue({ kind: 'unavailable' })
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('失敗時の合成題幹') })
+    renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
+    await waitFor(() => expect(screen.getByRole('heading', { name: '失敗時の合成題幹' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: '二番' }))
+    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('只保留在目前頁面'))
+    expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
   })
 
   it('removes the old ready payload immediately when the authenticated user changes', async () => {

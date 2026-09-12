@@ -1,9 +1,32 @@
 import type { PracticeRuntimePayload } from '../content-delivery/privatePracticeQuestionBank'
 import { PRIVATE_CONTENT_REVISION, isPrivateContentId } from '../content-delivery/references'
 import { validateRuntimePayload } from './runtime'
+import type { RunnerResponse } from './runtime'
 
 export type PracticeFetchResult =
   | { kind: 'ok'; payload: PracticeRuntimePayload }
+  | { kind: 'signed-out' | 'forbidden' | 'unavailable' | 'missing' }
+
+export type PracticeCheckpointAttempt = {
+  checkpointId: string
+  checkpointVersion: number
+  response: RunnerResponse
+}
+
+/** The only browser-submitted shape for a durable Web Test attempt. */
+export type PracticeAttemptInput = {
+  contentId: string
+  revision: string
+  questionId: string
+  questionVersion: number
+  answer: RunnerResponse
+  responseTimeMs: number
+  clientIdempotencyKey: string
+  checkpointResponses?: PracticeCheckpointAttempt[]
+}
+
+export type PracticeAttemptResult =
+  | { kind: 'ok' }
   | { kind: 'signed-out' | 'forbidden' | 'unavailable' | 'missing' }
 
 function functionsBaseUrl(): string | null {
@@ -36,6 +59,39 @@ export async function fetchPracticePayload(
     const body = await response.json() as { content?: { payload?: unknown } }
     const payload = validateRuntimePayload(body.content?.payload)
     return payload ? { kind: 'ok', payload } : { kind: 'unavailable' }
+  } catch {
+    return { kind: 'unavailable' }
+  }
+}
+
+export async function submitPracticeAttempt(
+  input: PracticeAttemptInput,
+  getAccessToken: () => Promise<string | null>,
+): Promise<PracticeAttemptResult> {
+  if (!isPrivateContentId(input.contentId) || !PRIVATE_CONTENT_REVISION.test(input.revision)) return { kind: 'missing' }
+  if (!Number.isInteger(input.questionVersion) || input.questionVersion < 1 || !Number.isFinite(input.responseTimeMs) || input.responseTimeMs < 0 || !input.clientIdempotencyKey) return { kind: 'unavailable' }
+  let token: string | undefined
+  try {
+    token = (await getAccessToken()) ?? undefined
+  } catch {
+    return { kind: 'unavailable' }
+  }
+  if (!token) return { kind: 'signed-out' }
+  const base = functionsBaseUrl()
+  if (!base) return { kind: 'unavailable' }
+  try {
+    const response = await fetch(`${base}/practice-attempts`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    if (response.status === 401) return { kind: 'signed-out' }
+    if (response.status === 403) return { kind: 'forbidden' }
+    if (response.status === 404) return { kind: 'missing' }
+    if (!response.ok) return { kind: 'unavailable' }
+    const body = await response.json() as { persisted?: unknown }
+    return body.persisted === true ? { kind: 'ok' } : { kind: 'unavailable' }
   } catch {
     return { kind: 'unavailable' }
   }
