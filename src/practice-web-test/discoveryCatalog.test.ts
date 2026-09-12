@@ -99,6 +99,18 @@ describe('Practice discovery catalog', () => {
     expect(catalog.families[0]?.domains[0]?.categories[0]?.releasedCount).toBe(1)
   })
 
+  it('rejects unsupported items with unknown metadata before browser filtering', () => {
+    const release = syntheticRelease()
+    const first = release.payload.questionBank.questions[0]!
+    release.payload.questionBank.questions.push({ ...first, id: 'unsupported-unknown-category', category: 'private-editorial-label', answer: {
+      input: { kind: 'short-text' as const },
+      expectedAnswer: { kind: 'short-text' as const, value: '答え' },
+      scoring: { kind: 'exact-text' as const },
+    } })
+
+    expect(() => createPracticeDiscoveryCatalog(release)).toThrow('not registered for public discovery')
+  })
+
   it('rejects unregistered private family/category/mode metadata before it becomes public', () => {
     const release = syntheticRelease()
     release.payload.questionBank.questions[0]!.category = 'private-editorial-label'

@@ -106,13 +106,13 @@ export function createPracticeDiscoveryCatalog(
   }
 
   for (const question of latestById.values()) {
-    if (question.deliveryProfile !== 'web' || !isBrowserSupportedQuestion(question)) continue
     const mode = question.practiceProfile as PracticeDiscoveryMode
     const categoryDefinition = registeredFamily.domains[question.domain][question.category]
     if (question.testFamily !== registeredFamily.testFamily || !categoryDefinition ||
       !SUPPORTED_DISCOVERY_MODES.has(mode) || !categoryDefinition.modes.includes(mode)) {
       throw new Error('private release contains a family, category, or mode not registered for public discovery')
     }
+    if (question.deliveryProfile !== 'web' || !isBrowserSupportedQuestion(question)) continue
     const family = grouped.get(question.testFamily) ?? new Map()
     const domain = family.get(question.domain) ?? new Map()
     const category = domain.get(question.category) ?? {
