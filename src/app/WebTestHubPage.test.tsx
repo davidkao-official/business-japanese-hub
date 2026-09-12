@@ -143,6 +143,7 @@ describe('Web Test discovery and runner-entry routes', () => {
       },
     })
 
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1000)
     const rendered = renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
     await waitFor(() => expect(screen.getByText('第 1／2 題')).toBeInTheDocument())
     expect(screen.getByRole('figure', { name: '題目表示' })).toBeInTheDocument()
@@ -153,6 +154,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     fireEvent.click(screen.getByRole('button', { name: '二番 上移' }))
     expect(screen.getAllByRole('listitem')[0]).toHaveTextContent('二番')
     fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    nowSpy.mockReturnValue(9000)
     expect(screen.getByText('二番、一番')).toHaveAttribute('lang', 'ja')
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: '解答與說明' }))
     expect(screen.getByText('這是合成表示。')).toBeInTheDocument()
@@ -174,12 +176,14 @@ describe('Web Test discovery and runner-entry routes', () => {
     fireEvent.change(screen.getByLabelText('數值答案'), { target: { value: '4' } })
     fireEvent.click(screen.getByRole('button', { name: '回答檢查點' }))
     expect(screen.getByText('檢查點回答正確')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('作答紀錄已儲存。')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: '下一題' }))
     expect(screen.getByText('第 2／2 題')).toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: '二番を選んでください。' }))
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
     fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    await waitFor(() => expect(screen.getByText('作答紀錄已儲存。')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: '下一題' }))
     expect(screen.getByText('正確 2／2 題（正答率 100%）；結果只保留在目前頁面。')).toBeInTheDocument()
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: '練習完成' }))
@@ -201,12 +205,14 @@ describe('Web Test discovery and runner-entry routes', () => {
         { checkpointId: 'synthetic-checkpoint-02', checkpointVersion: 1, response: 4 },
       ],
     }))
+    expect(firstAttempt.responseTimeMs).toBe(0)
     expect(JSON.stringify(firstAttempt)).not.toMatch(/userId|correct|category|mode|diagnosis|promptJa/)
+    nowSpy.mockRestore()
   })
 
   it('keeps local feedback truthful when durable attempt storage fails', async () => {
     fetchPracticePayloadMock.mockClear()
-    submitPracticeAttemptMock.mockResolvedValue({ kind: 'unavailable' })
+    submitPracticeAttemptMock.mockResolvedValueOnce({ kind: 'unavailable' }).mockResolvedValue({ kind: 'ok' })
     fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('失敗時の合成題幹') })
     renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
     await waitFor(() => expect(screen.getByRole('heading', { name: '失敗時の合成題幹' })).toBeInTheDocument())
@@ -214,6 +220,16 @@ describe('Web Test discovery and runner-entry routes', () => {
     fireEvent.click(screen.getByRole('button', { name: '回答' }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('只保留在目前頁面'))
     expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
+    const nextButton = screen.getByRole('button', { name: '下一題' })
+    expect(nextButton).toBeDisabled()
+    fireEvent.click(nextButton)
+    expect(screen.getByRole('heading', { name: '解答與說明' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重試儲存' }))
+    await waitFor(() => expect(screen.getByText('作答紀錄已儲存。')).toBeInTheDocument())
+    expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(2)
+    expect(submitPracticeAttemptMock.mock.calls[1]![0]).toEqual(submitPracticeAttemptMock.mock.calls[0]![0])
+    fireEvent.click(screen.getByRole('button', { name: '下一題' }))
+    expect(screen.getByRole('heading', { name: '練習完成' })).toBeInTheDocument()
   })
 
   it('removes the old ready payload immediately when the authenticated user changes', async () => {

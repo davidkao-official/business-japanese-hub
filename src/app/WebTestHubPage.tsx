@@ -222,6 +222,7 @@ export function WebTestRunnerEntryPage() {
   const checkpointAdvanceFocusRef = useRef(false)
   const checkpointResponsesRef = useRef<PracticeAttemptInput['checkpointResponses']>([])
   const lastAttemptRef = useRef<PracticeAttemptInput | null>(null)
+  const primaryElapsedMsRef = useRef<number | null>(null)
   const userId = user?.id
   const selectionKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? '', userId ?? ''].join('|')
   useEffect(() => {
@@ -243,6 +244,7 @@ export function WebTestRunnerEntryPage() {
       startedAt.current = 0
       checkpointResponsesRef.current = []
       lastAttemptRef.current = null
+      primaryElapsedMsRef.current = null
       if (authLoading || !userId) return
       const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision, getAccessToken)
       if (cancelled) return
@@ -301,6 +303,8 @@ export function WebTestRunnerEntryPage() {
       <RunnerStateView questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} completionHeadingRef={completionHeadingRef} checkpointHeadingRef={checkpointHeadingRef} categoryLabel={labelForCategory(family.testFamily, domain.domain, category)} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} checkpointIndex={checkpointIndex} checkpointResponse={checkpointResponse} checkpointFeedback={checkpointFeedback} persistence={persistence} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} setCheckpointResponse={setCheckpointResponse} onRetryPersist={retryPersist} onSubmit={() => {
         if (!question || state.kind !== 'ready' || response === '') return
         const correct = scoreQuestion(question, response)
+        const primaryElapsedMs = Date.now() - startedAt.current
+        primaryElapsedMsRef.current = primaryElapsedMs
         setLastCorrect(correct)
         setLastExplanation(question.coreExplanation.concise)
         setFeedback({ question, correct })
@@ -310,8 +314,8 @@ export function WebTestRunnerEntryPage() {
         setCheckpointFeedback(null)
         checkpointResponsesRef.current = []
         setPersistence('idle')
-        setAnswers((current) => [...current, { correct, category: question.category, checkpointMeasured: 0, checkpointMisses: 0, elapsedMs: Date.now() - startedAt.current }])
-        if (checkpoints.length === 0) void persistAttempt({ contentId: catalog.releaseIdentity.contentId, revision: catalog.releaseIdentity.revision, questionId: question.id, questionVersion: question.version, answer: response, responseTimeMs: Date.now() - startedAt.current, clientIdempotencyKey: attemptId() })
+        setAnswers((current) => [...current, { correct, category: question.category, checkpointMeasured: 0, checkpointMisses: 0, elapsedMs: primaryElapsedMs }])
+        if (checkpoints.length === 0) void persistAttempt({ contentId: catalog.releaseIdentity.contentId, revision: catalog.releaseIdentity.revision, questionId: question.id, questionVersion: question.version, answer: response, responseTimeMs: primaryElapsedMs, clientIdempotencyKey: attemptId() })
       }} onCheckpointSubmit={() => {
         if (state.kind !== 'ready' || !question || checkpointIndex === null || checkpointFeedback !== null) return
         const checkpoint = resolveQuestionCheckpoints(state.payload, question)?.[checkpointIndex]
@@ -321,10 +325,11 @@ export function WebTestRunnerEntryPage() {
         setCheckpointFeedback(correct)
         setAnswers((current) => current.map((answer, position) => position === current.length - 1 ? { ...answer, checkpointMeasured: answer.checkpointMeasured + 1, checkpointMisses: answer.checkpointMisses + (correct ? 0 : 1) } : answer))
         const checkpoints = resolveQuestionCheckpoints(state.payload, question) ?? []
-        if (checkpointIndex + 1 >= checkpoints.length) void persistAttempt({ contentId: catalog.releaseIdentity.contentId, revision: catalog.releaseIdentity.revision, questionId: question.id, questionVersion: question.version, answer: response, responseTimeMs: Date.now() - startedAt.current, clientIdempotencyKey: attemptId(), checkpointResponses: checkpointResponsesRef.current })
+        if (checkpointIndex + 1 >= checkpoints.length) void persistAttempt({ contentId: catalog.releaseIdentity.contentId, revision: catalog.releaseIdentity.revision, questionId: question.id, questionVersion: question.version, answer: response, responseTimeMs: primaryElapsedMsRef.current ?? 0, clientIdempotencyKey: attemptId(), checkpointResponses: checkpointResponsesRef.current })
       }} onCheckpointNext={() => {
         if (state.kind !== 'ready' || !question || checkpointIndex === null) return
         const checkpoints = resolveQuestionCheckpoints(state.payload, question) ?? []
+        if (checkpointIndex + 1 >= checkpoints.length && persistence !== 'saved') return
         if (checkpointIndex + 1 < checkpoints.length) {
           checkpointAdvanceFocusRef.current = true
           setCheckpointIndex(checkpointIndex + 1)
@@ -346,6 +351,7 @@ export function WebTestRunnerEntryPage() {
           startedAt.current = Date.now()
         }
       }} onNext={() => {
+        if (persistence !== 'saved') return
         const nextQuestion = state.kind === 'ready' ? state.questions[index + 1] : undefined
         setIndex((current) => current + 1)
         setResponse(nextQuestion?.answer.input.kind === 'ordering' ? nextQuestion.answer.input.choices.map((choice) => choice.id) : '')
@@ -354,6 +360,7 @@ export function WebTestRunnerEntryPage() {
         setCheckpointResponse('')
           setCheckpointFeedback(null)
           setPersistence('idle')
+          primaryElapsedMsRef.current = null
         setLastCorrect(null)
         setLastExplanation(null)
         startedAt.current = Date.now()
@@ -387,7 +394,7 @@ function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHea
   if (feedback?.question.id === question.id) {
     const checkpoints = state.kind === 'ready' ? resolveQuestionCheckpoints(state.payload, question) ?? [] : []
     const checkpoint = checkpointIndex === null ? undefined : checkpoints[checkpointIndex]
-    return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? '回答正確' : '回答不正確'}</p><h2 ref={feedbackHeadingRef} tabIndex={-1}>解答與說明</h2><p>正確答案：<span lang="ja">{answerLabel(answer)}</span></p><p lang="ja">{question.coreExplanation.concise}</p><p lang="ja">{question.coreExplanation.whatIsAskedJa}</p>{question.coreExplanation.representation && <RepresentationView representation={question.coreExplanation.representation} label="解答表示" />}{overlay?.concise && <p>{overlay.concise}</p>}{overlay?.whatIsAsked && <p>{overlay.whatIsAsked}</p>}{overlay?.representationExplanation && <p>{overlay.representationExplanation}</p>}{overlay?.commonMisread && <p>{overlay.commonMisread}</p>}{overlay?.keyTerms?.map((term) => <p key={term.termId}><span lang="ja">{term.surface}</span>：{term.meaning}{term.note && `（${term.note}）`}</p>)}{persistence === 'pending' && <p role="status">正在儲存作答紀錄。</p>}{persistence === 'saved' && <p role="status">作答紀錄已儲存。</p>}{persistence === 'failed' && <p role="alert">作答結果只保留在目前頁面；儲存失敗，請稍後再試。 <button type="button" onClick={onRetryPersist}>重試儲存</button></p>}{checkpoint && <section aria-labelledby="checkpoint-title"><h3 id="checkpoint-title" ref={checkpointHeadingRef} tabIndex={-1}>理解檢查 {checkpointIndex! + 1}</h3><p lang="ja">{checkpoint.promptJa}</p>{checkpointFeedback !== null ? <><p role="status">{checkpointFeedback ? '檢查點回答正確' : '檢查點回答不正確'}</p><button type="button" onClick={onCheckpointNext}>{checkpointIndex! + 1 < checkpoints.length ? '下一個檢查點' : '下一題'}</button></> : <>{renderInput(checkpoint.answer, checkpointResponse, setCheckpointResponse)}<button type="button" disabled={checkpointResponse === '' || (Array.isArray(checkpointResponse) && checkpointResponse.length === 0)} onClick={onCheckpointSubmit}>回答檢查點</button></>}</section>}{!checkpoint && <button type="button" onClick={onNext}>下一題</button>}</section>
+    return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? '回答正確' : '回答不正確'}</p><h2 ref={feedbackHeadingRef} tabIndex={-1}>解答與說明</h2><p>正確答案：<span lang="ja">{answerLabel(answer)}</span></p><p lang="ja">{question.coreExplanation.concise}</p><p lang="ja">{question.coreExplanation.whatIsAskedJa}</p>{question.coreExplanation.representation && <RepresentationView representation={question.coreExplanation.representation} label="解答表示" />}{overlay?.concise && <p>{overlay.concise}</p>}{overlay?.whatIsAsked && <p>{overlay.whatIsAsked}</p>}{overlay?.representationExplanation && <p>{overlay.representationExplanation}</p>}{overlay?.commonMisread && <p>{overlay.commonMisread}</p>}{overlay?.keyTerms?.map((term) => <p key={term.termId}><span lang="ja">{term.surface}</span>：{term.meaning}{term.note && `（${term.note}）`}</p>)}{persistence === 'pending' && <p role="status">正在儲存作答紀錄。</p>}{persistence === 'saved' && <p role="status">作答紀錄已儲存。</p>}{persistence === 'failed' && <p role="alert">作答結果只保留在目前頁面；儲存失敗，請稍後再試。 <button type="button" onClick={onRetryPersist}>重試儲存</button></p>}{checkpoint && <section aria-labelledby="checkpoint-title"><h3 id="checkpoint-title" ref={checkpointHeadingRef} tabIndex={-1}>理解檢查 {checkpointIndex! + 1}</h3><p lang="ja">{checkpoint.promptJa}</p>{checkpointFeedback !== null ? <><p role="status">{checkpointFeedback ? '檢查點回答正確' : '檢查點回答不正確'}</p><button type="button" disabled={checkpointIndex! + 1 >= checkpoints.length && persistence !== 'saved'} onClick={onCheckpointNext}>{checkpointIndex! + 1 < checkpoints.length ? '下一個檢查點' : '下一題'}</button></> : <>{renderInput(checkpoint.answer, checkpointResponse, setCheckpointResponse)}<button type="button" disabled={checkpointResponse === '' || (Array.isArray(checkpointResponse) && checkpointResponse.length === 0)} onClick={onCheckpointSubmit}>回答檢查點</button></>}</section>}{!checkpoint && <button type="button" disabled={persistence !== 'saved'} onClick={onNext}>下一題</button>}</section>
   }
   return <section className="web-test-hub__runner" aria-live="polite">{lastCorrect !== null && <p role="status">{lastCorrect ? '回答正確' : '回答不正確'}{lastExplanation && <>：<span lang="ja">{lastExplanation}</span></>}</p>}<p>第 {answers.length + 1}／{state.questions.length} 題</p><h2 ref={questionHeadingRef} tabIndex={-1} lang="ja">{question.promptJa}</h2>
     {question.promptRepresentation && <RepresentationView representation={question.promptRepresentation} label="題目表示" />}
