@@ -1,5 +1,5 @@
 begin;
-select plan(33);
+select plan(34);
 select has_table('public', 'practice_attempts', 'practice attempts table exists');
 select has_column('public', 'practice_attempts', 'attempt_sequence', 'attempt ordering is monotonic and server-owned');
 select is((select data_type from information_schema.columns where table_schema = 'public' and table_name = 'practice_attempts' and column_name = 'question_version'), 'bigint', 'question version preserves PostgreSQL bigint range');
@@ -34,10 +34,11 @@ select is((public.record_practice_attempt('61000000-0000-0000-0000-000000000001'
 select is((select count(*) from public.practice_attempts where user_id='61000000-0000-0000-0000-000000000001'),3::bigint,'client retry is idempotent alongside the bigint-version attempt');
 select is((select count(*) from public.practice_review_queue where user_id='61000000-0000-0000-0000-000000000001'),0::bigint,'later correct clears the exact question review');
 select public.record_practice_attempt('61000000-0000-0000-0000-000000000001','61100000-0000-4000-8000-000000000004','practice-web-test-spi-v1',repeat('b',64),'q-1',1,'spi','verbal','vocabulary-in-context','untimed-learning','{"input":"two"}'::jsonb,false,1100,'[]'::jsonb);
-select public.record_practice_attempt('61000000-0000-0000-0000-000000000001','61100000-0000-4000-8000-000000000006','practice-web-test-spi-v1',repeat('c',64),'q-1',1,'spi','verbal','vocabulary-in-context','untimed-learning','{"input":"two"}'::jsonb,true,900,'[]'::jsonb);
+select public.record_practice_attempt('61000000-0000-0000-0000-000000000001','61100000-0000-4000-8000-000000000006','practice-web-test-spi-v1',repeat('c',64),'q-1',2,'spi','verbal','vocabulary-in-context','untimed-learning','{"input":"two"}'::jsonb,true,900,'[]'::jsonb);
 select is((select count(*) from public.practice_review_queue where user_id='61000000-0000-0000-0000-000000000001'),0::bigint,'later correct attempt at a new release clears the stable question review');
 select public.record_practice_attempt('61000000-0000-0000-0000-000000000001','61100000-0000-4000-8000-000000000007','practice-web-test-spi-v1',repeat('d',64),'q-1',2,'spi','verbal','vocabulary-in-context','untimed-learning','{"input":"two"}'::jsonb,false,1100,'[]'::jsonb);
-select is((select count(*) from public.practice_review_queue where user_id='61000000-0000-0000-0000-000000000001' and question_version=2),1::bigint,'review identity retains distinct question versions');
+select is((select count(*) from public.practice_review_queue where user_id='61000000-0000-0000-0000-000000000001'),1::bigint,'latest incorrect remains reviewable for the stable question identity');
+select is((select jsonb_build_object('content_revision', content_revision, 'question_version', question_version) from public.practice_review_queue where user_id='61000000-0000-0000-0000-000000000001' and question_id='q-1'),jsonb_build_object('content_revision', repeat('d',64), 'question_version', 2),'latest review row retains revision and version metadata');
 select is((select count(*) from public.practice_review_queue where user_id='61000000-0000-0000-0000-000000000002'),1::bigint,'latest incorrect remains reviewable for its owner');
 reset role;
 set local role authenticated;
