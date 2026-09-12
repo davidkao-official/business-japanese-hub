@@ -232,6 +232,34 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByRole('heading', { name: '練習完成' })).toBeInTheDocument()
   })
 
+  it('ignores a deferred attempt completion after the authenticated runner changes', async () => {
+    let resolveFirst!: (result: { kind: 'ok' }) => void
+    const firstAttempt = new Promise<{ kind: 'ok' }>((resolve) => { resolveFirst = resolve })
+    fetchPracticePayloadMock.mockClear()
+    fetchPracticePayloadMock
+      .mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('A 題幹') })
+      .mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('B 題幹') })
+    submitPracticeAttemptMock
+      .mockImplementationOnce(() => firstAttempt)
+      .mockResolvedValueOnce({ kind: 'unavailable' })
+    const rendered = renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'member-a' } })
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'A 題幹' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: '二番' }))
+    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    await waitFor(() => expect(screen.getByText('正在儲存作答紀錄。')).toBeInTheDocument())
+
+    act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b' }))
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'B 題幹' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: '二番' }))
+    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('只保留在目前頁面'))
+
+    resolveFirst({ kind: 'ok' })
+    await Promise.resolve()
+    expect(screen.getByRole('alert')).toHaveTextContent('只保留在目前頁面')
+    expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
+  })
+
   it('removes the old ready payload immediately when the authenticated user changes', async () => {
     fetchPracticePayloadMock.mockClear()
     fetchPracticePayloadMock

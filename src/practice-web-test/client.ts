@@ -29,6 +29,8 @@ export type PracticeAttemptResult =
   | { kind: 'ok' }
   | { kind: 'signed-out' | 'forbidden' | 'unavailable' | 'missing' }
 
+export const PRACTICE_ATTEMPT_TIMEOUT_MS = 10_000
+
 function functionsBaseUrl(): string | null {
   const explicit = import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL as string | undefined
   const supabase = import.meta.env.VITE_SUPABASE_URL as string | undefined
@@ -50,8 +52,10 @@ export async function fetchPracticePayload(
   if (!token) return { kind: 'signed-out' }
   const base = functionsBaseUrl()
   if (!base) return { kind: 'unavailable' }
+  const controller = new AbortController()
+  const timeout = globalThis.setTimeout(() => controller.abort(), PRACTICE_ATTEMPT_TIMEOUT_MS)
   try {
-    const response = await fetch(`${base}/content-delivery?contentId=${encodeURIComponent(contentId)}&revision=${revision}`, { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } })
+    const response = await fetch(`${base}/content-delivery?contentId=${encodeURIComponent(contentId)}&revision=${revision}`, { cache: 'no-store', signal: controller.signal, headers: { Authorization: `Bearer ${token}` } })
     if (response.status === 401) return { kind: 'signed-out' }
     if (response.status === 403) return { kind: 'forbidden' }
     if (response.status === 404) return { kind: 'missing' }
@@ -61,6 +65,8 @@ export async function fetchPracticePayload(
     return payload ? { kind: 'ok', payload } : { kind: 'unavailable' }
   } catch {
     return { kind: 'unavailable' }
+  } finally {
+    globalThis.clearTimeout(timeout)
   }
 }
 
@@ -79,6 +85,8 @@ export async function submitPracticeAttempt(
   if (!token) return { kind: 'signed-out' }
   const base = functionsBaseUrl()
   if (!base) return { kind: 'unavailable' }
+  const controller = new AbortController()
+  const timeout = globalThis.setTimeout(() => controller.abort(), PRACTICE_ATTEMPT_TIMEOUT_MS)
   try {
     // Build the wire body explicitly so an accidental caller-side field can
     // never cross the browser/server boundary.
@@ -101,6 +109,7 @@ export async function submitPracticeAttempt(
     const response = await fetch(`${base}/practice-attempts`, {
       method: 'POST',
       cache: 'no-store',
+      signal: controller.signal,
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(wireBody),
     })
@@ -112,5 +121,7 @@ export async function submitPracticeAttempt(
     return body.persisted === true ? { kind: 'ok' } : { kind: 'unavailable' }
   } catch {
     return { kind: 'unavailable' }
+  } finally {
+    globalThis.clearTimeout(timeout)
   }
 }

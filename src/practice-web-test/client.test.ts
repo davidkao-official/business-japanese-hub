@@ -71,4 +71,21 @@ describe('practice payload client', () => {
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
   })
+
+  it('aborts a stalled attempt request and returns unavailable for retry', async () => {
+    vi.useFakeTimers()
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
+    const fetchMock = vi.fn((_url: string, request: RequestInit) => new Promise<never>((_, reject) => {
+      request.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true })
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const input = { contentId: 'practice-web-test-spi-v1', revision: 'a'.repeat(64), questionId: 'question-01', questionVersion: 1, answer: 'a', responseTimeMs: 1, clientIdempotencyKey: 'key' }
+    const pending = submitPracticeAttempt(input, vi.fn().mockResolvedValue('token'))
+    await vi.advanceTimersByTimeAsync(10_000)
+    await expect(pending).resolves.toEqual({ kind: 'unavailable' })
+    expect(fetchMock.mock.calls[0]![1]?.signal?.aborted).toBe(true)
+    vi.useRealTimers()
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
 })

@@ -223,9 +223,11 @@ export function WebTestRunnerEntryPage() {
   const checkpointResponsesRef = useRef<PracticeAttemptInput['checkpointResponses']>([])
   const lastAttemptRef = useRef<PracticeAttemptInput | null>(null)
   const primaryElapsedMsRef = useRef<number | null>(null)
+  const persistenceGenerationRef = useRef(0)
   const userId = user?.id
   const selectionKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? '', userId ?? ''].join('|')
   useEffect(() => {
+    persistenceGenerationRef.current += 1
     let cancelled = false
     if (!catalog || !family || !domain || !category || !validSearch || !validMode) return
     void Promise.resolve().then(async () => {
@@ -256,7 +258,7 @@ export function WebTestRunnerEntryPage() {
       if (questions[0]?.answer.input.kind === 'ordering') setResponse(questions[0].answer.input.choices.map((choice) => choice.id))
       startedAt.current = Date.now()
     })
-    return () => { cancelled = true }
+    return () => { cancelled = true; persistenceGenerationRef.current += 1 }
   }, [authLoading, userId, getAccessToken, selectionKey, family, domain, category, mode, validMode, validSearch])
   const question = state.kind === 'ready' ? state.questions[index] : undefined
   const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
@@ -283,9 +285,13 @@ export function WebTestRunnerEntryPage() {
       ? { kind: 'loading' as const }
       : state
   const persistAttempt = async (attempt: PracticeAttemptInput) => {
+    const generation = ++persistenceGenerationRef.current
+    const operationSelectionKey = selectionKey
+    const operationUserId = userId
     lastAttemptRef.current = attempt
     setPersistence('pending')
     const result = await submitPracticeAttempt(attempt, getAccessToken)
+    if (generation !== persistenceGenerationRef.current || operationSelectionKey !== selectionKey || operationUserId !== userId) return
     if (result.kind === 'ok') setPersistence('saved')
     else setPersistence('failed')
   }
@@ -337,6 +343,8 @@ export function WebTestRunnerEntryPage() {
           setCheckpointFeedback(null)
           setPersistence('idle')
         } else {
+          persistenceGenerationRef.current += 1
+          lastAttemptRef.current = null
           const nextQuestion = state.questions[index + 1]
           setIndex((current) => current + 1)
           setResponse(nextQuestion?.answer.input.kind === 'ordering' ? nextQuestion.answer.input.choices.map((choice) => choice.id) : '')
@@ -352,6 +360,8 @@ export function WebTestRunnerEntryPage() {
         }
       }} onNext={() => {
         if (persistence !== 'saved') return
+        persistenceGenerationRef.current += 1
+        lastAttemptRef.current = null
         const nextQuestion = state.kind === 'ready' ? state.questions[index + 1] : undefined
         setIndex((current) => current + 1)
         setResponse(nextQuestion?.answer.input.kind === 'ordering' ? nextQuestion.answer.input.choices.map((choice) => choice.id) : '')
