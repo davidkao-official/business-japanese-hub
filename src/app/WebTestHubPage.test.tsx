@@ -219,7 +219,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: '失敗時の合成題幹' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
     fireEvent.click(screen.getByRole('button', { name: '回答' }))
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('只保留在目前頁面'))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('是否已儲存無法確認'))
     expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
     const nextButton = screen.getByRole('button', { name: '下一題' })
     expect(nextButton).toBeDisabled()
@@ -252,10 +252,10 @@ describe('Web Test discovery and runner-entry routes', () => {
   })
 
   it.each([
-    ['signed-out', '登入狀態已失效'],
-    ['forbidden', '沒有可用的 Plus 練習存取權'],
-    ['missing', '題目內容已無法取得'],
-  ] as const)('keeps a %s attempt result terminal and truthful', async (kind, message) => {
+    ['signed-out', '登入狀態已失效', true],
+    ['forbidden', '沒有可用的 Plus 練習存取權', true],
+    ['missing', '題目內容已無法取得', false],
+  ] as const)('keeps a %s attempt result terminal and truthful', async (kind, message, retryable) => {
     fetchPracticePayloadMock.mockClear()
     submitPracticeAttemptMock.mockResolvedValueOnce({ kind })
     fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload(`${kind} 結果の合成題幹`) })
@@ -264,11 +264,30 @@ describe('Web Test discovery and runner-entry routes', () => {
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
     fireEvent.click(screen.getByRole('button', { name: '回答' }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(message))
-    expect(screen.queryByRole('button', { name: '重試儲存' })).not.toBeInTheDocument()
+    if (retryable) expect(screen.getByRole('button', { name: '重試儲存' })).toBeInTheDocument()
+    else expect(screen.queryByRole('button', { name: '重試儲存' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '下一題' })).toBeDisabled()
     expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '返回類別' })).toBeInTheDocument()
     if (kind === 'missing') expect(screen.getByRole('button', { name: '重新載入最新題目' })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['invalid', '作答回應需要修正', false],
+    ['unavailable', '是否已儲存無法確認', true],
+  ] as const)('keeps a %s result from claiming saved or enabling progression', async (kind, message, retryable) => {
+    fetchPracticePayloadMock.mockClear()
+    submitPracticeAttemptMock.mockResolvedValueOnce({ kind })
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload(`${kind} 結果の合成題幹`) })
+    renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
+    await waitFor(() => expect(screen.getByRole('heading', { name: `${kind} 結果の合成題幹` })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: '二番' }))
+    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(message))
+    if (retryable) expect(screen.getByRole('button', { name: '重試儲存' })).toBeInTheDocument()
+    else expect(screen.queryByRole('button', { name: '重試儲存' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '下一題' })).toBeDisabled()
+    expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
   })
 
   it('treats an out-of-range response time as terminal without retry and allows the next question', async () => {
@@ -339,11 +358,11 @@ describe('Web Test discovery and runner-entry routes', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'B 題幹' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
     fireEvent.click(screen.getByRole('button', { name: '回答' }))
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('只保留在目前頁面'))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('是否已儲存無法確認'))
 
     resolveFirst({ kind: 'ok' })
     await Promise.resolve()
-    expect(screen.getByRole('alert')).toHaveTextContent('只保留在目前頁面')
+    expect(screen.getByRole('alert')).toHaveTextContent('是否已儲存無法確認')
     expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
   })
 

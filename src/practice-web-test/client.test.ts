@@ -94,11 +94,22 @@ describe('practice payload client', () => {
 
   it('returns a terminal stale result for a server rejected selection', async () => {
     vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
-    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 400 })
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 400, json: vi.fn().mockResolvedValue({ error: 'invalid question selection', code: 'PRACTICE_ATTEMPT_STALE' }) })
     vi.stubGlobal('fetch', fetchMock)
     const input = { contentId: 'practice-web-test-spi-v1', revision: 'a'.repeat(64), questionId: 'question-01', questionVersion: 1, answer: 'a', responseTimeMs: 1, clientIdempotencyKey: '70000000-0000-4000-8000-000000000001' }
 
     await expect(submitPracticeAttempt(input, vi.fn().mockResolvedValue(jwtFor('member-a')), 'member-a')).resolves.toEqual({ kind: 'stale' })
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
+  it('keeps an ordinary 400 response as a validation result instead of stale', async () => {
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 400, json: vi.fn().mockResolvedValue({ error: 'invalid response' }) })
+    vi.stubGlobal('fetch', fetchMock)
+    const input = { contentId: 'practice-web-test-spi-v1', revision: 'a'.repeat(64), questionId: 'question-01', questionVersion: 1, answer: 'a', responseTimeMs: 1, clientIdempotencyKey: '70000000-0000-4000-8000-000000000001' }
+
+    await expect(submitPracticeAttempt(input, vi.fn().mockResolvedValue(jwtFor('member-a')), 'member-a')).resolves.toEqual({ kind: 'invalid' })
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
   })

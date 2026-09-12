@@ -221,6 +221,6 @@ export async function handlePracticeAttempts(req: HandlerRequest, deps: Practice
       ? privateResult(jsonResult(409, { error: 'practice attempt already recorded', replayable: true }))
       : privateResult(jsonResult(409, { error: 'practice attempt conflict' }))
   }
-  if (error?.code === '22023') return badRequest('invalid question selection')
+  if (error?.code === '22023') return jsonResult(400, { error: 'invalid question selection', code: 'PRACTICE_ATTEMPT_STALE' })
   return privateResult(jsonResult(502, { error: 'practice attempt persistence failed' }))
 }

@@ -100,6 +100,7 @@ describe('practice-attempts handler', () => {
     const unknown = deps(db(userId))
     const result = await handlePracticeAttempts(request({ questionId: 'not-a-question' }), unknown)
     expect(result.status).toBe(400)
+    expect(JSON.parse(result.body)).toEqual({ error: 'invalid question selection' })
     expect(result.body).not.toContain('promptJa')
     expect(unknown.db.rpc).not.toHaveBeenCalled()
     const stale = deps(db(userId))
@@ -126,7 +127,7 @@ describe('practice-attempts handler', () => {
     atomicStale.db.rpc.mockResolvedValue({ data: null, error: { code: '22023', message: 'arbitrary concurrent error' } })
     const staleResult = await handlePracticeAttempts(request(), atomicStale)
     expect(staleResult.status).toBe(400)
-    expect(JSON.parse(staleResult.body)).toEqual({ error: 'invalid question selection' })
+    expect(JSON.parse(staleResult.body)).toEqual({ error: 'invalid question selection', code: 'PRACTICE_ATTEMPT_STALE' })
 
     const transient = deps(db(userId))
     transient.getQuestionAvailability.mockResolvedValue({ kind: 'missing' })
@@ -163,7 +164,7 @@ describe('practice-attempts handler', () => {
     database.rpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'practice question is no longer available' } })
     const unseen = await handlePracticeAttempts(request({ clientIdempotencyKey: '20000000-0000-4000-8000-000000000002' }), d)
     expect(unseen.status).toBe(400)
-    expect(JSON.parse(unseen.body)).toEqual({ error: 'invalid question selection' })
+    expect(JSON.parse(unseen.body)).toEqual({ error: 'invalid question selection', code: 'PRACTICE_ATTEMPT_STALE' })
   })
 
   it('rejects malformed and oversized learner input before persistence', async () => {
@@ -198,7 +199,9 @@ describe('practice-attempts handler', () => {
     const database = db(userId)
     const d = deps(database)
     const checkpoint = { checkpointId: 'checkpoint-1', checkpointVersion: 1, response: 'two' }
-    expect((await handlePracticeAttempts(request({ checkpointResponses: [checkpoint] }), d)).status).toBe(400)
+    const result = await handlePracticeAttempts(request({ checkpointResponses: [checkpoint] }), d)
+    expect(result.status).toBe(400)
+    expect(JSON.parse(result.body)).toEqual({ error: 'invalid checkpoint responses' })
     expect(database.rpc).not.toHaveBeenCalled()
   })
 
@@ -207,6 +210,7 @@ describe('practice-attempts handler', () => {
     const d = deps(database, 'active', multiRelease.value)
     const result = await handlePracticeAttempts(request({ revision: multiRelease.value.revision, questionId: 'fixture-multi-01', answer: [] }), d)
     expect(result.status).toBe(400)
+    expect(JSON.parse(result.body)).toEqual({ error: 'invalid response' })
     expect(database.rpc).not.toHaveBeenCalled()
   })
 
