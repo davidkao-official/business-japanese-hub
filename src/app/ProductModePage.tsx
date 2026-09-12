@@ -66,6 +66,7 @@ export function ProductModePage({ mode, analytics = browserValidationAnalytics }
 
       {mode === 'read' ? <ReadModeLinks /> : null}
       {mode === 'learn' ? <LearnModeLinks /> : null}
+      {mode === 'practice' ? <PracticeModeLink /> : null}
       {mode === 'experience' ? <ExperienceModeLink onNavigate={trackCareerGameLink} /> : null}
 
       <nav className="product-mode-page__next" aria-label={strings.learningModes.navigationLabel}>
@@ -81,6 +82,18 @@ export function ProductModePage({ mode, analytics = browserValidationAnalytics }
           ))}
         </ul>
       </nav>
+    </section>
+  )
+}
+
+function PracticeModeLink() {
+  return (
+    <section className="product-mode-page__capability" lang="zh-TW" aria-labelledby="practice-web-test-title">
+      <h2 id="practice-web-test-title">日本求職網路測驗刷題</h2>
+      <p>從 SPI 的言語與非言語類別開始，選擇已發布的練習範圍。</p>
+      <div className="product-mode-page__actions">
+        <Link className="btn btn--primary" to="/practice/web-test">前往 Web Test 練習入口</Link>
+      </div>
     </section>
   )
 }

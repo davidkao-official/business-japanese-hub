@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "releaseIdentity": {
+    "contentId": "practice-web-test-spi-v1",
+    "revision": "62361e0be9ecc7792a55c0a670bc126621eaea4196fd8407ded2882cf342506c"
+  },
+  "families": [
+    {
+      "testFamily": "spi",
+      "domains": [
+        {
+          "domain": "nonverbal",
+          "categories": [
+            {
+              "category": "conditions-and-ordering",
+              "releasedCount": 5,
+              "modes": [
+                "untimed-learning"
+              ]
+            },
+            {
+              "category": "percentage-profit-loss",
+              "releasedCount": 5,
+              "modes": [
+                "untimed-learning"
+              ]
+            },
+            {
+              "category": "rate-and-work",
+              "releasedCount": 5,
+              "modes": [
+                "untimed-learning"
+              ]
+            },
+            {
+              "category": "sets-and-counting",
+              "releasedCount": 5,
+              "modes": [
+                "untimed-learning"
+              ]
+            }
+          ]
+        },
+        {
+          "domain": "verbal",
+          "categories": [
+            {
+              "category": "reading-inference",
+              "releasedCount": 5,
+              "modes": [
+                "untimed-learning"
+              ]
+            },
+            {
+              "category": "semantic-relation",
+              "releasedCount": 5,
+              "modes": [
+                "untimed-learning"
+              ]
+            },
+            {
+              "category": "sentence-logic",
+              "releasedCount": 5,
+              "modes": [
+                "untimed-learning"
+              ]
+            },
+            {
+              "category": "vocabulary-in-context",
+              "releasedCount": 5,
+              "modes": [
+                "untimed-learning"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

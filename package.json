@@ -32,6 +32,7 @@
     "workflow:import-private-book": "tsx scripts/private-content/import-book.ts",
     "workflow:validate-private-practice-question-bank": "tsx scripts/private-content/validate-practice-question-bank.ts",
     "workflow:convert-private-practice-question-csv": "tsx scripts/private-content/convert-practice-question-csv.ts",
+    "workflow:generate-practice-discovery-catalog": "tsx scripts/private-content/generate-practice-discovery-catalog.ts",
     "workflow:import-private-practice-question-bank": "tsx scripts/private-content/import-practice-question-bank.ts",
     "workflow:preview": "tsx scripts/preview.ts",
     "workflow:publish": "tsx scripts/publish.ts",
