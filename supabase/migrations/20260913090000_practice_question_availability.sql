@@ -158,3 +158,50 @@ as
 
 revoke all on public.practice_review_queue from public, anon, authenticated, service_role;
 grant select on public.practice_review_queue to authenticated, service_role;
+
+-- Close the check-then-write gap: once a current release head exists, attempt
+-- persistence must observe the same serialized, available question identity.
+create or replace function public.record_practice_attempt(
+  p_user_id uuid, p_client_attempt_id uuid, p_content_id text, p_content_revision text,
+  p_question_id text, p_question_version bigint, p_test_family text, p_domain text,
+  p_category text, p_practice_mode text, p_submitted_answer jsonb, p_correct boolean,
+  p_response_ms integer, p_checkpoint_results jsonb
+)
+returns jsonb language plpgsql security invoker set search_path = '' as $$
+declare existing public.practice_attempts;
+begin
+  if p_user_id is null or p_client_attempt_id is null or p_submitted_answer is null or p_checkpoint_results is null then
+    raise exception 'practice attempt identity and payload are required' using errcode = '22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(p_content_id, 0));
+  if exists (select 1 from public.practice_question_release_head where content_id = p_content_id)
+    and not exists (
+      select 1 from public.practice_question_availability
+      where content_id = p_content_id and question_id = p_question_id
+        and content_revision = p_content_revision and question_version = p_question_version and available
+    ) then
+    raise exception 'practice question is no longer available' using errcode = '22023';
+  end if;
+  insert into public.practice_attempts (
+    user_id, client_attempt_id, content_id, content_revision, question_id,
+    question_version, test_family, domain, category, practice_mode,
+    submitted_answer, correct, response_ms, checkpoint_results
+  ) values (
+    p_user_id, p_client_attempt_id, p_content_id, p_content_revision, p_question_id,
+    p_question_version, p_test_family, p_domain, p_category, p_practice_mode,
+    p_submitted_answer, p_correct, p_response_ms, p_checkpoint_results
+  ) on conflict (user_id, client_attempt_id) do nothing;
+  select * into existing from public.practice_attempts
+  where user_id = p_user_id and client_attempt_id = p_client_attempt_id;
+  if existing.content_id is not distinct from p_content_id and existing.content_revision is not distinct from p_content_revision
+    and existing.question_id is not distinct from p_question_id and existing.question_version is not distinct from p_question_version
+    and existing.test_family is not distinct from p_test_family and existing.domain is not distinct from p_domain
+    and existing.category is not distinct from p_category and existing.practice_mode is not distinct from p_practice_mode
+    and existing.submitted_answer is not distinct from p_submitted_answer and existing.correct is not distinct from p_correct
+    and existing.response_ms is not distinct from p_response_ms and existing.checkpoint_results is not distinct from p_checkpoint_results
+  then return jsonb_build_object('kind', 'persisted'); end if;
+  return jsonb_build_object('kind', 'conflict');
+end;
+$$;
+revoke all on function public.record_practice_attempt(uuid,uuid,text,text,text,bigint,text,text,text,text,jsonb,boolean,integer,jsonb) from public, anon, authenticated, service_role;
+grant execute on function public.record_practice_attempt(uuid,uuid,text,text,text,bigint,text,text,text,text,jsonb,boolean,integer,jsonb) to service_role;

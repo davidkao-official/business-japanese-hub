@@ -1,5 +1,5 @@
 begin;
-select plan(68);
+select plan(69);
 select has_table('public', 'practice_attempts', 'practice attempts table exists');
 select has_column('public', 'practice_attempts', 'attempt_sequence', 'attempt ordering is monotonic and server-owned');
 select is((select data_type from information_schema.columns where table_schema = 'public' and table_name = 'practice_attempts' and column_name = 'question_version'), 'bigint', 'question version preserves PostgreSQL bigint range');
@@ -116,6 +116,7 @@ select public.import_practice_question_release(
   '{"questionBank":{"version":5,"questions":[{"id":"q-1","version":4,"deliveryProfile":"test-center","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb
 );
 select is((select count(*) from public.practice_question_availability where content_id='practice-web-test-spi-v1' and available),0::bigint,'all-ineligible release leaves no availability rows');
+select throws_ok($$select public.record_practice_attempt('61000000-0000-0000-0000-000000000001','61400000-0000-4000-8000-000000000001','practice-web-test-spi-v1',repeat('d',64),'q-1',2,'spi','verbal','vocabulary-in-context','untimed-learning','{}'::jsonb,false,1000,'[]'::jsonb)$$,'22023',null,'persistence rejects a stale question after the release head advances');
 select throws_ok($$select public.import_practice_question_release('practice-web-test-spi-v1', repeat('7',64), '{"questionBank":{"version":4,"questions":[{"id":"q-1","version":2,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb)$$,'22023',null,'older release cannot revive retired questions after an empty release');
 select throws_ok($$select public.import_practice_question_release('practice-web-test-spi-v1', repeat('6',64), '{"questionBank":{"version":5,"questions":[{"id":"q-2","version":1,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb)$$,'22023',null,'same-version different revision cannot replace an empty release head');
 select throws_ok($$select public.import_practice_question_release('practice-web-test-spi-v1', repeat('f',64), '{"questionBank":{"version":4,"questions":["changed"]}}'::jsonb)$$,'22023',null,'same bank version with a different revision is rejected');
