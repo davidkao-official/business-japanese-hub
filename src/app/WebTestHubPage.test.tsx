@@ -98,7 +98,7 @@ describe('Web Test discovery and runner-entry routes', () => {
       category: 'vocabulary-in-context',
       promptJa: '表示を順番に並べてください。',
       promptRepresentation: { kind: 'table' as const, columns: ['項目'], rows: [['合成問題']] },
-      answer: { input: { kind: 'ordering' as const, choices: [{ id: 'one', textJa: '一番' }, { id: 'two', textJa: '二番' }] }, expectedAnswer: { kind: 'ordering' as const, choiceIds: ['two', 'one'] }, scoring: { kind: 'exact-order' as const } },
+      answer: { input: { kind: 'ordering' as const, choices: [{ id: 'one', textJa: '一番', representation: { kind: 'equation' as const, expression: '1' } }, { id: 'two', textJa: '二番' }] }, expectedAnswer: { kind: 'ordering' as const, choiceIds: ['two', 'one'] }, scoring: { kind: 'exact-order' as const } },
       coreExplanation: { concise: '順序を確認します。', whatIsAskedJa: '二番を先にすることが求められています。', representation: { kind: 'equation' as const, expression: '2 → 1' } },
     }
     const second = {
@@ -114,7 +114,7 @@ describe('Web Test discovery and runner-entry routes', () => {
         ...release.value.payload,
         questionBank: { ...release.value.payload.questionBank, questions: [first, second] },
         supportOverlays: [
-          { questionId: first.id, questionVersion: first.version, version: 1, byLocale: { 'zh-Hant': { whatIsAsked: '請依序排列。', representationExplanation: '這是合成表示。', commonMisread: '不要倒置順序。' } } },
+          { questionId: first.id, questionVersion: first.version, version: 1, byLocale: { 'zh-Hant': { concise: '合成提示。', whatIsAsked: '請依序排列。', representationExplanation: '這是合成表示。', commonMisread: '不要倒置順序。', keyTerms: [{ termId: 'term-choice', surface: '選択', meaning: '選擇', note: '合成備註' }] } } },
           { questionId: second.id, questionVersion: second.version, version: 1, byLocale: { 'zh-Hant': { whatIsAsked: '請選擇第二個選項。' } } },
         ],
       },
@@ -123,6 +123,9 @@ describe('Web Test discovery and runner-entry routes', () => {
     renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
     await waitFor(() => expect(screen.getByText('第 1／2 題')).toBeInTheDocument())
     expect(screen.getByRole('figure', { name: '題目表示' })).toBeInTheDocument()
+    expect(screen.getByRole('figure', { name: '一番 表示' })).toBeInTheDocument()
+    expect(screen.getByText('合成提示。')).toBeInTheDocument()
+    expect(screen.getByText('選択')).toHaveAttribute('lang', 'ja')
     fireEvent.click(screen.getByRole('button', { name: '二番 上移' }))
     expect(screen.getAllByRole('listitem')[0]).toHaveTextContent('二番')
     fireEvent.click(screen.getByRole('button', { name: '回答' }))

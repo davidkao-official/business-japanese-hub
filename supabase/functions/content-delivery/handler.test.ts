@@ -40,6 +40,7 @@ describe('content delivery', () => {
       getRelease,
     })
     expect(result.status).toBe(503)
+    expect(result.headers?.['Cache-Control']).toBe('private, no-store')
     expect(getRelease).not.toHaveBeenCalled()
   })
 
@@ -51,6 +52,7 @@ describe('content delivery', () => {
       getRelease,
     })
     expect(result.status).toBe(403)
+    expect(result.headers?.['Cache-Control']).toBe('private, no-store')
     expect(getRelease).not.toHaveBeenCalled()
   })
 
@@ -62,6 +64,7 @@ describe('content delivery', () => {
       getRelease,
     })
     expect(result.status).toBe(401)
+    expect(result.headers?.['Cache-Control']).toBe('private, no-store')
     expect(getRelease).not.toHaveBeenCalled()
   })
 
@@ -94,6 +97,7 @@ describe('content delivery', () => {
       }),
     })
     expect(result.status).toBe(200)
+    expect(result.headers?.['Cache-Control']).toBe('private, no-store')
     expect(result.body).toContain('private fixture only')
   })
 

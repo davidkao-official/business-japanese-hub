@@ -27,7 +27,7 @@ export async function fetchPracticePayload(contentId: string, revision: string):
   const base = functionsBaseUrl()
   if (!base) return { kind: 'unavailable' }
   try {
-    const response = await fetch(`${base}/content-delivery?contentId=${encodeURIComponent(contentId)}&revision=${revision}`, { headers: { Authorization: `Bearer ${token}` } })
+    const response = await fetch(`${base}/content-delivery?contentId=${encodeURIComponent(contentId)}&revision=${revision}`, { cache: 'no-store', headers: { Authorization: `Bearer ${token}` } })
     if (response.status === 401) return { kind: 'signed-out' }
     if (response.status === 403) return { kind: 'forbidden' }
     if (response.status === 404) return { kind: 'missing' }

@@ -44,4 +44,18 @@ describe('SPI runner runtime seam', () => {
     expect(selected.map((entry) => entry.id)).toEqual(['stable-b', 'stable-a'])
     expect(selected.map((entry) => entry.version)).toEqual([1, 2])
   })
+
+  it('applies latest-version filtering before category and input selection', () => {
+    const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', nonProprietaryPracticeQuestionBankFixture)
+    expect(release.ok).toBe(true)
+    if (!release.ok) return
+    const question = release.value.payload.questionBank.questions[0]!
+    const moved = { ...question, id: 'moved-question', version: 1 }
+    const movedLatest = { ...moved, version: 2, category: 'another-category' }
+    const unsupported = { ...question, id: 'unsupported-question', version: 1 }
+    const unsupportedLatest = { ...unsupported, version: 2, answer: { input: { kind: 'short-text' as const }, expectedAnswer: { kind: 'short-text' as const, value: 'synthetic' }, scoring: { kind: 'exact-text' as const } } }
+    const payload = { ...release.value.payload, questionBank: { ...release.value.payload.questionBank, questions: [moved, movedLatest, unsupported, unsupportedLatest] } }
+    expect(selectableQuestions(payload, 'fixture', 'verbal', 'fixture-category', 'untimed-learning')).toEqual([])
+    expect(selectableQuestions(payload, 'fixture', 'verbal', 'another-category', 'untimed-learning').map((entry) => entry.id)).toEqual(['moved-question'])
+  })
 })

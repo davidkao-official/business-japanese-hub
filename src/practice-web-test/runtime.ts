@@ -41,11 +41,12 @@ export function scoreQuestion(question: RuntimeQuestion, response: RunnerRespons
 export function selectableQuestions(payload: PracticeRuntimePayload, family: string, domain: string, category: string, mode: string): RuntimeQuestion[] {
   const latestById = new Map<string, RuntimeQuestion>()
   for (const question of payload.questionBank.questions) {
-    if (question.testFamily !== family || question.domain !== domain || question.category !== category || question.practiceProfile !== mode || question.answer.input.kind === 'short-text') continue
     const latest = latestById.get(question.id)
     if (!latest || question.version > latest.version) latestById.set(question.id, question)
   }
-  return payload.questionBank.questions.filter((question) => latestById.get(question.id) === question)
+  return payload.questionBank.questions.filter((question) => latestById.get(question.id) === question
+    && question.testFamily === family && question.domain === domain && question.category === category
+    && question.practiceProfile === mode && question.answer.input.kind !== 'short-text')
 }
 
 export function supportOverlay(payload: PracticeRuntimePayload, question: RuntimeQuestion, locale = 'zh-Hant') {

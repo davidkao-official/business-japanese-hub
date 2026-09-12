@@ -429,3 +429,95 @@
   white-space: nowrap;
   border: 0;
 }
+
+.web-test-hub__runner {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  border: var(--stroke-thin) solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.web-test-hub__runner fieldset {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--stroke-thin) solid var(--color-border);
+}
+
+.web-test-hub__runner ol {
+  display: grid;
+  gap: var(--space-3);
+  padding-inline-start: var(--space-6);
+  list-style: decimal;
+}
+
+.web-test-hub__runner li {
+  padding-inline-start: var(--space-2);
+}
+
+.web-test-hub__runner button {
+  min-block-size: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: var(--stroke-thin) solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+}
+
+.web-test-hub__runner button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.web-test-hub__runner button:focus-visible,
+.web-test-hub__runner input:focus-visible,
+.web-test-hub__runner [tabindex='-1']:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.web-test-hub__runner figure {
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-4);
+  border-inline-start: var(--space-1) solid var(--color-accent);
+  background: var(--color-surface-muted);
+}
+
+.web-test-hub__runner pre,
+.web-test-hub__runner table {
+  max-inline-size: 100%;
+  overflow: auto;
+}
+
+.web-test-hub__runner pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.web-test-hub__runner table {
+  display: block;
+  border-collapse: collapse;
+}
+
+.web-test-hub__runner th,
+.web-test-hub__runner td {
+  padding: var(--space-2) var(--space-3);
+  border: var(--stroke-thin) solid var(--color-border);
+  text-align: start;
+  white-space: nowrap;
+}
+
+@media (max-width: 47.99rem) {
+  .web-test-hub__runner {
+    padding: var(--space-4);
+  }
+
+  .web-test-hub__runner ol {
+    padding-inline-start: var(--space-5);
+  }
+}
