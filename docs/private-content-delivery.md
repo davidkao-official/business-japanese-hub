@@ -74,3 +74,19 @@ future bounded Practice renderer
 CSV 是為 spreadsheet/editorial workflow 準備的 deterministic adapter；rich `answer`、`coreExplanation`、`itemAnalysis`、`provenance` 欄位以 JSON cell 保存，避免為不同 question input type 發明另一套 UI schema。`practice-question-bank-base.json` 保留 bank version 與 vocabulary catalog；converter 將 CSV rows 放入 question bank，之後 validator 才會檢查所有 cross-reference。
 
 受控 import 僅接受 status 為 `released` 的題目，並要求 reviewer、release notes、originality attestation、Japanese prompt/explanation、deterministic answer contract、正確的 category/subcategory、support-overlay vocabulary refs 與禁止 source/recalled/leaked/official-test fields。`targetSeconds` 是 internal practice target；schema 沒有 official-time metadata，帶有這類 field 的 artifact 必須 fail closed。#107 尚未提供 verified membership projection 時，delivery endpoint 仍然回 `503 membership access unavailable`，不會查詢或回傳題庫。
+
+### #115 public discovery catalog and #116 runner handoff
+
+`/practice/web-test` 的公開導覽只可消費 body-free discovery catalog。它是由已通過 strict released validator 的**外部 private source** deterministic 生成，最小欄位只有 release identity、test family、domain、category、released count 與 content-supported mode；同一 stable question ID 只計入最新 released version。不可包含 question ID、prompt、answer、explanation、vocabulary、review/provenance、private path 或 question-bank shape。公開 catalog 也必須使用 bounded family/category/mode registry；private authoring 的 free-form metadata 不能直接成為 browser label 或 route。
+
+目前第一個 catalog 的受控生成命令如下；revision mismatch、non-released source、unknown family/category/mode 都必須失敗，而不是寫入過期或猜測的 counts：
+
+```text
+pnpm workflow:generate-practice-discovery-catalog \
+  --source=/absolute/private/spi-v1 \
+  --content-id=practice-web-test-spi-v1 \
+  --expected-release-revision=<validated release revision> \
+  --output=src/practice-web-test/released-discovery-catalog.json
+```
+
+Category route `/practice/web-test/:family/:domain/:category?mode=:mode` 是 #115 admitted stable direct-load entry contract：family/domain/category/mode 必須都仍在 catalog 中，未知或 stale selection 一律 fail closed。它只保留使用者的選擇並以 truthful unavailable state 呈現；不得載入題目、開始作答、推定 free/member access 或把 fixture 當 production。#116 才在這個相同 route 接上 interactive runner/scoring；#107 仍是任何 proprietary member payload delivery 的 server-authoritative gate。
