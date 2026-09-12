@@ -1,5 +1,5 @@
 begin;
-select plan(34);
+select plan(33);
 select has_table('public', 'practice_attempts', 'practice attempts table exists');
 select has_column('public', 'practice_attempts', 'attempt_sequence', 'attempt ordering is monotonic and server-owned');
 select is((select data_type from information_schema.columns where table_schema = 'public' and table_name = 'practice_attempts' and column_name = 'question_version'), 'bigint', 'question version preserves PostgreSQL bigint range');
