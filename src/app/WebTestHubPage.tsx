@@ -248,7 +248,7 @@ export function WebTestRunnerEntryPage() {
       startedAt.current = Date.now()
     })
     return () => { cancelled = true }
-  }, [authLoading, userId, getAccessToken, family, domain, category, mode, validMode, validSearch])
+  }, [authLoading, userId, getAccessToken, selectionKey, family, domain, category, mode, validMode, validSearch])
   const question = state.kind === 'ready' ? state.questions[index] : undefined
   const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
   useEffect(() => {
