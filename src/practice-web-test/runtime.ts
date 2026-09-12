@@ -93,5 +93,7 @@ export function resolveQuestionCheckpoints(payload: PracticeRuntimePayload, ques
 }
 
 export function supportOverlay(payload: PracticeRuntimePayload, question: RuntimeQuestion, locale = 'zh-Hant') {
-  return payload.supportOverlays?.find((overlay) => overlay.questionId === question.id && overlay.questionVersion === question.version)?.byLocale[locale]
+  const matching = payload.supportOverlays?.filter((overlay) => overlay.questionId === question.id && overlay.questionVersion === question.version) ?? []
+  if (matching.length !== 1) return undefined
+  return matching[0]?.byLocale[locale]
 }
