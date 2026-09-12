@@ -37,7 +37,7 @@ delete multiSource.supportOverlays
 const multiRelease = preparePrivatePracticeQuestionBankRelease(contentId, multiSource)
 if (!multiRelease.ok) throw new Error(multiRelease.reason)
 
-function db(user: string | null, rpcData: unknown = { kind: 'persisted' }, rpcError: { message: string } | null = null): DbClient {
+function db(user: string | null, rpcData: unknown = { kind: 'persisted' }, rpcError: { message: string; code?: string } | null = null): DbClient {
   return {
     from: vi.fn(),
     rpc: vi.fn().mockResolvedValue({ data: rpcData, error: rpcError }),
@@ -110,14 +110,30 @@ describe('practice-attempts handler', () => {
   it('lets the database reconcile a replay after availability advances while rejecting new stale attempts', async () => {
     const staleRevision = deps(db(userId))
     staleRevision.getQuestionAvailability.mockResolvedValue({ kind: 'found', revision: 'b'.repeat(64), version: 1 })
-    staleRevision.db.rpc.mockResolvedValue({ data: null, error: { message: 'practice question is no longer available' } })
+    staleRevision.db.rpc.mockResolvedValue({ data: null, error: { code: '22023', message: 'concurrent release changed' } })
     expect((await handlePracticeAttempts(request(), staleRevision)).status).toBe(400)
     const staleVersion = deps(db(userId))
     staleVersion.getQuestionAvailability.mockResolvedValue({ kind: 'found', revision: release.value.revision, version: 2 })
-    staleVersion.db.rpc.mockResolvedValue({ data: null, error: { message: 'practice question is no longer available' } })
+    staleVersion.db.rpc.mockResolvedValue({ data: null, error: { code: '22023', message: 'concurrent question changed' } })
     expect((await handlePracticeAttempts(request(), staleVersion)).status).toBe(400)
     expect(staleRevision.db.rpc).toHaveBeenCalledOnce()
     expect(staleVersion.db.rpc).toHaveBeenCalledOnce()
+  })
+
+  it('uses the atomic RPC error code for stale and transient outcomes', async () => {
+    const atomicStale = deps(db(userId))
+    atomicStale.getQuestionAvailability.mockResolvedValue({ kind: 'found', revision: release.value.revision, version: 1 })
+    atomicStale.db.rpc.mockResolvedValue({ data: null, error: { code: '22023', message: 'arbitrary concurrent error' } })
+    const staleResult = await handlePracticeAttempts(request(), atomicStale)
+    expect(staleResult.status).toBe(400)
+    expect(JSON.parse(staleResult.body)).toEqual({ error: 'invalid question selection' })
+
+    const transient = deps(db(userId))
+    transient.getQuestionAvailability.mockResolvedValue({ kind: 'missing' })
+    transient.db.rpc.mockResolvedValue({ data: null, error: { code: 'XX000', message: 'practice question is no longer available' } })
+    const transientResult = await handlePracticeAttempts(request(), transient)
+    expect(transientResult.status).toBe(502)
+    expect(JSON.parse(transientResult.body)).toEqual({ error: 'practice attempt persistence failed' })
   })
 
   it('trusts an atomic persisted result when the availability snapshot races initialization', async () => {
@@ -144,7 +160,7 @@ describe('practice-attempts handler', () => {
     expect(changed.status).toBe(409)
     expect(JSON.parse(changed.body)).toEqual({ error: 'practice attempt conflict' })
 
-    database.rpc.mockResolvedValueOnce({ data: null, error: { message: 'practice question is no longer available' } })
+    database.rpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'practice question is no longer available' } })
     const unseen = await handlePracticeAttempts(request({ clientIdempotencyKey: '20000000-0000-4000-8000-000000000002' }), d)
     expect(unseen.status).toBe(400)
     expect(JSON.parse(unseen.body)).toEqual({ error: 'invalid question selection' })

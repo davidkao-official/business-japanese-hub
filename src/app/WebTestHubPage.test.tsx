@@ -19,6 +19,7 @@ afterEach(() => {
   cleanup()
   submitPracticeAttemptMock.mockClear()
   document.querySelector('meta[data-test-web-test-description]')?.remove()
+  vi.unstubAllGlobals()
 })
 
 function renderWebTestAt(path: string, options: Parameters<typeof renderWithAppProviders>[1] = {}) {
@@ -236,6 +237,8 @@ describe('Web Test discovery and runner-entry routes', () => {
     fetchPracticePayloadMock.mockClear()
     submitPracticeAttemptMock.mockResolvedValueOnce({ kind: 'stale' })
     fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('版本更新の合成題幹') })
+    const reload = vi.fn()
+    vi.stubGlobal('location', { reload })
     renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
     await waitFor(() => expect(screen.getByRole('heading', { name: '版本更新の合成題幹' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
@@ -243,6 +246,8 @@ describe('Web Test discovery and runner-entry routes', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('此題版本已更新'))
     expect(screen.queryByRole('button', { name: '重試儲存' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '下一題' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '重新載入最新題目' }))
+    expect(reload).toHaveBeenCalledOnce()
     expect(screen.getByRole('link', { name: '返回類別' })).toBeInTheDocument()
   })
 
