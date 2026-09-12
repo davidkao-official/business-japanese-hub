@@ -19,6 +19,7 @@ export function validateRuntimePayload(raw: unknown): PracticeRuntimePayload | n
   const payload = raw as Partial<PracticeRuntimePayload>
   if (!payload.questionBank || typeof payload.questionBank !== 'object') return null
   const questions = Array.isArray(payload.questionBank.questions) ? payload.questionBank.questions : []
+  if (payload.checkpointRegistry !== undefined && (typeof payload.checkpointRegistry !== 'object' || payload.checkpointRegistry === null || Array.isArray(payload.checkpointRegistry))) return null
   const checkpointRegistry = payload.checkpointRegistry === undefined ? undefined : {
     ...payload.checkpointRegistry,
     checkpoints: Array.isArray(payload.checkpointRegistry.checkpoints) ? payload.checkpointRegistry.checkpoints.map((checkpoint) => ({

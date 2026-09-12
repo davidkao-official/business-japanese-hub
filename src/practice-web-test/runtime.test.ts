@@ -90,4 +90,9 @@ describe('SPI runner runtime seam', () => {
     expect(resolved).toHaveLength(1)
     expect(resolved?.[0]?.id).toBe('synthetic-checkpoint-01')
   })
+
+  it('rejects a null checkpoint registry without throwing', () => {
+    expect(() => validateRuntimePayload({ questionBank: { questions: [] }, checkpointRegistry: null })).not.toThrow()
+    expect(validateRuntimePayload({ questionBank: { questions: [] }, checkpointRegistry: null })).toBeNull()
+  })
 })
