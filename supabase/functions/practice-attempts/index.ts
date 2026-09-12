@@ -6,12 +6,7 @@ import { readEnvFrom } from '../_shared/env.ts'
 import { jsonResult } from '../_shared/http.ts'
 import { handlePracticeAttempts, type ReleaseLookup } from './handler.ts'
 import { resolvePlusMembershipAccess } from '../content-delivery/membership.ts'
-
-export async function requestWithBody(req: Request) {
-  const request = toHandlerRequest(req)
-  request.bodyText = await req.text()
-  return request
-}
+import { requestWithBody } from './request.ts'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
