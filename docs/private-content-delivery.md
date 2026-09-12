@@ -10,7 +10,7 @@
 
 目前選定的 canonical authoring remote 是私有的 [`nurockplayer/business-japanese-hub-content`](https://github.com/nurockplayer/business-japanese-hub-content)。它與公開 platform repo 分開 checkout；production body、assets、research、review records 與 release history 都只可存在那裡或已核准的 private editorial systems。
 
-該 remote 現由 `nurockplayer` 管理，而公開 repo 位於 `davidkao-official`；轉移 ownership、擴授 collaborators 或配置 deploy credentials 都需要相應 owner 的明確操作，不能由 public-repo CI 假設或印出。這個 source repo 現在只含 workflow 入口，尚未建立或匯入任何 production corpus。
+該 remote 現由 `nurockplayer` 管理，而公開 repo 位於 `davidkao-official`；轉移 ownership、擴授 collaborators 或配置 deploy credentials 都需要相應 owner 的明確操作，不能由 public-repo CI 假設或印出。該 source repo 已包含 admitted 的 proprietary SPI corpus/release；它仍維持 private，尚未 production-import、member-activate，亦未暴露至 public repo 或 frontend artifacts。
 
 ## Smallest proven Book path
 
