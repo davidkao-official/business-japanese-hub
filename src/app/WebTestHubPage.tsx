@@ -224,7 +224,7 @@ export function WebTestRunnerEntryPage() {
     if (!catalog || !family || !domain || !category || !validSearch || !validMode) return
     void Promise.resolve().then(async () => {
       if (cancelled) return
-      setState({ kind: user ? 'loading' : 'idle' })
+      setState({ kind: userId ? 'loading' : 'idle' })
       setIndex(0)
       setResponse('')
       setAnswers([])
@@ -235,7 +235,7 @@ export function WebTestRunnerEntryPage() {
       setLastCorrect(null)
       setLastExplanation(null)
       startedAt.current = 0
-      if (authLoading || !user) return
+      if (authLoading || !userId) return
       const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision)
       if (cancelled) return
       if (result.kind !== 'ok') { setState({ kind: result.kind }); return }
@@ -247,7 +247,7 @@ export function WebTestRunnerEntryPage() {
       startedAt.current = Date.now()
     })
     return () => { cancelled = true }
-  }, [authLoading, user, userId, family, domain, category, mode, validMode, validSearch])
+  }, [authLoading, userId, family, domain, category, mode, validMode, validSearch])
   const question = state.kind === 'ready' ? state.questions[index] : undefined
   const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
   useEffect(() => {

@@ -106,6 +106,7 @@ describe('SPI runner runtime seam', () => {
     expect(validateRuntimePayload(questionWithAudit)).toBeNull()
     expect(() => validateRuntimePayload({ ...release.value.payload, supportOverlays: '' })).not.toThrow()
     expect(validateRuntimePayload({ ...release.value.payload, supportOverlays: '' })).toBeNull()
+    expect(validateRuntimePayload({ ...release.value.payload, privateEditorialNotes: 'audit-only' })).toBeNull()
   })
 
   it('rejects checkpoint provenance instead of returning audit fields', () => {

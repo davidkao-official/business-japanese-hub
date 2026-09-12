@@ -20,6 +20,7 @@ export function scoreAnswer(answer: PracticeAnswer, response: RunnerResponse): b
 
 export function validateRuntimePayload(raw: unknown): PracticeRuntimePayload | null {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null
+  if (Object.keys(raw).some((key) => !['questionBank', 'checkpointRegistry', 'supportOverlays'].includes(key))) return null
   const payload = raw as Partial<PracticeRuntimePayload>
   if (!payload.questionBank || typeof payload.questionBank !== 'object') return null
   const questions = Array.isArray(payload.questionBank.questions) ? payload.questionBank.questions : []

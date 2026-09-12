@@ -88,6 +88,7 @@ describe('Web Test discovery and runner-entry routes', () => {
   })
 
   it('runs a synthetic member flow with ordering, authored feedback, and truthful category results', async () => {
+    fetchPracticePayloadMock.mockClear()
     const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', nonProprietaryPracticeQuestionBankFixture)
     if (!release.ok) throw new Error(release.reason)
     const sourceQuestion = release.value.payload.questionBank.questions[0]!
@@ -122,7 +123,7 @@ describe('Web Test discovery and runner-entry routes', () => {
       },
     })
 
-    renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
+    const rendered = renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
     await waitFor(() => expect(screen.getByText('第 1／2 題')).toBeInTheDocument())
     expect(screen.getByRole('figure', { name: '題目表示' })).toBeInTheDocument()
     expect(screen.getByRole('figure', { name: '一番 表示' })).toBeInTheDocument()
@@ -138,6 +139,9 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByText('不要倒置順序。')).toBeInTheDocument()
     expect(screen.getByText('yes')).not.toHaveAttribute('lang', 'ja')
     expect(screen.getByText('請輸入三。')).toHaveAttribute('lang', 'ja')
+    rendered.authClient.emitAuthStateChange({ id: 'synthetic-member', email: 'refreshed@example.com' })
+    await waitFor(() => expect(screen.getByText('請輸入三。')).toBeInTheDocument())
+    expect(fetchPracticePayloadMock).toHaveBeenCalledTimes(1)
     fireEvent.change(screen.getByLabelText('數值答案'), { target: { value: '3' } })
     fireEvent.click(screen.getByRole('button', { name: '回答檢查點' }))
     expect(screen.getByText('檢查點回答正確')).toBeInTheDocument()
