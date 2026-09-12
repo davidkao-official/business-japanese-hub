@@ -72,6 +72,7 @@ export function selectableQuestions(payload: PracticeRuntimePayload, family: str
     if (!latest || question.version > latest.version) latestById.set(question.id, question)
   }
   return payload.questionBank.questions.filter((question) => latestById.get(question.id) === question
+    && question.deliveryProfile === 'web'
     && question.testFamily === family && question.domain === domain && question.category === category
     && question.practiceProfile === mode && question.answer.input.kind !== 'short-text')
 }

@@ -105,6 +105,7 @@ export function createPracticeDiscoveryCatalog(
   }
 
   for (const question of latestById.values()) {
+    if (question.deliveryProfile !== 'web') continue
     const mode = question.practiceProfile as PracticeDiscoveryMode
     const categoryDefinition = registeredFamily.domains[question.domain][question.category]
     if (question.testFamily !== registeredFamily.testFamily || !categoryDefinition ||

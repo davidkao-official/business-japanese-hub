@@ -45,6 +45,17 @@ describe('SPI runner runtime seam', () => {
     expect(selected.map((entry) => entry.version)).toEqual([1, 2])
   })
 
+  it('selects web delivery items while excluding matching test-center items', () => {
+    const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', nonProprietaryPracticeQuestionBankFixture)
+    expect(release.ok).toBe(true)
+    if (!release.ok) return
+    const web = { ...release.value.payload.questionBank.questions[0]!, id: 'web-item', promptJa: 'Web 題目' }
+    const testCenter = { ...web, id: 'test-center-item', deliveryProfile: 'test-center', promptJa: 'Test-center 題目' }
+    const payload = { ...release.value.payload, questionBank: { ...release.value.payload.questionBank, questions: [web, testCenter] } }
+
+    expect(selectableQuestions(payload, 'fixture', 'verbal', 'fixture-category', 'untimed-learning').map((entry) => entry.promptJa)).toEqual(['Web 題目'])
+  })
+
   it('applies latest-version filtering before category and input selection', () => {
     const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', nonProprietaryPracticeQuestionBankFixture)
     expect(release.ok).toBe(true)

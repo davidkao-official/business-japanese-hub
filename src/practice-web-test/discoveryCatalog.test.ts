@@ -76,6 +76,15 @@ describe('Practice discovery catalog', () => {
     expect(catalog.families[0]?.domains[0]?.categories[0]?.releasedCount).toBe(1)
   })
 
+  it('counts only web-delivery items in the browser discovery projection', () => {
+    const release = syntheticRelease()
+    const first = release.payload.questionBank.questions[0]!
+    release.payload.questionBank.questions.push({ ...first, id: 'test-center-question', deliveryProfile: 'test-center' })
+
+    const catalog = createPracticeDiscoveryCatalog(release)
+    expect(catalog.families[0]?.domains[0]?.categories[0]?.releasedCount).toBe(1)
+  })
+
   it('rejects unregistered private family/category/mode metadata before it becomes public', () => {
     const release = syntheticRelease()
     release.payload.questionBank.questions[0]!.category = 'private-editorial-label'
