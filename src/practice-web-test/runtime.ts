@@ -1,8 +1,18 @@
-import type { PracticeRuntimePayload, PracticeRuntimeQuestion } from '../content-delivery/privatePracticeQuestionBank'
+import type { PracticeRuntimeCheckpoint, PracticeRuntimePayload, PracticeRuntimeQuestion } from '../content-delivery/privatePracticeQuestionBank'
+import type { PracticeAnswer } from './contract'
 import { validatePracticeQuestionBankSource } from './validate'
 
 export type RunnerResponse = string | string[] | number
 export type RuntimeQuestion = PracticeRuntimeQuestion
+
+export function scoreAnswer(answer: PracticeAnswer, response: RunnerResponse): boolean {
+  if (answer.input.kind === 'single-choice' && answer.expectedAnswer.kind === 'single-choice') return typeof response === 'string' && response === answer.expectedAnswer.choiceId
+  if (answer.input.kind === 'multi-select' && answer.expectedAnswer.kind === 'multi-select') return Array.isArray(response) && [...response].sort().join('\0') === [...answer.expectedAnswer.choiceIds].sort().join('\0')
+  if (answer.input.kind === 'number' && answer.expectedAnswer.kind === 'number' && answer.scoring.kind === 'numeric') return typeof response === 'number' && Math.abs(response - answer.expectedAnswer.value) <= (answer.scoring.tolerance ?? 0)
+  if (answer.input.kind === 'ordering' && answer.expectedAnswer.kind === 'ordering') return Array.isArray(response) && response.join('\0') === answer.expectedAnswer.choiceIds.join('\0')
+  if (answer.input.kind === 'short-text' && answer.expectedAnswer.kind === 'short-text') return typeof response === 'string' && response === answer.expectedAnswer.value
+  return false
+}
 
 export function validateRuntimePayload(raw: unknown): PracticeRuntimePayload | null {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null
@@ -30,12 +40,7 @@ export function validateRuntimePayload(raw: unknown): PracticeRuntimePayload | n
 }
 
 export function scoreQuestion(question: RuntimeQuestion, response: RunnerResponse): boolean {
-  const answer = question.answer
-  if (answer.input.kind === 'single-choice' && answer.expectedAnswer.kind === 'single-choice') return typeof response === 'string' && response === answer.expectedAnswer.choiceId
-  if (answer.input.kind === 'multi-select' && answer.expectedAnswer.kind === 'multi-select') return Array.isArray(response) && [...response].sort().join('\0') === [...answer.expectedAnswer.choiceIds].sort().join('\0')
-  if (answer.input.kind === 'number' && answer.expectedAnswer.kind === 'number' && answer.scoring.kind === 'numeric') return typeof response === 'number' && Math.abs(response - answer.expectedAnswer.value) <= (answer.scoring.tolerance ?? 0)
-  if (answer.input.kind === 'ordering' && answer.expectedAnswer.kind === 'ordering') return Array.isArray(response) && response.join('\0') === answer.expectedAnswer.choiceIds.join('\0')
-  return false
+  return scoreAnswer(question.answer, response)
 }
 
 export function selectableQuestions(payload: PracticeRuntimePayload, family: string, domain: string, category: string, mode: string): RuntimeQuestion[] {
@@ -47,6 +52,16 @@ export function selectableQuestions(payload: PracticeRuntimePayload, family: str
   return payload.questionBank.questions.filter((question) => latestById.get(question.id) === question
     && question.testFamily === family && question.domain === domain && question.category === category
     && question.practiceProfile === mode && question.answer.input.kind !== 'short-text')
+}
+
+export function resolveQuestionCheckpoints(payload: PracticeRuntimePayload, question: RuntimeQuestion): PracticeRuntimeCheckpoint[] | null {
+  const ids = question.itemAnalysis.diagnosticCheckpoints?.ids ?? []
+  if (ids.length === 0) return []
+  const registry = payload.checkpointRegistry
+  if (!registry || question.itemAnalysis.diagnosticCheckpoints?.registryVersion !== registry.version) return null
+  const checkpoints = ids.map((id) => registry.checkpoints.find((checkpoint) => checkpoint.id === id))
+  if (checkpoints.some((checkpoint) => !checkpoint || checkpoint.questionId !== question.id || checkpoint.questionVersion !== question.version)) return null
+  return checkpoints as PracticeRuntimeCheckpoint[]
 }
 
 export function supportOverlay(payload: PracticeRuntimePayload, question: RuntimeQuestion, locale = 'zh-Hant') {

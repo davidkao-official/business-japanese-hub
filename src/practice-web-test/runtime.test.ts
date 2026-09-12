@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { preparePrivatePracticeQuestionBankRelease } from '../content-delivery/privatePracticeQuestionBank'
 import { nonProprietaryPracticeQuestionBankFixture } from './fixtures/nonProprietaryPracticeFixture'
-import { scoreQuestion, selectableQuestions, supportOverlay, validateRuntimePayload } from './runtime'
+import { scoreAnswer, scoreQuestion, selectableQuestions, supportOverlay, validateRuntimePayload } from './runtime'
 
 describe('SPI runner runtime seam', () => {
   it('validates a projected synthetic release, filters the selected category, and scores deterministically', () => {
@@ -57,5 +57,13 @@ describe('SPI runner runtime seam', () => {
     const payload = { ...release.value.payload, questionBank: { ...release.value.payload.questionBank, questions: [moved, movedLatest, unsupported, unsupportedLatest] } }
     expect(selectableQuestions(payload, 'fixture', 'verbal', 'fixture-category', 'untimed-learning')).toEqual([])
     expect(selectableQuestions(payload, 'fixture', 'verbal', 'another-category', 'untimed-learning').map((entry) => entry.id)).toEqual(['moved-question'])
+  })
+
+  it('scores numeric tolerance and multi-select sets deterministically', () => {
+    expect(scoreAnswer({ input: { kind: 'number' }, expectedAnswer: { kind: 'number', value: 10 }, scoring: { kind: 'numeric', tolerance: 0.5 } }, 10.5)).toBe(true)
+    expect(scoreAnswer({ input: { kind: 'number' }, expectedAnswer: { kind: 'number', value: 10 }, scoring: { kind: 'numeric', tolerance: 0.5 } }, 10.6)).toBe(false)
+    const multi = { input: { kind: 'multi-select' as const, choices: [{ id: 'a', textJa: 'A' }, { id: 'b', textJa: 'B' }] }, expectedAnswer: { kind: 'multi-select' as const, choiceIds: ['a', 'b'] }, scoring: { kind: 'exact-set' as const } }
+    expect(scoreAnswer(multi, ['b', 'a'])).toBe(true)
+    expect(scoreAnswer(multi, ['a'])).toBe(false)
   })
 })

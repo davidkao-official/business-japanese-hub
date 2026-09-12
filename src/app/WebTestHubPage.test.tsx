@@ -98,8 +98,9 @@ describe('Web Test discovery and runner-entry routes', () => {
       category: 'vocabulary-in-context',
       promptJa: '表示を順番に並べてください。',
       promptRepresentation: { kind: 'table' as const, columns: ['項目'], rows: [['合成問題']] },
-      answer: { input: { kind: 'ordering' as const, choices: [{ id: 'one', textJa: '一番', representation: { kind: 'equation' as const, expression: '1' } }, { id: 'two', textJa: '二番' }] }, expectedAnswer: { kind: 'ordering' as const, choiceIds: ['two', 'one'] }, scoring: { kind: 'exact-order' as const } },
+      answer: { input: { kind: 'ordering' as const, choices: [{ id: 'one', textJa: '一番', representation: { kind: 'equation' as const, expression: '1' } }, { id: 'two', textJa: '二番', representation: { kind: 'diagram' as const, altText: '合成図', nodes: [{ id: 'a', label: '起点' }, { id: 'b', label: '終点' }], edges: [{ from: 'a', to: 'b', label: '進む' }] } }] }, expectedAnswer: { kind: 'ordering' as const, choiceIds: ['two', 'one'] }, scoring: { kind: 'exact-order' as const } },
       coreExplanation: { concise: '順序を確認します。', whatIsAskedJa: '二番を先にすることが求められています。', representation: { kind: 'logic-grid' as const, columns: ['項目', '結果'], rows: ['合成行'], cells: [{ row: '合成行', column: '結果', value: 'yes' as const }] } },
+      itemAnalysis: { ...sourceQuestion.itemAnalysis, diagnosticCheckpoints: { registryVersion: 1, ids: ['synthetic-checkpoint-01'] } },
     }
     const second = {
       ...sourceQuestion,
@@ -113,6 +114,7 @@ describe('Web Test discovery and runner-entry routes', () => {
       payload: {
         ...release.value.payload,
         questionBank: { ...release.value.payload.questionBank, questions: [first, second] },
+        checkpointRegistry: { version: 1, checkpoints: [{ id: 'synthetic-checkpoint-01', version: 1, questionId: first.id, questionVersion: first.version, dimension: 'meaning' as const, promptJa: '請輸入三。', answer: { input: { kind: 'number' as const }, expectedAnswer: { kind: 'number' as const, value: 3 }, scoring: { kind: 'numeric' as const } } }] },
         supportOverlays: [
           { questionId: first.id, questionVersion: first.version, version: 1, byLocale: { 'zh-Hant': { concise: '合成提示。', whatIsAsked: '請依序排列。', representationExplanation: '這是合成表示。', commonMisread: '不要倒置順序。', keyTerms: [{ termId: 'term-choice', surface: '選択', meaning: '選擇', note: '合成備註' }] } } },
           { questionId: second.id, questionVersion: second.version, version: 1, byLocale: { 'zh-Hant': { whatIsAsked: '請選擇第二個選項。' } } },
@@ -124,8 +126,9 @@ describe('Web Test discovery and runner-entry routes', () => {
     await waitFor(() => expect(screen.getByText('第 1／2 題')).toBeInTheDocument())
     expect(screen.getByRole('figure', { name: '題目表示' })).toBeInTheDocument()
     expect(screen.getByRole('figure', { name: '一番 表示' })).toBeInTheDocument()
-    expect(screen.getByText('合成提示。')).toBeInTheDocument()
-    expect(screen.getByText('選択')).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText('起点 → 終点：進む')).toBeInTheDocument()
+    expect(screen.queryByText('合成提示。')).not.toBeInTheDocument()
+    expect(screen.queryByText('選択')).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '二番 上移' }))
     expect(screen.getAllByRole('listitem')[0]).toHaveTextContent('二番')
     fireEvent.click(screen.getByRole('button', { name: '回答' }))
@@ -134,7 +137,10 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByText('這是合成表示。')).toBeInTheDocument()
     expect(screen.getByText('不要倒置順序。')).toBeInTheDocument()
     expect(screen.getByText('yes')).not.toHaveAttribute('lang', 'ja')
-    expect(screen.queryByText('第 2／2 題')).not.toBeInTheDocument()
+    expect(screen.getByText('請輸入三。')).toHaveAttribute('lang', 'ja')
+    fireEvent.change(screen.getByLabelText('數值答案'), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: '回答檢查點' }))
+    expect(screen.getByText('檢查點回答正確')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '下一題' }))
     expect(screen.getByText('第 2／2 題')).toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -144,8 +150,8 @@ describe('Web Test discovery and runner-entry routes', () => {
     fireEvent.click(screen.getByRole('button', { name: '下一題' }))
     expect(screen.getByText('正確 2／2 題（正答率 100%）；結果只保留在目前頁面。')).toBeInTheDocument()
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: '練習完成' }))
-    expect(screen.getByText('vocabulary-in-context：2／2')).toBeInTheDocument()
-    expect(screen.getByText('Checkpoint：未測量')).toBeInTheDocument()
+    expect(screen.getByText('文脈語彙：2／2')).toBeInTheDocument()
+    expect(screen.getByText('Checkpoint misses observed：0／1')).toBeInTheDocument()
   })
 
   it.each([
