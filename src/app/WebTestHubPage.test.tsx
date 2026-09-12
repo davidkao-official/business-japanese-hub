@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { Link, Route, Routes } from 'react-router-dom'
 import { renderWithAppProviders } from '../test/appProviders'
 import {
@@ -29,6 +29,24 @@ function renderWebTestAt(path: string, options: Parameters<typeof renderWithAppP
     </Routes>,
     { initialEntries: [path], ...options },
   )
+}
+
+function syntheticRuntimePayload(promptJa: string, category = 'vocabulary-in-context') {
+  const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', nonProprietaryPracticeQuestionBankFixture)
+  if (!release.ok) throw new Error(release.reason)
+  const question = {
+    ...release.value.payload.questionBank.questions[0]!,
+    id: `synthetic-${category}`,
+    testFamily: 'spi' as const,
+    domain: 'verbal' as const,
+    category,
+    promptJa,
+  }
+  return {
+    ...release.value.payload,
+    questionBank: { ...release.value.payload.questionBank, questions: [question] },
+    supportOverlays: [],
+  }
 }
 
 describe('Web Test discovery and runner-entry routes', () => {
@@ -157,6 +175,41 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: '練習完成' }))
     expect(screen.getByText('文脈語彙：2／2')).toBeInTheDocument()
     expect(screen.getByText('已觀測到檢查點未通過：0／1')).toBeInTheDocument()
+  })
+
+  it('removes the old ready payload immediately when the authenticated user changes', async () => {
+    fetchPracticePayloadMock.mockClear()
+    fetchPracticePayloadMock
+      .mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('A 私密題幹') })
+      .mockReturnValueOnce(new Promise(() => {}))
+    const rendered = renderWebTestAt(
+      '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning',
+      { session: { id: 'member-a' } },
+    )
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'A 私密題幹' })).toBeInTheDocument())
+
+    act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b' }))
+    expect(screen.queryByRole('heading', { name: 'A 私密題幹' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '載入練習' })).toBeInTheDocument()
+  })
+
+  it('removes the old ready payload synchronously when the runner route selection changes', async () => {
+    fetchPracticePayloadMock.mockClear()
+    fetchPracticePayloadMock
+      .mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('A route 私密題幹') })
+      .mockReturnValueOnce(new Promise(() => {}))
+    renderWithAppProviders(
+      <Routes>
+        <Route path="/practice/web-test/:family/:domain/:category" element={<><WebTestRunnerEntryPage /><Link to="/practice/web-test/spi/verbal/reading-inference?mode=untimed-learning">切換類別</Link></>} />
+      </Routes>,
+      { initialEntries: ['/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning'], session: { id: 'member-a' } },
+    )
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'A route 私密題幹' })).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('link', { name: '切換類別' }))
+    expect(screen.queryByRole('heading', { name: 'A route 私密題幹' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '載入練習' })).toBeInTheDocument()
+    await waitFor(() => expect(fetchPracticePayloadMock).toHaveBeenCalledTimes(2))
   })
 
   it.each([
