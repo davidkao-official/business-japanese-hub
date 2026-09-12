@@ -37,10 +37,14 @@ create table public.practice_attempts (
   )
 );
 
+revoke all on public.practice_attempts from public, anon, authenticated, service_role;
+revoke all on sequence public.practice_attempts_attempt_sequence_seq from public, anon, authenticated, service_role;
 grant usage on sequence public.practice_attempts_attempt_sequence_seq to service_role;
 
 create index practice_attempts_user_created_idx on public.practice_attempts (user_id, created_at desc);
-create index practice_attempts_review_idx on public.practice_attempts (user_id, question_id, question_version, created_at desc);
+create index practice_attempts_review_idx on public.practice_attempts (
+  user_id, content_id, content_revision, question_id, question_version, attempt_sequence desc
+);
 
 alter table public.practice_attempts enable row level security;
 create policy "practice_attempts_own_select" on public.practice_attempts
@@ -103,7 +107,7 @@ begin
   return jsonb_build_object('kind', 'conflict');
 end;
 $$;
-revoke all on function public.record_practice_attempt(uuid,uuid,text,text,text,integer,text,text,text,text,jsonb,boolean,integer,jsonb) from public, anon, authenticated;
+revoke all on function public.record_practice_attempt(uuid,uuid,text,text,text,integer,text,text,text,text,jsonb,boolean,integer,jsonb) from public, anon, authenticated, service_role;
 grant execute on function public.record_practice_attempt(uuid,uuid,text,text,text,integer,text,text,text,text,jsonb,boolean,integer,jsonb) to service_role;
 
 create view public.practice_review_queue
@@ -119,5 +123,5 @@ as
     order by user_id, content_id, content_revision, question_id, question_version, attempt_sequence desc
   ) latest
   where latest.correct = false;
-revoke all on public.practice_review_queue from public, anon;
+revoke all on public.practice_review_queue from public, anon, authenticated, service_role;
 grant select on public.practice_review_queue to authenticated, service_role;

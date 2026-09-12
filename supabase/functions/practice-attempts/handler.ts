@@ -48,7 +48,6 @@ const ID = /^[A-Za-z0-9._:-]{1,128}$/
 const REVISION = /^[a-f0-9]{64}$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const MAX_BODY_BYTES = 32 * 1024
-const MAX_ARRAY = 32
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -68,11 +67,15 @@ function positiveVersion(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) > 0
 }
 
+function utf8Within(value: string, maxBytes: number): boolean {
+  return new TextEncoder().encode(value).byteLength <= maxBytes
+}
+
 function response(value: unknown): value is RunnerResponse {
-  if (typeof value === 'string') return value.length <= 2000
+  if (typeof value === 'string') return utf8Within(value, 2000)
   if (typeof value === 'number') return Number.isFinite(value)
-  if (!Array.isArray(value) || value.length > MAX_ARRAY) return false
-  return value.every((entry) => typeof entry === 'string' && entry.length <= 256)
+  if (!Array.isArray(value)) return false
+  return value.every((entry) => typeof entry === 'string' && utf8Within(entry, 256))
 }
 
 function validResponseForAnswer(answer: RuntimeQuestion['answer'], value: RunnerResponse): boolean {
@@ -108,7 +111,7 @@ function parseInput(bodyText: string): AttemptInput | null {
     !UUID.test(raw.clientIdempotencyKey) || !Number.isSafeInteger(raw.responseTimeMs) ||
     (raw.responseTimeMs as number) < 0 || (raw.responseTimeMs as number) > 3600000 || !response(raw.answer)) return null
   if (raw.checkpointResponses !== undefined) {
-    if (!Array.isArray(raw.checkpointResponses) || raw.checkpointResponses.length > MAX_ARRAY) return null
+    if (!Array.isArray(raw.checkpointResponses)) return null
     if (raw.checkpointResponses.some((entry) => !record(entry) || !exactKeys(entry, ['checkpointId', 'checkpointVersion', 'response']) ||
       !boundedId(entry.checkpointId) || !positiveVersion(entry.checkpointVersion) || !response(entry.response))) return null
   }

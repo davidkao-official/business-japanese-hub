@@ -24,8 +24,8 @@ if (!checkpointRelease.ok) throw new Error(checkpointRelease.reason)
 const multiSource = JSON.parse(JSON.stringify(nonProprietaryPracticeQuestionBankFixture)) as typeof nonProprietaryPracticeQuestionBankFixture
 multiSource.questionBank.questions[0]!.id = 'fixture-multi-01'
 multiSource.questionBank.questions[0]!.answer = {
-  input: { kind: 'multi-select', choices: [{ id: 'one', textJa: '一番' }, { id: 'two', textJa: '二番' }] },
-  expectedAnswer: { kind: 'multi-select', choiceIds: ['one'] }, scoring: { kind: 'exact-set' },
+  input: { kind: 'multi-select', choices: Array.from({ length: 33 }, (_, index) => ({ id: `choice-${index + 1}`, textJa: `選択肢${index + 1}` })) },
+  expectedAnswer: { kind: 'multi-select', choiceIds: Array.from({ length: 33 }, (_, index) => `choice-${index + 1}`) }, scoring: { kind: 'exact-set' },
 }
 delete multiSource.supportOverlays
 const multiRelease = preparePrivatePracticeQuestionBankRelease(contentId, multiSource)
@@ -124,6 +124,15 @@ describe('practice-attempts handler', () => {
     const result = await handlePracticeAttempts(request({ revision: multiRelease.value.revision, questionId: 'fixture-multi-01', answer: [] }), d)
     expect(result.status).toBe(400)
     expect(database.rpc).not.toHaveBeenCalled()
+  })
+
+  it('accepts a valid multi-select array larger than the old arbitrary cap', async () => {
+    const database = db(userId)
+    const d = deps(database, 'active', multiRelease.value)
+    const answer = Array.from({ length: 33 }, (_, index) => `choice-${index + 1}`)
+    const result = await handlePracticeAttempts(request({ revision: multiRelease.value.revision, questionId: 'fixture-multi-01', answer }), d)
+    expect(result.status).toBe(200)
+    expect(database.rpc).toHaveBeenCalledOnce()
   })
 
   it('requires complete authored checkpoint evidence and accepts a valid full set', async () => {
