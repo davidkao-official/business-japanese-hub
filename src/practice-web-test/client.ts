@@ -27,9 +27,10 @@ export type PracticeAttemptInput = {
 
 export type PracticeAttemptResult =
   | { kind: 'ok' }
-  | { kind: 'signed-out' | 'forbidden' | 'unavailable' | 'missing' }
+  | { kind: 'signed-out' | 'forbidden' | 'unavailable' | 'missing' | 'invalid-response-time' }
 
 export const PRACTICE_ATTEMPT_TIMEOUT_MS = 10_000
+export const MAX_PRACTICE_RESPONSE_TIME_MS = 3_600_000
 
 function functionsBaseUrl(): string | null {
   const explicit = import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL as string | undefined
@@ -99,7 +100,8 @@ export async function submitPracticeAttempt(
   expectedUserId: string,
 ): Promise<PracticeAttemptResult> {
   if (!isPrivateContentId(input.contentId) || !PRIVATE_CONTENT_REVISION.test(input.revision)) return { kind: 'missing' }
-  if (!Number.isInteger(input.questionVersion) || input.questionVersion < 1 || !Number.isFinite(input.responseTimeMs) || input.responseTimeMs < 0 || !input.clientIdempotencyKey) return { kind: 'unavailable' }
+  if (!Number.isSafeInteger(input.responseTimeMs) || input.responseTimeMs < 0 || input.responseTimeMs > MAX_PRACTICE_RESPONSE_TIME_MS) return { kind: 'invalid-response-time' }
+  if (!Number.isInteger(input.questionVersion) || input.questionVersion < 1 || !input.clientIdempotencyKey) return { kind: 'unavailable' }
   const controller = new AbortController()
   const deadline = requestDeadline(controller)
   try {

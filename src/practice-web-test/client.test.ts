@@ -62,6 +62,25 @@ describe('practice payload client', () => {
     vi.unstubAllGlobals()
   })
 
+  it.each([
+    ['fractional', 1.5],
+    ['unsafe integer', Number.MAX_SAFE_INTEGER + 1],
+    ['negative', -1],
+    ['over the server bound', 3_600_001],
+    ['infinity', Infinity],
+    ['NaN', NaN],
+  ])('rejects %s response time before fetching', async (_label, responseTimeMs) => {
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    const input = { contentId: 'practice-web-test-spi-v1', revision: 'a'.repeat(64), questionId: 'question-01', questionVersion: 1, answer: 'a' as const, responseTimeMs, clientIdempotencyKey: 'key' }
+
+    await expect(submitPracticeAttempt(input, vi.fn().mockResolvedValue(jwtFor('member-a')), 'member-a')).resolves.toEqual({ kind: 'invalid-response-time' })
+    expect(fetchMock).not.toHaveBeenCalled()
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
   it('does not write while signed out or when access is denied', async () => {
     vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 403 })

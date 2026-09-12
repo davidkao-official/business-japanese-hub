@@ -232,6 +232,27 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByRole('heading', { name: '練習完成' })).toBeInTheDocument()
   })
 
+  it('treats an out-of-range response time as terminal without retry and allows the next question', async () => {
+    fetchPracticePayloadMock.mockClear()
+    submitPracticeAttemptMock.mockResolvedValueOnce({ kind: 'invalid-response-time' })
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('超限時間の合成題幹') })
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
+    await waitFor(() => expect(screen.getByRole('heading', { name: '超限時間の合成題幹' })).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('radio', { name: '二番' }))
+    nowSpy.mockReturnValue(3_601_001)
+    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('作答時間超出可接受範圍'))
+    expect(submitPracticeAttemptMock.mock.calls[0]![0]).toEqual(expect.objectContaining({ responseTimeMs: 3_600_001 }))
+    expect(screen.queryByRole('button', { name: '重試儲存' })).not.toBeInTheDocument()
+    const nextButton = screen.getByRole('button', { name: '下一題' })
+    expect(nextButton).toBeEnabled()
+    fireEvent.click(nextButton)
+    expect(screen.getByRole('heading', { name: '練習完成' })).toBeInTheDocument()
+    nowSpy.mockRestore()
+  })
+
   it('ignores a deferred attempt completion after the authenticated runner changes', async () => {
     let resolveFirst!: (result: { kind: 'ok' }) => void
     const firstAttempt = new Promise<{ kind: 'ok' }>((resolve) => { resolveFirst = resolve })
