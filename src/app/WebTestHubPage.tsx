@@ -212,6 +212,7 @@ export function WebTestRunnerEntryPage() {
   const startedAt = useRef<number>(0)
   const questionHeadingRef = useRef<HTMLHeadingElement>(null)
   const feedbackHeadingRef = useRef<HTMLHeadingElement>(null)
+  const completionHeadingRef = useRef<HTMLHeadingElement>(null)
   const userId = user?.id
   useEffect(() => {
     let cancelled = false
@@ -239,18 +240,18 @@ export function WebTestRunnerEntryPage() {
     return () => { cancelled = true }
   }, [authLoading, user, userId, family, domain, category, mode, validMode, validSearch])
   const question = state.kind === 'ready' ? state.questions[index] : undefined
+  const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
   useEffect(() => {
     if (feedback) feedbackHeadingRef.current?.focus()
     else if (question) questionHeadingRef.current?.focus()
-  }, [feedback, question, question?.id])
+    else if (finish) completionHeadingRef.current?.focus()
+  }, [feedback, question, question?.id, finish])
   useDocumentTitle(
     family && domain && category && validSearch && validMode
       ? titleFor(labelForCategory(family.testFamily, domain.domain, category), DOMAIN_LABELS[domain.domain], labelForFamily(family.testFamily))
       : '頁面不存在',
   )
   if (!catalog || !family || !domain || !category || !validSearch || !validMode) return <CatalogUnavailable />
-
-  const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
 
   const viewState = !authLoading && !user ? { kind: 'signed-out' as const } : state
   return (
@@ -260,7 +261,7 @@ export function WebTestRunnerEntryPage() {
         <h1 className="page__title" id="web-test-runner-entry-title">{labelForCategory(family.testFamily, domain.domain, category)}</h1>
         <p className="page__lead">{MODE_LABELS[mode as PracticeDiscoveryMode]} · {category.releasedCount} 題已發布</p>
       </div>
-      <RunnerStateView questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} onSubmit={() => {
+      <RunnerStateView questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} completionHeadingRef={completionHeadingRef} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} onSubmit={() => {
         if (!question || state.kind !== 'ready' || response === '') return
         const correct = scoreQuestion(question, response)
         setLastCorrect(correct)
@@ -283,7 +284,7 @@ export function WebTestRunnerEntryPage() {
 
 type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[] }
 
-function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, state, finish, question, response, answers, feedback, lastCorrect, lastExplanation, setResponse, onSubmit, onNext }: { questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: Array<{ correct: boolean; category: string; elapsedMs: number }>; feedback: { question: RuntimeQuestion; correct: boolean } | null; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; onSubmit: () => void; onNext: () => void }) {
+function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHeadingRef, state, finish, question, response, answers, feedback, lastCorrect, lastExplanation, setResponse, onSubmit, onNext }: { questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; completionHeadingRef: RefObject<HTMLHeadingElement | null>; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: Array<{ correct: boolean; category: string; elapsedMs: number }>; feedback: { question: RuntimeQuestion; correct: boolean } | null; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; onSubmit: () => void; onNext: () => void }) {
   if (state.kind === 'signed-out') return <section className="web-test-hub__runner-handoff"><h2>需要登入</h2><p>請登入後才能載入會員練習內容。</p></section>
   if (state.kind === 'forbidden') return <section className="web-test-hub__runner-handoff"><h2>需要 Plus 會員資格</h2><p>目前帳號沒有可用的 Plus 練習存取權。</p></section>
   if (state.kind === 'missing' || state.kind === 'unavailable') return <section className="web-test-hub__runner-handoff"><h2>練習暫時無法使用</h2><p>目前無法取得已發布練習內容，請稍後再試。</p></section>
@@ -295,7 +296,7 @@ function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, state, finish
     })
     const correctCount = answers.filter((answer) => answer.correct).length
     const accuracy = answers.length === 0 ? 0 : Math.round((correctCount / answers.length) * 100)
-    return <section className="web-test-hub__runner-handoff"><h2>練習完成</h2><p>正確 {correctCount}／{answers.length} 題（正答率 {accuracy}%）；結果只保留在目前頁面。</p>{categoryResults.map((result) => <p key={result}>{result}</p>)}<p>作答時間：{Math.round(answers.reduce((total, answer) => total + answer.elapsedMs, 0) / 1000)} 秒。</p><p>Checkpoint：未測量</p></section>
+    return <section className="web-test-hub__runner-handoff"><h2 ref={completionHeadingRef} tabIndex={-1}>練習完成</h2><p>正確 {correctCount}／{answers.length} 題（正答率 {accuracy}%）；結果只保留在目前頁面。</p>{categoryResults.map((result) => <p key={result}>{result}</p>)}<p>作答時間：{Math.round(answers.reduce((total, answer) => total + answer.elapsedMs, 0) / 1000)} 秒。</p><p>Checkpoint：未測量</p></section>
   }
   if (state.kind !== 'ready' || !question) return null
   const answer = question.answer

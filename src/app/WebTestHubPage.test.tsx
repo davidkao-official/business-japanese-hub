@@ -139,6 +139,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     fireEvent.click(screen.getByRole('button', { name: '回答' }))
     fireEvent.click(screen.getByRole('button', { name: '下一題' }))
     expect(screen.getByText('正確 2／2 題（正答率 100%）；結果只保留在目前頁面。')).toBeInTheDocument()
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: '練習完成' }))
     expect(screen.getByText('vocabulary-in-context：2／2')).toBeInTheDocument()
     expect(screen.getByText('Checkpoint：未測量')).toBeInTheDocument()
   })
