@@ -10,7 +10,7 @@
 
 目前選定的 canonical authoring remote 是私有的 [`nurockplayer/business-japanese-hub-content`](https://github.com/nurockplayer/business-japanese-hub-content)。它與公開 platform repo 分開 checkout；production body、assets、research、review records 與 release history 都只可存在那裡或已核准的 private editorial systems。
 
-該 remote 現由 `nurockplayer` 管理，而公開 repo 位於 `davidkao-official`；轉移 ownership、擴授 collaborators 或配置 deploy credentials 都需要相應 owner 的明確操作，不能由 public-repo CI 假設或印出。這個 source repo 現在只含 workflow 入口，尚未建立或匯入任何 production corpus。
+該 remote 現由 `nurockplayer` 管理，而公開 repo 位於 `davidkao-official`；轉移 ownership、擴授 collaborators 或配置 deploy credentials 都需要相應 owner 的明確操作，不能由 public-repo CI 假設或印出。該 source repo 已包含 admitted 的 proprietary SPI corpus/release；它仍維持 private，尚未 production-import、member-activate，亦未暴露至 public repo 或 frontend artifacts。
 
 ## Smallest proven Book path
 
@@ -32,7 +32,7 @@ bounded renderer (future integration)
 
 `private_content_release` 是 immutable、service-role-only 的 **delivery envelope**：它只管理 bounded runtime 已驗證 payload 的 identity/revision/access，而不定義 question、lesson、article、vocabulary 或 game 的 universal schema。新的 runtime 在 import 前必須帶自己的 validator；#114 的 question-bank contract、#125 的 Read contract、#126 的 Learn/vocabulary contract 不得被此 table 取代。
 
-目前 #107 的 authoritative Plus membership projection 尚未實作。因此 `content-delivery` 對任何已驗證 user 都回傳 truthful `503 membership access unavailable`，而且在該狀態不查詢/回傳 payload。這是刻意 fail-closed，不是 active-member claim。#107 必須以 verified server membership projection 替換 resolver，並在有真實 active/non-member/expired evidence 時才把 member release 接到 renderer。browser request、local storage 或 client flag 永遠不能取得 payload。
+`content-delivery` 讀取獨立的 server-only `plus_membership_access` projection；只有 verified user 且 projection 為 active、未過期時才會查詢/回傳 payload。缺少、過期、撤銷或其他 non-qualifying 狀態回傳 `403 active membership required`；projection query 失敗回傳 truthful `503 membership access unavailable`。browser request、local storage 或 client flag 永遠不能取得 payload。
 
 私有資產目前沒有 server-delivery adapter；proprietary assets 不得暫時改走 `content-dist/assets` 或 Vite。private Book importer 會 fail closed，拒絕含 `cover` 或 `image` block 的 payload；擁有私有資產的 bounded runtime 必須先提供同等 server-authoritative asset authorization、immutable revision coverage 與 tests。
 
@@ -67,13 +67,13 @@ private source: practice-question-bank.json
         ↓ pnpm workflow:validate-private-practice-question-bank --source=/absolute/private --content-id=practice-web-test-spi-v1
         ↓ pnpm workflow:import-private-practice-question-bank --source=/absolute/private --content-id=practice-web-test-spi-v1
 service-role-only private_content_release
-        ↓ content-delivery Edge Function + verified #107 membership projection
+        ↓ content-delivery Edge Function + verified server-only Plus projection
 future bounded Practice renderer
 ```
 
 CSV 是為 spreadsheet/editorial workflow 準備的 deterministic adapter；rich `answer`、`coreExplanation`、`itemAnalysis`、`provenance` 欄位以 JSON cell 保存，避免為不同 question input type 發明另一套 UI schema。`practice-question-bank-base.json` 保留 bank version 與 vocabulary catalog；converter 將 CSV rows 放入 question bank，之後 validator 才會檢查所有 cross-reference。
 
-受控 import 僅接受 status 為 `released` 的題目，並要求 reviewer、release notes、originality attestation、Japanese prompt/explanation、deterministic answer contract、正確的 category/subcategory、support-overlay vocabulary refs 與禁止 source/recalled/leaked/official-test fields。`targetSeconds` 是 internal practice target；schema 沒有 official-time metadata，帶有這類 field 的 artifact 必須 fail closed。#107 尚未提供 verified membership projection 時，delivery endpoint 仍然回 `503 membership access unavailable`，不會查詢或回傳題庫。
+受控 import 僅接受 status 為 `released` 的題目，並要求 reviewer、release notes、originality attestation、Japanese prompt/explanation、deterministic answer contract、正確的 category/subcategory、support-overlay vocabulary refs 與禁止 source/recalled/leaked/official-test fields。`targetSeconds` 是 internal practice target；schema 沒有 official-time metadata，帶有這類 field 的 artifact 必須 fail closed。`content-delivery` 使用 server-only `plus_membership_access` projection：只有 active 且未過期才查詢／回傳 payload；missing、expired、revoked 或其他 non-qualifying 狀態回傳 `403` 且不查詢 payload；projection lookup failure 回傳 `503` 且不查詢 payload。browser flag 永遠不能 authorize。這是 delivery primitive；#107 的 recurring lifecycle/commercial/production activation 仍維持其既有邊界。
 
 ### #115 public discovery catalog and #116 runner handoff
 

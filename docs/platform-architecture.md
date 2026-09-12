@@ -176,7 +176,7 @@ Current delivery priority 是 **Plus Early Access preparation**：
 
 ### 11.1 Proprietary production content delivery
 
-Public repository 的 `books/ → content-dist/ → Vite` 是 disclosed legacy Reader workflow；它保留以維持 Reader 與 historical Book commerce/audit，不是 future Plus/member body/assets 的 delivery architecture。Future proprietary source lives in the private canonical authoring workflow, validates against public bounded-domain tooling, and imports through server-only storage/delivery. Membership authorization stays server-authoritative and fails closed until #107 provides the verified access projection. This is a delivery primitive, not a new universal content schema or backend; see [`private-content-delivery.md`](private-content-delivery.md).
+Public repository 的 `books/ → content-dist/ → Vite` 是 disclosed legacy Reader workflow；它保留以維持 Reader 與 historical Book commerce/audit，不是 future Plus/member body/assets 的 delivery architecture。Future proprietary source lives in the private canonical authoring workflow, validates against public bounded-domain tooling, and imports through server-only storage/delivery. #139 provides the narrow server-only `plus_membership_access` projection: delivery is active only for an unexpired active row and fails closed for missing/non-qualifying rows or lookup failure. #107 remains the authority for recurring membership lifecycle, commercial decisions, and production activation. This is a delivery primitive, not a new universal content schema or backend; see [`private-content-delivery.md`](private-content-delivery.md).
 
 ## 12. Architecture non-goals
 
