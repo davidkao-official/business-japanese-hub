@@ -119,7 +119,7 @@ describe('Web Test discovery and runner-entry routes', () => {
       promptRepresentation: { kind: 'table' as const, columns: ['項目'], rows: [['合成問題']] },
       answer: { input: { kind: 'ordering' as const, choices: [{ id: 'one', textJa: '一番', representation: { kind: 'equation' as const, expression: '1' } }, { id: 'two', textJa: '二番', representation: { kind: 'diagram' as const, altText: '合成図', nodes: [{ id: 'a', label: '起点' }, { id: 'b', label: '終点' }], edges: [{ from: 'a', to: 'b', label: '進む' }] } }] }, expectedAnswer: { kind: 'ordering' as const, choiceIds: ['two', 'one'] }, scoring: { kind: 'exact-order' as const } },
       coreExplanation: { concise: '順序を確認します。', whatIsAskedJa: '二番を先にすることが求められています。', representation: { kind: 'logic-grid' as const, columns: ['職位'], rows: ['甲'], cells: [{ row: '甲', column: '職位', value: 'yes' as const }] } },
-      itemAnalysis: { ...sourceQuestion.itemAnalysis, diagnosticCheckpoints: { registryVersion: 1, ids: ['synthetic-checkpoint-01'] } },
+      itemAnalysis: { ...sourceQuestion.itemAnalysis, diagnosticCheckpoints: { registryVersion: 1, ids: ['synthetic-checkpoint-01', 'synthetic-checkpoint-02'] } },
     }
     const second = {
       ...sourceQuestion,
@@ -133,7 +133,7 @@ describe('Web Test discovery and runner-entry routes', () => {
       payload: {
         ...release.value.payload,
         questionBank: { ...release.value.payload.questionBank, questions: [first, second] },
-        checkpointRegistry: { version: 1, checkpoints: [{ id: 'synthetic-checkpoint-01', version: 1, questionId: first.id, questionVersion: first.version, dimension: 'meaning' as const, promptJa: '請輸入三。', answer: { input: { kind: 'number' as const }, expectedAnswer: { kind: 'number' as const, value: 3 }, scoring: { kind: 'numeric' as const } } }] },
+        checkpointRegistry: { version: 1, checkpoints: [{ id: 'synthetic-checkpoint-01', version: 1, questionId: first.id, questionVersion: first.version, dimension: 'meaning' as const, promptJa: '請輸入三。', answer: { input: { kind: 'number' as const }, expectedAnswer: { kind: 'number' as const, value: 3 }, scoring: { kind: 'numeric' as const } } }, { id: 'synthetic-checkpoint-02', version: 1, questionId: first.id, questionVersion: first.version, dimension: 'execution' as const, promptJa: '請輸入四。', answer: { input: { kind: 'number' as const }, expectedAnswer: { kind: 'number' as const, value: 4 }, scoring: { kind: 'numeric' as const } } }] },
         supportOverlays: [
           { questionId: first.id, questionVersion: first.version, version: 1, byLocale: { 'zh-Hant': { concise: '合成提示。', whatIsAsked: '請依序排列。', representationExplanation: '這是合成表示。', commonMisread: '不要倒置順序。', keyTerms: [{ termId: 'term-choice', surface: '選択', meaning: '選擇', note: '合成備註' }] } } },
           { questionId: second.id, questionVersion: second.version, version: 1, byLocale: { 'zh-Hant': { whatIsAsked: '請選擇第二個選項。' } } },
@@ -166,6 +166,12 @@ describe('Web Test discovery and runner-entry routes', () => {
     fireEvent.click(screen.getByRole('button', { name: '回答檢查點' }))
     expect(screen.getByText('檢查點回答正確')).toBeInTheDocument()
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: /理解檢查/ }))
+    fireEvent.click(screen.getByRole('button', { name: '下一個檢查點' }))
+    expect(screen.getByText('請輸入四。')).toBeInTheDocument()
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: /理解檢查/ }))
+    fireEvent.change(screen.getByLabelText('數值答案'), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: '回答檢查點' }))
+    expect(screen.getByText('檢查點回答正確')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '下一題' }))
     expect(screen.getByText('第 2／2 題')).toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -176,7 +182,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByText('正確 2／2 題（正答率 100%）；結果只保留在目前頁面。')).toBeInTheDocument()
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: '練習完成' }))
     expect(screen.getByText('文脈語彙：2／2')).toBeInTheDocument()
-    expect(screen.getByText('已觀測到檢查點未通過：0／1')).toBeInTheDocument()
+    expect(screen.getByText('已觀測到檢查點未通過：0／2')).toBeInTheDocument()
   })
 
   it('removes the old ready payload immediately when the authenticated user changes', async () => {

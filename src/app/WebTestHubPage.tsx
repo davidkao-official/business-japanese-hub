@@ -218,6 +218,7 @@ export function WebTestRunnerEntryPage() {
   const feedbackHeadingRef = useRef<HTMLHeadingElement>(null)
   const completionHeadingRef = useRef<HTMLHeadingElement>(null)
   const checkpointHeadingRef = useRef<HTMLHeadingElement>(null)
+  const checkpointAdvanceFocusRef = useRef(false)
   const userId = user?.id
   const selectionKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? '', userId ?? ''].join('|')
   useEffect(() => {
@@ -252,7 +253,10 @@ export function WebTestRunnerEntryPage() {
   const question = state.kind === 'ready' ? state.questions[index] : undefined
   const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
   useEffect(() => {
-    if (feedback && checkpointFeedback === null) feedbackHeadingRef.current?.focus()
+    if (checkpointAdvanceFocusRef.current && checkpointIndex !== null) {
+      checkpointAdvanceFocusRef.current = false
+      checkpointHeadingRef.current?.focus()
+    } else if (feedback && checkpointFeedback === null) feedbackHeadingRef.current?.focus()
     else if (checkpointIndex !== null) checkpointHeadingRef.current?.focus()
     else if (feedback) feedbackHeadingRef.current?.focus()
     else if (question) questionHeadingRef.current?.focus()
@@ -299,6 +303,7 @@ export function WebTestRunnerEntryPage() {
         if (state.kind !== 'ready' || !question || checkpointIndex === null) return
         const checkpoints = resolveQuestionCheckpoints(state.payload, question) ?? []
         if (checkpointIndex + 1 < checkpoints.length) {
+          checkpointAdvanceFocusRef.current = true
           setCheckpointIndex(checkpointIndex + 1)
           setCheckpointResponse(initialResponse(checkpoints[checkpointIndex + 1]!.answer))
           setCheckpointFeedback(null)
