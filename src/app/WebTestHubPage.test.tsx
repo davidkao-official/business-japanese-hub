@@ -140,6 +140,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByText('yes')).not.toHaveAttribute('lang', 'ja')
     expect(screen.getByText('請輸入三。')).toHaveAttribute('lang', 'ja')
     rendered.authClient.emitAuthStateChange({ id: 'synthetic-member', email: 'refreshed@example.com' })
+    await Promise.resolve()
     await waitFor(() => expect(screen.getByText('請輸入三。')).toBeInTheDocument())
     expect(fetchPracticePayloadMock).toHaveBeenCalledTimes(1)
     fireEvent.change(screen.getByLabelText('數值答案'), { target: { value: '3' } })
