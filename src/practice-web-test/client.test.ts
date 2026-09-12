@@ -92,6 +92,17 @@ describe('practice payload client', () => {
     vi.unstubAllGlobals()
   })
 
+  it('returns a terminal stale result for a server rejected selection', async () => {
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 400 })
+    vi.stubGlobal('fetch', fetchMock)
+    const input = { contentId: 'practice-web-test-spi-v1', revision: 'a'.repeat(64), questionId: 'question-01', questionVersion: 1, answer: 'a', responseTimeMs: 1, clientIdempotencyKey: '70000000-0000-4000-8000-000000000001' }
+
+    await expect(submitPracticeAttempt(input, vi.fn().mockResolvedValue(jwtFor('member-a')), 'member-a')).resolves.toEqual({ kind: 'stale' })
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
   it.each([
     ['fractional', 1.5],
     ['unsafe integer', Number.MAX_SAFE_INTEGER + 1],

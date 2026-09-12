@@ -232,6 +232,20 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByRole('heading', { name: '練習完成' })).toBeInTheDocument()
   })
 
+  it('treats a stale attempt rejection as terminal and keeps progression blocked', async () => {
+    fetchPracticePayloadMock.mockClear()
+    submitPracticeAttemptMock.mockResolvedValueOnce({ kind: 'stale' })
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('版本更新の合成題幹') })
+    renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
+    await waitFor(() => expect(screen.getByRole('heading', { name: '版本更新の合成題幹' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: '二番' }))
+    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('此題版本已更新'))
+    expect(screen.queryByRole('button', { name: '重試儲存' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '下一題' })).toBeDisabled()
+    expect(screen.getByRole('link', { name: '返回類別' })).toBeInTheDocument()
+  })
+
   it('treats an out-of-range response time as terminal without retry and allows the next question', async () => {
     fetchPracticePayloadMock.mockClear()
     submitPracticeAttemptMock.mockResolvedValueOnce({ kind: 'invalid-response-time' })

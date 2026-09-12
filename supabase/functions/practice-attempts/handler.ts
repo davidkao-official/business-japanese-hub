@@ -221,7 +221,6 @@ export async function handlePracticeAttempts(req: HandlerRequest, deps: Practice
       ? privateResult(jsonResult(502, { error: 'practice attempt persistence failed' }))
       : badRequest('invalid question selection')
   }
-  if (!availabilityIsCurrent && data.kind === 'persisted') return badRequest('invalid question selection')
   if (data.kind !== 'persisted') {
     return data.replayable === true
       ? privateResult(jsonResult(409, { error: 'practice attempt already recorded', replayable: true }))

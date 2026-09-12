@@ -27,7 +27,7 @@ export type PracticeAttemptInput = {
 
 export type PracticeAttemptResult =
   | { kind: 'ok' }
-  | { kind: 'signed-out' | 'forbidden' | 'unavailable' | 'missing' | 'invalid-response-time' }
+  | { kind: 'signed-out' | 'forbidden' | 'unavailable' | 'missing' | 'stale' | 'invalid-response-time' }
 
 export const PRACTICE_ATTEMPT_TIMEOUT_MS = 10_000
 export const MAX_PRACTICE_RESPONSE_TIME_MS = 3_600_000
@@ -138,6 +138,7 @@ export async function submitPracticeAttempt(
     if (response.status === 401) return { kind: 'signed-out' }
     if (response.status === 403) return { kind: 'forbidden' }
     if (response.status === 404) return { kind: 'missing' }
+    if (response.status === 400) return { kind: 'stale' }
     if (response.status === 409) {
       const body = await Promise.race([response.json() as Promise<{ error?: unknown; replayable?: unknown }>, deadline.promise])
       return body.error === 'practice attempt already recorded' && body.replayable === true ? { kind: 'ok' } : { kind: 'unavailable' }

@@ -120,6 +120,15 @@ describe('practice-attempts handler', () => {
     expect(staleVersion.db.rpc).toHaveBeenCalledOnce()
   })
 
+  it('trusts an atomic persisted result when the availability snapshot races initialization', async () => {
+    const database = db(userId, { kind: 'persisted' })
+    const d = deps(database)
+    d.getQuestionAvailability.mockResolvedValue({ kind: 'missing' })
+    const result = await handlePracticeAttempts(request(), d)
+    expect(result.status).toBe(200)
+    expect(JSON.parse(result.body)).toEqual({ persisted: true })
+  })
+
   it('reconciles an exact replay after the release advances without accepting a changed or unseen stale attempt', async () => {
     const database = db(userId)
     const d = deps(database)
