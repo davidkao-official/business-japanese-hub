@@ -186,7 +186,11 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByText('文脈語彙：2／2')).toBeInTheDocument()
     expect(screen.getByText('已觀測到檢查點未通過：0／2')).toBeInTheDocument()
     expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(2)
-    expect(submitPracticeAttemptMock.mock.calls[0]![0]).toEqual(expect.objectContaining({
+    const firstAttempt = submitPracticeAttemptMock.mock.calls[0]![0] as Record<string, unknown>
+    expect(Object.keys(firstAttempt).sort()).toEqual([
+      'answer', 'checkpointResponses', 'clientIdempotencyKey', 'contentId', 'questionId', 'questionVersion', 'responseTimeMs', 'revision',
+    ])
+    expect(firstAttempt).toEqual(expect.objectContaining({
       contentId: 'practice-web-test-spi-v1',
       revision: expect.any(String),
       questionId: first.id,
@@ -197,7 +201,7 @@ describe('Web Test discovery and runner-entry routes', () => {
         { checkpointId: 'synthetic-checkpoint-02', checkpointVersion: 1, response: 4 },
       ],
     }))
-    expect(JSON.stringify(submitPracticeAttemptMock.mock.calls[0]![0])).not.toMatch(/userId|correct|category|mode|diagnosis|promptJa/)
+    expect(JSON.stringify(firstAttempt)).not.toMatch(/userId|correct|category|mode|diagnosis|promptJa/)
   })
 
   it('keeps local feedback truthful when durable attempt storage fails', async () => {

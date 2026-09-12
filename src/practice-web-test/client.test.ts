@@ -25,19 +25,24 @@ describe('practice payload client', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: vi.fn().mockResolvedValue({ persisted: true }) })
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(submitPracticeAttempt({
+    const input = {
       contentId: 'practice-web-test-spi-v1', revision: 'a'.repeat(64), questionId: 'question-01', questionVersion: 3,
       answer: 'choice-b', responseTimeMs: 1234, clientIdempotencyKey: '70000000-0000-4000-8000-000000000001',
       checkpointResponses: [{ checkpointId: 'checkpoint-01', checkpointVersion: 2, response: 4 }],
-    }, vi.fn().mockResolvedValue('synthetic-token'))).resolves.toEqual({ kind: 'ok' })
+      userId: 'must-not-cross', correct: true, category: 'private-category', mode: 'private-mode', diagnosis: 'must-not-cross',
+    }
+    await expect(submitPracticeAttempt(input, vi.fn().mockResolvedValue('synthetic-token'))).resolves.toEqual({ kind: 'ok' })
 
     const [, request] = fetchMock.mock.calls[0]!
-    expect(JSON.parse(request.body as string)).toEqual({
+    const wireBody = JSON.parse(request.body as string) as Record<string, unknown>
+    expect(Object.keys(wireBody).sort()).toEqual([
+      'answer', 'checkpointResponses', 'clientIdempotencyKey', 'contentId', 'questionId', 'questionVersion', 'responseTimeMs', 'revision',
+    ])
+    expect(wireBody).toEqual({
       contentId: 'practice-web-test-spi-v1', revision: 'a'.repeat(64), questionId: 'question-01', questionVersion: 3,
       answer: 'choice-b', responseTimeMs: 1234, clientIdempotencyKey: '70000000-0000-4000-8000-000000000001',
       checkpointResponses: [{ checkpointId: 'checkpoint-01', checkpointVersion: 2, response: 4 }],
     })
-    expect(JSON.stringify(JSON.parse(request.body as string))).not.toMatch(/userId|correct|category|mode|diagnosis|promptJa/)
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
   })

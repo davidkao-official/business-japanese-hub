@@ -80,11 +80,29 @@ export async function submitPracticeAttempt(
   const base = functionsBaseUrl()
   if (!base) return { kind: 'unavailable' }
   try {
+    // Build the wire body explicitly so an accidental caller-side field can
+    // never cross the browser/server boundary.
+    const wireBody = {
+      contentId: input.contentId,
+      revision: input.revision,
+      questionId: input.questionId,
+      questionVersion: input.questionVersion,
+      answer: input.answer,
+      responseTimeMs: input.responseTimeMs,
+      clientIdempotencyKey: input.clientIdempotencyKey,
+      ...(input.checkpointResponses === undefined ? {} : {
+        checkpointResponses: input.checkpointResponses.map((checkpoint) => ({
+          checkpointId: checkpoint.checkpointId,
+          checkpointVersion: checkpoint.checkpointVersion,
+          response: checkpoint.response,
+        })),
+      }),
+    }
     const response = await fetch(`${base}/practice-attempts`, {
       method: 'POST',
       cache: 'no-store',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+      body: JSON.stringify(wireBody),
     })
     if (response.status === 401) return { kind: 'signed-out' }
     if (response.status === 403) return { kind: 'forbidden' }
