@@ -9,6 +9,18 @@ const clientAttemptId = '20000000-0000-4000-8000-000000000001'
 const contentId = 'practice-web-test-fixture'
 const release = preparePrivatePracticeQuestionBankRelease(contentId, nonProprietaryPracticeQuestionBankFixture)
 if (!release.ok) throw new Error(release.reason)
+const checkpointSource = JSON.parse(JSON.stringify(nonProprietaryPracticeQuestionBankFixture)) as typeof nonProprietaryPracticeQuestionBankFixture
+checkpointSource.questionBank.questions[0]!.itemAnalysis.diagnosticCheckpoints = { registryVersion: 1, ids: ['fixture-checkpoint-01'] }
+checkpointSource.checkpointRegistry = {
+  version: 1,
+  checkpoints: [{
+    id: 'fixture-checkpoint-01', version: 1, questionId: 'fixture-choice-01', questionVersion: 1,
+    dimension: 'meaning', promptJa: '選択肢の意味を確認してください。', answer: checkpointSource.questionBank.questions[0]!.answer,
+    provenance: { authoredBy: 'fixture-author', reviewedBy: ['fixture-reviewer'], createdAt: '2026-09-10T00:00:00.000Z', updatedAt: '2026-09-10T00:00:00.000Z', originalContentAttestation: true },
+  }],
+}
+const checkpointRelease = preparePrivatePracticeQuestionBankRelease(contentId, checkpointSource)
+if (!checkpointRelease.ok) throw new Error(checkpointRelease.reason)
 
 function db(user: string | null, rpcData: unknown = { kind: 'persisted' }, rpcError: { message: string } | null = null): DbClient {
   return {
@@ -28,11 +40,11 @@ function request(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function deps(database: DbClient, membership: 'active' | 'non-member' | 'unavailable' = 'active') {
+function deps(database: DbClient, membership: 'active' | 'non-member' | 'unavailable' = 'active', selectedRelease = release.value) {
   return {
     db: database,
     membershipAccessFor: vi.fn().mockResolvedValue(membership),
-    getRelease: vi.fn().mockResolvedValue({ kind: 'found', contentId, revision: release.value.revision, contentKind: 'practice-question-bank', payload: release.value.payload }),
+    getRelease: vi.fn().mockResolvedValue({ kind: 'found', contentId, revision: selectedRelease.revision, contentKind: 'practice-question-bank', payload: selectedRelease.payload }),
   }
 }
 
@@ -95,6 +107,21 @@ describe('practice-attempts handler', () => {
     const checkpoint = { checkpointId: 'checkpoint-1', checkpointVersion: 0, response: 'two' }
     expect((await handlePracticeAttempts(request({ checkpointResponses: [checkpoint] }), d)).status).toBe(400)
     expect(database.rpc).not.toHaveBeenCalled()
+  })
+
+  it('requires complete authored checkpoint evidence and accepts a valid full set', async () => {
+    const omitted = deps(db(userId), 'active', checkpointRelease.value)
+    expect((await handlePracticeAttempts(request({ revision: checkpointRelease.value.revision }), omitted)).status).toBe(400)
+    const empty = deps(db(userId), 'active', checkpointRelease.value)
+    expect((await handlePracticeAttempts(request({ revision: checkpointRelease.value.revision, checkpointResponses: [] }), empty)).status).toBe(400)
+    const invalid = deps(db(userId), 'active', checkpointRelease.value)
+    expect((await handlePracticeAttempts(request({ revision: checkpointRelease.value.revision, checkpointResponses: [{ checkpointId: 'wrong', checkpointVersion: 1, response: 'two' }] }), invalid)).status).toBe(400)
+    const validDb = db(userId)
+    const valid = deps(validDb, 'active', checkpointRelease.value)
+    expect((await handlePracticeAttempts(request({ revision: checkpointRelease.value.revision, checkpointResponses: [{ checkpointId: 'fixture-checkpoint-01', checkpointVersion: 1, response: 'two' }] }), valid)).status).toBe(200)
+    expect(validDb.rpc).toHaveBeenCalledWith('record_practice_attempt', expect.objectContaining({
+      p_checkpoint_results: [{ checkpointId: 'fixture-checkpoint-01', checkpointVersion: 1, correct: true }],
+    }))
   })
 
   it('does not treat a persistence error as a recorded attempt', async () => {

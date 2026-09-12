@@ -82,7 +82,7 @@ function validResponseForAnswer(answer: RuntimeQuestion['answer'], value: Runner
   if (answer.input.kind === 'single-choice') return answer.expectedAnswer.kind === 'single-choice' && typeof value === 'string' && choiceIds.includes(value)
   if (answer.input.kind === 'multi-select') {
     return answer.expectedAnswer.kind === 'multi-select' && Array.isArray(value) &&
-      new Set(value).size === value.length && value.every((entry) => choiceIds.includes(entry))
+      uniqueChoices.size > 0 && new Set(value).size === value.length && value.every((entry) => choiceIds.includes(entry))
   }
   if (answer.input.kind === 'ordering') {
     return answer.expectedAnswer.kind === 'ordering' && Array.isArray(value) &&
@@ -127,8 +127,9 @@ function parseInput(bodyText: string): AttemptInput | null {
 function safeCheckpointResults(input: AttemptInput, payload: PracticeRuntimePayload, question: RuntimeQuestion): Array<{ checkpointId: string; checkpointVersion: number; correct: boolean }> | null {
   const checkpoints = resolveQuestionCheckpoints(payload, question)
   if (checkpoints === null) return null
-  const submitted = input.checkpointResponses ?? []
-  if (submitted.length === 0) return []
+  const submitted = input.checkpointResponses
+  if (checkpoints.length === 0) return submitted === undefined || submitted.length === 0 ? [] : null
+  if (submitted === undefined || submitted.length === 0) return null
   if (submitted.length !== checkpoints.length) return null
   if (submitted.some((entry, index) => entry.checkpointId !== checkpoints[index]?.id || entry.checkpointVersion !== checkpoints[index]?.version ||
     !validResponseForAnswer(checkpoints[index]!.answer, entry.response))) return null

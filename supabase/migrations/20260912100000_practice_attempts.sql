@@ -85,8 +85,7 @@ begin
   ) on conflict (user_id, client_attempt_id) do nothing;
   select * into existing
   from public.practice_attempts
-  where user_id = p_user_id and client_attempt_id = p_client_attempt_id
-  for update;
+  where user_id = p_user_id and client_attempt_id = p_client_attempt_id;
   if existing.content_id is not distinct from p_content_id
     and existing.content_revision is not distinct from p_content_revision
     and existing.question_id is not distinct from p_question_id
