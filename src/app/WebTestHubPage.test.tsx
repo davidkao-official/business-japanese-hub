@@ -133,7 +133,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getAllByRole('listitem')[0]).toHaveTextContent('二番')
     fireEvent.click(screen.getByRole('button', { name: '回答' }))
     expect(screen.getByText('二番、一番')).toHaveAttribute('lang', 'ja')
-    expect(document.activeElement).toBe(screen.getByRole('heading', { name: '解答與說明' }))
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: /理解檢查/ }))
     expect(screen.getByText('這是合成表示。')).toBeInTheDocument()
     expect(screen.getByText('不要倒置順序。')).toBeInTheDocument()
     expect(screen.getByText('yes')).not.toHaveAttribute('lang', 'ja')
