@@ -26,11 +26,15 @@ export type ReleaseLookup =
   | { kind: 'found'; contentId: string; revision: string; contentKind: string; payload: Record<string, unknown> }
   | { kind: 'missing' }
   | { kind: 'unavailable' }
+export type QuestionAvailabilityLookup =
+  | { kind: 'found'; revision: string; version: number }
+  | { kind: 'missing' | 'unavailable' }
 
 export interface PracticeAttemptsDeps {
   db: DbClient
   membershipAccessFor: (userId: string) => Promise<MembershipAccess>
   getRelease: (contentId: string, revision: string) => Promise<ReleaseLookup>
+  getQuestionAvailability: (contentId: string, questionId: string) => Promise<QuestionAvailabilityLookup>
 }
 
 type AttemptInput = {
@@ -188,6 +192,9 @@ export async function handlePracticeAttempts(req: HandlerRequest, deps: Practice
     ? matching[0]
     : undefined
   if (!selected) return badRequest('invalid question selection')
+  const availability = await deps.getQuestionAvailability(release.contentId, selected.id)
+  if (availability.kind === 'unavailable') return privateResult(jsonResult(503, { error: 'practice content unavailable' }))
+  if (availability.kind !== 'found' || availability.revision !== release.revision || availability.version !== selected.version) return badRequest('invalid question selection')
   if (!response(input.answer) || !validResponseForAnswer(selected.answer, input.answer)) return badRequest('invalid response')
   const checkpointResults = safeCheckpointResults(input, payload, selected)
   if (checkpointResults === null) return badRequest('invalid checkpoint responses')

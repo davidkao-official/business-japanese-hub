@@ -53,6 +53,15 @@ Deno.serve(async (req) => {
     db,
     membershipAccessFor: (userId) => resolvePlusMembershipAccess(db, userId),
     getRelease: releaseStore(db),
+    getQuestionAvailability: async (contentId, questionId) => {
+      const { data, error } = await db.from('practice_question_availability')
+        .select('content_revision,question_version')
+        .eq('content_id', contentId).eq('question_id', questionId).eq('available', true).maybeSingle()
+      if (error) return { kind: 'unavailable' as const }
+      if (!data) return { kind: 'missing' as const }
+      if (typeof data.content_revision !== 'string' || typeof data.question_version !== 'number' || !Number.isSafeInteger(data.question_version)) return { kind: 'unavailable' as const }
+      return { kind: 'found' as const, revision: data.content_revision, version: data.question_version }
+    },
   })
   return toResponse(withCorsHeaders(result, cors.headers))
 })

@@ -56,10 +56,12 @@ function request(overrides: Record<string, unknown> = {}) {
 }
 
 function deps(database: DbClient, membership: 'active' | 'non-member' | 'unavailable' = 'active', selectedRelease = release.value) {
+  const questions = selectedRelease.payload.questionBank.questions
   return {
     db: database,
     membershipAccessFor: vi.fn().mockResolvedValue(membership),
     getRelease: vi.fn().mockResolvedValue({ kind: 'found', contentId, revision: selectedRelease.revision, contentKind: 'practice-question-bank', payload: selectedRelease.payload }),
+    getQuestionAvailability: vi.fn().mockImplementation(async (_contentId: string, questionId: string) => ({ kind: 'found', revision: selectedRelease.revision, version: Math.max(...questions.filter((question) => question.id === questionId).map((question) => question.version)) })),
   }
 }
 
@@ -103,6 +105,16 @@ describe('practice-attempts handler', () => {
     const stale = deps(db(userId))
     stale.getRelease.mockResolvedValue({ kind: 'missing' })
     expect((await handlePracticeAttempts(request({ revision: 'b'.repeat(64) }), stale)).status).toBe(404)
+  })
+
+  it('rejects a question whose availability revision or version is stale before persistence', async () => {
+    const staleRevision = deps(db(userId))
+    staleRevision.getQuestionAvailability.mockResolvedValue({ kind: 'found', revision: 'b'.repeat(64), version: 1 })
+    expect((await handlePracticeAttempts(request(), staleRevision)).status).toBe(400)
+    const staleVersion = deps(db(userId))
+    staleVersion.getQuestionAvailability.mockResolvedValue({ kind: 'found', revision: release.value.revision, version: 2 })
+    expect((await handlePracticeAttempts(request(), staleVersion)).status).toBe(400)
+    expect(staleVersion.db.rpc).not.toHaveBeenCalled()
   })
 
   it('rejects malformed and oversized learner input before persistence', async () => {
