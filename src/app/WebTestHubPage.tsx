@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import catalogDocument from '../practice-web-test/released-discovery-catalog.json'
 import {
@@ -209,13 +210,23 @@ export function WebTestRunnerEntryPage() {
   const [lastExplanation, setLastExplanation] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<{ question: RuntimeQuestion; correct: boolean } | null>(null)
   const startedAt = useRef<number>(0)
+  const questionHeadingRef = useRef<HTMLHeadingElement>(null)
+  const feedbackHeadingRef = useRef<HTMLHeadingElement>(null)
+  const userId = user?.id
   useEffect(() => {
     let cancelled = false
-    if (!catalog || !family || !domain || !category || !validSearch || !validMode || authLoading) return
-    if (!user) return
+    if (!catalog || !family || !domain || !category || !validSearch || !validMode) return
     void Promise.resolve().then(async () => {
       if (cancelled) return
-      setState({ kind: 'loading' })
+      setState({ kind: user ? 'loading' : 'idle' })
+      setIndex(0)
+      setResponse('')
+      setAnswers([])
+      setFeedback(null)
+      setLastCorrect(null)
+      setLastExplanation(null)
+      startedAt.current = 0
+      if (authLoading || !user) return
       const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision)
       if (cancelled) return
       if (result.kind !== 'ok') { setState({ kind: result.kind }); return }
@@ -226,7 +237,12 @@ export function WebTestRunnerEntryPage() {
       startedAt.current = Date.now()
     })
     return () => { cancelled = true }
-  }, [authLoading, user, family, domain, category, mode, validMode, validSearch])
+  }, [authLoading, user, userId, family, domain, category, mode, validMode, validSearch])
+  const question = state.kind === 'ready' ? state.questions[index] : undefined
+  useEffect(() => {
+    if (feedback) feedbackHeadingRef.current?.focus()
+    else if (question) questionHeadingRef.current?.focus()
+  }, [feedback, question, question?.id])
   useDocumentTitle(
     family && domain && category && validSearch && validMode
       ? titleFor(labelForCategory(family.testFamily, domain.domain, category), DOMAIN_LABELS[domain.domain], labelForFamily(family.testFamily))
@@ -234,7 +250,6 @@ export function WebTestRunnerEntryPage() {
   )
   if (!catalog || !family || !domain || !category || !validSearch || !validMode) return <CatalogUnavailable />
 
-  const question = state.kind === 'ready' ? state.questions[index] : undefined
   const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
 
   const viewState = !authLoading && !user ? { kind: 'signed-out' as const } : state
@@ -245,7 +260,7 @@ export function WebTestRunnerEntryPage() {
         <h1 className="page__title" id="web-test-runner-entry-title">{labelForCategory(family.testFamily, domain.domain, category)}</h1>
         <p className="page__lead">{MODE_LABELS[mode as PracticeDiscoveryMode]} · {category.releasedCount} 題已發布</p>
       </div>
-      <RunnerStateView state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} onSubmit={() => {
+      <RunnerStateView questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} onSubmit={() => {
         if (!question || state.kind !== 'ready' || response === '') return
         const correct = scoreQuestion(question, response)
         setLastCorrect(correct)
@@ -268,7 +283,7 @@ export function WebTestRunnerEntryPage() {
 
 type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[] }
 
-function RunnerStateView({ state, finish, question, response, answers, feedback, lastCorrect, lastExplanation, setResponse, onSubmit, onNext }: { state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: Array<{ correct: boolean; category: string; elapsedMs: number }>; feedback: { question: RuntimeQuestion; correct: boolean } | null; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; onSubmit: () => void; onNext: () => void }) {
+function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, state, finish, question, response, answers, feedback, lastCorrect, lastExplanation, setResponse, onSubmit, onNext }: { questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: Array<{ correct: boolean; category: string; elapsedMs: number }>; feedback: { question: RuntimeQuestion; correct: boolean } | null; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; onSubmit: () => void; onNext: () => void }) {
   if (state.kind === 'signed-out') return <section className="web-test-hub__runner-handoff"><h2>需要登入</h2><p>請登入後才能載入會員練習內容。</p></section>
   if (state.kind === 'forbidden') return <section className="web-test-hub__runner-handoff"><h2>需要 Plus 會員資格</h2><p>目前帳號沒有可用的 Plus 練習存取權。</p></section>
   if (state.kind === 'missing' || state.kind === 'unavailable') return <section className="web-test-hub__runner-handoff"><h2>練習暫時無法使用</h2><p>目前無法取得已發布練習內容，請稍後再試。</p></section>
@@ -285,8 +300,8 @@ function RunnerStateView({ state, finish, question, response, answers, feedback,
   if (state.kind !== 'ready' || !question) return null
   const answer = question.answer
   const overlay = supportOverlay(state.payload, question)
-  if (feedback?.question.id === question.id) return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? '回答正確' : '回答不正確'}</p><h2>解答與說明</h2><p>正確答案：{answerLabel(answer)}</p><p>{question.coreExplanation.concise}</p><p>{question.coreExplanation.whatIsAskedJa}</p>{question.coreExplanation.representation && <RepresentationView representation={question.coreExplanation.representation} label="解答表示" />}{overlay?.whatIsAsked && <p>{overlay.whatIsAsked}</p>}{overlay?.representationExplanation && <p>{overlay.representationExplanation}</p>}{overlay?.commonMisread && <p>{overlay.commonMisread}</p>}{overlay?.keyTerms?.map((term) => <p key={term.termId}>{term.surface}：{term.meaning}</p>)}<button type="button" onClick={onNext}>下一題</button></section>
-  return <section className="web-test-hub__runner" aria-live="polite">{lastCorrect !== null && <p role="status">{lastCorrect ? '回答正確' : '回答不正確'}{lastExplanation && `：${lastExplanation}`}</p>}<p>第 {answers.length + 1}／{state.questions.length} 題</p><h2>{question.promptJa}</h2>
+  if (feedback?.question.id === question.id) return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? '回答正確' : '回答不正確'}</p><h2 ref={feedbackHeadingRef} tabIndex={-1}>解答與說明</h2><p>正確答案：<span lang="ja">{answerLabel(answer)}</span></p><p lang="ja">{question.coreExplanation.concise}</p><p lang="ja">{question.coreExplanation.whatIsAskedJa}</p>{question.coreExplanation.representation && <RepresentationView representation={question.coreExplanation.representation} label="解答表示" />}{overlay?.whatIsAsked && <p>{overlay.whatIsAsked}</p>}{overlay?.representationExplanation && <p>{overlay.representationExplanation}</p>}{overlay?.commonMisread && <p>{overlay.commonMisread}</p>}{overlay?.keyTerms?.map((term) => <p key={term.termId}><span lang="ja">{term.surface}</span>：{term.meaning}</p>)}<button type="button" onClick={onNext}>下一題</button></section>
+  return <section className="web-test-hub__runner" aria-live="polite">{lastCorrect !== null && <p role="status">{lastCorrect ? '回答正確' : '回答不正確'}{lastExplanation && <>：<span lang="ja">{lastExplanation}</span></>}</p>}<p>第 {answers.length + 1}／{state.questions.length} 題</p><h2 ref={questionHeadingRef} tabIndex={-1} lang="ja">{question.promptJa}</h2>
     {question.promptRepresentation && <RepresentationView representation={question.promptRepresentation} label="題目表示" />}
     {renderInput(answer, response, setResponse)}
     <button type="button" disabled={response === '' || (Array.isArray(response) && response.length === 0)} onClick={onSubmit}>回答</button>
@@ -295,12 +310,12 @@ function RunnerStateView({ state, finish, question, response, answers, feedback,
 }
 
 function RepresentationView({ representation, label }: { representation: PracticeRepresentation; label: string }) {
-  if (representation.kind === 'equation') return <figure aria-label={label}><figcaption>{label}</figcaption><pre>{representation.expression}</pre></figure>
-  if (representation.kind === 'table') return <figure aria-label={label}><figcaption>{label}</figcaption><table><thead><tr>{representation.columns.map((column) => <th key={column} scope="col">{column}</th>)}</tr></thead><tbody>{representation.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={`${rowIndex}-${cellIndex}`}>{cell}</td>)}</tr>)}</tbody></table></figure>
-  if (representation.kind === 'diagram') return <figure aria-label={label}><figcaption>{representation.altText}</figcaption><ul>{representation.nodes.map((node) => <li key={node.id}>{node.label}</li>)}</ul>{representation.edges.map((edge, index) => <p key={`${edge.from}-${edge.to}-${index}`}>{edge.from} → {edge.to}{edge.label ? `：${edge.label}` : ''}</p>)}</figure>
-  if (representation.kind === 'elimination') return <figure aria-label={label}><figcaption>{label}</figcaption><ul>{representation.candidates.map((candidate) => <li key={candidate}>{candidate}</li>)}</ul><ol>{representation.steps.map((step) => <li key={step}>{step}</li>)}</ol></figure>
-  if (representation.kind === 'logic-grid') return <figure aria-label={label}><figcaption>{label}</figcaption><table><thead><tr>{representation.columns.map((column) => <th key={column} scope="col">{column}</th>)}</tr></thead><tbody>{representation.rows.map((row) => <tr key={row}>{representation.columns.map((column) => <td key={column}>{representation.cells.find((cell) => cell.row === row && cell.column === column)?.value ?? 'unknown'}</td>)}</tr>)}</tbody></table></figure>
-  return <figure aria-label={label}><figcaption>{representation.label}</figcaption><p>{representation.content}</p></figure>
+  if (representation.kind === 'equation') return <figure lang="ja" aria-label={label}><figcaption>{label}</figcaption><pre>{representation.expression}</pre></figure>
+  if (representation.kind === 'table') return <figure lang="ja" aria-label={label}><figcaption>{label}</figcaption><table><thead><tr>{representation.columns.map((column) => <th key={column} scope="col">{column}</th>)}</tr></thead><tbody>{representation.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={`${rowIndex}-${cellIndex}`}>{cell}</td>)}</tr>)}</tbody></table></figure>
+  if (representation.kind === 'diagram') return <figure lang="ja" aria-label={label}><figcaption>{representation.altText}</figcaption><ul>{representation.nodes.map((node) => <li key={node.id}>{node.label}</li>)}</ul>{representation.edges.map((edge, index) => <p key={`${edge.from}-${edge.to}-${index}`}>{edge.from} → {edge.to}{edge.label ? `：${edge.label}` : ''}</p>)}</figure>
+  if (representation.kind === 'elimination') return <figure lang="ja" aria-label={label}><figcaption>{label}</figcaption><ul>{representation.candidates.map((candidate) => <li key={candidate}>{candidate}</li>)}</ul><ol>{representation.steps.map((step) => <li key={step}>{step}</li>)}</ol></figure>
+  if (representation.kind === 'logic-grid') return <figure lang="ja" aria-label={label}><figcaption>{label}</figcaption><table><thead><tr>{representation.columns.map((column) => <th key={column} scope="col">{column}</th>)}</tr></thead><tbody>{representation.rows.map((row) => <tr key={row}>{representation.columns.map((column) => <td key={column}>{representation.cells.find((cell) => cell.row === row && cell.column === column)?.value ?? 'unknown'}</td>)}</tr>)}</tbody></table></figure>
+  return <figure lang="ja" aria-label={label}><figcaption>{representation.label}</figcaption><p>{representation.content}</p></figure>
 }
 
 function answerLabel(answer: RuntimeQuestion['answer']): string {
@@ -322,9 +337,9 @@ function renderInput(answer: RuntimeQuestion['answer'], response: RunnerResponse
   if (answer.input.kind === 'ordering') {
     const input = answer.input as Extract<RuntimeQuestion['answer'], { input: { kind: 'ordering' } }>['input']
     const ordered = Array.isArray(response) ? response : input.choices.map((choice) => choice.id)
-    return <fieldset><legend>排列順序</legend><ol>{ordered.map((choiceId, position) => { const choice = input.choices.find((entry) => entry.id === choiceId)!; return <li key={choice.id}><span>{choice.textJa}</span><button type="button" aria-label={`${choice.textJa} 上移`} disabled={position === 0} onClick={() => setResponse(ordered.map((id, i) => i === position - 1 ? ordered[position]! : i === position ? ordered[position - 1]! : id))}>上移</button><button type="button" aria-label={`${choice.textJa} 下移`} disabled={position === ordered.length - 1} onClick={() => setResponse(ordered.map((id, i) => i === position ? ordered[position + 1]! : i === position + 1 ? ordered[position]! : id))}>下移</button></li> })}</ol></fieldset>
+    return <fieldset><legend>排列順序</legend><ol>{ordered.map((choiceId, position) => { const choice = input.choices.find((entry) => entry.id === choiceId)!; return <li key={choice.id}><span lang="ja">{choice.textJa}</span><button type="button" aria-label={`${choice.textJa} 上移`} disabled={position === 0} onClick={() => setResponse(ordered.map((id, i) => i === position - 1 ? ordered[position]! : i === position ? ordered[position - 1]! : id))}>上移</button><button type="button" aria-label={`${choice.textJa} 下移`} disabled={position === ordered.length - 1} onClick={() => setResponse(ordered.map((id, i) => i === position ? ordered[position + 1]! : i === position + 1 ? ordered[position]! : id))}>下移</button></li> })}</ol></fieldset>
   }
-  if (answer.input.kind === 'single-choice' || answer.input.kind === 'multi-select') return <fieldset><legend>選擇答案</legend>{answer.input.choices.map((choice) => <label key={choice.id}><input type={answer.input.kind === 'multi-select' ? 'checkbox' : 'radio'} name="practice-answer" value={choice.id} checked={Array.isArray(response) ? response.includes(choice.id) : response === choice.id} onChange={() => setResponse(answer.input.kind === 'multi-select' ? (Array.isArray(response) ? response.includes(choice.id) ? response.filter((id) => id !== choice.id) : [...response, choice.id] : [choice.id]) : choice.id)} /> {choice.textJa}</label>)}</fieldset>
+  if (answer.input.kind === 'single-choice' || answer.input.kind === 'multi-select') return <fieldset><legend>選擇答案</legend>{answer.input.choices.map((choice) => <label key={choice.id}><input type={answer.input.kind === 'multi-select' ? 'checkbox' : 'radio'} name="practice-answer" value={choice.id} checked={Array.isArray(response) ? response.includes(choice.id) : response === choice.id} onChange={() => setResponse(answer.input.kind === 'multi-select' ? (Array.isArray(response) ? response.includes(choice.id) ? response.filter((id) => id !== choice.id) : [...response, choice.id] : [choice.id]) : choice.id)} /> <span lang="ja">{choice.textJa}</span></label>)}</fieldset>
   return null
 }
 

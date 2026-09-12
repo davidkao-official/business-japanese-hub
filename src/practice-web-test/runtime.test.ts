@@ -28,4 +28,18 @@ describe('SPI runner runtime seam', () => {
     expect(scoreQuestion(ordering, ['two', 'one'])).toBe(true)
     expect(scoreQuestion(ordering, ['one', 'two'])).toBe(false)
   })
+
+  it('selects only the latest version per stable question id in source order', () => {
+    const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', nonProprietaryPracticeQuestionBankFixture)
+    expect(release.ok).toBe(true)
+    if (!release.ok) return
+    const question = release.value.payload.questionBank.questions[0]!
+    const older = { ...question, id: 'stable-a', version: 1 }
+    const newer = { ...question, id: 'stable-a', version: 2, promptJa: '最新版本' }
+    const other = { ...question, id: 'stable-b', version: 1 }
+    const payload = { ...release.value.payload, questionBank: { ...release.value.payload.questionBank, questions: [older, other, newer] } }
+    const selected = selectableQuestions(payload, 'fixture', 'verbal', 'fixture-category', 'untimed-learning')
+    expect(selected.map((entry) => entry.id)).toEqual(['stable-b', 'stable-a'])
+    expect(selected.map((entry) => entry.version)).toEqual([1, 2])
+  })
 })

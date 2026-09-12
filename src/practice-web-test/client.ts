@@ -17,7 +17,12 @@ export async function fetchPracticePayload(contentId: string, revision: string):
   if (!isPrivateContentId(contentId) || !PRIVATE_CONTENT_REVISION.test(revision)) return { kind: 'missing' }
   const platform = createBrowserPlatformServices('library')
   if (!platform.client) return { kind: 'signed-out' }
-  const token = (await platform.client.auth.getSession()).data.session?.access_token
+  let token: string | undefined
+  try {
+    token = (await platform.client.auth.getSession()).data.session?.access_token
+  } catch {
+    return { kind: 'unavailable' }
+  }
   if (!token) return { kind: 'signed-out' }
   const base = functionsBaseUrl()
   if (!base) return { kind: 'unavailable' }
