@@ -5,6 +5,11 @@ import { validatePracticeQuestionBankSource } from './validate'
 export type RunnerResponse = string | string[] | number
 export type RuntimeQuestion = PracticeRuntimeQuestion
 
+/** Answer kinds currently renderable by the browser runner. */
+export function isBrowserSupportedQuestion(question: PracticeRuntimeQuestion): boolean {
+  return question.answer.input.kind !== 'short-text'
+}
+
 function hasAnyOwnKey(value: unknown, keys: readonly string[]): boolean {
   return typeof value === 'object' && value !== null && !Array.isArray(value) && keys.some((key) => Object.hasOwn(value, key))
 }
@@ -74,7 +79,7 @@ export function selectableQuestions(payload: PracticeRuntimePayload, family: str
   return payload.questionBank.questions.filter((question) => latestById.get(question.id) === question
     && question.deliveryProfile === 'web'
     && question.testFamily === family && question.domain === domain && question.category === category
-    && question.practiceProfile === mode && question.answer.input.kind !== 'short-text')
+    && question.practiceProfile === mode && isBrowserSupportedQuestion(question))
 }
 
 export function resolveQuestionCheckpoints(payload: PracticeRuntimePayload, question: RuntimeQuestion): PracticeRuntimeCheckpoint[] | null {

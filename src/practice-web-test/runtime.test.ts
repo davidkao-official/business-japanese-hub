@@ -51,7 +51,8 @@ describe('SPI runner runtime seam', () => {
     if (!release.ok) return
     const web = { ...release.value.payload.questionBank.questions[0]!, id: 'web-item', promptJa: 'Web 題目' }
     const testCenter = { ...web, id: 'test-center-item', deliveryProfile: 'test-center', promptJa: 'Test-center 題目' }
-    const payload = { ...release.value.payload, questionBank: { ...release.value.payload.questionBank, questions: [web, testCenter] } }
+    const shortText = { ...web, id: 'short-text-item', answer: { input: { kind: 'short-text' as const }, expectedAnswer: { kind: 'short-text' as const, value: 'synthetic' }, scoring: { kind: 'exact-text' as const } }, promptJa: 'Short-text 題目' }
+    const payload = { ...release.value.payload, questionBank: { ...release.value.payload.questionBank, questions: [web, testCenter, shortText] } }
 
     expect(selectableQuestions(payload, 'fixture', 'verbal', 'fixture-category', 'untimed-learning').map((entry) => entry.promptJa)).toEqual(['Web 題目'])
   })

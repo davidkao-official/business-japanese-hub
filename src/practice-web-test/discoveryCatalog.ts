@@ -1,4 +1,5 @@
 import type { PrivatePracticeQuestionBankRelease } from '../content-delivery/privatePracticeQuestionBank'
+import { isBrowserSupportedQuestion } from './runtime'
 
 export const PRACTICE_DISCOVERY_CATALOG_SCHEMA_VERSION = 1 as const
 
@@ -105,7 +106,7 @@ export function createPracticeDiscoveryCatalog(
   }
 
   for (const question of latestById.values()) {
-    if (question.deliveryProfile !== 'web') continue
+    if (question.deliveryProfile !== 'web' || !isBrowserSupportedQuestion(question)) continue
     const mode = question.practiceProfile as PracticeDiscoveryMode
     const categoryDefinition = registeredFamily.domains[question.domain][question.category]
     if (question.testFamily !== registeredFamily.testFamily || !categoryDefinition ||
