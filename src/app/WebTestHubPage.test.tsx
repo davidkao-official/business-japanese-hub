@@ -251,6 +251,26 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByRole('link', { name: '返回類別' })).toBeInTheDocument()
   })
 
+  it.each([
+    ['signed-out', '登入狀態已失效'],
+    ['forbidden', '沒有可用的 Plus 練習存取權'],
+    ['missing', '題目內容已無法取得'],
+  ] as const)('keeps a %s attempt result terminal and truthful', async (kind, message) => {
+    fetchPracticePayloadMock.mockClear()
+    submitPracticeAttemptMock.mockResolvedValueOnce({ kind })
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload(`${kind} 結果の合成題幹`) })
+    renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
+    await waitFor(() => expect(screen.getByRole('heading', { name: `${kind} 結果の合成題幹` })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: '二番' }))
+    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(message))
+    expect(screen.queryByRole('button', { name: '重試儲存' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '下一題' })).toBeDisabled()
+    expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '返回類別' })).toBeInTheDocument()
+    if (kind === 'missing') expect(screen.getByRole('button', { name: '重新載入最新題目' })).toBeInTheDocument()
+  })
+
   it('treats an out-of-range response time as terminal without retry and allows the next question', async () => {
     fetchPracticePayloadMock.mockClear()
     submitPracticeAttemptMock.mockResolvedValueOnce({ kind: 'invalid-response-time' })
