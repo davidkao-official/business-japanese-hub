@@ -90,10 +90,10 @@ grant execute on function public.record_practice_attempt(uuid,uuid,text,text,tex
 create view public.practice_review_queue
   with (security_invoker = true)
 as
-  select distinct on (user_id, question_id, question_version)
+  select distinct on (user_id, content_id, content_revision, question_id, question_version)
     user_id, content_id, content_revision, question_id, question_version,
     test_family, domain, category, practice_mode, correct, created_at
   from public.practice_attempts
-  order by user_id, question_id, question_version, created_at desc, id desc;
+  order by user_id, content_id, content_revision, question_id, question_version, created_at desc, id desc;
 revoke all on public.practice_review_queue from public, anon;
 grant select on public.practice_review_queue to authenticated, service_role;
