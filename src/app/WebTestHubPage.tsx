@@ -248,7 +248,7 @@ export function WebTestRunnerEntryPage() {
       lastAttemptRef.current = null
       primaryElapsedMsRef.current = null
       if (authLoading || !userId) return
-      const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision, getAccessToken)
+      const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision, getAccessToken, userId)
       if (cancelled) return
       if (result.kind !== 'ok') { setState({ kind: result.kind }); return }
       const questions = selectableQuestions(result.payload, family!.testFamily, domain!.domain, category!.category, mode!)
@@ -288,9 +288,13 @@ export function WebTestRunnerEntryPage() {
     const generation = ++persistenceGenerationRef.current
     const operationSelectionKey = selectionKey
     const operationUserId = userId
+    if (!operationUserId) {
+      setPersistence('failed')
+      return
+    }
     lastAttemptRef.current = attempt
     setPersistence('pending')
-    const result = await submitPracticeAttempt(attempt, getAccessToken)
+    const result = await submitPracticeAttempt(attempt, getAccessToken, operationUserId)
     if (generation !== persistenceGenerationRef.current || operationSelectionKey !== selectionKey || operationUserId !== userId) return
     if (result.kind === 'ok') setPersistence('saved')
     else setPersistence('failed')
