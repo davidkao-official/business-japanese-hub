@@ -151,7 +151,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByText('正確 2／2 題（正答率 100%）；結果只保留在目前頁面。')).toBeInTheDocument()
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: '練習完成' }))
     expect(screen.getByText('文脈語彙：2／2')).toBeInTheDocument()
-    expect(screen.getByText('Checkpoint misses observed：0／1')).toBeInTheDocument()
+    expect(screen.getByText('已觀測到檢查點未通過：0／1')).toBeInTheDocument()
   })
 
   it.each([
