@@ -190,8 +190,8 @@ begin
     if same_attempt then return jsonb_build_object('kind', 'conflict', 'replayable', true); end if;
     return jsonb_build_object('kind', 'conflict');
   end if;
-  if exists (select 1 from public.practice_question_release_head where content_id = p_content_id)
-    and not exists (
+  if not exists (select 1 from public.practice_question_release_head where content_id = p_content_id)
+    or not exists (
       select 1 from public.practice_question_availability
       where content_id = p_content_id and question_id = p_question_id
         and content_revision = p_content_revision and question_version = p_question_version and available
