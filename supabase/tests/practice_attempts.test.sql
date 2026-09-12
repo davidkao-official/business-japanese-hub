@@ -1,5 +1,5 @@
 begin;
-select plan(21);
+select plan(17);
 select has_table('public', 'practice_attempts', 'practice attempts table exists');
 select ok((select relrowsecurity from pg_class where oid = 'public.practice_attempts'::regclass), 'attempts RLS enabled');
 select ok(has_table_privilege('authenticated', 'public.practice_attempts', 'select'), 'authenticated users can read attempts through RLS');
