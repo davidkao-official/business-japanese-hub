@@ -32,7 +32,7 @@ bounded renderer (future integration)
 
 `private_content_release` 是 immutable、service-role-only 的 **delivery envelope**：它只管理 bounded runtime 已驗證 payload 的 identity/revision/access，而不定義 question、lesson、article、vocabulary 或 game 的 universal schema。新的 runtime 在 import 前必須帶自己的 validator；#114 的 question-bank contract、#125 的 Read contract、#126 的 Learn/vocabulary contract 不得被此 table 取代。
 
-目前 #107 的 authoritative Plus membership projection 尚未實作。因此 `content-delivery` 對任何已驗證 user 都回傳 truthful `503 membership access unavailable`，而且在該狀態不查詢/回傳 payload。這是刻意 fail-closed，不是 active-member claim。#107 必須以 verified server membership projection 替換 resolver，並在有真實 active/non-member/expired evidence 時才把 member release 接到 renderer。browser request、local storage 或 client flag 永遠不能取得 payload。
+`content-delivery` 讀取獨立的 server-only `plus_membership_access` projection；只有 verified user 且 projection 為 active、未過期時才會查詢/回傳 payload。缺少、過期、撤銷或其他 non-qualifying 狀態回傳 `403 active membership required`；projection query 失敗回傳 truthful `503 membership access unavailable`。browser request、local storage 或 client flag 永遠不能取得 payload。
 
 私有資產目前沒有 server-delivery adapter；proprietary assets 不得暫時改走 `content-dist/assets` 或 Vite。private Book importer 會 fail closed，拒絕含 `cover` 或 `image` block 的 payload；擁有私有資產的 bounded runtime 必須先提供同等 server-authoritative asset authorization、immutable revision coverage 與 tests。
 

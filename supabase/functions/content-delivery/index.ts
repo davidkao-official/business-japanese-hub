@@ -11,6 +11,7 @@ import { createServiceRoleClient, type DbClient } from '../_shared/db.ts'
 import { toHandlerRequest, toResponse } from '../_shared/deno.ts'
 import { readEnvFrom } from '../_shared/env.ts'
 import { handleContentDelivery, type ReleaseLookup } from './handler.ts'
+import { resolvePlusMembershipAccess } from './membership.ts'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -59,10 +60,7 @@ Deno.serve(async (req) => {
   const db = createServiceRoleClient((url, key) => createClient(url, key) as unknown as DbClient, env)
   const result = await handleContentDelivery(request, {
     db,
-    // This is intentionally the only incomplete integration point. #107 must
-    // replace it with its verified membership projection before any imported
-    // member release becomes deliverable.
-    membershipAccessFor: async () => 'unavailable',
+    membershipAccessFor: (userId) => resolvePlusMembershipAccess(db, userId),
     getRelease: releaseStore(db),
   })
   return toResponse(withCorsHeaders(result, cors.headers))
