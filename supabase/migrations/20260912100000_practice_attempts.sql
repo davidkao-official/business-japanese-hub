@@ -43,7 +43,7 @@ grant usage on sequence public.practice_attempts_attempt_sequence_seq to service
 
 create index practice_attempts_user_created_idx on public.practice_attempts (user_id, created_at desc);
 create index practice_attempts_review_idx on public.practice_attempts (
-  user_id, content_id, content_revision, question_id, question_version, attempt_sequence desc
+  user_id, content_id, question_id, question_version, attempt_sequence desc
 );
 
 alter table public.practice_attempts enable row level security;
@@ -116,11 +116,11 @@ as
   select user_id, content_id, content_revision, question_id, question_version,
     test_family, domain, category, practice_mode, correct, created_at
   from (
-    select distinct on (user_id, content_id, content_revision, question_id, question_version)
+    select distinct on (user_id, content_id, question_id, question_version)
       user_id, content_id, content_revision, question_id, question_version,
       test_family, domain, category, practice_mode, correct, created_at
     from public.practice_attempts
-    order by user_id, content_id, content_revision, question_id, question_version, attempt_sequence desc
+    order by user_id, content_id, question_id, question_version, attempt_sequence desc
   ) latest
   where latest.correct = false;
 revoke all on public.practice_review_queue from public, anon, authenticated, service_role;
