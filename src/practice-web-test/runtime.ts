@@ -93,7 +93,5 @@ export function resolveQuestionCheckpoints(payload: PracticeRuntimePayload, ques
 }
 
 export function supportOverlay(payload: PracticeRuntimePayload, question: RuntimeQuestion, locale = 'zh-Hant') {
-  const matching = payload.supportOverlays?.filter((overlay) => overlay.questionId === question.id && overlay.questionVersion === question.version) ?? []
-  const latest = matching.reduce<(typeof matching)[number] | undefined>((current, overlay) => !current || overlay.version > current.version ? overlay : current, undefined)
-  return latest?.byLocale[locale]
+  return payload.supportOverlays?.find((overlay) => overlay.questionId === question.id && overlay.questionVersion === question.version)?.byLocale[locale]
 }

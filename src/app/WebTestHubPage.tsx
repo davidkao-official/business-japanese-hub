@@ -252,7 +252,8 @@ export function WebTestRunnerEntryPage() {
   const question = state.kind === 'ready' ? state.questions[index] : undefined
   const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
   useEffect(() => {
-    if (checkpointIndex !== null) checkpointHeadingRef.current?.focus()
+    if (feedback && checkpointFeedback === null) feedbackHeadingRef.current?.focus()
+    else if (checkpointIndex !== null) checkpointHeadingRef.current?.focus()
     else if (feedback) feedbackHeadingRef.current?.focus()
     else if (question) questionHeadingRef.current?.focus()
     else if (finish) completionHeadingRef.current?.focus()

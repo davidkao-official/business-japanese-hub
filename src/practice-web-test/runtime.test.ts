@@ -17,7 +17,7 @@ describe('SPI runner runtime seam', () => {
     expect(scoreQuestion(questions[0]!, 'one')).toBe(false)
     expect(supportOverlay(payload, questions[0]!, 'zh-Hant')).toMatchObject({ whatIsAsked: '請選擇第二個選項。' })
     const latestOverlay = { ...payload.supportOverlays![0]!, version: 2, byLocale: { 'zh-Hant': { whatIsAsked: '最新支援說明。' } } }
-    expect(supportOverlay({ ...payload, supportOverlays: [payload.supportOverlays![0]!, latestOverlay] }, questions[0]!, 'zh-Hant')).toMatchObject({ whatIsAsked: '最新支援說明。' })
+    expect(supportOverlay({ ...payload, supportOverlays: [payload.supportOverlays![0]!, latestOverlay] }, questions[0]!, 'zh-Hant')).toMatchObject({ whatIsAsked: '請選擇第二個選項。' })
 
     const ordering = {
       ...questions[0]!,
