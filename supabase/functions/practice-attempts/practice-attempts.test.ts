@@ -73,11 +73,20 @@ describe('practice-attempts handler', () => {
     const database = db(userId)
     const d = deps(database)
     expect((await handlePracticeAttempts(request({ answer: { correct: true } }), d)).status).toBe(400)
+    expect((await handlePracticeAttempts(request({ answer: 'forged-choice-id' }), d)).status).toBe(400)
     expect((await handlePracticeAttempts(request({ responseTimeMs: -1 }), d)).status).toBe(400)
     expect((await handlePracticeAttempts(request({ clientIdempotencyKey: 'not-uuid' }), d)).status).toBe(400)
     expect((await handlePracticeAttempts(request({ family: 'forged' }), d)).status).toBe(400)
     expect((await handlePracticeAttempts(request({ correct: true }), d)).status).toBe(400)
     expect(database.rpc).not.toHaveBeenCalled()
+  })
+
+  it('surfaces a semantic idempotency conflict without exposing stored data', async () => {
+    const d = deps(db(userId, { kind: 'conflict' }))
+    const result = await handlePracticeAttempts(request(), d)
+    expect(result.status).toBe(409)
+    expect(JSON.parse(result.body)).toEqual({ error: 'practice attempt already recorded' })
+    expect(result.body).not.toContain('promptJa')
   })
 
   it('rejects malformed or mismatched checkpoint versions', async () => {

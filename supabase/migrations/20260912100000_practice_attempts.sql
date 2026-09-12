@@ -3,6 +3,7 @@
 -- bearer verification, release/question validation, and deterministic scoring.
 create table public.practice_attempts (
   id uuid primary key default gen_random_uuid(),
+  attempt_sequence bigint generated always as identity unique,
   user_id uuid not null references auth.users(id) on delete cascade,
   client_attempt_id uuid not null,
   content_id text not null,
@@ -65,6 +66,8 @@ create function public.record_practice_attempt(
   p_checkpoint_results jsonb
 )
 returns jsonb language plpgsql security invoker set search_path = '' as $$
+declare
+  existing public.practice_attempts;
 begin
   if p_user_id is null or p_client_attempt_id is null or p_submitted_answer is null or p_checkpoint_results is null then
     raise exception 'practice attempt identity and payload are required' using errcode = '22023';
@@ -78,7 +81,22 @@ begin
     p_question_version, p_test_family, p_domain, p_category, p_practice_mode,
     p_submitted_answer, p_correct, p_response_ms, p_checkpoint_results
   ) on conflict (user_id, client_attempt_id) do nothing;
-  if exists (select 1 from public.practice_attempts where user_id = p_user_id and client_attempt_id = p_client_attempt_id) then
+  select * into existing
+  from public.practice_attempts
+  where user_id = p_user_id and client_attempt_id = p_client_attempt_id
+  for update;
+  if existing.content_id is not distinct from p_content_id
+    and existing.content_revision is not distinct from p_content_revision
+    and existing.question_id is not distinct from p_question_id
+    and existing.question_version is not distinct from p_question_version
+    and existing.test_family is not distinct from p_test_family
+    and existing.domain is not distinct from p_domain
+    and existing.category is not distinct from p_category
+    and existing.practice_mode is not distinct from p_practice_mode
+    and existing.submitted_answer is not distinct from p_submitted_answer
+    and existing.correct is not distinct from p_correct
+    and existing.response_ms is not distinct from p_response_ms
+    and existing.checkpoint_results is not distinct from p_checkpoint_results then
     return jsonb_build_object('kind', 'persisted');
   end if;
   return jsonb_build_object('kind', 'conflict');
@@ -97,7 +115,7 @@ as
       user_id, content_id, content_revision, question_id, question_version,
       test_family, domain, category, practice_mode, correct, created_at
     from public.practice_attempts
-    order by user_id, content_id, content_revision, question_id, question_version, created_at desc, id desc
+    order by user_id, content_id, content_revision, question_id, question_version, attempt_sequence desc
   ) latest
   where latest.correct = false;
 revoke all on public.practice_review_queue from public, anon;

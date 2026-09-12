@@ -75,6 +75,24 @@ function response(value: unknown): value is RunnerResponse {
   return value.every((entry) => typeof entry === 'string' && entry.length <= 256)
 }
 
+function validResponseForAnswer(answer: RuntimeQuestion['answer'], value: RunnerResponse): boolean {
+  const choiceIds = 'choices' in answer.input ? answer.input.choices.map((choice) => choice.id) : []
+  const uniqueChoices = new Set(choiceIds)
+  if (uniqueChoices.size !== choiceIds.length) return false
+  if (answer.input.kind === 'single-choice') return answer.expectedAnswer.kind === 'single-choice' && typeof value === 'string' && choiceIds.includes(value)
+  if (answer.input.kind === 'multi-select') {
+    return answer.expectedAnswer.kind === 'multi-select' && Array.isArray(value) &&
+      new Set(value).size === value.length && value.every((entry) => choiceIds.includes(entry))
+  }
+  if (answer.input.kind === 'ordering') {
+    return answer.expectedAnswer.kind === 'ordering' && Array.isArray(value) &&
+      value.length === choiceIds.length && new Set(value).size === value.length &&
+      value.every((entry) => choiceIds.includes(entry))
+  }
+  if (answer.input.kind === 'number') return answer.expectedAnswer.kind === 'number' && typeof value === 'number' && Number.isFinite(value)
+  return answer.expectedAnswer.kind === 'short-text' && typeof value === 'string'
+}
+
 function parseInput(bodyText: string): AttemptInput | null {
   if (new TextEncoder().encode(bodyText).byteLength > MAX_BODY_BYTES) return null
   let raw: unknown
@@ -112,7 +130,8 @@ function safeCheckpointResults(input: AttemptInput, payload: PracticeRuntimePayl
   const submitted = input.checkpointResponses ?? []
   if (submitted.length === 0) return []
   if (submitted.length !== checkpoints.length) return null
-  if (submitted.some((entry, index) => entry.checkpointId !== checkpoints[index]?.id || entry.checkpointVersion !== checkpoints[index]?.version)) return null
+  if (submitted.some((entry, index) => entry.checkpointId !== checkpoints[index]?.id || entry.checkpointVersion !== checkpoints[index]?.version ||
+    !validResponseForAnswer(checkpoints[index]!.answer, entry.response))) return null
   const byId = new Map(submitted.map((entry) => [entry.checkpointId, entry]))
   if (byId.size !== submitted.length || checkpoints.some((checkpoint) => {
     const entry = byId.get(checkpoint.id)
@@ -151,7 +170,7 @@ export async function handlePracticeAttempts(req: HandlerRequest, deps: Practice
     ? matching[0]
     : undefined
   if (!selected) return badRequest('invalid question selection')
-  if (!response(input.answer)) return badRequest('invalid response')
+  if (!response(input.answer) || !validResponseForAnswer(selected.answer, input.answer)) return badRequest('invalid response')
   const checkpointResults = safeCheckpointResults(input, payload, selected)
   if (checkpointResults === null) return badRequest('invalid checkpoint responses')
   const correct = scoreQuestion(selected, input.answer)
