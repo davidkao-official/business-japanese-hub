@@ -67,13 +67,13 @@ private source: practice-question-bank.json
         ↓ pnpm workflow:validate-private-practice-question-bank --source=/absolute/private --content-id=practice-web-test-spi-v1
         ↓ pnpm workflow:import-private-practice-question-bank --source=/absolute/private --content-id=practice-web-test-spi-v1
 service-role-only private_content_release
-        ↓ content-delivery Edge Function + verified #107 membership projection
+        ↓ content-delivery Edge Function + verified server-only Plus projection
 future bounded Practice renderer
 ```
 
 CSV 是為 spreadsheet/editorial workflow 準備的 deterministic adapter；rich `answer`、`coreExplanation`、`itemAnalysis`、`provenance` 欄位以 JSON cell 保存，避免為不同 question input type 發明另一套 UI schema。`practice-question-bank-base.json` 保留 bank version 與 vocabulary catalog；converter 將 CSV rows 放入 question bank，之後 validator 才會檢查所有 cross-reference。
 
-受控 import 僅接受 status 為 `released` 的題目，並要求 reviewer、release notes、originality attestation、Japanese prompt/explanation、deterministic answer contract、正確的 category/subcategory、support-overlay vocabulary refs 與禁止 source/recalled/leaked/official-test fields。`targetSeconds` 是 internal practice target；schema 沒有 official-time metadata，帶有這類 field 的 artifact 必須 fail closed。#107 尚未提供 verified membership projection 時，delivery endpoint 仍然回 `503 membership access unavailable`，不會查詢或回傳題庫。
+受控 import 僅接受 status 為 `released` 的題目，並要求 reviewer、release notes、originality attestation、Japanese prompt/explanation、deterministic answer contract、正確的 category/subcategory、support-overlay vocabulary refs 與禁止 source/recalled/leaked/official-test fields。`targetSeconds` 是 internal practice target；schema 沒有 official-time metadata，帶有這類 field 的 artifact 必須 fail closed。`content-delivery` 使用 server-only `plus_membership_access` projection：只有 active 且未過期才查詢／回傳 payload；missing、expired、revoked 或其他 non-qualifying 狀態回傳 `403` 且不查詢 payload；projection lookup failure 回傳 `503` 且不查詢 payload。browser flag 永遠不能 authorize。這是 delivery primitive；#107 的 recurring lifecycle/commercial/production activation 仍維持其既有邊界。
 
 ### #115 public discovery catalog and #116 runner handoff
 
