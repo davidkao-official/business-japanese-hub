@@ -29,6 +29,7 @@ export type PrivatePracticeQuestionBankPreparation =
   | { ok: true; value: PrivatePracticeQuestionBankRelease }
   | { ok: false; reason: string }
 
+
 function hasExponentNumber(value: unknown): boolean {
   if (typeof value === 'number') return JSON.stringify(value).includes('e')
   if (Array.isArray(value)) return value.some(hasExponentNumber)
