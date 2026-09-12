@@ -185,7 +185,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     fireEvent.click(screen.getByRole('button', { name: '回答' }))
     await waitFor(() => expect(screen.getByText('作答紀錄已儲存。')).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: '下一題' }))
-    expect(screen.getByText('正確 2／2 題（正答率 100%）；結果只保留在目前頁面。')).toBeInTheDocument()
+    expect(screen.getByText('正確 2／2 題（正答率 100%）；作答紀錄已儲存。')).toBeInTheDocument()
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: '練習完成' }))
     expect(screen.getByText('文脈語彙：2／2')).toBeInTheDocument()
     expect(screen.getByText('已觀測到檢查點未通過：0／2')).toBeInTheDocument()
@@ -250,6 +250,33 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(nextButton).toBeEnabled()
     fireEvent.click(nextButton)
     expect(screen.getByRole('heading', { name: '練習完成' })).toBeInTheDocument()
+    nowSpy.mockRestore()
+  })
+
+  it('reports unsaved portions when one attempt is rejected for response time', async () => {
+    fetchPracticePayloadMock.mockClear()
+    submitPracticeAttemptMock.mockResolvedValueOnce({ kind: 'invalid-response-time' }).mockResolvedValueOnce({ kind: 'ok' })
+    const payload = syntheticRuntimePayload('第一題超限時間')
+    const first = payload.questionBank.questions[0]!
+    fetchPracticePayloadMock.mockResolvedValueOnce({
+      kind: 'ok',
+      payload: { ...payload, questionBank: { ...payload.questionBank, questions: [first, { ...first, id: 'synthetic-second', promptJa: '第二題正常儲存' }] } },
+    })
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
+    await waitFor(() => expect(screen.getByRole('heading', { name: '第一題超限時間' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: '二番' }))
+    nowSpy.mockReturnValue(3_601_001)
+    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('作答時間超出可接受範圍'))
+    fireEvent.click(screen.getByRole('button', { name: '下一題' }))
+    await waitFor(() => expect(screen.getByRole('heading', { name: '第二題正常儲存' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: '二番' }))
+    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    await waitFor(() => expect(screen.getByText('作答紀錄已儲存。')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '下一題' }))
+    expect(screen.getByText('正確 2／2 題（正答率 100%）；部分作答未儲存：有作答時間超出可接受範圍，無法完整同步。')).toBeInTheDocument()
+    expect(screen.queryByText('結果只保留在目前頁面')).not.toBeInTheDocument()
     nowSpy.mockRestore()
   })
 
