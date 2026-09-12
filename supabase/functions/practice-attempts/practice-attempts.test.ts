@@ -150,6 +150,45 @@ describe('practice-attempts handler', () => {
     expect(database.rpc).toHaveBeenCalledOnce()
   })
 
+  it('rejects an oversized otherwise-shaped answer before persistence', async () => {
+    const database = db(userId)
+    const choices = Array.from({ length: 2046 }, (_, index) => ({ id: `c${index.toString().padStart(4, '0')}`, textJa: `選択肢${index}` }))
+    const answer = choices.map((choice) => choice.id)
+    const payload = structuredClone(multiRelease.value.payload)
+    const question = payload.questionBank.questions[0]!
+    question.answer = {
+      input: { kind: 'multi-select', choices },
+      expectedAnswer: { kind: 'multi-select', choiceIds: [choices[0]!.id] },
+      scoring: { kind: 'exact-set' },
+    }
+    const compactBytes = new TextEncoder().encode(JSON.stringify(answer)).byteLength
+    expect(compactBytes).toBeLessThan(16 * 1024)
+    expect(compactBytes + answer.length - 1).toBeGreaterThan(16 * 1024)
+    const result = await handlePracticeAttempts(
+      request({ revision: multiRelease.value.revision, questionId: 'fixture-multi-01', answer }),
+      deps(database, 'active', { ...multiRelease.value, payload }),
+    )
+    expect(result.status).toBe(400)
+    expect(database.rpc).not.toHaveBeenCalled()
+  })
+
+  it('rejects derived checkpoint results over the database JSONB bound before persistence', async () => {
+    const database = db(userId)
+    const payload = structuredClone(checkpointRelease.value.payload)
+    const question = payload.questionBank.questions[0]!
+    const template = payload.checkpointRegistry!.checkpoints[0]!
+    const checkpoints = Array.from({ length: 200 }, (_, index) => ({ ...template, id: `checkpoint-${index.toString().padStart(3, '0')}-${'x'.repeat(56)}` }))
+    payload.checkpointRegistry = { ...payload.checkpointRegistry!, checkpoints }
+    question.itemAnalysis = { ...question.itemAnalysis, diagnosticCheckpoints: { registryVersion: 1, ids: checkpoints.map((checkpoint) => checkpoint.id) } }
+    const checkpointResponses = checkpoints.map((checkpoint) => ({ checkpointId: checkpoint.id, checkpointVersion: checkpoint.version, response: 'two' }))
+    const result = await handlePracticeAttempts(
+      request({ revision: checkpointRelease.value.revision, checkpointResponses }),
+      deps(database, 'active', { ...checkpointRelease.value, payload }),
+    )
+    expect(result.status).toBe(400)
+    expect(database.rpc).not.toHaveBeenCalled()
+  })
+
   it('requires complete authored checkpoint evidence and accepts a valid full set', async () => {
     const omitted = deps(db(userId), 'active', checkpointRelease.value)
     expect((await handlePracticeAttempts(request({ revision: checkpointRelease.value.revision }), omitted)).status).toBe(400)

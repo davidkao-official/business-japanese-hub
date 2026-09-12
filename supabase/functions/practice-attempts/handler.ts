@@ -47,7 +47,20 @@ type AttemptInput = {
 const ID = /^[A-Za-z0-9._:-]{1,128}$/
 const REVISION = /^[a-f0-9]{64}$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-const MAX_BODY_BYTES = 32 * 1024
+export const MAX_BODY_BYTES = 32 * 1024
+const MAX_SUBMITTED_ANSWER_BYTES = 16 * 1024
+
+/** PostgreSQL jsonb::text uses a space after separators; mirror that bound. */
+function jsonbTextByteLength(value: unknown): number {
+  if (value === null) return 4
+  if (typeof value === 'string') return new TextEncoder().encode(JSON.stringify(value)).byteLength
+  if (typeof value === 'number' || typeof value === 'boolean') return new TextEncoder().encode(JSON.stringify(value)).byteLength
+  if (Array.isArray(value)) return 2 + value.reduce((total, item, index) => total + (index === 0 ? 0 : 2) + jsonbTextByteLength(item), 0)
+  if (typeof value === 'object') {
+    return 2 + Object.entries(value).reduce((total, [key, item], index) => total + (index === 0 ? 0 : 2) + jsonbTextByteLength(key) + 2 + jsonbTextByteLength(item), 0)
+  }
+  return Number.POSITIVE_INFINITY
+}
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -110,6 +123,7 @@ function parseInput(bodyText: string): AttemptInput | null {
     !positiveVersion(raw.questionVersion) || typeof raw.clientIdempotencyKey !== 'string' ||
     !UUID.test(raw.clientIdempotencyKey) || !Number.isSafeInteger(raw.responseTimeMs) ||
     (raw.responseTimeMs as number) < 0 || (raw.responseTimeMs as number) > 3600000 || !response(raw.answer)) return null
+  if (jsonbTextByteLength(raw.answer) > MAX_SUBMITTED_ANSWER_BYTES) return null
   if (raw.checkpointResponses !== undefined) {
     if (!Array.isArray(raw.checkpointResponses)) return null
     if (raw.checkpointResponses.some((entry) => !record(entry) || !exactKeys(entry, ['checkpointId', 'checkpointVersion', 'response']) ||
@@ -177,6 +191,7 @@ export async function handlePracticeAttempts(req: HandlerRequest, deps: Practice
   if (!response(input.answer) || !validResponseForAnswer(selected.answer, input.answer)) return badRequest('invalid response')
   const checkpointResults = safeCheckpointResults(input, payload, selected)
   if (checkpointResults === null) return badRequest('invalid checkpoint responses')
+  if (jsonbTextByteLength(checkpointResults) > MAX_SUBMITTED_ANSWER_BYTES) return badRequest('invalid request body')
   const correct = scoreQuestion(selected, input.answer)
   const { data, error } = await deps.db.rpc('record_practice_attempt', {
     p_user_id: uid,

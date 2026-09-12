@@ -1,5 +1,5 @@
 begin;
-select plan(54);
+select plan(68);
 select has_table('public', 'practice_attempts', 'practice attempts table exists');
 select has_column('public', 'practice_attempts', 'attempt_sequence', 'attempt ordering is monotonic and server-owned');
 select is((select data_type from information_schema.columns where table_schema = 'public' and table_name = 'practice_attempts' and column_name = 'question_version'), 'bigint', 'question version preserves PostgreSQL bigint range');
@@ -19,6 +19,7 @@ select has_view('public', 'practice_review_queue', 'review queue is a derived re
 select ok(has_table_privilege('service_role', 'public.practice_review_queue', 'select'), 'service can read review queue');
 select has_index('public', 'practice_attempts', 'practice_attempts_review_idx', 'review index covers exact view identity and sequence order');
 select has_table('public', 'practice_question_availability', 'current question availability projection exists');
+select has_table('public', 'practice_question_release_head', 'current release head preserves empty eligible releases');
 select ok((select relrowsecurity from pg_class where oid = 'public.practice_question_availability'::regclass), 'availability projection has RLS enabled');
 select ok(not has_table_privilege('authenticated', 'public.practice_question_availability', 'insert,update,delete'), 'browser cannot mutate availability projection');
 select ok(not has_function_privilege('service_role', 'public.sync_practice_question_availability(text,text,bigint,jsonb)', 'execute'), 'service cannot invoke the internal availability sync directly');
@@ -28,17 +29,18 @@ insert into auth.users (id, aud, role) values
  ('61000000-0000-0000-0000-000000000001','authenticated','authenticated'),
  ('61000000-0000-0000-0000-000000000002','authenticated','authenticated');
 set local role service_role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
 select is((public.record_practice_attempt('61000000-0000-0000-0000-000000000001','61100000-0000-4000-8000-000000000001','practice-web-test-spi-v1',repeat('a',64),'q-1',1,'spi','verbal','vocabulary-in-context','untimed-learning','{"input":"two"}'::jsonb,false,1200,'[{"checkpointId":"c-1","checkpointVersion":1,"correct":false}]'::jsonb)->>'kind','persisted','first attempt is persisted');
 select public.record_practice_attempt('61000000-0000-0000-0000-000000000001','61100000-0000-4000-8000-000000000002','practice-web-test-spi-v1',repeat('a',64),'q-1',1,'spi','verbal','vocabulary-in-context','untimed-learning','{"input":"two"}'::jsonb,true,1000,'[]'::jsonb);
 select public.record_practice_attempt('61000000-0000-0000-0000-000000000002','61100000-0000-4000-8000-000000000003','practice-web-test-spi-v1',repeat('a',64),'q-2',1,'spi','verbal','vocabulary-in-context','untimed-learning','{"input":"one"}'::jsonb,false,1000,'[]'::jsonb);
 select is((select count(*) from public.practice_attempts),3::bigint,'server persistence stores bounded attempts');
 select public.import_practice_question_release(
   'practice-web-test-spi-v1', repeat('a',64),
-  '{"questionBank":{"version":1,"questions":[{"id":"q-1","version":1},{"id":"q-2","version":1}]}}'::jsonb
+  '{"questionBank":{"version":1,"questions":[{"id":"q-1","version":1,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}},{"id":"q-2","version":1,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb
 );
 select is((select count(*) from public.private_content_release where content_id='practice-web-test-spi-v1' and revision=repeat('a',64)),1::bigint,'atomic import stores the immutable release');
 select throws_ok($$select public.import_practice_question_release('practice-web-test-spi-v1', repeat('a',64), '{"questionBank":{"version":1,"questions":["changed"]}}'::jsonb)$$,'22023',null,'same revision with a different payload is rejected');
-select throws_ok($$select public.import_practice_question_release('practice-web-test-spi-v1', repeat('e',64), '{"questionBank":{"version":0,"questions":[{"id":"q-1","version":1}]}}'::jsonb)$$,'23514',null,'failed availability sync rolls back its release insert');
+select throws_ok($$select public.import_practice_question_release('practice-web-test-spi-v1', repeat('e',64), '{"questionBank":{"version":4,"questions":[{"id":"q-1","version":0,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb)$$,'23514',null,'failed availability sync rolls back its release insert');
 select is((select count(*) from public.private_content_release where content_id='practice-web-test-spi-v1' and revision=repeat('e',64)),0::bigint,'failed import leaves no immutable release behind');
 select is((select count(*) from public.practice_review_queue where user_id='61000000-0000-0000-0000-000000000002'),1::bigint,'current incorrect question remains actionable after server sync');
 select is((public.record_practice_attempt('61000000-0000-0000-0000-000000000001','61100000-0000-4000-8000-000000000005','practice-web-test-spi-v1',repeat('a',64),'q-large',2147483648,'spi','verbal','vocabulary-in-context','untimed-learning','{"input":"two"}'::jsonb,true,1000,'[]'::jsonb)->>'kind','persisted','bigint question version persists through RPC');
@@ -57,7 +59,7 @@ select is((select count(*) from public.practice_review_queue where user_id='6100
 select is((select count(*) from public.practice_question_availability where content_id='practice-web-test-spi-v1' and available),2::bigint,'current release identities are available');
 select public.import_practice_question_release(
   'practice-web-test-spi-v1', repeat('c',64),
-  '{"questionBank":{"version":2,"questions":[{"id":"q-1","version":1},{"id":"q-1","version":2}]}}'::jsonb
+  '{"questionBank":{"version":2,"questions":[{"id":"q-1","version":1,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}},{"id":"q-1","version":2,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb
 );
 select is((select question_version from public.practice_question_availability where content_id='practice-web-test-spi-v1' and question_id='q-1'),2::bigint,'availability keeps only the latest version for a stable identity');
 select is((select count(*) from public.practice_review_queue where question_id='q-2'),0::bigint,'removed question identity is non-actionable');
@@ -65,22 +67,68 @@ select is((select count(*) from public.practice_attempts where question_id='q-2'
 select is((select count(*) from public.practice_question_availability where content_id='practice-web-test-spi-v1' and available),1::bigint,'sync retires identities absent from current release');
 select public.import_practice_question_release(
   'practice-web-test-spi-v1', repeat('d',64),
-  '{"questionBank":{"version":3,"questions":[{"id":"q-1","version":2},{"id":"q-2","version":1}]}}'::jsonb
+  '{"questionBank":{"version":3,"questions":[{"id":"q-1","version":2,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}},{"id":"q-2","version":1,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb
 );
 select is((select count(*) from public.practice_question_availability where content_id='practice-web-test-spi-v1' and available),2::bigint,'restored identity becomes actionable deterministically');
 select public.import_practice_question_release(
   'practice-web-test-spi-v1', repeat('d',64),
-  '{"questionBank":{"version":3,"questions":[{"id":"q-1","version":2},{"id":"q-2","version":1}]}}'::jsonb
+  '{"questionBank":{"version":3,"questions":[{"id":"q-1","version":2,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}},{"id":"q-2","version":1,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb
 );
 select is((select count(*) from public.practice_question_availability where content_id='practice-web-test-spi-v1' and available),2::bigint,'same release availability retry is idempotent');
-select throws_ok($$select public.import_practice_question_release('practice-web-test-spi-v1', repeat('f',64), '{"questionBank":{"version":3,"questions":["changed"]}}'::jsonb)$$,'22023',null,'same bank version with a different revision is rejected');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+select is((select count(*) from public.practice_review_queue where question_id='q-1'),1::bigint,'authenticated user1 sees its own q1 review');
+select is((select count(*) from public.practice_attempts where user_id='61000000-0000-0000-0000-000000000002'),0::bigint,'authenticated user1 cannot read user2 attempt rows');
+select is((select count(*) > 0 from public.practice_attempts where user_id='61000000-0000-0000-0000-000000000001'),true,'authenticated user1 can read its own attempt rows');
+select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000002","role":"authenticated"}',true);
+select is((select jsonb_build_object('q1',count(*) filter (where question_id='q-1'),'q2',count(*) filter (where question_id='q-2')) from public.practice_review_queue),'{"q1":0,"q2":1}'::jsonb,'authenticated user2 sees its own q2 but not user1 q1');
+select set_config('request.jwt.claims','{"role":"authenticated"}',true);
+select is((select count(*) from public.practice_review_queue),0::bigint,'authenticated null-sub request sees no review queue');
+reset role;
+set local role service_role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+select public.import_practice_question_release(
+  'practice-web-test-spi-v1', repeat('9',64),
+  '{"questionBank":{"version":4,"questions":[{"id":"q-1","version":3,"deliveryProfile":"test-center","answer":{"input":{"kind":"single-choice"}}},{"id":"q-2","version":1,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb
+);
+select is((select available from public.practice_question_availability where content_id='practice-web-test-spi-v1' and question_id='q-1'),false,'latest unsupported delivery profile is non-actionable');
+select is((select available from public.practice_question_availability where content_id='practice-web-test-spi-v1' and question_id='q-2'),true,'latest supported question remains available');
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+select is((select count(*) from public.practice_review_queue),0::bigint,'user1 queue excludes retired q1 after mixed v4');
+select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000002","role":"authenticated"}',true);
+select is((select count(*) from public.practice_review_queue),1::bigint,'user2 queue retains available q2 after mixed v4');
+reset role;
+set local role service_role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claims','{"role":"authenticated"}',true);
+reset role;
+set local role service_role;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+select public.import_practice_question_release(
+  'practice-web-test-spi-v1', repeat('8',64),
+  '{"questionBank":{"version":5,"questions":[{"id":"q-1","version":4,"deliveryProfile":"test-center","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb
+);
+select is((select count(*) from public.practice_question_availability where content_id='practice-web-test-spi-v1' and available),0::bigint,'all-ineligible release leaves no availability rows');
+select throws_ok($$select public.import_practice_question_release('practice-web-test-spi-v1', repeat('7',64), '{"questionBank":{"version":4,"questions":[{"id":"q-1","version":2,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb)$$,'22023',null,'older release cannot revive retired questions after an empty release');
+select throws_ok($$select public.import_practice_question_release('practice-web-test-spi-v1', repeat('6',64), '{"questionBank":{"version":5,"questions":[{"id":"q-2","version":1,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb)$$,'22023',null,'same-version different revision cannot replace an empty release head');
+select throws_ok($$select public.import_practice_question_release('practice-web-test-spi-v1', repeat('f',64), '{"questionBank":{"version":4,"questions":["changed"]}}'::jsonb)$$,'22023',null,'same bank version with a different revision is rejected');
 select is((select count(*) from public.private_content_release where content_id='practice-web-test-spi-v1' and revision=repeat('f',64)),0::bigint,'same bank revision conflict leaves no release behind');
 select throws_ok($$select public.sync_practice_question_availability('practice-web-test-spi-v1', repeat('a',64), 1, '[{"id":"q-1","version":1}]'::jsonb)$$,'42501',null,'direct availability sync cannot be invoked by service callers');
 reset role;
 set local role authenticated;
+select set_config('request.jwt.claims','{"role":"authenticated"}',true);
+select is((select count(*) from public.practice_review_queue),0::bigint,'retired q1 and q2 leave no authenticated review queue');
 select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000002","role":"authenticated"}',true);
-select is((select count(*) from public.practice_attempts),1::bigint,'RLS hides another user attempts');
-select is((select count(*) from public.practice_review_queue),1::bigint,'RLS applies to derived review model');
+select is((select count(*) from public.practice_review_queue),0::bigint,'user2 sees no review queue after all-ineligible release');
+select set_config('request.jwt.claims','{"role":"authenticated"}',true);
+select is((select count(*) from public.practice_review_queue),0::bigint,'authenticated null-sub request still fails closed');
 select throws_ok($$ insert into public.practice_attempts (user_id,client_attempt_id,content_id,content_revision,question_id,question_version,test_family,domain,category,practice_mode,submitted_answer,correct,response_ms) values ('61000000-0000-0000-0000-000000000002','61200000-0000-4000-8000-000000000001','x',repeat('a',64),'x',1,'spi','verbal','x','untimed-learning','{}',true,1) $$,'42501',null,'browser cannot forge attempt rows');
 select throws_ok($$ select public.record_practice_attempt('61000000-0000-0000-0000-000000000001','61300000-0000-4000-8000-000000000001','practice-web-test-spi-v1',repeat('a',64),'q-3',1,'spi','verbal','x','untimed-learning','{}',true,1,'[]') $$,'42501',null,'browser cannot call service persistence');
 reset role;

@@ -21,6 +21,18 @@ revoke all on public.practice_question_availability from public, anon, authentic
 grant select on public.practice_question_availability to service_role;
 alter table public.practice_question_availability enable row level security;
 
+create table public.practice_question_release_head (
+  content_id text primary key,
+  bank_version bigint not null,
+  content_revision text not null,
+  constraint practice_question_release_head_content_id_bounded check (char_length(content_id) between 1 and 128 and content_id = btrim(content_id)),
+  constraint practice_question_release_head_bank_version_positive check (bank_version > 0),
+  constraint practice_question_release_head_revision_sha256 check (content_revision ~ '^[a-f0-9]{64}$')
+);
+revoke all on public.practice_question_release_head from public, anon, authenticated, service_role;
+grant select on public.practice_question_release_head to service_role;
+alter table public.practice_question_release_head enable row level security;
+
 create function public.sync_practice_question_availability(
   p_content_id text,
   p_content_revision text,
@@ -30,6 +42,7 @@ create function public.sync_practice_question_availability(
 returns void language plpgsql security definer set search_path = '' as $$
 declare
   current_bank_version bigint;
+  current_revision text;
 begin
   if p_content_id is null or p_content_revision is null or p_bank_version is null
     or p_questions is null or jsonb_typeof(p_questions) <> 'array' then
@@ -43,19 +56,22 @@ begin
   ) then
     raise exception 'practice release must be imported before availability sync' using errcode = '22023';
   end if;
-  select max(bank_version) into current_bank_version
-  from public.practice_question_availability
+  select bank_version, content_revision into current_bank_version, current_revision
+  from public.practice_question_release_head
   where content_id = p_content_id;
   if current_bank_version is not null and p_bank_version < current_bank_version then
     raise exception 'practice availability sync cannot move backwards' using errcode = '22023';
   end if;
   if current_bank_version is not null and p_bank_version = current_bank_version
-    and exists (
-      select 1 from public.practice_question_availability
-      where content_id = p_content_id and available and content_revision <> p_content_revision
-    ) then
+    and current_revision <> p_content_revision then
     raise exception 'practice availability sync revision conflicts with current bank version' using errcode = '22023';
   end if;
+
+  insert into public.practice_question_release_head (content_id, bank_version, content_revision)
+  values (p_content_id, p_bank_version, p_content_revision)
+  on conflict (content_id) do update set
+    bank_version = excluded.bank_version,
+    content_revision = excluded.content_revision;
 
   update public.practice_question_availability
   set available = false, updated_at = now()
@@ -100,7 +116,9 @@ begin
     select distinct on (item->>'id') item
     from jsonb_array_elements(p_payload->'questionBank'->'questions') item
     order by item->>'id', (item->>'version')::bigint desc
-  ) latest;
+  ) latest
+  where latest.item->>'deliveryProfile' = 'web'
+    and latest.item->'answer'->'input'->>'kind' <> 'short-text';
   insert into public.private_content_release (content_id, revision, content_kind, access_scope, payload)
   values (p_content_id, p_content_revision, 'practice-question-bank', 'member', p_payload)
   on conflict (content_id, revision) do nothing;
@@ -136,7 +154,7 @@ as
    and availability.question_id = latest.question_id
    and availability.available
   where latest.correct = false
-    and (auth.uid() is null or latest.user_id = auth.uid());
+    and (auth.role() = 'service_role' or (auth.uid() is not null and latest.user_id = auth.uid()));
 
 revoke all on public.practice_review_queue from public, anon, authenticated, service_role;
 grant select on public.practice_review_queue to authenticated, service_role;
