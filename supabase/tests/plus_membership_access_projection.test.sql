@@ -1,6 +1,6 @@
 begin;
 
-select plan(7);
+select plan(10);
 
 select has_table(
   'public', 'plus_membership_access',
@@ -26,6 +26,32 @@ select throws_ok(
   '23514',
   'new row for relation "plus_membership_access" violates check constraint "plus_membership_access_status_bounded"',
   'Projection rejects unknown lifecycle states'
+);
+
+insert into auth.users (id, aud, role)
+values
+  ('50000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated');
+
+insert into public.plus_membership_access (user_id, membership_status, current_period_end)
+values
+  ('50000000-0000-0000-0000-000000000001', 'active', now() + interval '1 day'),
+  ('50000000-0000-0000-0000-000000000002', 'expired', now() - interval '1 day');
+
+select is(
+  (select count(*) from public.plus_membership_access where membership_status = 'active'),
+  1::bigint,
+  'a controlled active projection row is stored'
+);
+select is(
+  (select count(*) from public.plus_membership_access where membership_status = 'expired'),
+  1::bigint,
+  'an expired projection row remains non-active evidence'
+);
+select is(
+  (select count(*) from public.plus_membership_access where user_id = '50000000-0000-0000-0000-000000000002'),
+  1::bigint,
+  'projection rows are keyed per user and do not collapse across users'
 );
 
 select ok(

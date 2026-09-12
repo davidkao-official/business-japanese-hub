@@ -9,11 +9,17 @@ export async function resolvePlusMembershipAccess(
   userId: string,
   now: MembershipClock = Date.now,
 ): Promise<MembershipAccess> {
-  const result = await db
-    .from('plus_membership_access')
-    .select('membership_status,current_period_end')
-    .eq('user_id', userId)
-    .maybeSingle()
+  let result: Awaited<ReturnType<ReturnType<DbClient['from']>['maybeSingle']>>
+  try {
+    result = await db
+      .from('plus_membership_access')
+      .select('membership_status,current_period_end')
+      .eq('user_id', userId)
+      .maybeSingle()
+  } catch (error) {
+    console.error('content-delivery membership projection lookup failed', error instanceof Error ? error.message : 'unknown error')
+    return 'unavailable'
+  }
   if (result.error) {
     console.error('content-delivery membership projection lookup failed', result.error.message)
     return 'unavailable'
