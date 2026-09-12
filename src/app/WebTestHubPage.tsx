@@ -18,6 +18,7 @@ import { NotFoundPage } from './NotFoundPage'
 import { useAuth } from '@business-japanese-hub/platform-auth'
 import { fetchPracticePayload } from '../practice-web-test/client'
 import { selectableQuestions, scoreQuestion, supportOverlay, type RunnerResponse, type RuntimeQuestion } from '../practice-web-test/runtime'
+import type { PracticeRepresentation } from '../practice-web-test/contract'
 
 const catalog = validatePracticeDiscoveryCatalog(catalogDocument) ? catalogDocument : null
 
@@ -203,7 +204,7 @@ export function WebTestRunnerEntryPage() {
   const [state, setState] = useState<RunnerState>({ kind: 'idle' })
   const [index, setIndex] = useState(0)
   const [response, setResponse] = useState<RunnerResponse>('')
-  const [answers, setAnswers] = useState<Array<{ correct: boolean; category: string; checkpointMiss: boolean; elapsedMs: number }>>([])
+  const [answers, setAnswers] = useState<Array<{ correct: boolean; category: string; elapsedMs: number }>>([])
   const [lastCorrect, setLastCorrect] = useState<boolean | null>(null)
   const [lastExplanation, setLastExplanation] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<{ question: RuntimeQuestion; correct: boolean } | null>(null)
@@ -212,7 +213,10 @@ export function WebTestRunnerEntryPage() {
     let cancelled = false
     if (!catalog || !family || !domain || !category || !validSearch || !validMode || authLoading) return
     if (!user) return
-    fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision).then((result) => {
+    void Promise.resolve().then(async () => {
+      if (cancelled) return
+      setState({ kind: 'loading' })
+      const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision)
       if (cancelled) return
       if (result.kind !== 'ok') { setState({ kind: result.kind }); return }
       const questions = selectableQuestions(result.payload, family!.testFamily, domain!.domain, category!.category, mode!)
@@ -247,8 +251,7 @@ export function WebTestRunnerEntryPage() {
         setLastCorrect(correct)
         setLastExplanation(question.coreExplanation.concise)
         setFeedback({ question, correct })
-        const hasCheckpoint = Boolean(question.itemAnalysis.diagnosticCheckpoints?.ids.length)
-        setAnswers((current) => [...current, { correct, category: question.category, checkpointMiss: hasCheckpoint && !correct, elapsedMs: Date.now() - startedAt.current }])
+        setAnswers((current) => [...current, { correct, category: question.category, elapsedMs: Date.now() - startedAt.current }])
       }} onNext={() => {
         const nextQuestion = state.kind === 'ready' ? state.questions[index + 1] : undefined
         setIndex((current) => current + 1)
@@ -263,21 +266,37 @@ export function WebTestRunnerEntryPage() {
 
 type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[] }
 
-function RunnerStateView({ state, finish, question, response, answers, feedback, lastCorrect, lastExplanation, setResponse, onSubmit, onNext }: { state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: Array<{ correct: boolean; category: string; checkpointMiss: boolean; elapsedMs: number }>; feedback: { question: RuntimeQuestion; correct: boolean } | null; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; onSubmit: () => void; onNext: () => void }) {
+function RunnerStateView({ state, finish, question, response, answers, feedback, lastCorrect, lastExplanation, setResponse, onSubmit, onNext }: { state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: Array<{ correct: boolean; category: string; elapsedMs: number }>; feedback: { question: RuntimeQuestion; correct: boolean } | null; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; onSubmit: () => void; onNext: () => void }) {
   if (state.kind === 'signed-out') return <section className="web-test-hub__runner-handoff"><h2>需要登入</h2><p>請登入後才能載入會員練習內容。</p></section>
   if (state.kind === 'forbidden') return <section className="web-test-hub__runner-handoff"><h2>需要 Plus 會員資格</h2><p>目前帳號沒有可用的 Plus 練習存取權。</p></section>
   if (state.kind === 'missing' || state.kind === 'unavailable') return <section className="web-test-hub__runner-handoff"><h2>練習暫時無法使用</h2><p>目前無法取得已發布練習內容，請稍後再試。</p></section>
   if (state.kind === 'idle' || state.kind === 'loading') return <section className="web-test-hub__runner-handoff"><h2>載入練習</h2><p>正在確認已發布內容與會員存取權。</p></section>
-  if (finish) return <section className="web-test-hub__runner-handoff"><h2>練習完成</h2><p>正確 {answers.filter((answer) => answer.correct).length}／{answers.length} 題；結果只保留在目前頁面。</p><p>作答時間：{Math.round(answers.reduce((total, answer) => total + answer.elapsedMs, 0) / 1000)} 秒。</p><p>Checkpoint misses：{answers.filter((answer) => answer.checkpointMiss).length}</p></section>
+  if (finish) {
+    const categoryResults = Array.from(new Set(answers.map((answer) => answer.category))).map((category) => {
+      const categoryAnswers = answers.filter((answer) => answer.category === category)
+      return `${category}：${categoryAnswers.filter((answer) => answer.correct).length}／${categoryAnswers.length}`
+    })
+    return <section className="web-test-hub__runner-handoff"><h2>練習完成</h2><p>正確 {answers.filter((answer) => answer.correct).length}／{answers.length} 題；結果只保留在目前頁面。</p>{categoryResults.map((result) => <p key={result}>{result}</p>)}<p>作答時間：{Math.round(answers.reduce((total, answer) => total + answer.elapsedMs, 0) / 1000)} 秒。</p><p>Checkpoint：未測量</p></section>
+  }
   if (state.kind !== 'ready' || !question) return null
   const answer = question.answer
   const overlay = supportOverlay(state.payload, question)
-  if (feedback?.question.id === question.id) return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? '回答正確' : '回答不正確'}</p><h2>解答與說明</h2><p>正確答案：{answerLabel(answer)}</p><p>{question.coreExplanation.concise}</p><p>{question.coreExplanation.whatIsAskedJa}</p>{overlay?.whatIsAsked && <p>{overlay.whatIsAsked}</p>}{overlay?.keyTerms?.map((term) => <p key={term.termId}>{term.surface}：{term.meaning}</p>)}<button type="button" onClick={onNext}>下一題</button></section>
+  if (feedback?.question.id === question.id) return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? '回答正確' : '回答不正確'}</p><h2>解答與說明</h2><p>正確答案：{answerLabel(answer)}</p><p>{question.coreExplanation.concise}</p><p>{question.coreExplanation.whatIsAskedJa}</p>{question.coreExplanation.representation && <RepresentationView representation={question.coreExplanation.representation} label="解答表示" />}{overlay?.whatIsAsked && <p>{overlay.whatIsAsked}</p>}{overlay?.representationExplanation && <p>{overlay.representationExplanation}</p>}{overlay?.commonMisread && <p>{overlay.commonMisread}</p>}{overlay?.keyTerms?.map((term) => <p key={term.termId}>{term.surface}：{term.meaning}</p>)}<button type="button" onClick={onNext}>下一題</button></section>
   return <section className="web-test-hub__runner" aria-live="polite">{lastCorrect !== null && <p role="status">{lastCorrect ? '回答正確' : '回答不正確'}{lastExplanation && `：${lastExplanation}`}</p>}<p>第 {answers.length + 1} 題</p><h2>{question.promptJa}</h2>
+    {question.promptRepresentation && <RepresentationView representation={question.promptRepresentation} label="題目表示" />}
     {renderInput(answer, response, setResponse)}
     <button type="button" disabled={response === '' || (Array.isArray(response) && response.length === 0)} onClick={onSubmit}>回答</button>
     {overlay && <aside><h3>繁體中文支援</h3>{overlay.whatIsAsked && <p>{overlay.whatIsAsked}</p>}{overlay.keyTerms?.map((term) => <p key={term.termId}>{term.surface}：{term.meaning}</p>)}</aside>}
   </section>
+}
+
+function RepresentationView({ representation, label }: { representation: PracticeRepresentation; label: string }) {
+  if (representation.kind === 'equation') return <figure aria-label={label}><figcaption>{label}</figcaption><pre>{representation.expression}</pre></figure>
+  if (representation.kind === 'table') return <figure aria-label={label}><figcaption>{label}</figcaption><table><thead><tr>{representation.columns.map((column) => <th key={column} scope="col">{column}</th>)}</tr></thead><tbody>{representation.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={`${rowIndex}-${cellIndex}`}>{cell}</td>)}</tr>)}</tbody></table></figure>
+  if (representation.kind === 'diagram') return <figure aria-label={label}><figcaption>{representation.altText}</figcaption><ul>{representation.nodes.map((node) => <li key={node.id}>{node.label}</li>)}</ul>{representation.edges.map((edge, index) => <p key={`${edge.from}-${edge.to}-${index}`}>{edge.from} → {edge.to}{edge.label ? `：${edge.label}` : ''}</p>)}</figure>
+  if (representation.kind === 'elimination') return <figure aria-label={label}><figcaption>{label}</figcaption><ul>{representation.candidates.map((candidate) => <li key={candidate}>{candidate}</li>)}</ul><ol>{representation.steps.map((step) => <li key={step}>{step}</li>)}</ol></figure>
+  if (representation.kind === 'logic-grid') return <figure aria-label={label}><figcaption>{label}</figcaption><table><thead><tr>{representation.columns.map((column) => <th key={column} scope="col">{column}</th>)}</tr></thead><tbody>{representation.rows.map((row) => <tr key={row}>{representation.columns.map((column) => <td key={column}>{representation.cells.find((cell) => cell.row === row && cell.column === column)?.value ?? 'unknown'}</td>)}</tr>)}</tbody></table></figure>
+  return <figure aria-label={label}><figcaption>{representation.label}</figcaption><p>{representation.content}</p></figure>
 }
 
 function answerLabel(answer: RuntimeQuestion['answer']): string {
