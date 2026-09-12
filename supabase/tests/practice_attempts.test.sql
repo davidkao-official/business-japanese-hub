@@ -29,6 +29,7 @@ insert into auth.users (id, aud, role) values
  ('61000000-0000-0000-0000-000000000001','authenticated','authenticated'),
  ('61000000-0000-0000-0000-000000000002','authenticated','authenticated');
 set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 select is((public.record_practice_attempt('61000000-0000-0000-0000-000000000001','61100000-0000-4000-8000-000000000001','practice-web-test-spi-v1',repeat('a',64),'q-1',1,'spi','verbal','vocabulary-in-context','untimed-learning','{"input":"two"}'::jsonb,false,1200,'[{"checkpointId":"c-1","checkpointVersion":1,"correct":false}]'::jsonb)->>'kind','persisted','first attempt is persisted');
 select public.record_practice_attempt('61000000-0000-0000-0000-000000000001','61100000-0000-4000-8000-000000000002','practice-web-test-spi-v1',repeat('a',64),'q-1',1,'spi','verbal','vocabulary-in-context','untimed-learning','{"input":"two"}'::jsonb,true,1000,'[]'::jsonb);
@@ -77,16 +78,21 @@ select public.import_practice_question_release(
 select is((select count(*) from public.practice_question_availability where content_id='practice-web-test-spi-v1' and available),2::bigint,'same release availability retry is idempotent');
 reset role;
 set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claim.sub', '61000000-0000-0000-0000-000000000001', true);
 select is((select count(*) from public.practice_review_queue where question_id='q-1'),1::bigint,'authenticated user1 sees its own q1 review');
 select is((select count(*) from public.practice_attempts where user_id='61000000-0000-0000-0000-000000000002'),0::bigint,'authenticated user1 cannot read user2 attempt rows');
 select is((select count(*) > 0 from public.practice_attempts where user_id='61000000-0000-0000-0000-000000000001'),true,'authenticated user1 can read its own attempt rows');
 select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claim.sub', '61000000-0000-0000-0000-000000000002', true);
 select is((select jsonb_build_object('q1',count(*) filter (where question_id='q-1'),'q2',count(*) filter (where question_id='q-2')) from public.practice_review_queue),'{"q1":0,"q2":1}'::jsonb,'authenticated user2 sees its own q2 but not user1 q1');
 select set_config('request.jwt.claims','{"role":"authenticated"}',true);
+select set_config('request.jwt.claim.sub', '', true);
 select is((select count(*) from public.practice_review_queue),0::bigint,'authenticated null-sub request sees no review queue');
 reset role;
 set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 select public.import_practice_question_release(
   'practice-web-test-spi-v1', repeat('9',64),
@@ -96,20 +102,29 @@ select is((select available from public.practice_question_availability where con
 select is((select available from public.practice_question_availability where content_id='practice-web-test-spi-v1' and question_id='q-2'),true,'latest supported question remains available');
 reset role;
 set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claim.sub', '61000000-0000-0000-0000-000000000001', true);
 select is((select count(*) from public.practice_review_queue),0::bigint,'user1 queue excludes retired q1 after mixed v4');
 select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claim.sub', '61000000-0000-0000-0000-000000000002', true);
 select is((select count(*) from public.practice_review_queue),1::bigint,'user2 queue retains available q2 after mixed v4');
 reset role;
 set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 reset role;
 set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+select set_config('request.jwt.claim.sub', '61000000-0000-0000-0000-000000000001', true);
 select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claim.sub', '61000000-0000-0000-0000-000000000002', true);
 select set_config('request.jwt.claims','{"role":"authenticated"}',true);
+select set_config('request.jwt.claim.sub', '', true);
 reset role;
 set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 select public.import_practice_question_release(
   'practice-web-test-spi-v1', repeat('8',64),
@@ -124,11 +139,15 @@ select is((select count(*) from public.private_content_release where content_id=
 select throws_ok($$select public.sync_practice_question_availability('practice-web-test-spi-v1', repeat('a',64), 1, '[{"id":"q-1","version":1}]'::jsonb)$$,'42501',null,'direct availability sync cannot be invoked by service callers');
 reset role;
 set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claims','{"role":"authenticated"}',true);
+select set_config('request.jwt.claim.sub', '', true);
 select is((select count(*) from public.practice_review_queue),0::bigint,'retired q1 and q2 leave no authenticated review queue');
 select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000002","role":"authenticated"}',true);
+select set_config('request.jwt.claim.sub', '61000000-0000-0000-0000-000000000002', true);
 select is((select count(*) from public.practice_review_queue),0::bigint,'user2 sees no review queue after all-ineligible release');
 select set_config('request.jwt.claims','{"role":"authenticated"}',true);
+select set_config('request.jwt.claim.sub', '', true);
 select is((select count(*) from public.practice_review_queue),0::bigint,'authenticated null-sub request still fails closed');
 select throws_ok($$ insert into public.practice_attempts (user_id,client_attempt_id,content_id,content_revision,question_id,question_version,test_family,domain,category,practice_mode,submitted_answer,correct,response_ms) values ('61000000-0000-0000-0000-000000000002','61200000-0000-4000-8000-000000000001','x',repeat('a',64),'x',1,'spi','verbal','x','untimed-learning','{}',true,1) $$,'42501',null,'browser cannot forge attempt rows');
 select throws_ok($$ select public.record_practice_attempt('61000000-0000-0000-0000-000000000001','61300000-0000-4000-8000-000000000001','practice-web-test-spi-v1',repeat('a',64),'q-3',1,'spi','verbal','x','untimed-learning','{}',true,1,'[]') $$,'42501',null,'browser cannot call service persistence');
