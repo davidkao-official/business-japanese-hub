@@ -37,6 +37,8 @@ create table public.practice_attempts (
   )
 );
 
+grant usage on sequence public.practice_attempts_attempt_sequence_seq to service_role;
+
 create index practice_attempts_user_created_idx on public.practice_attempts (user_id, created_at desc);
 create index practice_attempts_review_idx on public.practice_attempts (user_id, question_id, question_version, created_at desc);
 
