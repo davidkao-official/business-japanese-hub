@@ -9,7 +9,7 @@ create table public.practice_attempts (
   content_id text not null,
   content_revision text not null,
   question_id text not null,
-  question_version integer not null,
+  question_version bigint not null,
   test_family text not null,
   domain text not null,
   category text not null,
@@ -61,7 +61,7 @@ create function public.record_practice_attempt(
   p_content_id text,
   p_content_revision text,
   p_question_id text,
-  p_question_version integer,
+  p_question_version bigint,
   p_test_family text,
   p_domain text,
   p_category text,
@@ -107,8 +107,8 @@ begin
   return jsonb_build_object('kind', 'conflict');
 end;
 $$;
-revoke all on function public.record_practice_attempt(uuid,uuid,text,text,text,integer,text,text,text,text,jsonb,boolean,integer,jsonb) from public, anon, authenticated, service_role;
-grant execute on function public.record_practice_attempt(uuid,uuid,text,text,text,integer,text,text,text,text,jsonb,boolean,integer,jsonb) to service_role;
+revoke all on function public.record_practice_attempt(uuid,uuid,text,text,text,bigint,text,text,text,text,jsonb,boolean,integer,jsonb) from public, anon, authenticated, service_role;
+grant execute on function public.record_practice_attempt(uuid,uuid,text,text,text,bigint,text,text,text,text,jsonb,boolean,integer,jsonb) to service_role;
 
 create view public.practice_review_queue
   with (security_invoker = true)

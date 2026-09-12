@@ -9,6 +9,12 @@ const clientAttemptId = '20000000-0000-4000-8000-000000000001'
 const contentId = 'practice-web-test-fixture'
 const release = preparePrivatePracticeQuestionBankRelease(contentId, nonProprietaryPracticeQuestionBankFixture)
 if (!release.ok) throw new Error(release.reason)
+const largeVersion = 2147483648
+const largeVersionSource = JSON.parse(JSON.stringify(nonProprietaryPracticeQuestionBankFixture)) as typeof nonProprietaryPracticeQuestionBankFixture
+largeVersionSource.questionBank.questions[0]!.version = largeVersion
+largeVersionSource.supportOverlays![0]!.questionVersion = largeVersion
+const largeVersionRelease = preparePrivatePracticeQuestionBankRelease(contentId, largeVersionSource)
+if (!largeVersionRelease.ok) throw new Error(largeVersionRelease.reason)
 const checkpointSource = JSON.parse(JSON.stringify(nonProprietaryPracticeQuestionBankFixture)) as typeof nonProprietaryPracticeQuestionBankFixture
 checkpointSource.questionBank.questions[0]!.itemAnalysis.diagnosticCheckpoints = { registryVersion: 1, ids: ['fixture-checkpoint-01'] }
 checkpointSource.checkpointRegistry = {
@@ -67,6 +73,15 @@ describe('practice-attempts handler', () => {
       p_user_id: userId, p_client_attempt_id: clientAttemptId, p_content_revision: release.value.revision,
       p_question_id: 'fixture-choice-01', p_question_version: 1, p_test_family: 'fixture', p_domain: 'verbal',
       p_category: 'fixture-category', p_practice_mode: 'untimed-learning', p_correct: true, p_response_ms: 1200,
+    }))
+  })
+
+  it('passes a released safe-integer question version above PostgreSQL integer range to persistence', async () => {
+    const database = db(userId)
+    const result = await handlePracticeAttempts(request({ revision: largeVersionRelease.value.revision, questionVersion: largeVersion }), deps(database, 'active', largeVersionRelease.value))
+    expect(result.status).toBe(200)
+    expect(database.rpc).toHaveBeenCalledWith('record_practice_attempt', expect.objectContaining({
+      p_question_id: 'fixture-choice-01', p_question_version: largeVersion,
     }))
   })
 
