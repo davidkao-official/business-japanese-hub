@@ -82,7 +82,7 @@ function validResponseForAnswer(answer: RuntimeQuestion['answer'], value: Runner
   if (answer.input.kind === 'single-choice') return answer.expectedAnswer.kind === 'single-choice' && typeof value === 'string' && choiceIds.includes(value)
   if (answer.input.kind === 'multi-select') {
     return answer.expectedAnswer.kind === 'multi-select' && Array.isArray(value) &&
-      uniqueChoices.size > 0 && new Set(value).size === value.length && value.every((entry) => choiceIds.includes(entry))
+      value.length > 0 && uniqueChoices.size > 0 && new Set(value).size === value.length && value.every((entry) => choiceIds.includes(entry))
   }
   if (answer.input.kind === 'ordering') {
     return answer.expectedAnswer.kind === 'ordering' && Array.isArray(value) &&
