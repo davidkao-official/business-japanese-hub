@@ -5,6 +5,7 @@ import type { AuthClient, SessionUser, SignUpResult } from './types'
 export interface AuthContextValue {
   user: SessionUser | null
   loading: boolean
+  getAccessToken(): Promise<string | null>
   signIn(email: string, password: string): Promise<void>
   signUp(email: string, password: string): Promise<SignUpResult>
   signOut(): Promise<void>
@@ -57,6 +58,7 @@ export function AuthProvider({ authClient, children }: AuthProviderProps) {
     () => ({
       user,
       loading,
+      getAccessToken: async () => authClient.getAccessToken?.() ?? null,
       signIn: async (email: string, password: string) => {
         const { user: nextUser } = await authClient.signInWithPassword({ email, password })
         authEventSeenRef.current = true

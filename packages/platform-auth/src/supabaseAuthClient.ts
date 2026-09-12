@@ -15,6 +15,11 @@ export class SupabaseAuthClient implements AuthClient {
     return mapUser(data.session?.user ?? null)
   }
 
+  async getAccessToken(): Promise<string | null> {
+    const { data } = await this.client.auth.getSession()
+    return data.session?.access_token ?? null
+  }
+
   async signInWithPassword(input: { email: string; password: string }): Promise<SignInResult> {
     const { data, error } = await this.client.auth.signInWithPassword(input)
     if (error) throw new Error(`signInWithPassword: ${error.message}`)

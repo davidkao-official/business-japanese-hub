@@ -1,4 +1,3 @@
-import { createBrowserPlatformServices } from '@business-japanese-hub/platform-auth'
 import type { PracticeRuntimePayload } from '../content-delivery/privatePracticeQuestionBank'
 import { PRIVATE_CONTENT_REVISION, isPrivateContentId } from '../content-delivery/references'
 import { validateRuntimePayload } from './runtime'
@@ -13,13 +12,15 @@ function functionsBaseUrl(): string | null {
   return (explicit || (supabase ? `${supabase.replace(/\/+$/, '')}/functions/v1` : '')).replace(/\/+$/, '') || null
 }
 
-export async function fetchPracticePayload(contentId: string, revision: string): Promise<PracticeFetchResult> {
+export async function fetchPracticePayload(
+  contentId: string,
+  revision: string,
+  getAccessToken: () => Promise<string | null>,
+): Promise<PracticeFetchResult> {
   if (!isPrivateContentId(contentId) || !PRIVATE_CONTENT_REVISION.test(revision)) return { kind: 'missing' }
-  const platform = createBrowserPlatformServices('library')
-  if (!platform.client) return { kind: 'signed-out' }
   let token: string | undefined
   try {
-    token = (await platform.client.auth.getSession()).data.session?.access_token
+    token = (await getAccessToken()) ?? undefined
   } catch {
     return { kind: 'unavailable' }
   }

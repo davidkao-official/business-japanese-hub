@@ -202,7 +202,7 @@ export function WebTestRunnerEntryPage() {
   const domain = catalog && findPracticeDiscoveryDomain(catalog, familyParam, domainParam)
   const category = catalog && findPracticeDiscoveryCategory(catalog, familyParam, domainParam, categoryParam)
   const validMode = typeof mode === 'string' && category?.modes.includes(mode as PracticeDiscoveryMode)
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, getAccessToken } = useAuth()
   const [state, setState] = useState<RunnerState>({ kind: 'idle' })
   const [index, setIndex] = useState(0)
   const [response, setResponse] = useState<RunnerResponse>('')
@@ -219,6 +219,7 @@ export function WebTestRunnerEntryPage() {
   const completionHeadingRef = useRef<HTMLHeadingElement>(null)
   const checkpointHeadingRef = useRef<HTMLHeadingElement>(null)
   const userId = user?.id
+  const selectionKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? '', userId ?? ''].join('|')
   useEffect(() => {
     let cancelled = false
     if (!catalog || !family || !domain || !category || !validSearch || !validMode) return
@@ -236,18 +237,18 @@ export function WebTestRunnerEntryPage() {
       setLastExplanation(null)
       startedAt.current = 0
       if (authLoading || !userId) return
-      const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision)
+      const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision, getAccessToken)
       if (cancelled) return
       if (result.kind !== 'ok') { setState({ kind: result.kind }); return }
       const questions = selectableQuestions(result.payload, family!.testFamily, domain!.domain, category!.category, mode!)
       if (questions.length === 0) { setState({ kind: 'unavailable' }); return }
       if (questions.some((entry) => resolveQuestionCheckpoints(result.payload, entry) === null)) { setState({ kind: 'unavailable' }); return }
-      setState({ kind: 'ready', payload: result.payload, questions })
+      setState({ kind: 'ready', payload: result.payload, questions, selectionKey })
       if (questions[0]?.answer.input.kind === 'ordering') setResponse(questions[0].answer.input.choices.map((choice) => choice.id))
       startedAt.current = Date.now()
     })
     return () => { cancelled = true }
-  }, [authLoading, userId, family, domain, category, mode, validMode, validSearch])
+  }, [authLoading, userId, getAccessToken, family, domain, category, mode, validMode, validSearch])
   const question = state.kind === 'ready' ? state.questions[index] : undefined
   const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
   useEffect(() => {
@@ -263,7 +264,11 @@ export function WebTestRunnerEntryPage() {
   )
   if (!catalog || !family || !domain || !category || !validSearch || !validMode) return <CatalogUnavailable />
 
-  const viewState = !authLoading && !user ? { kind: 'signed-out' as const } : state
+  const viewState = !authLoading && !user
+    ? { kind: 'signed-out' as const }
+    : state.kind === 'ready' && state.selectionKey !== selectionKey
+      ? { kind: 'loading' as const }
+      : state
   return (
       <section className="page web-test-hub" lang="zh-TW" aria-labelledby="web-test-runner-entry-title">
       <div className="web-test-hub__intro">
@@ -325,7 +330,7 @@ export function WebTestRunnerEntryPage() {
   )
 }
 
-type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[] }
+type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[]; selectionKey: string }
 
 function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHeadingRef, checkpointHeadingRef, categoryLabel, state, finish, question, response, answers, feedback, checkpointIndex, checkpointResponse, checkpointFeedback, lastCorrect, lastExplanation, setResponse, setCheckpointResponse, onSubmit, onCheckpointSubmit, onCheckpointNext, onNext }: { questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; completionHeadingRef: RefObject<HTMLHeadingElement | null>; checkpointHeadingRef: RefObject<HTMLHeadingElement | null>; categoryLabel: string; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: Array<{ correct: boolean; category: string; checkpointMeasured: number; checkpointMisses: number; elapsedMs: number }>; feedback: { question: RuntimeQuestion; correct: boolean } | null; checkpointIndex: number | null; checkpointResponse: RunnerResponse; checkpointFeedback: boolean | null; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; setCheckpointResponse: (value: RunnerResponse) => void; onSubmit: () => void; onCheckpointSubmit: () => void; onCheckpointNext: () => void; onNext: () => void }) {
   if (state.kind === 'signed-out') return <section className="web-test-hub__runner-handoff"><h2>需要登入</h2><p>請登入後才能載入會員練習內容。</p></section>

@@ -25,6 +25,9 @@ export interface AuthClient {
   /** Restore the persisted session, or null when signed out. */
   getSession(): Promise<SessionUser | null>
 
+  /** Return the current bearer token for server-authenticated requests. */
+  getAccessToken?(): Promise<string | null>
+
   /** Sign in with email/password. Throws on invalid credentials. */
   signInWithPassword(input: { email: string; password: string }): Promise<SignInResult>
 
