@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import catalogDocument from '../practice-web-test/released-discovery-catalog.json'
 import {
@@ -27,6 +28,8 @@ const MODE_LABELS: Record<PracticeDiscoveryMode, string> = {
   'timed-practice': '計時練習',
 }
 
+const WEB_TEST_DESCRIPTION = '獨立的日本求職 Web Test 練習入口，協助華語學習者準備 SPI 等選考中的日文閱讀與推理能力。'
+
 function labelForFamily(testFamily: string): string {
   return catalog ? practiceDiscoveryFamilyLabel(catalog.releaseIdentity.contentId, testFamily) ?? '' : ''
 }
@@ -49,8 +52,28 @@ function CatalogUnavailable() {
   return <NotFoundPage />
 }
 
+/** Keeps the Web Test route description scoped to its mounted route lifetime. */
+function useWebTestDescription(): void {
+  useEffect(() => {
+    const existing = document.querySelector<HTMLMetaElement>('meta[name="description"]')
+    const description = existing ?? document.createElement('meta')
+    const created = existing === null
+    if (created) {
+      description.name = 'description'
+      document.head.append(description)
+    }
+    const previous = description.content
+    description.content = WEB_TEST_DESCRIPTION
+    return () => {
+      if (created) description.remove()
+      else description.content = previous
+    }
+  }, [])
+}
+
 export function WebTestHubPage() {
   useDocumentTitle('日本求職網路測驗刷題 — Business Japanese Hub')
+  useWebTestDescription()
   if (!catalog) return <CatalogUnavailable />
 
   return (

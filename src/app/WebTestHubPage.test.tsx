@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, screen, within } from '@testing-library/react'
-import { Route, Routes } from 'react-router-dom'
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { Link, Route, Routes } from 'react-router-dom'
 import { renderWithAppProviders } from '../test/appProviders'
 import {
   WebTestCategoryPage,
@@ -9,7 +9,10 @@ import {
   WebTestRunnerEntryPage,
 } from './WebTestHubPage'
 
-afterEach(() => cleanup())
+afterEach(() => {
+  cleanup()
+  document.querySelector('meta[data-test-web-test-description]')?.remove()
+})
 
 function renderWebTestAt(path: string) {
   return renderWithAppProviders(
@@ -24,6 +27,35 @@ function renderWebTestAt(path: string) {
 }
 
 describe('Web Test discovery and runner-entry routes', () => {
+  it('sets an independent Japanese recruitment Web Test description and restores the prior route description on leave', () => {
+    const description = document.createElement('meta')
+    description.name = 'description'
+    description.content = '原有頁面描述'
+    description.dataset.testWebTestDescription = 'true'
+    document.head.append(description)
+    const original = description.content
+
+    renderWithAppProviders(
+      <Routes>
+        <Route path="/practice/web-test" element={(
+          <>
+            <WebTestHubPage />
+            <Link to="/practice">離開 Web Test</Link>
+          </>
+        )} />
+        <Route path="/practice" element={<p>Practice overview</p>} />
+      </Routes>,
+      { initialEntries: ['/practice/web-test'] },
+    )
+
+    expect(description.content).toBe(
+      '獨立的日本求職 Web Test 練習入口，協助華語學習者準備 SPI 等選考中的日文閱讀與推理能力。',
+    )
+    fireEvent.click(screen.getByRole('link', { name: '離開 Web Test' }))
+    expect(screen.getByText('Practice overview')).toBeInTheDocument()
+    expect(description.content).toBe(original)
+  })
+
   it('moves from the hub through released SPI domains and categories without a fixture count', () => {
     renderWebTestAt('/practice/web-test')
 
