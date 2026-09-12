@@ -62,6 +62,36 @@ describe('practice payload client', () => {
     vi.unstubAllGlobals()
   })
 
+  it('converges a lost response from the server replay marker into saved state', async () => {
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: vi.fn().mockResolvedValue({ error: 'practice attempt already recorded', replayable: true }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const input = { contentId: 'practice-web-test-spi-v1', revision: 'a'.repeat(64), questionId: 'question-01', questionVersion: 1, answer: 'a', responseTimeMs: 1, clientIdempotencyKey: '70000000-0000-4000-8000-000000000001' }
+
+    await expect(submitPracticeAttempt(input, vi.fn().mockResolvedValue(jwtFor('member-a')), 'member-a')).resolves.toEqual({ kind: 'ok' })
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
+  it.each([
+    { error: 'practice attempt conflict' },
+    { error: 'practice attempt already recorded' },
+    { error: 'practice attempt already recorded', replayable: false },
+  ])('fails closed for an unsafe 409 response: %j', async (body) => {
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 409, json: vi.fn().mockResolvedValue(body) })
+    vi.stubGlobal('fetch', fetchMock)
+    const input = { contentId: 'practice-web-test-spi-v1', revision: 'a'.repeat(64), questionId: 'question-01', questionVersion: 1, answer: 'a', responseTimeMs: 1, clientIdempotencyKey: '70000000-0000-4000-8000-000000000001' }
+
+    await expect(submitPracticeAttempt(input, vi.fn().mockResolvedValue(jwtFor('member-a')), 'member-a')).resolves.toEqual({ kind: 'unavailable' })
+    vi.unstubAllEnvs()
+    vi.unstubAllGlobals()
+  })
+
   it.each([
     ['fractional', 1.5],
     ['unsafe integer', Number.MAX_SAFE_INTEGER + 1],

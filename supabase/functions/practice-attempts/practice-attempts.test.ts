@@ -129,11 +129,19 @@ describe('practice-attempts handler', () => {
     expect(database.rpc).not.toHaveBeenCalled()
   })
 
-  it('surfaces a semantic idempotency conflict without exposing stored data', async () => {
-    const d = deps(db(userId, { kind: 'conflict' }))
+  it('surfaces a replayable idempotency conflict without exposing stored data', async () => {
+    const d = deps(db(userId, { kind: 'conflict', replayable: true }))
     const result = await handlePracticeAttempts(request(), d)
     expect(result.status).toBe(409)
-    expect(JSON.parse(result.body)).toEqual({ error: 'practice attempt already recorded' })
+    expect(JSON.parse(result.body)).toEqual({ error: 'practice attempt already recorded', replayable: true })
+    expect(result.body).not.toContain('promptJa')
+  })
+
+  it('keeps a changed-payload idempotency conflict fail closed', async () => {
+    const d = deps(db(userId, { kind: 'conflict' }))
+    const result = await handlePracticeAttempts(request({ answer: 'one' }), d)
+    expect(result.status).toBe(409)
+    expect(JSON.parse(result.body)).toEqual({ error: 'practice attempt conflict' })
     expect(result.body).not.toContain('promptJa')
   })
 

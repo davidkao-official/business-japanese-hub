@@ -138,6 +138,10 @@ export async function submitPracticeAttempt(
     if (response.status === 401) return { kind: 'signed-out' }
     if (response.status === 403) return { kind: 'forbidden' }
     if (response.status === 404) return { kind: 'missing' }
+    if (response.status === 409) {
+      const body = await Promise.race([response.json() as Promise<{ error?: unknown; replayable?: unknown }>, deadline.promise])
+      return body.error === 'practice attempt already recorded' && body.replayable === true ? { kind: 'ok' } : { kind: 'unavailable' }
+    }
     if (!response.ok) return { kind: 'unavailable' }
     const body = await Promise.race([response.json() as Promise<{ persisted?: unknown }>, deadline.promise])
     return body.persisted === true ? { kind: 'ok' } : { kind: 'unavailable' }

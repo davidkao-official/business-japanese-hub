@@ -169,6 +169,7 @@ create or replace function public.record_practice_attempt(
 )
 returns jsonb language plpgsql security invoker set search_path = '' as $$
 declare existing public.practice_attempts;
+  same_attempt boolean;
 begin
   if p_user_id is null or p_client_attempt_id is null or p_submitted_answer is null or p_checkpoint_results is null then
     raise exception 'practice attempt identity and payload are required' using errcode = '22023';
@@ -180,6 +181,13 @@ begin
   select * into existing from public.practice_attempts
   where user_id = p_user_id and client_attempt_id = p_client_attempt_id;
   if found then
+    same_attempt := existing.content_id is not distinct from p_content_id and existing.content_revision is not distinct from p_content_revision
+      and existing.question_id is not distinct from p_question_id and existing.question_version is not distinct from p_question_version
+      and existing.test_family is not distinct from p_test_family and existing.domain is not distinct from p_domain
+      and existing.category is not distinct from p_category and existing.practice_mode is not distinct from p_practice_mode
+      and existing.submitted_answer is not distinct from p_submitted_answer and existing.correct is not distinct from p_correct
+      and existing.response_ms is not distinct from p_response_ms and existing.checkpoint_results is not distinct from p_checkpoint_results;
+    if same_attempt then return jsonb_build_object('kind', 'conflict', 'replayable', true); end if;
     return jsonb_build_object('kind', 'conflict');
   end if;
   if exists (select 1 from public.practice_question_release_head where content_id = p_content_id)
@@ -203,7 +211,16 @@ begin
   if found then return jsonb_build_object('kind', 'persisted'); end if;
   select * into existing from public.practice_attempts
   where user_id = p_user_id and client_attempt_id = p_client_attempt_id;
-  if found then return jsonb_build_object('kind', 'conflict'); end if;
+  if found then
+    same_attempt := existing.content_id is not distinct from p_content_id and existing.content_revision is not distinct from p_content_revision
+      and existing.question_id is not distinct from p_question_id and existing.question_version is not distinct from p_question_version
+      and existing.test_family is not distinct from p_test_family and existing.domain is not distinct from p_domain
+      and existing.category is not distinct from p_category and existing.practice_mode is not distinct from p_practice_mode
+      and existing.submitted_answer is not distinct from p_submitted_answer and existing.correct is not distinct from p_correct
+      and existing.response_ms is not distinct from p_response_ms and existing.checkpoint_results is not distinct from p_checkpoint_results;
+    if same_attempt then return jsonb_build_object('kind', 'conflict', 'replayable', true); end if;
+    return jsonb_build_object('kind', 'conflict');
+  end if;
   return jsonb_build_object('kind', 'persisted');
 end;
 $$;

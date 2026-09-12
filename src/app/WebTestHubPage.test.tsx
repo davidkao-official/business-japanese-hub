@@ -210,7 +210,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     nowSpy.mockRestore()
   })
 
-  it('keeps local feedback truthful when durable attempt storage fails', async () => {
+  it('retries a lost response and then allows progression after the attempt is saved', async () => {
     fetchPracticePayloadMock.mockClear()
     submitPracticeAttemptMock.mockResolvedValueOnce({ kind: 'unavailable' }).mockResolvedValue({ kind: 'ok' })
     fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('失敗時の合成題幹') })

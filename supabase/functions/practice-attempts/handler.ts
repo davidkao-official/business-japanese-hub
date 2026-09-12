@@ -217,6 +217,10 @@ export async function handlePracticeAttempts(req: HandlerRequest, deps: Practice
     p_checkpoint_results: checkpointResults,
   })
   if (error || !record(data) || (data.kind !== 'persisted' && data.kind !== 'conflict')) return privateResult(jsonResult(502, { error: 'practice attempt persistence failed' }))
-  if (data.kind !== 'persisted') return privateResult(jsonResult(409, { error: 'practice attempt already recorded' }))
+  if (data.kind !== 'persisted') {
+    return data.replayable === true
+      ? privateResult(jsonResult(409, { error: 'practice attempt already recorded', replayable: true }))
+      : privateResult(jsonResult(409, { error: 'practice attempt conflict' }))
+  }
   return privateResult(jsonResult(200, { persisted: true }))
 }
