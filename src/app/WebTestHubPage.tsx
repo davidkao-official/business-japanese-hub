@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import catalogDocument from '../practice-web-test/released-discovery-catalog.json'
 import {
@@ -15,6 +15,9 @@ import {
 } from '../practice-web-test/discoveryCatalog'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { NotFoundPage } from './NotFoundPage'
+import { useAuth } from '@business-japanese-hub/platform-auth'
+import { fetchPracticePayload } from '../practice-web-test/client'
+import { selectableQuestions, scoreQuestion, supportOverlay, type RunnerResponse, type RuntimeQuestion } from '../practice-web-test/runtime'
 
 const catalog = validatePracticeDiscoveryCatalog(catalogDocument) ? catalogDocument : null
 
@@ -196,6 +199,28 @@ export function WebTestRunnerEntryPage() {
   const domain = catalog && findPracticeDiscoveryDomain(catalog, familyParam, domainParam)
   const category = catalog && findPracticeDiscoveryCategory(catalog, familyParam, domainParam, categoryParam)
   const validMode = typeof mode === 'string' && category?.modes.includes(mode as PracticeDiscoveryMode)
+  const { user, loading: authLoading } = useAuth()
+  const [state, setState] = useState<RunnerState>({ kind: 'idle' })
+  const [index, setIndex] = useState(0)
+  const [response, setResponse] = useState<RunnerResponse>('')
+  const [answers, setAnswers] = useState<Array<{ correct: boolean; category: string; checkpointMiss: boolean; elapsedMs: number }>>([])
+  const [lastCorrect, setLastCorrect] = useState<boolean | null>(null)
+  const [lastExplanation, setLastExplanation] = useState<string | null>(null)
+  const startedAt = useRef<number>(0)
+  useEffect(() => {
+    let cancelled = false
+    if (!catalog || !family || !domain || !category || !validSearch || !validMode || authLoading) return
+    if (!user) return
+    fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision).then((result) => {
+      if (cancelled) return
+      if (result.kind !== 'ok') { setState({ kind: result.kind }); return }
+      const questions = selectableQuestions(result.payload, family!.testFamily, domain!.domain, category!.category, mode!)
+      if (questions.length === 0) { setState({ kind: 'unavailable' }); return }
+      setState({ kind: 'ready', payload: result.payload, questions })
+      startedAt.current = Date.now()
+    })
+    return () => { cancelled = true }
+  }, [authLoading, user, family, domain, category, mode, validMode, validSearch])
   useDocumentTitle(
     family && domain && category && validSearch && validMode
       ? titleFor(labelForCategory(family.testFamily, domain.domain, category), DOMAIN_LABELS[domain.domain], labelForFamily(family.testFamily))
@@ -203,20 +228,50 @@ export function WebTestRunnerEntryPage() {
   )
   if (!catalog || !family || !domain || !category || !validSearch || !validMode) return <CatalogUnavailable />
 
+  const question = state.kind === 'ready' ? state.questions[index] : undefined
+  const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
+
+  const viewState = !authLoading && !user ? { kind: 'signed-out' as const } : state
   return (
-    <section className="page web-test-hub" lang="zh-TW" aria-labelledby="web-test-runner-entry-title">
+      <section className="page web-test-hub" lang="zh-TW" aria-labelledby="web-test-runner-entry-title">
       <div className="web-test-hub__intro">
         <p className="product-mode-page__eyebrow" lang="en">Practice · {labelForFamily(family.testFamily)} · {DOMAIN_LABELS[domain.domain]}</p>
         <h1 className="page__title" id="web-test-runner-entry-title">{labelForCategory(family.testFamily, domain.domain, category)}</h1>
         <p className="page__lead">{MODE_LABELS[mode as PracticeDiscoveryMode]} · {category.releasedCount} 題已發布</p>
       </div>
-      <section className="web-test-hub__runner-handoff" aria-labelledby="web-test-runner-handoff-title">
-        <h2 id="web-test-runner-handoff-title">練習準備中</h2>
-        <p>這個類別的練習尚未開放。你可以先瀏覽其他類別，稍後再回來練習。</p>
-      </section>
+      <RunnerStateView state={viewState} finish={finish} question={question} response={response} answers={answers} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} onSubmit={() => {
+        if (!question || state.kind !== 'ready' || response === '') return
+        const correct = scoreQuestion(question, response)
+        setLastCorrect(correct)
+        setLastExplanation(question.coreExplanation.concise)
+        const hasCheckpoint = Boolean(question.itemAnalysis.diagnosticCheckpoints?.ids.length)
+        setAnswers((current) => [...current, { correct, category: question.category, checkpointMiss: hasCheckpoint && !correct, elapsedMs: Date.now() - startedAt.current }])
+        setIndex((current) => current + 1)
+        setResponse('')
+        startedAt.current = Date.now()
+      }} />
       <Link className="page__action" to={`/practice/web-test/${family.testFamily}/${domain.domain}`}>返回類別</Link>
     </section>
   )
+}
+
+type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[] }
+
+function RunnerStateView({ state, finish, question, response, answers, lastCorrect, lastExplanation, setResponse, onSubmit }: { state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: Array<{ correct: boolean; category: string; checkpointMiss: boolean; elapsedMs: number }>; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; onSubmit: () => void }) {
+  if (state.kind === 'signed-out') return <section className="web-test-hub__runner-handoff"><h2>需要登入</h2><p>請登入後才能載入會員練習內容。</p></section>
+  if (state.kind === 'forbidden') return <section className="web-test-hub__runner-handoff"><h2>需要 Plus 會員資格</h2><p>目前帳號沒有可用的 Plus 練習存取權。</p></section>
+  if (state.kind === 'missing' || state.kind === 'unavailable') return <section className="web-test-hub__runner-handoff"><h2>練習暫時無法使用</h2><p>目前無法取得已發布練習內容，請稍後再試。</p></section>
+  if (state.kind === 'idle' || state.kind === 'loading') return <section className="web-test-hub__runner-handoff"><h2>載入練習</h2><p>正在確認已發布內容與會員存取權。</p></section>
+  if (finish) return <section className="web-test-hub__runner-handoff"><h2>練習完成</h2><p>正確 {answers.filter((answer) => answer.correct).length}／{answers.length} 題；結果只保留在目前頁面。</p><p>作答時間：{Math.round(answers.reduce((total, answer) => total + answer.elapsedMs, 0) / 1000)} 秒。</p><p>Checkpoint misses：{answers.filter((answer) => answer.checkpointMiss).length}</p></section>
+  if (state.kind !== 'ready' || !question) return null
+  const answer = question.answer
+  const overlay = supportOverlay(state.payload, question)
+  return <section className="web-test-hub__runner" aria-live="polite">{lastCorrect !== null && <p role="status">{lastCorrect ? '回答正確' : '回答不正確'}{lastExplanation && `：${lastExplanation}`}</p>}<p>第 {answers.length + 1} 題</p><h2>{question.promptJa}</h2>
+    {(answer.input.kind === 'single-choice' || answer.input.kind === 'multi-select' || answer.input.kind === 'ordering') && <fieldset><legend>選擇答案</legend>{answer.input.choices.map((choice) => <label key={choice.id}><input type={answer.input.kind === 'multi-select' ? 'checkbox' : 'radio'} name="practice-answer" value={choice.id} checked={Array.isArray(response) ? response.includes(choice.id) : response === choice.id} onChange={() => setResponse(answer.input.kind === 'multi-select' ? (Array.isArray(response) ? response.includes(choice.id) ? response.filter((id) => id !== choice.id) : [...response, choice.id] : [choice.id]) : choice.id)} /> {choice.textJa}</label>)}</fieldset>}
+    {answer.input.kind === 'number' && <label>數值答案<input type="number" value={typeof response === 'number' ? response : ''} onChange={(event) => setResponse(event.currentTarget.value === '' ? '' : Number(event.currentTarget.value))} /></label>}
+    <button type="button" disabled={response === '' || (Array.isArray(response) && response.length === 0)} onClick={onSubmit}>回答</button>
+    {overlay && <aside><h3>繁體中文支援</h3>{overlay.whatIsAsked && <p>{overlay.whatIsAsked}</p>}{overlay.keyTerms?.map((term) => <p key={term.termId}>{term.surface}：{term.meaning}</p>)}</aside>}
+  </section>
 }
 
 function releasedCount(source: PracticeDiscoveryFamily | PracticeDiscoveryDomain): number {

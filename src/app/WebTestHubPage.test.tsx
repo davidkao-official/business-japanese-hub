@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { Link, Route, Routes } from 'react-router-dom'
 import { renderWithAppProviders } from '../test/appProviders'
 import {
@@ -73,12 +73,12 @@ describe('Web Test discovery and runner-entry routes', () => {
     )
   })
 
-  it('keeps a valid runner selection directly loadable while the interactive runner is unavailable', () => {
+  it('keeps a valid runner selection directly loadable while signed out', async () => {
     renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning')
 
     expect(screen.getByRole('heading', { name: '文脈語彙' })).toBeInTheDocument()
     expect(screen.getByText('不計時學習 · 5 題已發布')).toBeInTheDocument()
-    expect(screen.getByText('這個類別的練習尚未開放。你可以先瀏覽其他類別，稍後再回來練習。')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('請登入後才能載入會員練習內容。')).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: /開始|送出|開始練習/ })).not.toBeInTheDocument()
   })
 
