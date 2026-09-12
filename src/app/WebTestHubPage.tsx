@@ -257,6 +257,8 @@ export function WebTestRunnerEntryPage() {
         setIndex((current) => current + 1)
         setResponse(nextQuestion?.answer.input.kind === 'ordering' ? nextQuestion.answer.input.choices.map((choice) => choice.id) : '')
         setFeedback(null)
+        setLastCorrect(null)
+        setLastExplanation(null)
         startedAt.current = Date.now()
       }} />
       <Link className="page__action" to={`/practice/web-test/${family.testFamily}/${domain.domain}`}>返回類別</Link>
@@ -276,13 +278,15 @@ function RunnerStateView({ state, finish, question, response, answers, feedback,
       const categoryAnswers = answers.filter((answer) => answer.category === category)
       return `${category}：${categoryAnswers.filter((answer) => answer.correct).length}／${categoryAnswers.length}`
     })
-    return <section className="web-test-hub__runner-handoff"><h2>練習完成</h2><p>正確 {answers.filter((answer) => answer.correct).length}／{answers.length} 題；結果只保留在目前頁面。</p>{categoryResults.map((result) => <p key={result}>{result}</p>)}<p>作答時間：{Math.round(answers.reduce((total, answer) => total + answer.elapsedMs, 0) / 1000)} 秒。</p><p>Checkpoint：未測量</p></section>
+    const correctCount = answers.filter((answer) => answer.correct).length
+    const accuracy = answers.length === 0 ? 0 : Math.round((correctCount / answers.length) * 100)
+    return <section className="web-test-hub__runner-handoff"><h2>練習完成</h2><p>正確 {correctCount}／{answers.length} 題（正答率 {accuracy}%）；結果只保留在目前頁面。</p>{categoryResults.map((result) => <p key={result}>{result}</p>)}<p>作答時間：{Math.round(answers.reduce((total, answer) => total + answer.elapsedMs, 0) / 1000)} 秒。</p><p>Checkpoint：未測量</p></section>
   }
   if (state.kind !== 'ready' || !question) return null
   const answer = question.answer
   const overlay = supportOverlay(state.payload, question)
   if (feedback?.question.id === question.id) return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? '回答正確' : '回答不正確'}</p><h2>解答與說明</h2><p>正確答案：{answerLabel(answer)}</p><p>{question.coreExplanation.concise}</p><p>{question.coreExplanation.whatIsAskedJa}</p>{question.coreExplanation.representation && <RepresentationView representation={question.coreExplanation.representation} label="解答表示" />}{overlay?.whatIsAsked && <p>{overlay.whatIsAsked}</p>}{overlay?.representationExplanation && <p>{overlay.representationExplanation}</p>}{overlay?.commonMisread && <p>{overlay.commonMisread}</p>}{overlay?.keyTerms?.map((term) => <p key={term.termId}>{term.surface}：{term.meaning}</p>)}<button type="button" onClick={onNext}>下一題</button></section>
-  return <section className="web-test-hub__runner" aria-live="polite">{lastCorrect !== null && <p role="status">{lastCorrect ? '回答正確' : '回答不正確'}{lastExplanation && `：${lastExplanation}`}</p>}<p>第 {answers.length + 1} 題</p><h2>{question.promptJa}</h2>
+  return <section className="web-test-hub__runner" aria-live="polite">{lastCorrect !== null && <p role="status">{lastCorrect ? '回答正確' : '回答不正確'}{lastExplanation && `：${lastExplanation}`}</p>}<p>第 {answers.length + 1}／{state.questions.length} 題</p><h2>{question.promptJa}</h2>
     {question.promptRepresentation && <RepresentationView representation={question.promptRepresentation} label="題目表示" />}
     {renderInput(answer, response, setResponse)}
     <button type="button" disabled={response === '' || (Array.isArray(response) && response.length === 0)} onClick={onSubmit}>回答</button>
