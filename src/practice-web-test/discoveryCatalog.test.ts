@@ -17,9 +17,9 @@ function syntheticRelease(overrides: Partial<PrivatePracticeQuestionBankRelease>
     difficulty: 'foundation' as const,
     promptJa: 'テスト専用の問題文です。',
     answer: {
-      input: { kind: 'short-text' as const },
-      expectedAnswer: { kind: 'short-text' as const, value: '答え' },
-      scoring: { kind: 'exact-text' as const },
+      input: { kind: 'single-choice' as const, choices: [{ id: 'yes', textJa: 'はい' }] },
+      expectedAnswer: { kind: 'single-choice' as const, choiceId: 'yes' },
+      scoring: { kind: 'exact-choice' as const },
     },
     coreExplanation: { concise: 'テスト専用の解説です。', whatIsAskedJa: '答えること。' },
     itemAnalysis: { languageLoads: [], reasoningLoads: [], executionLoads: [] },
@@ -74,6 +74,41 @@ describe('Practice discovery catalog', () => {
 
     const catalog = createPracticeDiscoveryCatalog(release)
     expect(catalog.families[0]?.domains[0]?.categories[0]?.releasedCount).toBe(1)
+  })
+
+  it('counts only web-delivery items in the browser discovery projection', () => {
+    const release = syntheticRelease()
+    const first = release.payload.questionBank.questions[0]!
+    const web = {
+      ...first,
+      answer: {
+        input: { kind: 'single-choice' as const, choices: [{ id: 'yes', textJa: 'はい' }] },
+        expectedAnswer: { kind: 'single-choice' as const, choiceId: 'yes' },
+        scoring: { kind: 'exact-choice' as const },
+      },
+    }
+    release.payload.questionBank.questions[0] = web
+    release.payload.questionBank.questions.push({ ...web, id: 'test-center-question', deliveryProfile: 'test-center' })
+    release.payload.questionBank.questions.push({ ...web, id: 'short-text-question', answer: {
+      input: { kind: 'short-text' as const },
+      expectedAnswer: { kind: 'short-text' as const, value: '答え' },
+      scoring: { kind: 'exact-text' as const },
+    } })
+
+    const catalog = createPracticeDiscoveryCatalog(release)
+    expect(catalog.families[0]?.domains[0]?.categories[0]?.releasedCount).toBe(1)
+  })
+
+  it('rejects unsupported items with unknown metadata before browser filtering', () => {
+    const release = syntheticRelease()
+    const first = release.payload.questionBank.questions[0]!
+    release.payload.questionBank.questions.push({ ...first, id: 'unsupported-unknown-category', category: 'private-editorial-label', answer: {
+      input: { kind: 'short-text' as const },
+      expectedAnswer: { kind: 'short-text' as const, value: '答え' },
+      scoring: { kind: 'exact-text' as const },
+    } })
+
+    expect(() => createPracticeDiscoveryCatalog(release)).toThrow('not registered for public discovery')
   })
 
   it('rejects unregistered private family/category/mode metadata before it becomes public', () => {

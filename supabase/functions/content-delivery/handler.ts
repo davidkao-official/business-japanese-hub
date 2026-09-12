@@ -34,6 +34,10 @@ export interface ContentDeliveryDeps {
   getRelease: (contentId: string, revision: string) => Promise<ReleaseLookup>
 }
 
+function privateNoStore(result: HandlerResult): HandlerResult {
+  return { ...result, headers: { ...result.headers, 'Cache-Control': 'private, no-store' } }
+}
+
 function requestReference(url: string): { contentId: string; revision: string } | null {
   try {
     const parsed = new URL(url)
@@ -60,22 +64,22 @@ export async function handleContentDelivery(
   if (!reference) return badRequest('invalid content reference')
 
   const userId = await authenticateBearer(deps.db, headerValue(req.headers, 'authorization'))
-  if (!userId) return unauthorized()
+  if (!userId) return privateNoStore(unauthorized())
 
   const access = await deps.membershipAccessFor(userId)
-  if (access === 'unavailable') return jsonResult(503, { error: 'membership access unavailable' })
-  if (access !== 'active') return forbidden('active membership required')
+  if (access === 'unavailable') return privateNoStore(jsonResult(503, { error: 'membership access unavailable' }))
+  if (access !== 'active') return privateNoStore(forbidden('active membership required'))
 
   const lookup = await deps.getRelease(reference.contentId, reference.revision)
-  if (lookup.kind === 'unavailable') return jsonResult(503, { error: 'content delivery unavailable' })
-  if (lookup.kind === 'missing') return notFound('published member content not found')
+  if (lookup.kind === 'unavailable') return privateNoStore(jsonResult(503, { error: 'content delivery unavailable' }))
+  if (lookup.kind === 'missing') return privateNoStore(notFound('published member content not found'))
   const { release } = lookup
-  return jsonResult(200, {
+  return privateNoStore(jsonResult(200, {
     content: {
       contentId: release.contentId,
       revision: release.revision,
       contentKind: release.contentKind,
       payload: release.payload,
     },
-  })
+  }))
 }

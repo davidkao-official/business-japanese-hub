@@ -1,10 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { AuthClient, SessionUser, SignUpResult } from './types'
 
 export interface AuthContextValue {
   user: SessionUser | null
   loading: boolean
+  getAccessToken(): Promise<string | null>
   signIn(email: string, password: string): Promise<void>
   signUp(email: string, password: string): Promise<SignUpResult>
   signOut(): Promise<void>
@@ -53,10 +54,16 @@ export function AuthProvider({ authClient, children }: AuthProviderProps) {
     }
   }, [authClient])
 
+  const getAccessToken = useCallback(
+    () => authClient.getAccessToken?.() ?? Promise.resolve(null),
+    [authClient],
+  )
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
       loading,
+      getAccessToken,
       signIn: async (email: string, password: string) => {
         const { user: nextUser } = await authClient.signInWithPassword({ email, password })
         authEventSeenRef.current = true
@@ -76,7 +83,7 @@ export function AuthProvider({ authClient, children }: AuthProviderProps) {
         setUser(null)
       },
     }),
-    [authClient, user, loading],
+    [authClient, getAccessToken, user, loading],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

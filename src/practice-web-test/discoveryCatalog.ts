@@ -1,4 +1,5 @@
 import type { PrivatePracticeQuestionBankRelease } from '../content-delivery/privatePracticeQuestionBank'
+import { isBrowserSupportedQuestion } from './runtime'
 
 export const PRACTICE_DISCOVERY_CATALOG_SCHEMA_VERSION = 1 as const
 
@@ -111,6 +112,7 @@ export function createPracticeDiscoveryCatalog(
       !SUPPORTED_DISCOVERY_MODES.has(mode) || !categoryDefinition.modes.includes(mode)) {
       throw new Error('private release contains a family, category, or mode not registered for public discovery')
     }
+    if (question.deliveryProfile !== 'web' || !isBrowserSupportedQuestion(question)) continue
     const family = grouped.get(question.testFamily) ?? new Map()
     const domain = family.get(question.domain) ?? new Map()
     const category = domain.get(question.category) ?? {

@@ -13,4 +13,13 @@ describe('product IA Learn module typography', () => {
     expect(productIaCss).not.toContain('.learning-module-link span:nth-child(2)')
     expect(productIaCss).not.toContain('.learning-module-link span:last-child')
   })
+
+  it('provides token-based, contained runner presentation and keyboard focus styles', () => {
+    expect(productIaCss).toContain('.web-test-hub__runner')
+    expect(productIaCss).toContain('padding: var(--space-5)')
+    expect(productIaCss).toContain('list-style: decimal')
+    expect(productIaCss).toContain('.web-test-hub__runner table')
+    expect(productIaCss).toContain('overflow: auto')
+    expect(productIaCss).toContain('var(--focus-ring-color)')
+  })
 })
