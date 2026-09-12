@@ -174,6 +174,14 @@ begin
     raise exception 'practice attempt identity and payload are required' using errcode = '22023';
   end if;
   perform pg_advisory_xact_lock(hashtextextended(p_content_id, 0));
+  -- A committed idempotency key is authoritative even when its question has
+  -- since retired.  Returning conflict lets a lost response converge without
+  -- treating a replay as a new current attempt.
+  select * into existing from public.practice_attempts
+  where user_id = p_user_id and client_attempt_id = p_client_attempt_id;
+  if found then
+    return jsonb_build_object('kind', 'conflict');
+  end if;
   if exists (select 1 from public.practice_question_release_head where content_id = p_content_id)
     and not exists (
       select 1 from public.practice_question_availability
@@ -190,17 +198,13 @@ begin
     p_user_id, p_client_attempt_id, p_content_id, p_content_revision, p_question_id,
     p_question_version, p_test_family, p_domain, p_category, p_practice_mode,
     p_submitted_answer, p_correct, p_response_ms, p_checkpoint_results
-  ) on conflict (user_id, client_attempt_id) do nothing;
+  ) on conflict (user_id, client_attempt_id) do nothing
+  returning * into existing;
+  if found then return jsonb_build_object('kind', 'persisted'); end if;
   select * into existing from public.practice_attempts
   where user_id = p_user_id and client_attempt_id = p_client_attempt_id;
-  if existing.content_id is not distinct from p_content_id and existing.content_revision is not distinct from p_content_revision
-    and existing.question_id is not distinct from p_question_id and existing.question_version is not distinct from p_question_version
-    and existing.test_family is not distinct from p_test_family and existing.domain is not distinct from p_domain
-    and existing.category is not distinct from p_category and existing.practice_mode is not distinct from p_practice_mode
-    and existing.submitted_answer is not distinct from p_submitted_answer and existing.correct is not distinct from p_correct
-    and existing.response_ms is not distinct from p_response_ms and existing.checkpoint_results is not distinct from p_checkpoint_results
-  then return jsonb_build_object('kind', 'persisted'); end if;
-  return jsonb_build_object('kind', 'conflict');
+  if found then return jsonb_build_object('kind', 'conflict'); end if;
+  return jsonb_build_object('kind', 'persisted');
 end;
 $$;
 revoke all on function public.record_practice_attempt(uuid,uuid,text,text,text,bigint,text,text,text,text,jsonb,boolean,integer,jsonb) from public, anon, authenticated, service_role;
