@@ -20,6 +20,48 @@ export function safeErrorCategories(stderr: string): string {
   return categories.filter(([, pattern]) => pattern.test(stderr)).map(([name]) => name).join(', ') || 'unknown'
 }
 
+const TAP_ASSERTION_ORDINAL_MAX = 1_000_000
+const TAP_PATH = 'supabase/tests/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+'
+const TAP_INLINE_FAILURE = new RegExp(`^\\s*(${TAP_PATH})\\s+(?:\\.\\.\\s*)?not\\s+ok\\s+([0-9]+)\\b`, 'i')
+const TAP_PATH_HEADER = new RegExp(`^\\s*(${TAP_PATH})(?:\\s+\\.\\.)?\\s*$`, 'i')
+const TAP_FAILURE = /^\s*not\s+ok\b/i
+
+function tapOrdinal(value: string): string | null {
+  if (!/^[1-9][0-9]{0,6}$/.test(value)) return null
+  const ordinal = Number(value)
+  return ordinal <= TAP_ASSERTION_ORDINAL_MAX ? String(ordinal) : null
+}
+
+function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<string>): string | null {
+  const candidates = new Set<string>()
+  let pendingPath: string | undefined
+  let hasUnassociatedFailure = false
+  for (const line of output.split(/\r?\n/)) {
+    const inline = TAP_INLINE_FAILURE.exec(line)
+    if (inline) {
+      const ordinal = tapOrdinal(inline[2])
+      if (ordinal && allowlistedTestPaths.has(inline[1])) candidates.add(`${inline[1]}#${ordinal}`)
+      else hasUnassociatedFailure = true
+      pendingPath = undefined
+      continue
+    }
+    const header = TAP_PATH_HEADER.exec(line)
+    if (header) {
+      pendingPath = allowlistedTestPaths.has(header[1]) ? header[1] : undefined
+      continue
+    }
+    if (TAP_FAILURE.test(line)) {
+      const ordinal = tapOrdinal(/^\s*not\s+ok\s+([0-9]+)/i.exec(line)?.[1] ?? '')
+      if (pendingPath && ordinal) candidates.add(`${pendingPath}#${ordinal}`)
+      else hasUnassociatedFailure = true
+      pendingPath = undefined
+      continue
+    }
+    if (line.trim()) pendingPath = undefined
+  }
+  return !hasUnassociatedFailure && candidates.size === 1 ? [...candidates][0] : null
+}
+
 /**
  * Symbolic pgTAP/TAP classification for the whitelisted local `test db` stage.
  * Scans captured stdout plus stderr internally but only ever returns fixed
@@ -28,7 +70,7 @@ export function safeErrorCategories(stderr: string): string {
  * pgTAP `Result: FAIL` summary is not an attributable assertion and fails
  * closed to `unknown`. Original output, SQL and row values are never returned.
  */
-export function safeTestDiagnostics(stdout: string, stderr: string): string {
+export function safeTestDiagnostics(stdout: string, stderr: string, allowlistedTestPaths: ReadonlySet<string> = new Set()): string {
   const infrastructure = safeErrorCategories(stderr)
   if (infrastructure !== 'unknown') return infrastructure
   const output = `${stdout}\n${stderr}`
@@ -39,15 +81,17 @@ export function safeTestDiagnostics(stdout: string, stderr: string): string {
   ].some(pattern => pattern.test(output))
   if (planMismatch) return 'tap_plan_mismatch'
   const testFailure = [
-    /^\s*not ok \d+/im,
+    /^\s*not ok\b/im,
     /^#\s*failed test\b/im,
     /^#\s*looks like you failed \d+ tests? of \d+/im,
     /\bFailed \d+\/\d+ subtests\b/,
   ].some(pattern => pattern.test(output))
-  return testFailure ? 'pg_tap_test_failure' : 'unknown'
+  if (!testFailure) return 'unknown'
+  const provenance = attributedTapFailure(output, allowlistedTestPaths)
+  return provenance ? `pg_tap_test_failure:${provenance}` : 'pg_tap_test_failure:unattributed'
 }
 
-export function commandFailure(file: string, args: string[], error: unknown): Error {
+export function commandFailure(file: string, args: string[], error: unknown, allowlistedTestPaths: ReadonlySet<string> = new Set()): Error {
   const detail = error as { code?: unknown; stderr?: unknown; stdout?: unknown } | null
   const ownedCliStart = file === 'docker' && args.length === 9 && args[0] === '--host' &&
     /^unix:\/\/\//.test(args[1]) && args[2] === 'exec' && /^[a-f0-9]{64}$/.test(args[3]) &&
@@ -72,7 +116,7 @@ export function commandFailure(file: string, args: string[], error: unknown): Er
     const code = typeof detail?.code === 'number' ? detail.code : 'unknown'
     const stderr = typeof detail?.stderr === 'string' ? detail.stderr : ''
     const diagnostics = stage === testDbStage
-      ? safeTestDiagnostics(typeof detail?.stdout === 'string' ? detail.stdout : '', stderr)
+      ? safeTestDiagnostics(typeof detail?.stdout === 'string' ? detail.stdout : '', stderr, allowlistedTestPaths)
       : safeErrorCategories(stderr)
     return new Error(`DB validation failed: supabase ${stage} (exit ${code}); ${diagnostics || 'unknown'}; no fallback performed`)
   }

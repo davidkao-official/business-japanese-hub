@@ -9,6 +9,7 @@ import { commandFailure } from './db-validation/command-error.ts'
 
 const execute = promisify(execFile)
 const safeEnv = { PATH: process.env.PATH, HOME: process.env.HOME }
+let committedTestPaths: ReadonlySet<string> = new Set()
 // No caller-selected project, workdir, linked target, URL or CLI arguments.
 if (process.argv.length !== 2) throw new Error('Usage: pnpm validate:db (no arguments)')
 for (const key of Object.keys(process.env)) {
@@ -21,7 +22,7 @@ const command = async (file: string, args: string[]) => {
     return (await execute(file, args, { env: safeEnv, maxBuffer: 16 * 1024 * 1024, timeout: 900_000 })).stdout
   } catch (error) {
     // Do not dump subprocess environment or potentially sensitive command output.
-    throw commandFailure(file, args, error)
+    throw commandFailure(file, args, error, committedTestPaths)
   }
 }
 const context = (await command('docker', ['context', 'show'])).trim()
@@ -54,6 +55,10 @@ try {
     await mkdir(dirname(join(source, path)), { recursive: true })
     await writeFile(join(source, path), data, { mode: 0o600 })
   }
+  committedTestPaths = new Set(entries.flatMap(entry => {
+    const match = /^(100644|100755) blob [a-f0-9]+\t(supabase\/tests\/[\w./-]+)$/.exec(entry)
+    return match ? [match[2]] : []
+  }))
   console.log(`DB validation input HEAD: ${head}`)
   await validateDatabase({
     endpoint, token, source, cancelled: () => interrupted,

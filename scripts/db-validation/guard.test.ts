@@ -327,22 +327,38 @@ test('fixed owned Supabase stage receives only categories and numeric exit', () 
 const ownedStage = (stage: string[]) => ['--host', 'unix:///outer.sock', 'exec', receipt, 'docker', '--host',
   'unix:///var/run/docker.sock', 'exec', '--workdir', '/work', cliReceipt,
   'env', '-i', 'PATH=/usr/local/bin', 'supabase', '--workdir', '/work', ...stage]
+const committedTestPath = 'supabase/tests/entitlement_rls.test.sql'
+const committedOtherTestPath = 'supabase/tests/finance_status_counts.test.sql'
 test('whitelisted test stage reports stdout pgTAP failures symbolically without leaking output', () => {
   const stdout = [
-    'supabase/tests/assertions.test.sql .. Failed 1/5 subtests',
+    committedTestPath,
     'not ok 3 - rls denies anonymous read',
-    '# Failed test 3: "rls denies anonymous read"',
-    '#   at /work/supabase/tests/assertions.test.sql line 42',
     '# password=PRIVATE-PASSWORD',
     'Result: FAIL',
   ].join('\n')
   const result = commandFailure('docker', ownedStage(['test', 'db', '--local', 'supabase/tests']),
-    { code: 1, stdout, stderr: 'Error: PRIVATE-SECRET' })
+    { code: 1, stdout, stderr: 'Error: PRIVATE-SECRET' }, new Set([committedTestPath]))
   assert.match(result.message, /supabase --workdir \/work test db --local supabase\/tests \(exit 1\)/)
-  assert.match(result.message, /pg_tap_test_failure/)
-  for (const leak of ['not ok', 'PRIVATE', 'assertions.test.sql', 'Failed test 3', 'line 42', 'rls denies']) {
+  assert.match(result.message, /pg_tap_test_failure:supabase\/tests\/entitlement_rls\.test\.sql#3/)
+  for (const leak of ['not ok', 'PRIVATE', 'rls denies']) {
     assert.ok(!result.message.includes(leak))
   }
+})
+test('valid TAP path and ordinal are emitted only from the committed allowlist', () => {
+  const path = committedTestPath
+  const output = `${path}\nnot ok 3 - private assertion body`
+  assert.equal(safeTestDiagnostics(output, '', new Set([path])), `pg_tap_test_failure:${path}#3`)
+})
+test('missing, ambiguous, malformed, and out-of-range TAP provenance stays unattributed', () => {
+  const path = committedTestPath
+  const otherPath = committedOtherTestPath
+  const allowlist = new Set([path, otherPath])
+  assert.equal(safeTestDiagnostics(`${path}\nnot ok 3 - x`, '', new Set()), 'pg_tap_test_failure:unattributed')
+  assert.equal(safeTestDiagnostics(`${path}\nnot ok 3 - x`, '', new Set([otherPath])), 'pg_tap_test_failure:unattributed')
+  assert.equal(safeTestDiagnostics(`${path}\nnot ok 3 - x\n${otherPath}\nnot ok 4 - y`, '', allowlist), 'pg_tap_test_failure:unattributed')
+  assert.equal(safeTestDiagnostics(`${path}\nnot ok 0 - x`, '', new Set([path])), 'pg_tap_test_failure:unattributed')
+  assert.equal(safeTestDiagnostics(`${path}\nnot ok 1000001 - x`, '', new Set([path])), 'pg_tap_test_failure:unattributed')
+  assert.equal(safeTestDiagnostics('supabase/tests/uncommitted.test.sql\nnot ok 3 - x', '', new Set([path])), 'pg_tap_test_failure:unattributed')
 })
 test('whitelisted test stage recognizes a TAP plan/assertion-count mismatch symbolically', () => {
   const stdout = ['1..3', 'ok 1 - a', 'ok 2 - b', '# Looks like you planned 3 tests but ran 5.'].join('\n')
@@ -353,7 +369,7 @@ test('whitelisted test stage recognizes a TAP plan/assertion-count mismatch symb
 test('test-stage diagnostics never include raw stdout, stderr, SQL or row values', () => {
   const stdout = 'not ok 1 - PRIVATE-TEST-BODY\n# SQLSTATE 23505 row id=1234 https://example.invalid/x token=PRIVATE-TOKEN'
   const result = commandFailure('docker', ownedStage(['test', 'db', '--local', 'supabase/tests']), { code: 2, stdout, stderr: 'PRIVATE-STDERR' })
-  assert.match(result.message, /pg_tap_test_failure/)
+  assert.match(result.message, /pg_tap_test_failure:unattributed/)
   for (const leak of ['PRIVATE-TEST-BODY', 'PRIVATE-STDERR', '23505', 'example.invalid', 'row id', 'SQL']) {
     assert.ok(!result.message.includes(leak))
   }
@@ -389,7 +405,7 @@ test('other fixed stages never classify stdout TAP output', () => {
   assert.ok(!result.message.includes('tap') && !result.message.includes('not ok'))
 })
 test('safeTestDiagnostics is bounded to fixed symbolic labels', () => {
-  assert.equal(safeTestDiagnostics('not ok 1 - x', ''), 'pg_tap_test_failure')
+  assert.equal(safeTestDiagnostics('not ok 1 - x', ''), 'pg_tap_test_failure:unattributed')
   assert.equal(safeTestDiagnostics('# Looks like you planned 2 tests but ran 3', ''), 'tap_plan_mismatch')
   assert.equal(safeTestDiagnostics('ordinary', 'Error: no space left on device'), 'disk_full')
   assert.equal(safeTestDiagnostics('ordinary', 'plain stderr'), 'unknown')
