@@ -366,6 +366,50 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
   })
 
+  it('retains a signed-out attempt for same-user reauthentication and retries with the same idempotency key', async () => {
+    fetchPracticePayloadMock.mockClear()
+    fetchPracticePayloadMock
+      .mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('重新登入前の題幹') })
+      .mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('重新登入後の題幹') })
+    submitPracticeAttemptMock.mockResolvedValueOnce({ kind: 'signed-out' }).mockResolvedValueOnce({ kind: 'ok' })
+    const rendered = renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'member-a' } })
+    await waitFor(() => expect(screen.getByRole('heading', { name: '重新登入前の題幹' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: '二番' }))
+    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('登入狀態已失效'))
+    const firstAttempt = submitPracticeAttemptMock.mock.calls[0]![0]
+
+    act(() => rendered.authClient.emitAuthStateChange(null))
+    expect(screen.getByRole('heading', { name: '需要登入' })).toBeInTheDocument()
+    act(() => rendered.authClient.emitAuthStateChange({ id: 'member-a' }))
+    await waitFor(() => expect(screen.getByRole('heading', { name: '重新登入後の題幹' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: '重試儲存' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重試儲存' }))
+    await waitFor(() => expect(screen.getByText('作答紀錄已儲存。')).toBeInTheDocument())
+    expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(2)
+    expect(submitPracticeAttemptMock.mock.calls[1]![0]).toEqual(firstAttempt)
+  })
+
+  it('discards a signed-out attempt when reauthentication belongs to a different user', async () => {
+    fetchPracticePayloadMock.mockClear()
+    fetchPracticePayloadMock
+      .mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('換帳號前の題幹') })
+      .mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('換帳號後の題幹') })
+    submitPracticeAttemptMock.mockResolvedValueOnce({ kind: 'signed-out' })
+    const rendered = renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'member-a' } })
+    await waitFor(() => expect(screen.getByRole('heading', { name: '換帳號前の題幹' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: '二番' }))
+    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('登入狀態已失效'))
+
+    act(() => rendered.authClient.emitAuthStateChange(null))
+    act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b' }))
+    await waitFor(() => expect(screen.getByRole('heading', { name: '換帳號後の題幹' })).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: '重試儲存' })).not.toBeInTheDocument()
+    expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
+    expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(1)
+  })
+
   it('removes the old ready payload immediately when the authenticated user changes', async () => {
     fetchPracticePayloadMock.mockClear()
     fetchPracticePayloadMock
