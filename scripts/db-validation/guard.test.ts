@@ -367,6 +367,21 @@ test('test stage preserves infrastructure categories over TAP output and stays u
   assert.match(unknown.message, /; unknown;/)
   assert.ok(!unknown.message.includes('PRIVATE'))
 })
+test('bare pgTAP Result: FAIL summary fails closed to unknown without leakage', () => {
+  const args = ownedStage(['test', 'db', '--local', 'supabase/tests'])
+  const stdout = [
+    'supabase/tests/assertions.test.sql .. ',
+    'Result: FAIL',
+    'PRIVATE-PASSWORD',
+    'row email=alice@example.invalid id=1234',
+  ].join('\n')
+  assert.equal(safeTestDiagnostics(stdout, ''), 'unknown')
+  const result = commandFailure('docker', args, { code: 1, stdout, stderr: 'PRIVATE-STDERR' })
+  assert.match(result.message, /; unknown;/)
+  for (const leak of ['Result: FAIL', 'PRIVATE', 'example.invalid', 'alice', 'row email']) {
+    assert.ok(!result.message.includes(leak))
+  }
+})
 test('other fixed stages never classify stdout TAP output', () => {
   const result = commandFailure('docker', ownedStage(['db', 'start']),
     { code: 1, stdout: 'not ok 1 - x\n# Looks like you planned 1 tests but ran 2', stderr: '' })
