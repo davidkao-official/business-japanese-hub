@@ -75,7 +75,13 @@ Only the fixed inner CLI container's pre-DB `docker start` failure includes a
 bounded (4 KiB) stderr diagnostic and numeric exit code. Supabase failures,
 in the four fixed stages, include only fixed error categories (such as disk capacity, image pull,
 connection, TLS, permission or health) and a numeric exit code; no original
-Supabase error text is returned. Other
+Supabase error text is returned. Only the whitelisted local
+`supabase --workdir /work test db --local supabase/tests` stage additionally
+scans its captured stdout and stderr internally and may return the fixed
+`pg_tap_test_failure` or `tap_plan_mismatch` symbols when pgTAP/TAP output is
+safely recognizable; it still returns only a symbolic category and numeric exit
+code, never raw output, test body text, SQL, row values or errors, and falls
+back to `unknown` otherwise. Other
 command output, environment dumps and private rows remain suppressed. Failed
 gates may report the proved daemon's data-filesystem capacity and owned
 containers' status, exit code, OOM flag and health status; never environment

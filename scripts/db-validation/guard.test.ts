@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { validateDatabase, validationProjectId, IMAGE, CLI_IMAGE, CLI_VERSION, CLI_SHA256, DATA_ROOT } from './guard.ts'
-import { commandFailure, safeErrorCategories } from './command-error.ts'
+import { commandFailure, safeErrorCategories, safeTestDiagnostics } from './command-error.ts'
 
 const token = 'a'.repeat(32)
 const receipt = 'b'.repeat(64)
@@ -323,6 +323,61 @@ test('fixed owned Supabase stage receives only categories and numeric exit', () 
   assert.ok(!result.message.includes('PRIVATE'))
   const arbitrary = commandFailure('docker', [...args, '--linked'], { stderr: 'Error: PRIVATE' })
   assert.ok(!arbitrary.message.includes('PRIVATE'))
+})
+const ownedStage = (stage: string[]) => ['--host', 'unix:///outer.sock', 'exec', receipt, 'docker', '--host',
+  'unix:///var/run/docker.sock', 'exec', '--workdir', '/work', cliReceipt,
+  'env', '-i', 'PATH=/usr/local/bin', 'supabase', '--workdir', '/work', ...stage]
+test('whitelisted test stage reports stdout pgTAP failures symbolically without leaking output', () => {
+  const stdout = [
+    'supabase/tests/assertions.test.sql .. Failed 1/5 subtests',
+    'not ok 3 - rls denies anonymous read',
+    '# Failed test 3: "rls denies anonymous read"',
+    '#   at /work/supabase/tests/assertions.test.sql line 42',
+    '# password=PRIVATE-PASSWORD',
+    'Result: FAIL',
+  ].join('\n')
+  const result = commandFailure('docker', ownedStage(['test', 'db', '--local', 'supabase/tests']),
+    { code: 1, stdout, stderr: 'Error: PRIVATE-SECRET' })
+  assert.match(result.message, /supabase --workdir \/work test db --local supabase\/tests \(exit 1\)/)
+  assert.match(result.message, /pg_tap_test_failure/)
+  for (const leak of ['not ok', 'PRIVATE', 'assertions.test.sql', 'Failed test 3', 'line 42', 'rls denies']) {
+    assert.ok(!result.message.includes(leak))
+  }
+})
+test('whitelisted test stage recognizes a TAP plan/assertion-count mismatch symbolically', () => {
+  const stdout = ['1..3', 'ok 1 - a', 'ok 2 - b', '# Looks like you planned 3 tests but ran 5.'].join('\n')
+  const result = commandFailure('docker', ownedStage(['test', 'db', '--local', 'supabase/tests']), { code: 1, stdout, stderr: '' })
+  assert.match(result.message, /tap_plan_mismatch/)
+  for (const leak of ['Looks like you planned', 'planned 3 tests', '1..3']) assert.ok(!result.message.includes(leak))
+})
+test('test-stage diagnostics never include raw stdout, stderr, SQL or row values', () => {
+  const stdout = 'not ok 1 - PRIVATE-TEST-BODY\n# SQLSTATE 23505 row id=1234 https://example.invalid/x token=PRIVATE-TOKEN'
+  const result = commandFailure('docker', ownedStage(['test', 'db', '--local', 'supabase/tests']), { code: 2, stdout, stderr: 'PRIVATE-STDERR' })
+  assert.match(result.message, /pg_tap_test_failure/)
+  for (const leak of ['PRIVATE-TEST-BODY', 'PRIVATE-STDERR', '23505', 'example.invalid', 'row id', 'SQL']) {
+    assert.ok(!result.message.includes(leak))
+  }
+})
+test('test stage preserves infrastructure categories over TAP output and stays unknown otherwise', () => {
+  const args = ownedStage(['test', 'db', '--local', 'supabase/tests'])
+  const infrastructure = commandFailure('docker', args, { code: 1, stdout: 'not ok 1 - x', stderr: 'Error: no space left on device' })
+  assert.match(infrastructure.message, /disk_full/)
+  assert.ok(!infrastructure.message.includes('not ok'))
+  const unknown = commandFailure('docker', args, { code: 1, stdout: 'ordinary output PRIVATE', stderr: '' })
+  assert.match(unknown.message, /; unknown;/)
+  assert.ok(!unknown.message.includes('PRIVATE'))
+})
+test('other fixed stages never classify stdout TAP output', () => {
+  const result = commandFailure('docker', ownedStage(['db', 'start']),
+    { code: 1, stdout: 'not ok 1 - x\n# Looks like you planned 1 tests but ran 2', stderr: '' })
+  assert.match(result.message, /; unknown;/)
+  assert.ok(!result.message.includes('tap') && !result.message.includes('not ok'))
+})
+test('safeTestDiagnostics is bounded to fixed symbolic labels', () => {
+  assert.equal(safeTestDiagnostics('not ok 1 - x', ''), 'pg_tap_test_failure')
+  assert.equal(safeTestDiagnostics('# Looks like you planned 2 tests but ran 3', ''), 'tap_plan_mismatch')
+  assert.equal(safeTestDiagnostics('ordinary', 'Error: no space left on device'), 'disk_full')
+  assert.equal(safeTestDiagnostics('ordinary', 'plain stderr'), 'unknown')
 })
 test('Supabase 2.115 sanitized project labels match without losing invocation entropy', async () => {
   const h = harness()
