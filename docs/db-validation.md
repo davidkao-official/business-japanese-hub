@@ -78,10 +78,20 @@ connection, TLS, permission or health) and a numeric exit code; no original
 Supabase error text is returned. Only the whitelisted local
 `supabase --workdir /work test db --local supabase/tests` stage additionally
 scans its captured stdout and stderr internally and may return the fixed
-`pg_tap_test_failure` or `tap_plan_mismatch` symbols when pgTAP/TAP output is
-safely recognizable; it still returns only a symbolic category and numeric exit
-code, never raw output, test body text, SQL, row values or errors, and falls
-back to `unknown` otherwise. Other
+`pg_tap_test_failure:<committed supabase/tests path>#<bounded assertion ordinal>`
+only for one consistent pg_prove failure block: an exact allowlisted file
+header such as
+`supabase/tests/<file> ..`, followed before the next harness header by exactly
+one bounded `# Failed test <ordinal>:` line and one standalone bounded
+`Failed <n>/<m> subtests` summary, with `1 <= n <= m`. Passing harness blocks
+are ignored. The path must be allowlisted from the validated committed HEAD;
+descriptions, counts, source positions and TAP bodies are never returned.
+Otherwise it returns
+`pg_tap_test_failure:unattributed`. `tap_plan_mismatch` remains separate. It
+still returns only symbolic categories and a numeric exit code, never raw
+output, test body text, SQL, row values or errors, and falls back to `unknown`
+otherwise. `unattributed` is not evidence of an application or migration
+defect. Other
 command output, environment dumps and private rows remain suppressed. Failed
 gates may report the proved daemon's data-filesystem capacity and owned
 containers' status, exit code, OOM flag and health status; never environment

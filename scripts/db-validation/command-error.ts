@@ -20,6 +20,85 @@ export function safeErrorCategories(stderr: string): string {
   return categories.filter(([, pattern]) => pattern.test(stderr)).map(([name]) => name).join(', ') || 'unknown'
 }
 
+const TAP_ASSERTION_ORDINAL_MAX = 1_000_000
+const TAP_HARNESS_HEADER = /^\s*([A-Za-z0-9._/-]+)\s+\.\.\s*(.*)$/i
+const TAP_HARNESS_FAILURE_SIGNAL = /^\s*[A-Za-z0-9._/-]+\s+\.\.\s+Failed\b/im
+const TAP_FAILED_TEST = /^\s*#\s*Failed test(?:\s+([0-9]+))?:\s*/i
+const TAP_FAILED_TEST_PREFIX = /^\s*#\s*Failed test\b/i
+const TAP_FAILED_TEST_SIGNAL = /^\s*#\s*Failed test\b/im
+const TAP_SUBTEST_SUMMARY = /^\s*Failed\s+([0-9]+)\/([0-9]+)\s+subtests\s*$/i
+const TAP_SUBTEST_SUMMARY_PREFIX = /^\s*Failed\b.*\bsubtests?\b/i
+const TAP_SUBTEST_SUMMARY_SIGNAL = /^\s*Failed\b.*\bsubtests?\b/im
+
+function tapOrdinal(value: string): string | null {
+  if (!/^[1-9][0-9]{0,6}$/.test(value)) return null
+  const ordinal = Number(value)
+  return ordinal <= TAP_ASSERTION_ORDINAL_MAX ? String(ordinal) : null
+}
+
+function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<string>): string | null {
+  type Block = {
+    path: string
+    passing: boolean
+    failedOrdinals: (string | null)[]
+    summaries: { failed: string | null; total: string | null }[]
+    malformed: boolean
+  }
+  const blocks: Block[] = []
+  let current: Block | null = null
+  let malformedOutsideBlock = false
+  let malformedBlock = false
+  for (const line of output.split(/\r?\n/)) {
+    const failedTest = TAP_FAILED_TEST.exec(line)
+    const header = TAP_HARNESS_HEADER.exec(line)
+    if (header) {
+      if (current) blocks.push(current)
+      const path = header[1].startsWith('/work/') ? header[1].slice('/work/'.length) : header[1]
+      const passing = /^ok\b/i.test(header[2])
+      current = { path, passing, failedOrdinals: [], summaries: [], malformed: false }
+      if (header[2] && !passing) {
+        current.malformed = true
+        malformedBlock = true
+      }
+      continue
+    }
+    if (failedTest || TAP_FAILED_TEST_PREFIX.test(line)) {
+      if (!current) {
+        malformedOutsideBlock = true
+        continue
+      }
+      const ordinal = tapOrdinal(failedTest?.[1] ?? '')
+      current.failedOrdinals.push(ordinal)
+      if (current.passing || !ordinal || current.failedOrdinals.length > 1) current.malformed = true
+      continue
+    }
+    const summary = TAP_SUBTEST_SUMMARY.exec(line)
+    if (summary || TAP_SUBTEST_SUMMARY_PREFIX.test(line)) {
+      if (!current) {
+        malformedOutsideBlock = true
+        continue
+      }
+      const failed = tapOrdinal(summary?.[1] ?? '')
+      const total = tapOrdinal(summary?.[2] ?? '')
+      current.summaries.push({ failed, total })
+      if (current.passing || !failed || !total || Number(failed) > Number(total) || current.summaries.length > 1) current.malformed = true
+      continue
+    }
+  }
+  if (current) blocks.push(current)
+  if (malformedOutsideBlock || malformedBlock) return null
+  const candidates = blocks.filter(block => block.failedOrdinals.length > 0 || block.summaries.length > 0)
+  if (candidates.length !== 1) return null
+  const [block] = candidates
+  if (block.malformed || block.failedOrdinals.length !== 1 || block.summaries.length !== 1) return null
+  if (!/^supabase\/tests\/(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+$/.test(block.path) || !allowlistedTestPaths.has(block.path)) return null
+  const [ordinal] = block.failedOrdinals
+  const [summary] = block.summaries
+  if (!ordinal || !summary.failed || !summary.total || Number(summary.failed) > Number(summary.total)) return null
+  if (Number(ordinal) > Number(summary.total)) return null
+  return `${block.path}#${ordinal}`
+}
+
 /**
  * Symbolic pgTAP/TAP classification for the whitelisted local `test db` stage.
  * Scans captured stdout plus stderr internally but only ever returns fixed
@@ -28,7 +107,7 @@ export function safeErrorCategories(stderr: string): string {
  * pgTAP `Result: FAIL` summary is not an attributable assertion and fails
  * closed to `unknown`. Original output, SQL and row values are never returned.
  */
-export function safeTestDiagnostics(stdout: string, stderr: string): string {
+export function safeTestDiagnostics(stdout: string, stderr: string, allowlistedTestPaths: ReadonlySet<string> = new Set()): string {
   const infrastructure = safeErrorCategories(stderr)
   if (infrastructure !== 'unknown') return infrastructure
   const output = `${stdout}\n${stderr}`
@@ -39,15 +118,17 @@ export function safeTestDiagnostics(stdout: string, stderr: string): string {
   ].some(pattern => pattern.test(output))
   if (planMismatch) return 'tap_plan_mismatch'
   const testFailure = [
-    /^\s*not ok \d+/im,
-    /^#\s*failed test\b/im,
+    TAP_FAILED_TEST_SIGNAL,
+    TAP_SUBTEST_SUMMARY_SIGNAL,
+    TAP_HARNESS_FAILURE_SIGNAL,
     /^#\s*looks like you failed \d+ tests? of \d+/im,
-    /\bFailed \d+\/\d+ subtests\b/,
   ].some(pattern => pattern.test(output))
-  return testFailure ? 'pg_tap_test_failure' : 'unknown'
+  if (!testFailure) return 'unknown'
+  const provenance = attributedTapFailure(output, allowlistedTestPaths)
+  return provenance ? `pg_tap_test_failure:${provenance}` : 'pg_tap_test_failure:unattributed'
 }
 
-export function commandFailure(file: string, args: string[], error: unknown): Error {
+export function commandFailure(file: string, args: string[], error: unknown, allowlistedTestPaths: ReadonlySet<string> = new Set()): Error {
   const detail = error as { code?: unknown; stderr?: unknown; stdout?: unknown } | null
   const ownedCliStart = file === 'docker' && args.length === 9 && args[0] === '--host' &&
     /^unix:\/\/\//.test(args[1]) && args[2] === 'exec' && /^[a-f0-9]{64}$/.test(args[3]) &&
@@ -72,7 +153,7 @@ export function commandFailure(file: string, args: string[], error: unknown): Er
     const code = typeof detail?.code === 'number' ? detail.code : 'unknown'
     const stderr = typeof detail?.stderr === 'string' ? detail.stderr : ''
     const diagnostics = stage === testDbStage
-      ? safeTestDiagnostics(typeof detail?.stdout === 'string' ? detail.stdout : '', stderr)
+      ? safeTestDiagnostics(typeof detail?.stdout === 'string' ? detail.stdout : '', stderr, allowlistedTestPaths)
       : safeErrorCategories(stderr)
     return new Error(`DB validation failed: supabase ${stage} (exit ${code}); ${diagnostics || 'unknown'}; no fallback performed`)
   }
