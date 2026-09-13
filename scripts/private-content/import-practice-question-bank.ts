@@ -17,7 +17,11 @@ if (!source || !contentId || !url || !serviceRoleKey) {
   } else {
     const release = result.value
     const db = createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })
-    const { error } = await db.from('private_content_release').insert({ content_id: release.contentId, revision: release.revision, content_kind: release.contentKind, access_scope: release.accessScope, payload: release.payload })
+    const { error } = await db.rpc('import_practice_question_release', {
+      p_content_id: release.contentId,
+      p_content_revision: release.revision,
+      p_payload: release.payload,
+    })
     if (error) {
       console.error('ERR  server import failed')
       process.exitCode = 1

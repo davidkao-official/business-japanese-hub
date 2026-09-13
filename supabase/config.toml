@@ -44,6 +44,9 @@ verify_jwt = true
 [functions.content-delivery]
 verify_jwt = true
 
+[functions.practice-attempts]
+verify_jwt = true
+
 [functions.product-analytics]
 verify_jwt = false
 

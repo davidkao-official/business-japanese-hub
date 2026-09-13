@@ -17,7 +17,7 @@ import {
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { NotFoundPage } from './NotFoundPage'
 import { useAuth } from '@business-japanese-hub/platform-auth'
-import { fetchPracticePayload } from '../practice-web-test/client'
+import { fetchPracticePayload, submitPracticeAttempt, type PracticeAttemptInput } from '../practice-web-test/client'
 import { resolveQuestionCheckpoints, scoreAnswer, selectableQuestions, scoreQuestion, supportOverlay, type RunnerResponse, type RuntimeQuestion } from '../practice-web-test/runtime'
 import type { PracticeRepresentation } from '../practice-web-test/contract'
 import type { PracticeAnswer } from '../practice-web-test/contract'
@@ -35,6 +35,9 @@ const MODE_LABELS: Record<PracticeDiscoveryMode, string> = {
 }
 
 const WEB_TEST_DESCRIPTION = '獨立的日本求職 Web Test 練習入口，協助華語學習者準備 SPI 等選考中的日文閱讀與推理能力。'
+
+type RunnerPersistence = 'pending' | 'saved' | 'failed' | 'signed-out' | 'forbidden' | 'missing' | 'stale' | 'invalid' | 'invalid-response-time'
+type RunnerAnswer = { correct: boolean; category: string; checkpointMeasured: number; checkpointMisses: number; elapsedMs: number; persistence: RunnerPersistence }
 
 function labelForFamily(testFamily: string): string {
   return catalog ? practiceDiscoveryFamilyLabel(catalog.releaseIdentity.contentId, testFamily) ?? '' : ''
@@ -56,6 +59,10 @@ function titleFor(...parts: string[]): string {
 
 function CatalogUnavailable() {
   return <NotFoundPage />
+}
+
+function reloadCurrentDocument(): void {
+  globalThis.location.reload()
 }
 
 /** Keeps the Web Test route description scoped to its mounted route lifetime. */
@@ -206,24 +213,50 @@ export function WebTestRunnerEntryPage() {
   const [state, setState] = useState<RunnerState>({ kind: 'idle' })
   const [index, setIndex] = useState(0)
   const [response, setResponse] = useState<RunnerResponse>('')
-  const [answers, setAnswers] = useState<Array<{ correct: boolean; category: string; checkpointMeasured: number; checkpointMisses: number; elapsedMs: number }>>([])
+  const [answers, setAnswers] = useState<RunnerAnswer[]>([])
   const [lastCorrect, setLastCorrect] = useState<boolean | null>(null)
   const [lastExplanation, setLastExplanation] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<{ question: RuntimeQuestion; correct: boolean } | null>(null)
   const [checkpointIndex, setCheckpointIndex] = useState<number | null>(null)
   const [checkpointResponse, setCheckpointResponse] = useState<RunnerResponse>('')
   const [checkpointFeedback, setCheckpointFeedback] = useState<boolean | null>(null)
+  const [persistence, setPersistence] = useState<'idle' | RunnerPersistence>('idle')
+  const [retryAvailable, setRetryAvailable] = useState(false)
   const startedAt = useRef<number>(0)
   const questionHeadingRef = useRef<HTMLHeadingElement>(null)
   const feedbackHeadingRef = useRef<HTMLHeadingElement>(null)
   const completionHeadingRef = useRef<HTMLHeadingElement>(null)
   const checkpointHeadingRef = useRef<HTMLHeadingElement>(null)
   const checkpointAdvanceFocusRef = useRef(false)
+  const checkpointResponsesRef = useRef<PracticeAttemptInput['checkpointResponses']>([])
+  const lastAttemptRef = useRef<PracticeAttemptInput | null>(null)
+  const lastAttemptAnswerIndexRef = useRef<number | null>(null)
+  const lastAttemptUserIdRef = useRef<string | null>(null)
+  const lastAttemptScopeKeyRef = useRef<string | null>(null)
+  const lastAttemptPersistenceRef = useRef<RunnerPersistence | null>(null)
+  const primaryElapsedMsRef = useRef<number | null>(null)
+  const persistenceGenerationRef = useRef(0)
   const userId = user?.id
   const selectionKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? '', userId ?? ''].join('|')
+  const selectionScopeKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? ''].join('|')
   useEffect(() => {
+    persistenceGenerationRef.current += 1
     let cancelled = false
     if (!catalog || !family || !domain || !category || !validSearch || !validMode) return
+    const pendingRetry = lastAttemptRef.current !== null &&
+      lastAttemptAnswerIndexRef.current !== null &&
+      lastAttemptUserIdRef.current !== null &&
+      lastAttemptScopeKeyRef.current === selectionScopeKey &&
+      (userId === undefined || userId === lastAttemptUserIdRef.current) &&
+      (lastAttemptPersistenceRef.current === 'pending' || lastAttemptPersistenceRef.current === 'failed' || lastAttemptPersistenceRef.current === 'signed-out' || lastAttemptPersistenceRef.current === 'forbidden')
+    if (!pendingRetry) {
+      lastAttemptRef.current = null
+      lastAttemptAnswerIndexRef.current = null
+      lastAttemptUserIdRef.current = null
+      lastAttemptScopeKeyRef.current = null
+      lastAttemptPersistenceRef.current = null
+    }
+    setRetryAvailable(userId !== undefined && pendingRetry)
     void Promise.resolve().then(async () => {
       if (cancelled) return
       setState({ kind: userId ? 'loading' : 'idle' })
@@ -234,11 +267,16 @@ export function WebTestRunnerEntryPage() {
       setCheckpointIndex(null)
       setCheckpointResponse('')
       setCheckpointFeedback(null)
+      setPersistence('idle')
       setLastCorrect(null)
       setLastExplanation(null)
       startedAt.current = 0
+      checkpointResponsesRef.current = []
+      primaryElapsedMsRef.current = null
+      const restoredPersistence = lastAttemptPersistenceRef.current === 'pending' ? 'failed' : lastAttemptPersistenceRef.current ?? 'failed'
+      setPersistence(userId && pendingRetry ? restoredPersistence : 'idle')
       if (authLoading || !userId) return
-      const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision, getAccessToken)
+      const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision, getAccessToken, userId)
       if (cancelled) return
       if (result.kind !== 'ok') { setState({ kind: result.kind }); return }
       const questions = selectableQuestions(result.payload, family!.testFamily, domain!.domain, category!.category, mode!)
@@ -248,8 +286,8 @@ export function WebTestRunnerEntryPage() {
       if (questions[0]?.answer.input.kind === 'ordering') setResponse(questions[0].answer.input.choices.map((choice) => choice.id))
       startedAt.current = Date.now()
     })
-    return () => { cancelled = true }
-  }, [authLoading, userId, getAccessToken, selectionKey, family, domain, category, mode, validMode, validSearch])
+    return () => { cancelled = true; persistenceGenerationRef.current += 1 }
+  }, [authLoading, userId, getAccessToken, selectionKey, selectionScopeKey, family, domain, category, mode, validMode, validSearch])
   const question = state.kind === 'ready' ? state.questions[index] : undefined
   const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
   useEffect(() => {
@@ -274,6 +312,43 @@ export function WebTestRunnerEntryPage() {
     : state.kind === 'ready' && state.selectionKey !== selectionKey
       ? { kind: 'loading' as const }
       : state
+  const persistAttempt = async (attempt: PracticeAttemptInput, answerIndex: number) => {
+    const generation = ++persistenceGenerationRef.current
+    const operationSelectionKey = selectionKey
+    const operationUserId = userId
+    if (!operationUserId) {
+      setPersistence('failed')
+      setRetryAvailable(false)
+      return
+    }
+    lastAttemptRef.current = attempt
+    lastAttemptAnswerIndexRef.current = answerIndex
+    lastAttemptUserIdRef.current = operationUserId
+    lastAttemptScopeKeyRef.current = selectionScopeKey
+    lastAttemptPersistenceRef.current = 'pending'
+    setRetryAvailable(true)
+    setPersistence('pending')
+    const result = await submitPracticeAttempt(attempt, getAccessToken, operationUserId)
+    if (generation !== persistenceGenerationRef.current || operationSelectionKey !== selectionKey || operationUserId !== userId) return
+    const status: RunnerPersistence = result.kind === 'ok' ? 'saved' : result.kind === 'invalid-response-time' ? 'invalid-response-time' : result.kind === 'stale' ? 'stale' : result.kind === 'invalid' ? 'invalid' : result.kind === 'signed-out' ? 'signed-out' : result.kind === 'forbidden' ? 'forbidden' : result.kind === 'missing' ? 'missing' : 'failed'
+    lastAttemptPersistenceRef.current = status
+    if (status !== 'failed' && status !== 'signed-out' && status !== 'forbidden') {
+      lastAttemptRef.current = null
+      lastAttemptAnswerIndexRef.current = null
+      lastAttemptUserIdRef.current = null
+      lastAttemptScopeKeyRef.current = null
+      lastAttemptPersistenceRef.current = null
+      setRetryAvailable(false)
+    } else {
+      setRetryAvailable(true)
+    }
+    setPersistence(status)
+    setAnswers((current) => current.map((answer, index) => index === answerIndex ? { ...answer, persistence: status } : answer))
+  }
+  const retryPersist = () => {
+    if (lastAttemptRef.current && lastAttemptAnswerIndexRef.current !== null && lastAttemptUserIdRef.current === userId && lastAttemptScopeKeyRef.current === selectionScopeKey) void persistAttempt(lastAttemptRef.current, lastAttemptAnswerIndexRef.current)
+  }
+  const attemptId = () => globalThis.crypto.randomUUID()
   return (
       <section className="page web-test-hub" lang="zh-TW" aria-labelledby="web-test-runner-entry-title">
       <div className="web-test-hub__intro">
@@ -281,9 +356,11 @@ export function WebTestRunnerEntryPage() {
         <h1 className="page__title" id="web-test-runner-entry-title">{labelForCategory(family.testFamily, domain.domain, category)}</h1>
         <p className="page__lead">{MODE_LABELS[mode as PracticeDiscoveryMode]} · {category.releasedCount} 題已發布</p>
       </div>
-      <RunnerStateView questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} completionHeadingRef={completionHeadingRef} checkpointHeadingRef={checkpointHeadingRef} categoryLabel={labelForCategory(family.testFamily, domain.domain, category)} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} checkpointIndex={checkpointIndex} checkpointResponse={checkpointResponse} checkpointFeedback={checkpointFeedback} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} setCheckpointResponse={setCheckpointResponse} onSubmit={() => {
+      <RunnerStateView questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} completionHeadingRef={completionHeadingRef} checkpointHeadingRef={checkpointHeadingRef} categoryLabel={labelForCategory(family.testFamily, domain.domain, category)} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} checkpointIndex={checkpointIndex} checkpointResponse={checkpointResponse} checkpointFeedback={checkpointFeedback} persistence={persistence} canRetryPersist={retryAvailable} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} setCheckpointResponse={setCheckpointResponse} onRetryPersist={retryPersist} onSubmit={() => {
         if (!question || state.kind !== 'ready' || response === '') return
         const correct = scoreQuestion(question, response)
+        const primaryElapsedMs = Date.now() - startedAt.current
+        primaryElapsedMsRef.current = primaryElapsedMs
         setLastCorrect(correct)
         setLastExplanation(question.coreExplanation.concise)
         setFeedback({ question, correct })
@@ -291,23 +368,38 @@ export function WebTestRunnerEntryPage() {
         setCheckpointIndex(checkpoints.length > 0 ? 0 : null)
         setCheckpointResponse(checkpoints.length > 0 ? initialResponse(checkpoints[0]!.answer) : '')
         setCheckpointFeedback(null)
-        setAnswers((current) => [...current, { correct, category: question.category, checkpointMeasured: 0, checkpointMisses: 0, elapsedMs: Date.now() - startedAt.current }])
+        checkpointResponsesRef.current = []
+        setPersistence('idle')
+        setAnswers((current) => [...current, { correct, category: question.category, checkpointMeasured: 0, checkpointMisses: 0, elapsedMs: primaryElapsedMs, persistence: 'pending' }])
+        if (checkpoints.length === 0) void persistAttempt({ contentId: catalog.releaseIdentity.contentId, revision: catalog.releaseIdentity.revision, questionId: question.id, questionVersion: question.version, answer: response, responseTimeMs: primaryElapsedMs, clientIdempotencyKey: attemptId() }, answers.length)
       }} onCheckpointSubmit={() => {
         if (state.kind !== 'ready' || !question || checkpointIndex === null || checkpointFeedback !== null) return
         const checkpoint = resolveQuestionCheckpoints(state.payload, question)?.[checkpointIndex]
         if (!checkpoint || checkpointResponse === '') return
         const correct = scoreAnswer(checkpoint.answer, checkpointResponse)
+        checkpointResponsesRef.current = [...(checkpointResponsesRef.current ?? []), { checkpointId: checkpoint.id, checkpointVersion: checkpoint.version, response: checkpointResponse }]
         setCheckpointFeedback(correct)
         setAnswers((current) => current.map((answer, position) => position === current.length - 1 ? { ...answer, checkpointMeasured: answer.checkpointMeasured + 1, checkpointMisses: answer.checkpointMisses + (correct ? 0 : 1) } : answer))
+        const checkpoints = resolveQuestionCheckpoints(state.payload, question) ?? []
+        if (checkpointIndex + 1 >= checkpoints.length) void persistAttempt({ contentId: catalog.releaseIdentity.contentId, revision: catalog.releaseIdentity.revision, questionId: question.id, questionVersion: question.version, answer: response, responseTimeMs: primaryElapsedMsRef.current ?? 0, clientIdempotencyKey: attemptId(), checkpointResponses: checkpointResponsesRef.current }, answers.length - 1)
       }} onCheckpointNext={() => {
         if (state.kind !== 'ready' || !question || checkpointIndex === null) return
         const checkpoints = resolveQuestionCheckpoints(state.payload, question) ?? []
+        if (checkpointIndex + 1 >= checkpoints.length && persistence !== 'saved' && persistence !== 'invalid-response-time') return
         if (checkpointIndex + 1 < checkpoints.length) {
           checkpointAdvanceFocusRef.current = true
           setCheckpointIndex(checkpointIndex + 1)
           setCheckpointResponse(initialResponse(checkpoints[checkpointIndex + 1]!.answer))
           setCheckpointFeedback(null)
+          setPersistence('idle')
         } else {
+          persistenceGenerationRef.current += 1
+          lastAttemptRef.current = null
+          lastAttemptAnswerIndexRef.current = null
+          lastAttemptUserIdRef.current = null
+          lastAttemptScopeKeyRef.current = null
+          lastAttemptPersistenceRef.current = null
+          setRetryAvailable(false)
           const nextQuestion = state.questions[index + 1]
           setIndex((current) => current + 1)
           setResponse(nextQuestion?.answer.input.kind === 'ordering' ? nextQuestion.answer.input.choices.map((choice) => choice.id) : '')
@@ -315,18 +407,30 @@ export function WebTestRunnerEntryPage() {
           setCheckpointIndex(null)
           setCheckpointResponse('')
           setCheckpointFeedback(null)
+          checkpointResponsesRef.current = []
+          setPersistence('idle')
           setLastCorrect(null)
           setLastExplanation(null)
           startedAt.current = Date.now()
         }
       }} onNext={() => {
+        if (persistence !== 'saved' && persistence !== 'invalid-response-time') return
+        persistenceGenerationRef.current += 1
+        lastAttemptRef.current = null
+        lastAttemptAnswerIndexRef.current = null
+        lastAttemptUserIdRef.current = null
+        lastAttemptScopeKeyRef.current = null
+        lastAttemptPersistenceRef.current = null
+        setRetryAvailable(false)
         const nextQuestion = state.kind === 'ready' ? state.questions[index + 1] : undefined
         setIndex((current) => current + 1)
         setResponse(nextQuestion?.answer.input.kind === 'ordering' ? nextQuestion.answer.input.choices.map((choice) => choice.id) : '')
         setFeedback(null)
         setCheckpointIndex(null)
         setCheckpointResponse('')
-        setCheckpointFeedback(null)
+          setCheckpointFeedback(null)
+          setPersistence('idle')
+          primaryElapsedMsRef.current = null
         setLastCorrect(null)
         setLastExplanation(null)
         startedAt.current = Date.now()
@@ -338,7 +442,7 @@ export function WebTestRunnerEntryPage() {
 
 type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[]; selectionKey: string }
 
-function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHeadingRef, checkpointHeadingRef, categoryLabel, state, finish, question, response, answers, feedback, checkpointIndex, checkpointResponse, checkpointFeedback, lastCorrect, lastExplanation, setResponse, setCheckpointResponse, onSubmit, onCheckpointSubmit, onCheckpointNext, onNext }: { questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; completionHeadingRef: RefObject<HTMLHeadingElement | null>; checkpointHeadingRef: RefObject<HTMLHeadingElement | null>; categoryLabel: string; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: Array<{ correct: boolean; category: string; checkpointMeasured: number; checkpointMisses: number; elapsedMs: number }>; feedback: { question: RuntimeQuestion; correct: boolean } | null; checkpointIndex: number | null; checkpointResponse: RunnerResponse; checkpointFeedback: boolean | null; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; setCheckpointResponse: (value: RunnerResponse) => void; onSubmit: () => void; onCheckpointSubmit: () => void; onCheckpointNext: () => void; onNext: () => void }) {
+function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHeadingRef, checkpointHeadingRef, categoryLabel, state, finish, question, response, answers, feedback, checkpointIndex, checkpointResponse, checkpointFeedback, persistence, canRetryPersist, lastCorrect, lastExplanation, setResponse, setCheckpointResponse, onRetryPersist, onSubmit, onCheckpointSubmit, onCheckpointNext, onNext }: { questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; completionHeadingRef: RefObject<HTMLHeadingElement | null>; checkpointHeadingRef: RefObject<HTMLHeadingElement | null>; categoryLabel: string; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: RunnerAnswer[]; feedback: { question: RuntimeQuestion; correct: boolean } | null; checkpointIndex: number | null; checkpointResponse: RunnerResponse; checkpointFeedback: boolean | null; persistence: 'idle' | RunnerPersistence; canRetryPersist: boolean; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; setCheckpointResponse: (value: RunnerResponse) => void; onRetryPersist: () => void; onSubmit: () => void; onCheckpointSubmit: () => void; onCheckpointNext: () => void; onNext: () => void }) {
   if (state.kind === 'signed-out') return <section className="web-test-hub__runner-handoff"><h2>需要登入</h2><p>請登入後才能載入會員練習內容。</p></section>
   if (state.kind === 'forbidden') return <section className="web-test-hub__runner-handoff"><h2>需要 Plus 會員資格</h2><p>目前帳號沒有可用的 Plus 練習存取權。</p></section>
   if (state.kind === 'missing' || state.kind === 'unavailable') return <section className="web-test-hub__runner-handoff"><h2>練習暫時無法使用</h2><p>目前無法取得已發布練習內容，請稍後再試。</p></section>
@@ -352,17 +456,27 @@ function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHea
     const accuracy = answers.length === 0 ? 0 : Math.round((correctCount / answers.length) * 100)
     const measured = answers.reduce((total, answer) => total + answer.checkpointMeasured, 0)
     const misses = answers.reduce((total, answer) => total + answer.checkpointMisses, 0)
-    return <section className="web-test-hub__runner-handoff"><h2 ref={completionHeadingRef} tabIndex={-1}>練習完成</h2><p>正確 {correctCount}／{answers.length} 題（正答率 {accuracy}%）；結果只保留在目前頁面。</p>{categoryResults.map((result) => <p key={result}>{result}</p>)}<p>作答時間：{Math.round(answers.reduce((total, answer) => total + answer.elapsedMs, 0) / 1000)} 秒。</p><p>{measured > 0 ? `已觀測到檢查點未通過：${misses}／${measured}` : '檢查點：未測量／資料不足'}</p></section>
+    const invalidCount = answers.filter((answer) => answer.persistence === 'invalid-response-time').length
+    const completionPersistence = invalidCount > 0
+      ? '部分作答未儲存：有作答時間超出可接受範圍，無法完整同步。'
+      : answers.length > 0 && answers.every((answer) => answer.persistence === 'saved')
+        ? '作答紀錄已儲存。'
+        : '作答紀錄尚未完整儲存。'
+    return <section className="web-test-hub__runner-handoff"><h2 ref={completionHeadingRef} tabIndex={-1}>練習完成</h2><p>正確 {correctCount}／{answers.length} 題（正答率 {accuracy}%）；{completionPersistence}</p>{categoryResults.map((result) => <p key={result}>{result}</p>)}<p>作答時間：{Math.round(answers.reduce((total, answer) => total + answer.elapsedMs, 0) / 1000)} 秒。</p><p>{measured > 0 ? `已觀測到檢查點未通過：${misses}／${measured}` : '檢查點：未測量／資料不足'}</p></section>
   }
   if (state.kind !== 'ready' || !question) return null
   const answer = question.answer
   const overlay = supportOverlay(state.payload, question)
+  const retryNotice = canRetryPersist && persistence === 'failed' ? <p role="alert">作答結果是否已儲存無法確認。 <button type="button" onClick={onRetryPersist}>重試儲存</button></p>
+    : canRetryPersist && persistence === 'signed-out' ? <p role="alert">登入狀態已失效，作答結果是否已儲存無法確認。請使用頁首的登入控制項重新登入後重試。 <button type="button" onClick={onRetryPersist}>重試儲存</button></p>
+      : canRetryPersist && persistence === 'forbidden' ? <p role="alert">目前帳號沒有可用的 Plus 練習存取權，作答結果是否已儲存無法確認。請確認會員資格後重試。 <button type="button" onClick={onRetryPersist}>重試儲存</button></p>
+        : null
   if (feedback?.question.id === question.id) {
     const checkpoints = state.kind === 'ready' ? resolveQuestionCheckpoints(state.payload, question) ?? [] : []
     const checkpoint = checkpointIndex === null ? undefined : checkpoints[checkpointIndex]
-    return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? '回答正確' : '回答不正確'}</p><h2 ref={feedbackHeadingRef} tabIndex={-1}>解答與說明</h2><p>正確答案：<span lang="ja">{answerLabel(answer)}</span></p><p lang="ja">{question.coreExplanation.concise}</p><p lang="ja">{question.coreExplanation.whatIsAskedJa}</p>{question.coreExplanation.representation && <RepresentationView representation={question.coreExplanation.representation} label="解答表示" />}{overlay?.concise && <p>{overlay.concise}</p>}{overlay?.whatIsAsked && <p>{overlay.whatIsAsked}</p>}{overlay?.representationExplanation && <p>{overlay.representationExplanation}</p>}{overlay?.commonMisread && <p>{overlay.commonMisread}</p>}{overlay?.keyTerms?.map((term) => <p key={term.termId}><span lang="ja">{term.surface}</span>：{term.meaning}{term.note && `（${term.note}）`}</p>)}{checkpoint && <section aria-labelledby="checkpoint-title"><h3 id="checkpoint-title" ref={checkpointHeadingRef} tabIndex={-1}>理解檢查 {checkpointIndex! + 1}</h3><p lang="ja">{checkpoint.promptJa}</p>{checkpointFeedback !== null ? <><p role="status">{checkpointFeedback ? '檢查點回答正確' : '檢查點回答不正確'}</p><button type="button" onClick={onCheckpointNext}>{checkpointIndex! + 1 < checkpoints.length ? '下一個檢查點' : '下一題'}</button></> : <>{renderInput(checkpoint.answer, checkpointResponse, setCheckpointResponse)}<button type="button" disabled={checkpointResponse === '' || (Array.isArray(checkpointResponse) && checkpointResponse.length === 0)} onClick={onCheckpointSubmit}>回答檢查點</button></>}</section>}{!checkpoint && <button type="button" onClick={onNext}>下一題</button>}</section>
+    return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? '回答正確' : '回答不正確'}</p><h2 ref={feedbackHeadingRef} tabIndex={-1}>解答與說明</h2><p>正確答案：<span lang="ja">{answerLabel(answer)}</span></p><p lang="ja">{question.coreExplanation.concise}</p><p lang="ja">{question.coreExplanation.whatIsAskedJa}</p>{question.coreExplanation.representation && <RepresentationView representation={question.coreExplanation.representation} label="解答表示" />}{overlay?.concise && <p>{overlay.concise}</p>}{overlay?.whatIsAsked && <p>{overlay.whatIsAsked}</p>}{overlay?.representationExplanation && <p>{overlay.representationExplanation}</p>}{overlay?.commonMisread && <p>{overlay.commonMisread}</p>}{overlay?.keyTerms?.map((term) => <p key={term.termId}><span lang="ja">{term.surface}</span>：{term.meaning}{term.note && `（${term.note}）`}</p>)}{persistence === 'pending' && <p role="status">正在儲存作答紀錄。</p>}{persistence === 'saved' && <p role="status">作答紀錄已儲存。</p>}{retryNotice}{persistence === 'missing' && <p role="alert">題目內容已無法取得，作答未儲存。 <button type="button" onClick={reloadCurrentDocument}>重新載入最新題目</button></p>}{persistence === 'stale' && <p role="alert">此題版本已更新，作答未儲存。 <button type="button" onClick={reloadCurrentDocument}>重新載入最新題目</button></p>}{persistence === 'invalid' && <p role="alert">作答回應需要修正，作答未儲存。請返回類別後重新載入題目再作答。</p>}{persistence === 'invalid-response-time' && <p role="alert">作答結果未儲存：作答時間超出可接受範圍，無法重試；你可以繼續下一題。</p>}{checkpoint && <section aria-labelledby="checkpoint-title"><h3 id="checkpoint-title" ref={checkpointHeadingRef} tabIndex={-1}>理解檢查 {checkpointIndex! + 1}</h3><p lang="ja">{checkpoint.promptJa}</p>{checkpointFeedback !== null ? <><p role="status">{checkpointFeedback ? '檢查點回答正確' : '檢查點回答不正確'}</p><button type="button" disabled={checkpointIndex! + 1 >= checkpoints.length && persistence !== 'saved' && persistence !== 'invalid-response-time'} onClick={onCheckpointNext}>{checkpointIndex! + 1 < checkpoints.length ? '下一個檢查點' : '下一題'}</button></> : <>{renderInput(checkpoint.answer, checkpointResponse, setCheckpointResponse)}<button type="button" disabled={checkpointResponse === '' || (Array.isArray(checkpointResponse) && checkpointResponse.length === 0)} onClick={onCheckpointSubmit}>回答檢查點</button></>}</section>}{!checkpoint && <button type="button" disabled={persistence !== 'saved' && persistence !== 'invalid-response-time'} onClick={onNext}>下一題</button>}</section>
   }
-  return <section className="web-test-hub__runner" aria-live="polite">{lastCorrect !== null && <p role="status">{lastCorrect ? '回答正確' : '回答不正確'}{lastExplanation && <>：<span lang="ja">{lastExplanation}</span></>}</p>}<p>第 {answers.length + 1}／{state.questions.length} 題</p><h2 ref={questionHeadingRef} tabIndex={-1} lang="ja">{question.promptJa}</h2>
+  return <section className="web-test-hub__runner" aria-live="polite">{persistence === 'pending' && <p role="status">正在儲存作答紀錄。</p>}{persistence === 'saved' && <p role="status">作答紀錄已儲存。</p>}{retryNotice}{lastCorrect !== null && <p role="status">{lastCorrect ? '回答正確' : '回答不正確'}{lastExplanation && <>：<span lang="ja">{lastExplanation}</span></>}</p>}<p>第 {answers.length + 1}／{state.questions.length} 題</p><h2 ref={questionHeadingRef} tabIndex={-1} lang="ja">{question.promptJa}</h2>
     {question.promptRepresentation && <RepresentationView representation={question.promptRepresentation} label="題目表示" />}
     {renderInput(answer, response, setResponse)}
     <button type="button" disabled={response === '' || (Array.isArray(response) && response.length === 0)} onClick={onSubmit}>回答</button>
