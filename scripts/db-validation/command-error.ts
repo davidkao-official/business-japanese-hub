@@ -22,9 +22,8 @@ export function safeErrorCategories(stderr: string): string {
 
 const TAP_ASSERTION_ORDINAL_MAX = 1_000_000
 const TAP_PATH = 'supabase/tests/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+'
-const TAP_INLINE_FAILURE = new RegExp(`^\\s*(${TAP_PATH})\\s+(?:\\.\\.\\s*)?not\\s+ok\\s+([0-9]+)\\b`, 'i')
-const TAP_PATH_HEADER = new RegExp(`^\\s*(${TAP_PATH})(?:\\s+\\.\\.)?\\s*$`, 'i')
-const TAP_FAILURE = /^\s*not\s+ok\b/i
+const TAP_FAILED_TEST = /^\s*#\s*Failed test(?:\s+([0-9]+))?:\s*/i
+const TAP_POSITION = new RegExp(`^\\s*#\\s*at\\s+\\/work\\/(${TAP_PATH})\\s+line\\s+([0-9]+)\\s*$`, 'i')
 
 function tapOrdinal(value: string): string | null {
   if (!/^[1-9][0-9]{0,6}$/.test(value)) return null
@@ -34,32 +33,34 @@ function tapOrdinal(value: string): string | null {
 
 function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<string>): string | null {
   const candidates = new Set<string>()
-  let pendingPath: string | undefined
-  let hasUnassociatedFailure = false
+  let pendingOrdinal: string | null | undefined
+  let failedPairCount = 0
+  let malformedPair = false
   for (const line of output.split(/\r?\n/)) {
-    const inline = TAP_INLINE_FAILURE.exec(line)
-    if (inline) {
-      const ordinal = tapOrdinal(inline[2])
-      if (ordinal && allowlistedTestPaths.has(inline[1])) candidates.add(`${inline[1]}#${ordinal}`)
-      else hasUnassociatedFailure = true
-      pendingPath = undefined
+    const failedTest = TAP_FAILED_TEST.exec(line)
+    if (failedTest) {
+      if (pendingOrdinal !== undefined) malformedPair = true
+      failedPairCount += 1
+      pendingOrdinal = tapOrdinal(failedTest[1] ?? '')
       continue
     }
-    const header = TAP_PATH_HEADER.exec(line)
-    if (header) {
-      pendingPath = allowlistedTestPaths.has(header[1]) ? header[1] : undefined
-      continue
+    if (pendingOrdinal !== undefined) {
+      const position = TAP_POSITION.exec(line)
+      if (position) {
+        const physicalLine = tapOrdinal(position[2])
+        if (pendingOrdinal && physicalLine && allowlistedTestPaths.has(position[1])) {
+          candidates.add(`${position[1]}#${pendingOrdinal}`)
+        } else {
+          malformedPair = true
+        }
+        pendingOrdinal = undefined
+        continue
+      }
+      malformedPair = true
+      pendingOrdinal = undefined
     }
-    if (TAP_FAILURE.test(line)) {
-      const ordinal = tapOrdinal(/^\s*not\s+ok\s+([0-9]+)/i.exec(line)?.[1] ?? '')
-      if (pendingPath && ordinal) candidates.add(`${pendingPath}#${ordinal}`)
-      else hasUnassociatedFailure = true
-      pendingPath = undefined
-      continue
-    }
-    if (line.trim()) pendingPath = undefined
   }
-  return !hasUnassociatedFailure && candidates.size === 1 ? [...candidates][0] : null
+  return failedPairCount === 1 && !malformedPair && candidates.size === 1 ? [...candidates][0] : null
 }
 
 /**
