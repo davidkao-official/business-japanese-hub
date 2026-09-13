@@ -39,6 +39,7 @@ function tapOrdinal(value: string): string | null {
 function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<string>): string | null {
   type Block = {
     path: string
+    passing: boolean
     failedOrdinals: (string | null)[]
     summaries: { failed: string | null; total: string | null }[]
     malformed: boolean
@@ -46,13 +47,19 @@ function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<
   const blocks: Block[] = []
   let current: Block | null = null
   let malformedOutsideBlock = false
+  let malformedBlock = false
   for (const line of output.split(/\r?\n/)) {
     const failedTest = TAP_FAILED_TEST.exec(line)
     const header = TAP_HARNESS_HEADER.exec(line)
     if (header) {
       if (current) blocks.push(current)
-      current = { path: header[1], failedOrdinals: [], summaries: [], malformed: false }
-      if (/^Failed\b/i.test(header[2])) current.malformed = true
+      const path = header[1].startsWith('/work/') ? header[1].slice('/work/'.length) : header[1]
+      const passing = /^ok\b/i.test(header[2])
+      current = { path, passing, failedOrdinals: [], summaries: [], malformed: false }
+      if (header[2] && !passing) {
+        current.malformed = true
+        malformedBlock = true
+      }
       continue
     }
     if (failedTest || TAP_FAILED_TEST_PREFIX.test(line)) {
@@ -62,7 +69,7 @@ function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<
       }
       const ordinal = tapOrdinal(failedTest?.[1] ?? '')
       current.failedOrdinals.push(ordinal)
-      if (!ordinal || current.failedOrdinals.length > 1) current.malformed = true
+      if (current.passing || !ordinal || current.failedOrdinals.length > 1) current.malformed = true
       continue
     }
     const summary = TAP_SUBTEST_SUMMARY.exec(line)
@@ -74,12 +81,12 @@ function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<
       const failed = tapOrdinal(summary?.[1] ?? '')
       const total = tapOrdinal(summary?.[2] ?? '')
       current.summaries.push({ failed, total })
-      if (!failed || !total || Number(failed) > Number(total) || current.summaries.length > 1) current.malformed = true
+      if (current.passing || !failed || !total || Number(failed) > Number(total) || current.summaries.length > 1) current.malformed = true
       continue
     }
   }
   if (current) blocks.push(current)
-  if (malformedOutsideBlock) return null
+  if (malformedOutsideBlock || malformedBlock) return null
   const candidates = blocks.filter(block => block.failedOrdinals.length > 0 || block.summaries.length > 0)
   if (candidates.length !== 1) return null
   const [block] = candidates

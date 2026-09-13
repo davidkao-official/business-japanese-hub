@@ -354,6 +354,22 @@ test('normal pg_prove block emits only committed path and ordinal', () => {
   ].join('\n')
   assert.equal(safeTestDiagnostics(output, '', new Set([path])), `pg_tap_test_failure:${path}#3`)
 })
+test('real /work pg_prove header normalizes to the committed relative path', () => {
+  const path = committedTestPath
+  const output = [
+    `/work/${path} ..`,
+    '# Failed test 3: PRIVATE-DESCRIPTION',
+    'Failed 1/3 subtests',
+  ].join('\n')
+  const result = commandFailure('docker', ownedStage(['test', 'db', '--local', 'supabase/tests']),
+    { code: 1, stdout: output, stderr: '' }, new Set([path]))
+  assert.match(result.message, new RegExp(`pg_tap_test_failure:${path}#3`))
+  assert.ok(!result.message.includes(`/work/${path}`))
+  for (const header of [`/tmp/${path} ..`, `/work2/${path} ..`, 'supabase/tests/uncommitted.test.sql ..']) {
+    assert.equal(safeTestDiagnostics(output.replace(`/work/${path} ..`, header), '', new Set([path])),
+      'pg_tap_test_failure:unattributed')
+  }
+})
 test('failure assertion ordinal beyond harness total stays unattributed', () => {
   const output = [
     `${committedTestPath} ..`,
@@ -373,6 +389,23 @@ test('passing harness file records are ignored beside one valid failing block', 
   ].join('\n')
   assert.equal(safeTestDiagnostics(output, '', new Set([committedTestPath, committedOtherTestPath])),
     `pg_tap_test_failure:${committedTestPath}#3`)
+})
+test('passing header with failure evidence is unattributed', () => {
+  const output = [
+    `${committedTestPath} .. ok`,
+    '# Failed test 3: PRIVATE-DESCRIPTION',
+    'Failed 1/3 subtests',
+  ].join('\n')
+  assert.equal(safeTestDiagnostics(output, '', new Set([committedTestPath])), 'pg_tap_test_failure:unattributed')
+})
+test('malformed harness block makes a separate valid candidate unattributed', () => {
+  const output = [
+    `${committedTestPath} .. Failed x/y subtests`,
+    `${committedOtherTestPath} ..`,
+    '# Failed test 3: PRIVATE-DESCRIPTION',
+    'Failed 1/3 subtests',
+  ].join('\n')
+  assert.equal(safeTestDiagnostics(output, '', new Set([committedOtherTestPath])), 'pg_tap_test_failure:unattributed')
 })
 test('failure diagnostics without a normal harness block are unattributed', () => {
   const output = [
