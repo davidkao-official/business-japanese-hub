@@ -273,7 +273,8 @@ export function WebTestRunnerEntryPage() {
       startedAt.current = 0
       checkpointResponsesRef.current = []
       primaryElapsedMsRef.current = null
-      setPersistence(userId && pendingRetry ? lastAttemptPersistenceRef.current ?? 'failed' : 'idle')
+      const restoredPersistence = lastAttemptPersistenceRef.current === 'pending' ? 'failed' : lastAttemptPersistenceRef.current ?? 'failed'
+      setPersistence(userId && pendingRetry ? restoredPersistence : 'idle')
       if (authLoading || !userId) return
       const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision, getAccessToken, userId)
       if (cancelled) return

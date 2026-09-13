@@ -390,6 +390,35 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(submitPracticeAttemptMock.mock.calls[1]![0]).toEqual(firstAttempt)
   })
 
+  it('offers reconciliation after same-user reauthentication invalidates an in-flight completion', async () => {
+    let resolveFirst!: (result: { kind: 'ok' }) => void
+    const firstAttemptResult = new Promise<{ kind: 'ok' }>((resolve) => { resolveFirst = resolve })
+    fetchPracticePayloadMock.mockClear()
+    fetchPracticePayloadMock
+      .mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('進行中の題幹') })
+      .mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('再認證後の題幹') })
+    submitPracticeAttemptMock.mockImplementationOnce(() => firstAttemptResult).mockResolvedValueOnce({ kind: 'ok' })
+    const rendered = renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'member-a' } })
+    await waitFor(() => expect(screen.getByRole('heading', { name: '進行中の題幹' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: '二番' }))
+    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    await waitFor(() => expect(screen.getByText('正在儲存作答紀錄。')).toBeInTheDocument())
+    const firstAttempt = submitPracticeAttemptMock.mock.calls[0]![0]
+
+    act(() => rendered.authClient.emitAuthStateChange(null))
+    expect(screen.getByRole('heading', { name: '需要登入' })).toBeInTheDocument()
+    act(() => rendered.authClient.emitAuthStateChange({ id: 'member-a' }))
+    await waitFor(() => expect(screen.getByRole('heading', { name: '再認證後の題幹' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: '重試儲存' })).toBeInTheDocument()
+    act(() => resolveFirst({ kind: 'ok' }))
+    await Promise.resolve()
+    expect(screen.getByRole('button', { name: '重試儲存' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重試儲存' }))
+    await waitFor(() => expect(screen.getByText('作答紀錄已儲存。')).toBeInTheDocument())
+    expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(2)
+    expect(submitPracticeAttemptMock.mock.calls[1]![0]).toEqual(firstAttempt)
+  })
+
   it('discards a signed-out attempt when reauthentication belongs to a different user', async () => {
     fetchPracticePayloadMock.mockClear()
     fetchPracticePayloadMock
