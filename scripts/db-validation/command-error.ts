@@ -24,8 +24,9 @@ export function safeErrorCategories(stderr: string): string {
  * Symbolic pgTAP/TAP classification for the whitelisted local `test db` stage.
  * Scans captured stdout plus stderr internally but only ever returns fixed
  * labels: infrastructure categories win, then a safely anchored TAP plan
- * mismatch, then a recognizable TAP test failure, else `unknown`. Original
- * output, SQL and row values are never returned.
+ * mismatch, then a recognizable TAP test failure, else `unknown`. A bare
+ * pgTAP `Result: FAIL` summary is not an attributable assertion and fails
+ * closed to `unknown`. Original output, SQL and row values are never returned.
  */
 export function safeTestDiagnostics(stdout: string, stderr: string): string {
   const infrastructure = safeErrorCategories(stderr)
@@ -42,7 +43,6 @@ export function safeTestDiagnostics(stdout: string, stderr: string): string {
     /^#\s*failed test\b/im,
     /^#\s*looks like you failed \d+ tests? of \d+/im,
     /\bFailed \d+\/\d+ subtests\b/,
-    /^Result:\s*FAIL\b/im,
   ].some(pattern => pattern.test(output))
   return testFailure ? 'pg_tap_test_failure' : 'unknown'
 }
