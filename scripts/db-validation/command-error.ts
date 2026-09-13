@@ -22,8 +22,8 @@ export function safeErrorCategories(stderr: string): string {
 
 const TAP_ASSERTION_ORDINAL_MAX = 1_000_000
 const TAP_PATH = 'supabase/tests/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+'
-const TAP_HARNESS_PREFIX = new RegExp(`^\\s*(${TAP_PATH})\\s+\\.\\.`, 'i')
 const TAP_HARNESS_FAILURE = new RegExp(`^\\s*(${TAP_PATH})\\s+\\.\\.\\s+Failed\\s+([0-9]+)\\/([0-9]+)\\s+subtests\\s*$`, 'i')
+const TAP_HARNESS_FAILURE_PREFIX = new RegExp(`^\\s*(${TAP_PATH})\\s+\\.\\.\\s+Failed\\b`, 'i')
 const TAP_NOT_OK = /^\s*not\s+ok(?:\s+([0-9]+)\b)?(?:[ \t].*)?$/i
 const TAP_NOT_OK_PREFIX = /^\s*not\s+ok\b/i
 const TAP_FAILED_TEST = /^\s*#\s*Failed test(?:\s+([0-9]+))?:\s*/i
@@ -38,7 +38,7 @@ function tapOrdinal(value: string): string | null {
 }
 
 function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<string>): string | null {
-  let harnessRecordCount = 0
+  let failureRecordCount = 0
   let harnessPath: string | undefined
   let notOkCount = 0
   let notOkOrdinal: string | null = null
@@ -65,27 +65,27 @@ function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<
       pendingOrdinal = undefined
     }
 
-    const harnessRecord = TAP_HARNESS_PREFIX.exec(line)
-    if (harnessRecord) {
-      harnessRecordCount += 1
-      if (harnessRecordCount > 1) malformed = true
-      const failure = TAP_HARNESS_FAILURE.exec(line)
-      if (!failure) {
+    const failure = TAP_HARNESS_FAILURE.exec(line)
+    if (failure) {
+      failureRecordCount += 1
+      if (failureRecordCount > 1) malformed = true
+      harnessPath = failure[1]
+      const failedSubtests = tapOrdinal(failure[2])
+      const totalSubtests = tapOrdinal(failure[3])
+      if (!failedSubtests || !totalSubtests || Number(failedSubtests) > Number(totalSubtests)) {
         malformed = true
-      } else {
-        harnessPath = failure[1]
-        const failedSubtests = tapOrdinal(failure[2])
-        const totalSubtests = tapOrdinal(failure[3])
-        if (!failedSubtests || !totalSubtests || Number(failedSubtests) > Number(totalSubtests)) {
-          malformed = true
-        }
       }
+      continue
+    }
+    if (TAP_HARNESS_FAILURE_PREFIX.test(line)) {
+      failureRecordCount += 1
+      malformed = true
       continue
     }
 
     if (TAP_NOT_OK_PREFIX.test(line)) {
       notOkCount += 1
-      if (notOkCount > 1 || harnessRecordCount === 0) malformed = true
+      if (notOkCount > 1 || failureRecordCount === 0) malformed = true
       const notOk = TAP_NOT_OK.exec(line)
       const ordinal = tapOrdinal(notOk?.[1] ?? '')
       if (!ordinal || notOkOrdinal) malformed = true
@@ -96,7 +96,7 @@ function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<
     const failedTest = TAP_FAILED_TEST.exec(line)
     if (failedTest) {
       failedTestCount += 1
-      if (failedTestCount > 1 || harnessRecordCount === 0) malformed = true
+      if (failedTestCount > 1 || failureRecordCount === 0) malformed = true
       const ordinal = tapOrdinal(failedTest[1] ?? '')
       if (!ordinal || failedTestOrdinal) malformed = true
       else failedTestOrdinal = ordinal
@@ -112,7 +112,7 @@ function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<
     if (TAP_POSITION_PREFIX.test(line)) malformed = true
   }
   if (pendingOrdinal !== undefined) malformed = true
-  if (harnessRecordCount !== 1 || notOkCount !== 1 || failedTestCount !== 1 || positionCount !== 1 || malformed) return null
+  if (failureRecordCount !== 1 || notOkCount !== 1 || failedTestCount !== 1 || positionCount !== 1 || malformed) return null
   if (!harnessPath || !allowlistedTestPaths.has(harnessPath) || !positionPath || positionPath !== harnessPath) return null
   if (!notOkOrdinal || !failedTestOrdinal || notOkOrdinal !== failedTestOrdinal) return null
   return notOkOrdinal === failedTestOrdinal ? `${harnessPath}#${notOkOrdinal}` : null

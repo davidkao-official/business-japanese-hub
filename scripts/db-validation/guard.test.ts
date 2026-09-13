@@ -356,6 +356,19 @@ test('documented pg_prove pair emits only committed path and ordinal', () => {
   ].join('\n')
   assert.equal(safeTestDiagnostics(output, '', new Set([path])), `pg_tap_test_failure:${path}#3`)
 })
+test('passing harness file records are ignored beside one valid failing block', () => {
+  const output = [
+    `${committedOtherTestPath} .. ok`,
+    `${committedTestPath} .. ok`,
+    `${committedTestPath} .. Failed 1/3 subtests`,
+    'not ok 3 - private assertion body',
+    '# Failed test 3: PRIVATE-DESCRIPTION',
+    `#   at /work/${committedTestPath} line 42`,
+    `${committedOtherTestPath} .. ok`,
+  ].join('\n')
+  assert.equal(safeTestDiagnostics(output, '', new Set([committedTestPath, committedOtherTestPath])),
+    `pg_tap_test_failure:${committedTestPath}#3`)
+})
 test('mismatched raw TAP failure makes the harness block unattributed', () => {
   const output = [
     `${committedTestPath} .. Failed 1/3 subtests`,
