@@ -20,8 +20,35 @@ export function safeErrorCategories(stderr: string): string {
   return categories.filter(([, pattern]) => pattern.test(stderr)).map(([name]) => name).join(', ') || 'unknown'
 }
 
+/**
+ * Symbolic pgTAP/TAP classification for the whitelisted local `test db` stage.
+ * Scans captured stdout plus stderr internally but only ever returns fixed
+ * labels: infrastructure categories win, then a safely anchored TAP plan
+ * mismatch, then a recognizable TAP test failure, else `unknown`. Original
+ * output, SQL and row values are never returned.
+ */
+export function safeTestDiagnostics(stdout: string, stderr: string): string {
+  const infrastructure = safeErrorCategories(stderr)
+  if (infrastructure !== 'unknown') return infrastructure
+  const output = `${stdout}\n${stderr}`
+  const planMismatch = [
+    /^#\s*looks like you planned \d+ tests? but ran \d+/im,
+    /^#\s*planned \d+ tests? but ran \d+/im,
+    /^#\s*bad plan\b[^\n]*\bplanned \d+ tests? but ran \d+/im,
+  ].some(pattern => pattern.test(output))
+  if (planMismatch) return 'tap_plan_mismatch'
+  const testFailure = [
+    /^\s*not ok \d+/im,
+    /^#\s*failed test\b/im,
+    /^#\s*looks like you failed \d+ tests? of \d+/im,
+    /\bFailed \d+\/\d+ subtests\b/,
+    /^Result:\s*FAIL\b/im,
+  ].some(pattern => pattern.test(output))
+  return testFailure ? 'pg_tap_test_failure' : 'unknown'
+}
+
 export function commandFailure(file: string, args: string[], error: unknown): Error {
-  const detail = error as { code?: unknown; stderr?: unknown } | null
+  const detail = error as { code?: unknown; stderr?: unknown; stdout?: unknown } | null
   const ownedCliStart = file === 'docker' && args.length === 9 && args[0] === '--host' &&
     /^unix:\/\/\//.test(args[1]) && args[2] === 'exec' && /^[a-f0-9]{64}$/.test(args[3]) &&
     args[4] === 'docker' && args[5] === '--host' && args[6] === 'unix:///var/run/docker.sock' &&
@@ -33,8 +60,8 @@ export function commandFailure(file: string, args: string[], error: unknown): Er
   }
   const cliIndex = args.indexOf('supabase')
   const stage = args.slice(cliIndex + 1).join(' ')
-  const fixedStage = ['--workdir /work db start', '--workdir /work db reset --local',
-    '--workdir /work test db --local supabase/tests',
+  const testDbStage = '--workdir /work test db --local supabase/tests'
+  const fixedStage = ['--workdir /work db start', '--workdir /work db reset --local', testDbStage,
     '--workdir /work db lint --local --schema public --level warning --fail-on error'].includes(stage)
   const ownedSupabase = file === 'docker' && args[0] === '--host' && /^unix:\/\/\//.test(args[1]) &&
     args[2] === 'exec' && /^[a-f0-9]{64}$/.test(args[3]) && args[4] === 'docker' &&
@@ -43,8 +70,11 @@ export function commandFailure(file: string, args: string[], error: unknown): Er
     args[11] === 'env' && args[12] === '-i' && cliIndex > 12 && fixedStage
   if (ownedSupabase) {
     const code = typeof detail?.code === 'number' ? detail.code : 'unknown'
-    const lines = typeof detail?.stderr === 'string' ? safeErrorCategories(detail.stderr) : ''
-    return new Error(`DB validation failed: supabase ${stage} (exit ${code}); ${lines || 'unknown'}; no fallback performed`)
+    const stderr = typeof detail?.stderr === 'string' ? detail.stderr : ''
+    const diagnostics = stage === testDbStage
+      ? safeTestDiagnostics(typeof detail?.stdout === 'string' ? detail.stdout : '', stderr)
+      : safeErrorCategories(stderr)
+    return new Error(`DB validation failed: supabase ${stage} (exit ${code}); ${diagnostics || 'unknown'}; no fallback performed`)
   }
   // Never include unfiltered Supabase output, arbitrary Error.message, stdout or environment.
   return new Error(`DB validation command failed: ${file} ${args[0] ?? ''}; no fallback performed`)
