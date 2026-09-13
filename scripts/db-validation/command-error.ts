@@ -22,6 +22,7 @@ export function safeErrorCategories(stderr: string): string {
 
 const TAP_ASSERTION_ORDINAL_MAX = 1_000_000
 const TAP_HARNESS_HEADER = /^\s*([A-Za-z0-9._/-]+)\s+\.\.\s*(.*)$/i
+const TAP_HARNESS_FAILURE_SIGNAL = /^\s*[A-Za-z0-9._/-]+\s+\.\.\s+Failed\b/im
 const TAP_FAILED_TEST = /^\s*#\s*Failed test(?:\s+([0-9]+))?:\s*/i
 const TAP_FAILED_TEST_PREFIX = /^\s*#\s*Failed test\b/i
 const TAP_FAILED_TEST_SIGNAL = /^\s*#\s*Failed test\b/im
@@ -83,7 +84,7 @@ function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<
   if (candidates.length !== 1) return null
   const [block] = candidates
   if (block.malformed || block.failedOrdinals.length !== 1 || block.summaries.length !== 1) return null
-  if (!allowlistedTestPaths.has(block.path)) return null
+  if (!/^supabase\/tests\/(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+$/.test(block.path) || !allowlistedTestPaths.has(block.path)) return null
   const [ordinal] = block.failedOrdinals
   const [summary] = block.summaries
   if (!ordinal || !summary.failed || !summary.total || Number(summary.failed) > Number(summary.total)) return null
@@ -111,6 +112,7 @@ export function safeTestDiagnostics(stdout: string, stderr: string, allowlistedT
   const testFailure = [
     TAP_FAILED_TEST_SIGNAL,
     TAP_SUBTEST_SUMMARY_SIGNAL,
+    TAP_HARNESS_FAILURE_SIGNAL,
     /^#\s*looks like you failed \d+ tests? of \d+/im,
   ].some(pattern => pattern.test(output))
   if (!testFailure) return 'unknown'
