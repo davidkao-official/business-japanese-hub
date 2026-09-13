@@ -1,5 +1,5 @@
 begin;
-select plan(77);
+select plan(78);
 select has_table('public', 'practice_attempts', 'practice attempts table exists');
 select has_column('public', 'practice_attempts', 'attempt_sequence', 'attempt ordering is monotonic and server-owned');
 select is((select data_type from information_schema.columns where table_schema = 'public' and table_name = 'practice_attempts' and column_name = 'question_version'), 'bigint', 'question version preserves PostgreSQL bigint range');
@@ -103,7 +103,7 @@ select set_config('request.jwt.claim.role', 'service_role', true);
 select set_config('request.jwt.claims','{"role":"service_role"}',true);
 select public.import_practice_question_release(
   'practice-web-test-spi-v1', repeat('9',64),
-  '{"questionBank":{"version":5,"questions":[{"id":"q-1","version":3,"deliveryProfile":"test-center","answer":{"input":{"kind":"single-choice"}}},{"id":"q-2","version":1,"deliveryProfile":"web","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb
+  '{"questionBank":{"version":5,"questions":[{"id":"q-1","version":3,"deliveryProfile":"test-center","answer":{"input":{"kind":"single-choice"}}},{"id":"q-2","version":2,"deliveryProfile":"web","testFamily":"spi","domain":"numerical","category":"data-interpretation","practiceProfile":"timed-practice","answer":{"input":{"kind":"single-choice"}}}]}}'::jsonb
 );
 select is((select available from public.practice_question_availability where content_id='practice-web-test-spi-v1' and question_id='q-1'),false,'latest unsupported delivery profile is non-actionable');
 select is((select available from public.practice_question_availability where content_id='practice-web-test-spi-v1' and question_id='q-2'),true,'latest supported question remains available');
@@ -116,6 +116,37 @@ select is((select count(*) from public.practice_review_queue),0::bigint,'user1 q
 select set_config('request.jwt.claims','{"sub":"61000000-0000-0000-0000-000000000002","role":"authenticated"}',true);
 select set_config('request.jwt.claim.sub', '61000000-0000-0000-0000-000000000002', true);
 select is((select count(*) from public.practice_review_queue),1::bigint,'user2 queue retains available q2 after mixed v4');
+select is(
+  (select jsonb_build_object(
+    'content_revision', content_revision,
+    'question_version', question_version,
+    'test_family', test_family,
+    'domain', domain,
+    'category', category,
+    'practice_mode', practice_mode,
+    'attempt_content_revision', attempt_content_revision,
+    'attempt_question_version', attempt_question_version,
+    'attempt_test_family', attempt_test_family,
+    'attempt_domain', attempt_domain,
+    'attempt_category', attempt_category,
+    'attempt_practice_mode', attempt_practice_mode
+  ) from public.practice_review_queue where question_id='q-2'),
+  jsonb_build_object(
+    'content_revision', repeat('9',64),
+    'question_version', 2,
+    'test_family', 'spi',
+    'domain', 'numerical',
+    'category', 'data-interpretation',
+    'practice_mode', 'timed-practice',
+    'attempt_content_revision', repeat('a',64),
+    'attempt_question_version', 1,
+    'attempt_test_family', 'spi',
+    'attempt_domain', 'verbal',
+    'attempt_category', 'vocabulary-in-context',
+    'attempt_practice_mode', 'untimed-learning'
+  ),
+  'review queue emits current routing metadata while retaining historical attempt metadata'
+);
 reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);

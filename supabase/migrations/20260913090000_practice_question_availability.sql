@@ -7,6 +7,10 @@ create table public.practice_question_availability (
   question_version bigint not null,
   content_revision text not null,
   bank_version bigint not null,
+  test_family text,
+  domain text,
+  category text,
+  practice_mode text,
   available boolean not null default true,
   updated_at timestamptz not null default now(),
   primary key (content_id, question_id),
@@ -78,9 +82,11 @@ begin
   where content_id = p_content_id;
 
   insert into public.practice_question_availability (
-    content_id, question_id, question_version, content_revision, bank_version, available
+    content_id, question_id, question_version, content_revision, bank_version,
+    test_family, domain, category, practice_mode, available
   )
-  select p_content_id, latest.item->>'id', (latest.item->>'version')::bigint, p_content_revision, p_bank_version, true
+  select p_content_id, latest.item->>'id', (latest.item->>'version')::bigint, p_content_revision, p_bank_version,
+    latest.item->>'testFamily', latest.item->>'domain', latest.item->>'category', latest.item->>'practiceProfile', true
   from (
     select distinct on (item->>'id') item
     from jsonb_array_elements(p_questions) item
@@ -90,6 +96,10 @@ begin
     question_version = excluded.question_version,
     content_revision = excluded.content_revision,
     bank_version = excluded.bank_version,
+    test_family = excluded.test_family,
+    domain = excluded.domain,
+    category = excluded.category,
+    practice_mode = excluded.practice_mode,
     available = true,
     updated_at = now();
 end;
@@ -110,7 +120,14 @@ begin
     raise exception 'practice release payload and question list are required' using errcode = '22023';
   end if;
   bank_version := (p_payload->'questionBank'->>'version')::bigint;
-  select coalesce(jsonb_agg(jsonb_build_object('id', latest.item->>'id', 'version', (latest.item->>'version')::bigint)), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', latest.item->>'id',
+    'version', (latest.item->>'version')::bigint,
+    'testFamily', latest.item->>'testFamily',
+    'domain', latest.item->>'domain',
+    'category', latest.item->>'category',
+    'practiceProfile', latest.item->>'practiceProfile'
+  )), '[]'::jsonb)
     into question_refs
   from (
     select distinct on (item->>'id') item
@@ -139,9 +156,15 @@ grant execute on function public.import_practice_question_release(text,text,json
 create or replace view public.practice_review_queue
   with (security_invoker = false, security_barrier = true)
 as
-  select latest.user_id, latest.content_id, latest.content_revision, latest.question_id,
-    latest.question_version, latest.test_family, latest.domain, latest.category,
-    latest.practice_mode, latest.correct, latest.created_at
+  select latest.user_id, latest.content_id, availability.content_revision, latest.question_id,
+    availability.question_version, availability.test_family, availability.domain, availability.category,
+    availability.practice_mode, latest.correct, latest.created_at,
+    latest.content_revision as attempt_content_revision,
+    latest.question_version as attempt_question_version,
+    latest.test_family as attempt_test_family,
+    latest.domain as attempt_domain,
+    latest.category as attempt_category,
+    latest.practice_mode as attempt_practice_mode
   from (
     select distinct on (user_id, content_id, question_id)
       user_id, content_id, content_revision, question_id, question_version,
