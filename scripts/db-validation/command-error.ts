@@ -88,6 +88,7 @@ function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<
   const [ordinal] = block.failedOrdinals
   const [summary] = block.summaries
   if (!ordinal || !summary.failed || !summary.total || Number(summary.failed) > Number(summary.total)) return null
+  if (Number(ordinal) > Number(summary.total)) return null
   return `${block.path}#${ordinal}`
 }
 

@@ -354,6 +354,14 @@ test('normal pg_prove block emits only committed path and ordinal', () => {
   ].join('\n')
   assert.equal(safeTestDiagnostics(output, '', new Set([path])), `pg_tap_test_failure:${path}#3`)
 })
+test('failure assertion ordinal beyond harness total stays unattributed', () => {
+  const output = [
+    `${committedTestPath} ..`,
+    '# Failed test 4: PRIVATE-DESCRIPTION',
+    'Failed 1/3 subtests',
+  ].join('\n')
+  assert.equal(safeTestDiagnostics(output, '', new Set([committedTestPath])), 'pg_tap_test_failure:unattributed')
+})
 test('passing harness file records are ignored beside one valid failing block', () => {
   const output = [
     `${committedOtherTestPath} .. ok`,
