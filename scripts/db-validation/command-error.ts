@@ -21,15 +21,13 @@ export function safeErrorCategories(stderr: string): string {
 }
 
 const TAP_ASSERTION_ORDINAL_MAX = 1_000_000
-const TAP_PATH = 'supabase/tests/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+'
-const TAP_HARNESS_FAILURE = new RegExp(`^\\s*(${TAP_PATH})\\s+\\.\\.\\s+Failed\\s+([0-9]+)\\/([0-9]+)\\s+subtests\\s*$`, 'i')
-const TAP_HARNESS_FAILURE_PREFIX = new RegExp(`^\\s*(${TAP_PATH})\\s+\\.\\.\\s+Failed\\b`, 'i')
-const TAP_NOT_OK = /^\s*not\s+ok(?:\s+([0-9]+)\b)?(?:[ \t].*)?$/i
-const TAP_NOT_OK_PREFIX = /^\s*not\s+ok\b/i
+const TAP_HARNESS_HEADER = /^\s*([A-Za-z0-9._/-]+)\s+\.\.\s*(.*)$/i
 const TAP_FAILED_TEST = /^\s*#\s*Failed test(?:\s+([0-9]+))?:\s*/i
 const TAP_FAILED_TEST_PREFIX = /^\s*#\s*Failed test\b/i
-const TAP_POSITION = new RegExp(`^\\s*#\\s*at\\s+\\/work\\/(${TAP_PATH})\\s+line\\s+([0-9]+)\\s*$`, 'i')
-const TAP_POSITION_PREFIX = /^\s*#\s*at\b/i
+const TAP_FAILED_TEST_SIGNAL = /^\s*#\s*Failed test\b/im
+const TAP_SUBTEST_SUMMARY = /^\s*Failed\s+([0-9]+)\/([0-9]+)\s+subtests\s*$/i
+const TAP_SUBTEST_SUMMARY_PREFIX = /^\s*Failed\b.*\bsubtests?\b/i
+const TAP_SUBTEST_SUMMARY_SIGNAL = /^\s*Failed\b.*\bsubtests?\b/im
 
 function tapOrdinal(value: string): string | null {
   if (!/^[1-9][0-9]{0,6}$/.test(value)) return null
@@ -38,84 +36,58 @@ function tapOrdinal(value: string): string | null {
 }
 
 function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<string>): string | null {
-  let failureRecordCount = 0
-  let harnessPath: string | undefined
-  let notOkCount = 0
-  let notOkOrdinal: string | null = null
-  let failedTestCount = 0
-  let failedTestOrdinal: string | null = null
-  let positionCount = 0
-  let positionPath: string | undefined
-  let positionPhysicalLine: string | null = null
-  let pendingOrdinal: string | null | undefined
-  let malformed = false
+  type Block = {
+    path: string
+    failedOrdinals: (string | null)[]
+    summaries: { failed: string | null; total: string | null }[]
+    malformed: boolean
+  }
+  const blocks: Block[] = []
+  let current: Block | null = null
+  let malformedOutsideBlock = false
   for (const line of output.split(/\r?\n/)) {
-    if (pendingOrdinal !== undefined) {
-      const position = TAP_POSITION.exec(line)
-      if (position) {
-        positionCount += 1
-        if (positionCount > 1) malformed = true
-        positionPath = position[1]
-        positionPhysicalLine = tapOrdinal(position[2])
-        if (!positionPhysicalLine) malformed = true
-        pendingOrdinal = undefined
+    const failedTest = TAP_FAILED_TEST.exec(line)
+    const header = TAP_HARNESS_HEADER.exec(line)
+    if (header) {
+      if (current) blocks.push(current)
+      current = { path: header[1], failedOrdinals: [], summaries: [], malformed: false }
+      if (/^Failed\b/i.test(header[2])) current.malformed = true
+      continue
+    }
+    if (failedTest || TAP_FAILED_TEST_PREFIX.test(line)) {
+      if (!current) {
+        malformedOutsideBlock = true
         continue
       }
-      malformed = true
-      pendingOrdinal = undefined
+      const ordinal = tapOrdinal(failedTest?.[1] ?? '')
+      current.failedOrdinals.push(ordinal)
+      if (!ordinal || current.failedOrdinals.length > 1) current.malformed = true
+      continue
     }
-
-    const failure = TAP_HARNESS_FAILURE.exec(line)
-    if (failure) {
-      failureRecordCount += 1
-      if (failureRecordCount > 1) malformed = true
-      harnessPath = failure[1]
-      const failedSubtests = tapOrdinal(failure[2])
-      const totalSubtests = tapOrdinal(failure[3])
-      if (!failedSubtests || !totalSubtests || Number(failedSubtests) > Number(totalSubtests)) {
-        malformed = true
+    const summary = TAP_SUBTEST_SUMMARY.exec(line)
+    if (summary || TAP_SUBTEST_SUMMARY_PREFIX.test(line)) {
+      if (!current) {
+        malformedOutsideBlock = true
+        continue
       }
+      const failed = tapOrdinal(summary?.[1] ?? '')
+      const total = tapOrdinal(summary?.[2] ?? '')
+      current.summaries.push({ failed, total })
+      if (!failed || !total || Number(failed) > Number(total) || current.summaries.length > 1) current.malformed = true
       continue
     }
-    if (TAP_HARNESS_FAILURE_PREFIX.test(line)) {
-      failureRecordCount += 1
-      malformed = true
-      continue
-    }
-
-    if (TAP_NOT_OK_PREFIX.test(line)) {
-      notOkCount += 1
-      if (notOkCount > 1 || failureRecordCount === 0) malformed = true
-      const notOk = TAP_NOT_OK.exec(line)
-      const ordinal = tapOrdinal(notOk?.[1] ?? '')
-      if (!ordinal || notOkOrdinal) malformed = true
-      else notOkOrdinal = ordinal
-      continue
-    }
-
-    const failedTest = TAP_FAILED_TEST.exec(line)
-    if (failedTest) {
-      failedTestCount += 1
-      if (failedTestCount > 1 || failureRecordCount === 0) malformed = true
-      const ordinal = tapOrdinal(failedTest[1] ?? '')
-      if (!ordinal || failedTestOrdinal) malformed = true
-      else failedTestOrdinal = ordinal
-      pendingOrdinal = ordinal
-      continue
-    }
-    if (TAP_FAILED_TEST_PREFIX.test(line)) {
-      failedTestCount += 1
-      malformed = true
-      continue
-    }
-
-    if (TAP_POSITION_PREFIX.test(line)) malformed = true
   }
-  if (pendingOrdinal !== undefined) malformed = true
-  if (failureRecordCount !== 1 || notOkCount !== 1 || failedTestCount !== 1 || positionCount !== 1 || malformed) return null
-  if (!harnessPath || !allowlistedTestPaths.has(harnessPath) || !positionPath || positionPath !== harnessPath) return null
-  if (!notOkOrdinal || !failedTestOrdinal || notOkOrdinal !== failedTestOrdinal) return null
-  return notOkOrdinal === failedTestOrdinal ? `${harnessPath}#${notOkOrdinal}` : null
+  if (current) blocks.push(current)
+  if (malformedOutsideBlock) return null
+  const candidates = blocks.filter(block => block.failedOrdinals.length > 0 || block.summaries.length > 0)
+  if (candidates.length !== 1) return null
+  const [block] = candidates
+  if (block.malformed || block.failedOrdinals.length !== 1 || block.summaries.length !== 1) return null
+  if (!allowlistedTestPaths.has(block.path)) return null
+  const [ordinal] = block.failedOrdinals
+  const [summary] = block.summaries
+  if (!ordinal || !summary.failed || !summary.total || Number(summary.failed) > Number(summary.total)) return null
+  return `${block.path}#${ordinal}`
 }
 
 /**
@@ -137,10 +109,9 @@ export function safeTestDiagnostics(stdout: string, stderr: string, allowlistedT
   ].some(pattern => pattern.test(output))
   if (planMismatch) return 'tap_plan_mismatch'
   const testFailure = [
-    /^\s*not ok\b/im,
-    /^#\s*failed test\b/im,
+    TAP_FAILED_TEST_SIGNAL,
+    TAP_SUBTEST_SUMMARY_SIGNAL,
     /^#\s*looks like you failed \d+ tests? of \d+/im,
-    /\bFailed \d+\/\d+ subtests\b/,
   ].some(pattern => pattern.test(output))
   if (!testFailure) return 'unknown'
   const provenance = attributedTapFailure(output, allowlistedTestPaths)

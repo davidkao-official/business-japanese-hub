@@ -81,13 +81,12 @@ scans its captured stdout and stderr internally and may return the fixed
 `pg_tap_test_failure:<committed supabase/tests path>#<bounded assertion ordinal>`
 only for one consistent pg_prove failure block: an exact allowlisted file
 header such as
-`supabase/tests/<file> .. Failed <bounded>/<bounded> subtests`, one bounded
-`not ok <ordinal>` record, one matching `# Failed test <ordinal>:` line, and
-its immediately following position line exactly
-`# at /work/supabase/tests/<file> line <n>`. The path must be allowlisted from
-the validated committed HEAD and all ordinals must be bounded and consistent.
-The physical source line `<n>` is used only for bounded validation and is never
-returned. Otherwise it returns
+`supabase/tests/<file> ..`, followed before the next harness header by exactly
+one bounded `# Failed test <ordinal>:` line and one standalone bounded
+`Failed <n>/<m> subtests` summary, with `1 <= n <= m`. Passing harness blocks
+are ignored. The path must be allowlisted from the validated committed HEAD;
+descriptions, counts, source positions and TAP bodies are never returned.
+Otherwise it returns
 `pg_tap_test_failure:unattributed`. `tap_plan_mismatch` remains separate. It
 still returns only symbolic categories and a numeric exit code, never raw
 output, test body text, SQL, row values or errors, and falls back to `unknown`
