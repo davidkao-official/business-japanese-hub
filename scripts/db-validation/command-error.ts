@@ -22,8 +22,14 @@ export function safeErrorCategories(stderr: string): string {
 
 const TAP_ASSERTION_ORDINAL_MAX = 1_000_000
 const TAP_PATH = 'supabase/tests/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+'
+const TAP_HARNESS_PREFIX = new RegExp(`^\\s*(${TAP_PATH})\\s+\\.\\.`, 'i')
+const TAP_HARNESS_FAILURE = new RegExp(`^\\s*(${TAP_PATH})\\s+\\.\\.\\s+Failed\\s+([0-9]+)\\/([0-9]+)\\s+subtests\\s*$`, 'i')
+const TAP_NOT_OK = /^\s*not\s+ok(?:\s+([0-9]+)\b)?(?:[ \t].*)?$/i
+const TAP_NOT_OK_PREFIX = /^\s*not\s+ok\b/i
 const TAP_FAILED_TEST = /^\s*#\s*Failed test(?:\s+([0-9]+))?:\s*/i
+const TAP_FAILED_TEST_PREFIX = /^\s*#\s*Failed test\b/i
 const TAP_POSITION = new RegExp(`^\\s*#\\s*at\\s+\\/work\\/(${TAP_PATH})\\s+line\\s+([0-9]+)\\s*$`, 'i')
+const TAP_POSITION_PREFIX = /^\s*#\s*at\b/i
 
 function tapOrdinal(value: string): string | null {
   if (!/^[1-9][0-9]{0,6}$/.test(value)) return null
@@ -32,35 +38,84 @@ function tapOrdinal(value: string): string | null {
 }
 
 function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<string>): string | null {
-  const candidates = new Set<string>()
+  let harnessRecordCount = 0
+  let harnessPath: string | undefined
+  let notOkCount = 0
+  let notOkOrdinal: string | null = null
+  let failedTestCount = 0
+  let failedTestOrdinal: string | null = null
+  let positionCount = 0
+  let positionPath: string | undefined
+  let positionPhysicalLine: string | null = null
   let pendingOrdinal: string | null | undefined
-  let failedPairCount = 0
-  let malformedPair = false
+  let malformed = false
   for (const line of output.split(/\r?\n/)) {
-    const failedTest = TAP_FAILED_TEST.exec(line)
-    if (failedTest) {
-      if (pendingOrdinal !== undefined) malformedPair = true
-      failedPairCount += 1
-      pendingOrdinal = tapOrdinal(failedTest[1] ?? '')
-      continue
-    }
     if (pendingOrdinal !== undefined) {
       const position = TAP_POSITION.exec(line)
       if (position) {
-        const physicalLine = tapOrdinal(position[2])
-        if (pendingOrdinal && physicalLine && allowlistedTestPaths.has(position[1])) {
-          candidates.add(`${position[1]}#${pendingOrdinal}`)
-        } else {
-          malformedPair = true
-        }
+        positionCount += 1
+        if (positionCount > 1) malformed = true
+        positionPath = position[1]
+        positionPhysicalLine = tapOrdinal(position[2])
+        if (!positionPhysicalLine) malformed = true
         pendingOrdinal = undefined
         continue
       }
-      malformedPair = true
+      malformed = true
       pendingOrdinal = undefined
     }
+
+    const harnessRecord = TAP_HARNESS_PREFIX.exec(line)
+    if (harnessRecord) {
+      harnessRecordCount += 1
+      if (harnessRecordCount > 1) malformed = true
+      const failure = TAP_HARNESS_FAILURE.exec(line)
+      if (!failure) {
+        malformed = true
+      } else {
+        harnessPath = failure[1]
+        const failedSubtests = tapOrdinal(failure[2])
+        const totalSubtests = tapOrdinal(failure[3])
+        if (!failedSubtests || !totalSubtests || Number(failedSubtests) > Number(totalSubtests)) {
+          malformed = true
+        }
+      }
+      continue
+    }
+
+    if (TAP_NOT_OK_PREFIX.test(line)) {
+      notOkCount += 1
+      if (notOkCount > 1 || harnessRecordCount === 0) malformed = true
+      const notOk = TAP_NOT_OK.exec(line)
+      const ordinal = tapOrdinal(notOk?.[1] ?? '')
+      if (!ordinal || notOkOrdinal) malformed = true
+      else notOkOrdinal = ordinal
+      continue
+    }
+
+    const failedTest = TAP_FAILED_TEST.exec(line)
+    if (failedTest) {
+      failedTestCount += 1
+      if (failedTestCount > 1 || harnessRecordCount === 0) malformed = true
+      const ordinal = tapOrdinal(failedTest[1] ?? '')
+      if (!ordinal || failedTestOrdinal) malformed = true
+      else failedTestOrdinal = ordinal
+      pendingOrdinal = ordinal
+      continue
+    }
+    if (TAP_FAILED_TEST_PREFIX.test(line)) {
+      failedTestCount += 1
+      malformed = true
+      continue
+    }
+
+    if (TAP_POSITION_PREFIX.test(line)) malformed = true
   }
-  return failedPairCount === 1 && !malformedPair && candidates.size === 1 ? [...candidates][0] : null
+  if (pendingOrdinal !== undefined) malformed = true
+  if (harnessRecordCount !== 1 || notOkCount !== 1 || failedTestCount !== 1 || positionCount !== 1 || malformed) return null
+  if (!harnessPath || !allowlistedTestPaths.has(harnessPath) || !positionPath || positionPath !== harnessPath) return null
+  if (!notOkOrdinal || !failedTestOrdinal || notOkOrdinal !== failedTestOrdinal) return null
+  return notOkOrdinal === failedTestOrdinal ? `${harnessPath}#${notOkOrdinal}` : null
 }
 
 /**

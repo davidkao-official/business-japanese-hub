@@ -79,10 +79,13 @@ Supabase error text is returned. Only the whitelisted local
 `supabase --workdir /work test db --local supabase/tests` stage additionally
 scans its captured stdout and stderr internally and may return the fixed
 `pg_tap_test_failure:<committed supabase/tests path>#<bounded assertion ordinal>`
-only when the ordinal comes from a `# Failed test <ordinal>:` line and the
-immediately following position line is exactly
-`# at /work/supabase/tests/<file> line <n>`, with the path allowlisted from the
-validated committed HEAD and the ordinal bounded.
+only for one consistent pg_prove failure block: an exact allowlisted file
+header such as
+`supabase/tests/<file> .. Failed <bounded>/<bounded> subtests`, one bounded
+`not ok <ordinal>` record, one matching `# Failed test <ordinal>:` line, and
+its immediately following position line exactly
+`# at /work/supabase/tests/<file> line <n>`. The path must be allowlisted from
+the validated committed HEAD and all ordinals must be bounded and consistent.
 The physical source line `<n>` is used only for bounded validation and is never
 returned. Otherwise it returns
 `pg_tap_test_failure:unattributed`. `tap_plan_mismatch` remains separate. It

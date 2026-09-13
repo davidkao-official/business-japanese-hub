@@ -331,6 +331,7 @@ const committedTestPath = 'supabase/tests/entitlement_rls.test.sql'
 const committedOtherTestPath = 'supabase/tests/finance_status_counts.test.sql'
 test('whitelisted test stage reports stdout pgTAP failures symbolically without leaking output', () => {
   const stdout = [
+    `${committedTestPath} .. Failed 1/3 subtests`,
     'not ok 3 - rls denies anonymous read',
     '# Failed test 3: "rls denies anonymous read"',
     `#   at /work/${committedTestPath} line 42`,
@@ -348,43 +349,48 @@ test('whitelisted test stage reports stdout pgTAP failures symbolically without 
 test('documented pg_prove pair emits only committed path and ordinal', () => {
   const path = committedTestPath
   const output = [
+    `${path} .. Failed 1/3 subtests`,
     'not ok 3 - private assertion body',
     '# Failed test 3: PRIVATE-DESCRIPTION',
     `#   at /work/${path} line 42`,
   ].join('\n')
   assert.equal(safeTestDiagnostics(output, '', new Set([path])), `pg_tap_test_failure:${path}#3`)
 })
-test('raw TAP failure before one valid pair does not defeat strict provenance', () => {
+test('mismatched raw TAP failure makes the harness block unattributed', () => {
   const output = [
-    'not ok 3 - PRIVATE-RAW-DESCRIPTION',
+    `${committedTestPath} .. Failed 1/3 subtests`,
+    'not ok 4 - PRIVATE-RAW-DESCRIPTION',
     '# Failed test 3: PRIVATE-FAILED-DESCRIPTION',
     `#   at /work/${committedTestPath} line 42`,
-    'not ok 4 - PRIVATE-UNASSOCIATED-DESCRIPTION',
   ].join('\n')
-  assert.equal(safeTestDiagnostics(output, '', new Set([committedTestPath])),
-    `pg_tap_test_failure:${committedTestPath}#3`)
+  assert.equal(safeTestDiagnostics(output, '', new Set([committedTestPath])), 'pg_tap_test_failure:unattributed')
 })
 test('missing, ambiguous, malformed, mismatched, and out-of-range TAP provenance stays unattributed', () => {
   const path = committedTestPath
   const otherPath = committedOtherTestPath
   const allowlist = new Set([path, otherPath])
   const pair = (ordinal: string, testPath: string) => [
+    `${testPath} .. Failed 1/3 subtests`,
+    `not ok ${ordinal} - PRIVATE-TAP-DESCRIPTION`,
     `# Failed test ${ordinal}: PRIVATE-DESCRIPTION`,
     `#   at /work/${testPath} line 42`,
   ].join('\n')
-  assert.equal(safeTestDiagnostics(pair('3', path), '', new Set()), 'pg_tap_test_failure:unattributed')
+  assert.equal(safeTestDiagnostics(pair('3', path).replace(`${path} .. Failed 1/3 subtests\n`, ''), '', allowlist),
+    'pg_tap_test_failure:unattributed')
   assert.equal(safeTestDiagnostics(pair('3', path), '', new Set([otherPath])), 'pg_tap_test_failure:unattributed')
   assert.equal(safeTestDiagnostics([pair('3', path), pair('4', otherPath)].join('\n'), '', allowlist),
     'pg_tap_test_failure:unattributed')
   assert.equal(safeTestDiagnostics([pair('3', path), pair('3', otherPath)].join('\n'), '', allowlist),
     'pg_tap_test_failure:unattributed')
+  assert.equal(safeTestDiagnostics(`${path} .. Failed 0/3 subtests\n${pair('3', path).split('\n').slice(1).join('\n')}`, '', allowlist),
+    'pg_tap_test_failure:unattributed')
   assert.equal(safeTestDiagnostics(pair('0', path), '', new Set([path])), 'pg_tap_test_failure:unattributed')
   assert.equal(safeTestDiagnostics(pair('1000001', path), '', new Set([path])), 'pg_tap_test_failure:unattributed')
   assert.equal(safeTestDiagnostics(pair('3', 'supabase/tests/uncommitted.test.sql'), '', new Set([path])),
     'pg_tap_test_failure:unattributed')
-  assert.equal(safeTestDiagnostics('# Failed test 3: PRIVATE-DESCRIPTION\nnot ok 3 - x', '', new Set([path])),
+  assert.equal(safeTestDiagnostics(`${path} .. Failed 1/3 subtests\nnot ok 3 - x\n# Failed test 3: PRIVATE-DESCRIPTION\n# at /work/${otherPath} line 42`, '', allowlist),
     'pg_tap_test_failure:unattributed')
-  assert.equal(safeTestDiagnostics(`# Failed test 3: PRIVATE-DESCRIPTION\n# at /tmp/${path} line 42`, '', new Set([path])),
+  assert.equal(safeTestDiagnostics(`${path} .. Failed 1/3 subtests\n# Failed test 3: PRIVATE-DESCRIPTION\n# at /tmp/${path} line 42\nnot ok 3 - x`, '', new Set([path])),
     'pg_tap_test_failure:unattributed')
 })
 test('whitelisted test stage recognizes a TAP plan/assertion-count mismatch symbolically', () => {
