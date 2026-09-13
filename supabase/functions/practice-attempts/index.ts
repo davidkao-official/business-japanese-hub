@@ -4,38 +4,10 @@ import { createServiceRoleClient, type DbClient } from '../_shared/db.ts'
 import { toHandlerRequest, toResponse } from '../_shared/deno.ts'
 import { readEnvFrom } from '../_shared/env.ts'
 import { jsonResult } from '../_shared/http.ts'
-import { handlePracticeAttempts, type ReleaseLookup } from './handler.ts'
+import { handlePracticeAttempts } from './handler.ts'
 import { resolvePlusMembershipAccess } from '../content-delivery/membership.ts'
 import { requestWithBody } from './request.ts'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function releaseStore(db: DbClient): (contentId: string, revision: string) => Promise<ReleaseLookup> {
-  return async (contentId, revision) => {
-    const { data, error } = await db
-      .from('private_content_release')
-      .select('content_id,revision,content_kind,access_scope,payload')
-      .eq('content_id', contentId)
-      .eq('revision', revision)
-      .eq('access_scope', 'member')
-      .maybeSingle()
-    if (error) {
-      console.error('practice-attempts release lookup failed', error.message)
-      return { kind: 'unavailable' }
-    }
-    if (!data || !isRecord(data.payload) || typeof data.content_id !== 'string' ||
-      typeof data.revision !== 'string' || typeof data.content_kind !== 'string') return { kind: 'missing' }
-    return {
-      kind: 'found',
-      contentId: data.content_id,
-      revision: data.revision,
-      contentKind: data.content_kind,
-      payload: data.payload,
-    }
-  }
-}
+import { releaseStore } from './release-store.ts'
 
 Deno.serve(async (req) => {
   const env = readEnvFrom(Deno.env)
