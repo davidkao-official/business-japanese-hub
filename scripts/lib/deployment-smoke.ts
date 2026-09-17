@@ -36,6 +36,7 @@ interface ResolvedDeploymentSmokeOptions {
 const SMOKE_CONTRACTS: Record<DeploymentProduct, DeploymentSmokeContract> = {
   library: {
     directRoutes: [
+      'plus',
       'books/keigo-essentials',
       'books/keigo-essentials/read/keigo-basics',
       'books/meeting-japanese',

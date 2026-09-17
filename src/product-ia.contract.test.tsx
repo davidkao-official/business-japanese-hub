@@ -36,9 +36,24 @@ describe('Issue #108 — canonical learning-service IA', () => {
       )
     }
 
+    expect(
+      within(navigation).getByRole('link', { name: 'Business Japanese Hub Plus' }),
+    ).toHaveAttribute('href', '/plus')
+
     // Historical Library remains a compatibility/content capability, but it is
     // no longer the platform's primary user-facing mental model.
     expect(within(navigation).queryByRole('link', { name: 'マイライブラリ' })).not.toBeInTheDocument()
+  })
+
+  it('serves Plus as a stable direct route with its own current navigation state', () => {
+    renderAt('/plus')
+
+    expect(screen.queryByRole('heading', { name: 'ページが見つかりません' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Business Japanese Hub Plus' })).toBeInTheDocument()
+    const navigation = within(screen.getByRole('banner')).getByRole('navigation')
+    expect(
+      within(navigation).getByRole('link', { name: 'Business Japanese Hub Plus' }),
+    ).toHaveAttribute('aria-current', 'page')
   })
 
   it.each(CANONICAL_MODES)(
