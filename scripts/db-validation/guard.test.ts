@@ -2,7 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { validateDatabase, validationProjectId, IMAGE, CLI_IMAGE, CLI_VERSION, CLI_SHA256, DATA_ROOT } from './guard.ts'
-import { commandFailure, safeErrorCategories, safeTestDiagnostics } from './command-error.ts'
+import { commandFailure, safeErrorCategories, safePerFileTestDiagnostics, safeTestDiagnostics } from './command-error.ts'
+import { committedTestPaths, parseCommittedDbTree } from './source.ts'
 
 const token = 'a'.repeat(32)
 const receipt = 'b'.repeat(64)
@@ -26,7 +27,7 @@ function harness() {
   }
   let override: (args: string[]) => string | void = () => undefined
   const options = {
-    endpoint: 'unix:///var/run/docker.sock', token, source: '/tmp/exclusive-inputs',
+    endpoint: 'unix:///var/run/docker.sock', token, source: '/tmp/exclusive-inputs', testPaths: [] as string[],
     cancelled: () => cancelled, report: () => {},
     run: async (command: string[]) => {
       assert.deepEqual(command.slice(0, 2), ['--host', options.endpoint])
@@ -50,6 +51,12 @@ function harness() {
   return { options, calls, row, cliRow, override: (fn: typeof override) => { override = fn }, cancel: () => { cancelled = true } }
 }
 const destructive = (calls: string[][]) => calls.filter(a => ['create', 'start', 'rm', 'cp', 'exec'].includes(a[0]))
+const cliStage = (args: string[]) => {
+  const index = args.indexOf('supabase')
+  return index < 0 ? undefined : args.slice(index + 1).join(' ')
+}
+const testFileFromStage = (stage: string | undefined) =>
+  /^--workdir \/work test db --local (supabase\/tests\/(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+)$/.exec(stage ?? '')?.[1]
 
 test('fixed gates run only in the receipt container, with isolated env and checksum-pinned CLI', async () => {
   const h = harness()
@@ -65,6 +72,150 @@ test('fixed gates run only in the receipt container, with isolated env and check
   assert.ok(gates.every(a => a.includes(cliReceipt)))
   assert.ok(executions.some(a => a.includes('/usr/local/bin/docker') && a.includes(`${cliReceipt}:/usr/local/bin/docker`)))
   assert.deepEqual(h.calls.at(-1), ['rm', '--force', receipt])
+})
+
+test('file isolation attributes one failing committed test without changing the red gate', async () => {
+  const h = harness()
+  const first = 'supabase/tests/entitlement_rls.test.sql'
+  const second = 'supabase/tests/finance_status_counts.test.sql'
+  h.options.testPaths = [second, first]
+  h.override(a => {
+    const stage = cliStage(a)
+    if (stage === '--workdir /work test db --local supabase/tests') {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a],
+        { code: 1, stdout: 'PRIVATE-SUITE-STDOUT', stderr: 'SQLSTATE 23505 PRIVATE-SUITE-STDERR' }, new Set([first, second]))
+    }
+    if (stage === `--workdir /work test db --local ${first}`) {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a],
+        { code: 1, stdout: 'PRIVATE-FILE-STDOUT', stderr: 'SQLSTATE 23505 PRIVATE-FILE-STDERR' }, new Set([first, second]))
+    }
+  })
+  const failure = await validateDatabase(h.options).then(
+    () => assert.fail('expected the full-suite gate to fail'),
+    error => error as Error,
+  )
+  assert.match(failure.message, /pg_tap_file_failure:supabase\/tests\/entitlement_rls\.test\.sql/)
+  for (const leak of ['PRIVATE-SUITE', 'PRIVATE-FILE', '23505', 'SQLSTATE']) assert.ok(!failure.message.includes(leak))
+  const paths = h.calls.map(a => testFileFromStage(cliStage(a))).filter(Boolean)
+  assert.deepEqual(paths, [first, second])
+  assert.deepEqual(h.calls.at(-1), ['rm', '--force', receipt])
+})
+
+test('multiple failing committed tests fail closed to unattributed file provenance', async () => {
+  const h = harness()
+  const first = 'supabase/tests/entitlement_rls.test.sql'
+  const second = 'supabase/tests/finance_status_counts.test.sql'
+  h.options.testPaths = [first, second]
+  h.override(a => {
+    const stage = cliStage(a)
+    if (stage === '--workdir /work test db --local supabase/tests' ||
+      stage === `--workdir /work test db --local ${first}` ||
+      stage === `--workdir /work test db --local ${second}`) {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a],
+        { code: 1, stdout: 'PRIVATE', stderr: 'SQLSTATE 23505 PRIVATE' }, new Set([first, second]))
+    }
+  })
+  const failure = await validateDatabase(h.options).then(
+    () => assert.fail('expected the full-suite gate to fail'),
+    error => error as Error,
+  )
+  assert.match(failure.message, /pg_tap_file_failure:unattributed/)
+  assert.ok(!failure.message.includes(first) && !failure.message.includes(second))
+})
+
+test('infrastructure failure takes precedence over per-file isolation', async () => {
+  const h = harness()
+  h.options.testPaths = ['supabase/tests/entitlement_rls.test.sql']
+  h.override(a => {
+    if (cliStage(a) === '--workdir /work test db --local supabase/tests') {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a],
+        { code: 1, stdout: 'not ok 1 - PRIVATE', stderr: 'no space left on device' }, new Set(h.options.testPaths!))
+    }
+  })
+  await assert.rejects(validateDatabase(h.options), /disk_full/)
+  assert.ok(!h.calls.some(a => testFileFromStage(cliStage(a))))
+})
+
+test('infrastructure failure during file isolation stops attribution and preserves the primary category', async () => {
+  const h = harness()
+  const first = 'supabase/tests/entitlement_rls.test.sql'
+  const second = 'supabase/tests/finance_status_counts.test.sql'
+  h.options.testPaths = [first, second]
+  h.override(a => {
+    const stage = cliStage(a)
+    if (stage === '--workdir /work test db --local supabase/tests') {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a],
+        { code: 1, stdout: '', stderr: 'SQLSTATE 23505' }, new Set([first, second]))
+    }
+    if (stage === `--workdir /work test db --local ${first}`) {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a],
+        { code: 1, stdout: '', stderr: 'no space left on device' }, new Set([first, second]))
+    }
+  })
+  const failure = await validateDatabase(h.options).then(
+    () => assert.fail('expected the full-suite gate to fail'),
+    error => error as Error,
+  )
+  assert.match(failure.message, /disk_full/)
+  assert.ok(!failure.message.includes('pg_tap_file_failure:'))
+  const paths = h.calls.map(a => testFileFromStage(cliStage(a))).filter(Boolean)
+  assert.deepEqual(paths, [first])
+})
+
+test('malformed per-file result fails closed without path attribution', async () => {
+  const h = harness()
+  const path = 'supabase/tests/entitlement_rls.test.sql'
+  h.options.testPaths = [path]
+  h.override(a => {
+    const stage = cliStage(a)
+    if (stage === '--workdir /work test db --local supabase/tests' || stage === `--workdir /work test db --local ${path}`) {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a],
+        { stderr: 'PRIVATE' }, new Set([path]))
+    }
+  })
+  const failure = await validateDatabase(h.options).then(
+    () => assert.fail('expected the full-suite gate to fail'),
+    error => error as Error,
+  )
+  assert.match(failure.message, /pg_tap_file_failure:unattributed/)
+  assert.ok(!failure.message.includes(path))
+})
+
+test('uncommitted or malformed test paths are refused before any Docker mutation', async () => {
+  for (const paths of [
+    ['supabase/tests/../secret.sql'],
+    ['supabase/tests/.'],
+    ['/tmp/secret.sql'],
+    ['supabase/tests/entitlement_rls.test.sql', 'supabase/tests/entitlement_rls.test.sql'],
+    Array.from({ length: 65 }, (_, index) => `supabase/tests/generated-${index}.test.sql`),
+  ]) {
+    const h = harness()
+    h.options.testPaths = paths
+    await assert.rejects(validateDatabase(h.options))
+    assert.deepEqual(h.calls, [])
+  }
+})
+
+test('committed DB source parsing admits only regular tracked test blobs', () => {
+  const first = 'supabase/tests/entitlement_rls.test.sql'
+  const second = 'supabase/tests/finance_status_counts.test.sql'
+  const entries = parseCommittedDbTree([
+    `100644 blob ${'a'.repeat(40)}\tsupabase/config.toml`,
+    `100644 blob ${'b'.repeat(40)}\tsupabase/migrations/20260901000000_example.sql`,
+    `100644 blob ${'c'.repeat(40)}\t${second}`,
+    `100755 blob ${'d'.repeat(40)}\t${first}`,
+  ].join('\n'))
+  assert.deepEqual(committedTestPaths(entries), [first, second].sort())
+  for (const invalid of [
+    '',
+    `120000 blob ${'a'.repeat(40)}\t${first}`,
+    `040000 tree ${'a'.repeat(40)}\tsupabase/tests`,
+    `100644 blob ${'a'.repeat(40)}\tsupabase/tests/../secret.sql`,
+    `100644 blob ${'a'.repeat(40)}\tsupabase/tests/.`,
+    `100644 blob ${'a'.repeat(40)}\tother/file.sql`,
+  ]) {
+    assert.throws(() => parseCommittedDbTree(invalid))
+  }
 })
 
 for (const endpoint of ['tcp://127.0.0.1:2375', 'ssh://server', '', 'unix://relative', 'unix:///socket\n']) {
@@ -329,6 +480,19 @@ const ownedStage = (stage: string[]) => ['--host', 'unix:///outer.sock', 'exec',
   'env', '-i', 'PATH=/usr/local/bin', 'supabase', '--workdir', '/work', ...stage]
 const committedTestPath = 'supabase/tests/entitlement_rls.test.sql'
 const committedOtherTestPath = 'supabase/tests/finance_status_counts.test.sql'
+test('per-file command diagnostics require an allowlisted committed test path', () => {
+  const allowlist = new Set([committedTestPath])
+  const result = commandFailure('docker', ownedStage(['test', 'db', '--local', committedTestPath]),
+    { code: 1, stdout: 'PRIVATE-STDOUT', stderr: 'SQLSTATE 23505 PRIVATE-STDERR' }, allowlist)
+  assert.match(result.message, new RegExp(`pg_tap_file_failure:${committedTestPath}`))
+  assert.ok(!result.message.includes('PRIVATE'))
+
+  const rejected = commandFailure('docker', ownedStage(['test', 'db', '--local', committedOtherTestPath]),
+    { code: 1, stdout: 'PRIVATE-STDOUT', stderr: 'SQLSTATE 23505 PRIVATE-STDERR' }, allowlist)
+  assert.ok(!rejected.message.includes(committedOtherTestPath))
+  assert.ok(!rejected.message.includes('PRIVATE'))
+  assert.equal(safePerFileTestDiagnostics('SQLSTATE 23505', committedOtherTestPath, allowlist), 'unknown')
+})
 test('whitelisted test stage reports stdout pgTAP failures symbolically without leaking output', () => {
   const stdout = [
     `${committedTestPath} ..`,

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { validateDatabase, validationProjectId } from './db-validation/guard.ts'
 import { commandFailure } from './db-validation/command-error.ts'
+import { committedTestPaths as testPathsFromEntries, parseCommittedDbTree } from './db-validation/source.ts'
 
 const execute = promisify(execFile)
 const safeEnv = { PATH: process.env.PATH, HOME: process.env.HOME }
@@ -41,12 +42,8 @@ process.on('SIGTERM', interrupt)
 try {
   // Only committed regular files; never copy .temp/.branches, .env, backups or user data.
   const tree = await command('git', ['ls-tree', '-r', head, '--', 'supabase/config.toml', 'supabase/migrations', 'supabase/tests'])
-  const entries = tree.trim().split('\n')
-  if (!entries.length) throw new Error('No committed DB inputs')
-  for (const entry of entries) {
-    const match = /^(100644|100755) blob [a-f0-9]+\t(supabase\/(?:config\.toml|(?:migrations|tests)\/[\w./-]+))$/.exec(entry)
-    if (!match || match[2].split('/').includes('..')) throw new Error('Unsupported DB source entry')
-    const path = match[2]
+  const entries = parseCommittedDbTree(tree)
+  for (const { path } of entries) {
     let data = await command('git', ['show', `${head}:${path}`])
     if (path === 'supabase/config.toml') {
       if (!/^project_id = "[\w-]+"$/m.test(data)) throw new Error('Unrecognized project config')
@@ -55,13 +52,11 @@ try {
     await mkdir(dirname(join(source, path)), { recursive: true })
     await writeFile(join(source, path), data, { mode: 0o600 })
   }
-  committedTestPaths = new Set(entries.flatMap(entry => {
-    const match = /^(100644|100755) blob [a-f0-9]+\t(supabase\/tests\/[\w./-]+)$/.exec(entry)
-    return match ? [match[2]] : []
-  }))
+  committedTestPaths = new Set(testPathsFromEntries(entries))
   console.log(`DB validation input HEAD: ${head}`)
   await validateDatabase({
     endpoint, token, source, cancelled: () => interrupted,
+    testPaths: [...committedTestPaths].sort(),
     run: args => command('docker', args), report: message => console.log(message),
   })
   if (interrupted) throw new Error('DB validation interrupted')
