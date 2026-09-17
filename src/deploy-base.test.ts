@@ -190,6 +190,7 @@ describe('deployment base contract', () => {
 
     expect(fetcher).toHaveBeenCalledWith(new URL(baseUrl))
     expect(fetcher).toHaveBeenCalledWith(new URL('build-info.json', baseUrl))
+    expect(fetcher).toHaveBeenCalledWith(new URL('plus', baseUrl))
     expect(fetcher).toHaveBeenCalledWith(new URL('books/keigo-essentials', baseUrl))
     expect(fetcher).toHaveBeenCalledWith(
       new URL('books/keigo-essentials/read/keigo-basics', baseUrl),
