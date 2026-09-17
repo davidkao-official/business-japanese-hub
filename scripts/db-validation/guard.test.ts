@@ -101,6 +101,28 @@ test('file isolation attributes one failing committed test without changing the 
   assert.deepEqual(h.calls.at(-1), ['rm', '--force', receipt])
 })
 
+test('full-suite tap plan mismatch remains terminal and does not run file isolation', async () => {
+  const h = harness()
+  h.options.testPaths = ['supabase/tests/entitlement_rls.test.sql']
+  h.override(a => {
+    if (cliStage(a) === '--workdir /work test db --local supabase/tests') {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a], {
+        code: 1,
+        stdout: ['1..3', 'ok 1 - a', 'ok 2 - b', '# Looks like you planned 3 tests but ran 5.'].join('\n'),
+        stderr: '',
+      }, new Set(h.options.testPaths!))
+    }
+  })
+  const failure = await validateDatabase(h.options).then(
+    () => assert.fail('expected the full-suite gate to fail'),
+    error => error as Error,
+  )
+  assert.match(failure.message, /tap_plan_mismatch/)
+  assert.ok(!failure.message.includes('pg_tap_file_failure:'))
+  assert.ok(!failure.message.includes('Looks like you planned'))
+  assert.ok(!h.calls.some(a => testFileFromStage(cliStage(a))))
+})
+
 test('multiple failing committed tests fail closed to unattributed file provenance', async () => {
   const h = harness()
   const first = 'supabase/tests/entitlement_rls.test.sql'

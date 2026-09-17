@@ -249,7 +249,7 @@ tar -xzf /tmp/cli.tar.gz -C /tmp supabase supabase-go`])
       } catch (error) {
         if (args[0] === 'test' && args[1] === 'db') {
           const diagnostic = dbValidationDiagnostic(error)
-          if (diagnostic?.kind === 'test-suite' && !diagnostic.infrastructure) {
+          if (diagnostic?.kind === 'test-suite' && !diagnostic.infrastructure && diagnostic.category !== 'tap_plan_mismatch') {
             const provenance = await isolateTestFileFailure()
             const base = error instanceof Error ? error.message : 'DB validation failed'
             const suffix = `; ${diagnostic.category}; no fallback performed`
