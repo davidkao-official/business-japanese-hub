@@ -7,6 +7,7 @@ create table public.practice_question_availability (
   question_version bigint not null,
   content_revision text not null,
   bank_version bigint not null,
+  content_fingerprint text not null,
   test_family text,
   domain text,
   category text,
@@ -18,6 +19,7 @@ create table public.practice_question_availability (
   constraint practice_question_availability_question_id_bounded check (char_length(question_id) between 1 and 128 and question_id = btrim(question_id)),
   constraint practice_question_availability_question_version_positive check (question_version > 0),
   constraint practice_question_availability_bank_version_positive check (bank_version > 0),
+  constraint practice_question_availability_fingerprint_md5 check (content_fingerprint ~ '^[a-f0-9]{32}$'),
   constraint practice_question_availability_revision_sha256 check (content_revision ~ '^[a-f0-9]{64}$')
 );
 
@@ -52,6 +54,16 @@ begin
     or p_questions is null or jsonb_typeof(p_questions) <> 'array' then
     raise exception 'practice availability identity and question list are required' using errcode = '22023';
   end if;
+  -- Question refs are derived by the importer.  Each one carries a content
+  -- fingerprint so reusing a version can be proven to describe the same
+  -- question; a ref that cannot prove that is refused rather than projected.
+  if exists (
+    select 1 from jsonb_array_elements(p_questions) item
+    where item->>'id' is null or item->>'version' is null or item->>'fingerprint' is null
+      or item->>'fingerprint' !~ '^[a-f0-9]{32}$'
+  ) then
+    raise exception 'practice availability question refs require id, version and fingerprint' using errcode = '22023';
+  end if;
   perform pg_advisory_xact_lock(hashtextextended(p_content_id, 0));
   if not exists (
     select 1 from public.private_content_release
@@ -71,6 +83,25 @@ begin
     raise exception 'practice availability sync revision conflicts with current bank version' using errcode = '22023';
   end if;
 
+  -- A stable identity may advance but never regress, and reusing a question
+  -- version must describe exactly the same question.  Otherwise the review
+  -- queue and historical attempts would silently describe different content.
+  if exists (
+    select 1
+    from (
+      select distinct on (item->>'id') item
+      from jsonb_array_elements(p_questions) item
+      order by item->>'id', (item->>'version')::bigint desc
+    ) latest
+    join public.practice_question_availability existing
+      on existing.content_id = p_content_id and existing.question_id = latest.item->>'id'
+    where (latest.item->>'version')::bigint < existing.question_version
+      or ((latest.item->>'version')::bigint = existing.question_version
+        and existing.content_fingerprint <> latest.item->>'fingerprint')
+  ) then
+    raise exception 'practice availability sync cannot regress a stable question identity' using errcode = '22023';
+  end if;
+
   insert into public.practice_question_release_head (content_id, bank_version, content_revision)
   values (p_content_id, p_bank_version, p_content_revision)
   on conflict (content_id) do update set
@@ -83,10 +114,11 @@ begin
 
   insert into public.practice_question_availability (
     content_id, question_id, question_version, content_revision, bank_version,
-    test_family, domain, category, practice_mode, available
+    content_fingerprint, test_family, domain, category, practice_mode, available
   )
   select p_content_id, latest.item->>'id', (latest.item->>'version')::bigint, p_content_revision, p_bank_version,
-    latest.item->>'testFamily', latest.item->>'domain', latest.item->>'category', latest.item->>'practiceProfile', true
+    latest.item->>'fingerprint', latest.item->>'testFamily', latest.item->>'domain', latest.item->>'category',
+    latest.item->>'practiceProfile', true
   from (
     select distinct on (item->>'id') item
     from jsonb_array_elements(p_questions) item
@@ -96,6 +128,7 @@ begin
     question_version = excluded.question_version,
     content_revision = excluded.content_revision,
     bank_version = excluded.bank_version,
+    content_fingerprint = excluded.content_fingerprint,
     test_family = excluded.test_family,
     domain = excluded.domain,
     category = excluded.category,
@@ -123,6 +156,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', latest.item->>'id',
     'version', (latest.item->>'version')::bigint,
+    'fingerprint', md5((latest.item - 'releaseNotes' - 'provenance')::text),
     'testFamily', latest.item->>'testFamily',
     'domain', latest.item->>'domain',
     'category', latest.item->>'category',
@@ -135,7 +169,8 @@ begin
     order by item->>'id', (item->>'version')::bigint desc
   ) latest
   where latest.item->>'deliveryProfile' = 'web'
-    and latest.item->'answer'->'input'->>'kind' <> 'short-text';
+    and latest.item->'answer'->'input'->>'kind' <> 'short-text'
+    and latest.item->>'practiceProfile' in ('untimed-learning', 'timed-practice');
   insert into public.private_content_release (content_id, revision, content_kind, access_scope, payload)
   values (p_content_id, p_content_revision, 'practice-question-bank', 'member', p_payload)
   on conflict (content_id, revision) do nothing;
