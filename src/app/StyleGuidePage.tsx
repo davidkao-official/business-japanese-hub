@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
 export function StyleGuidePage() {
@@ -65,7 +66,7 @@ function StyleGuideExample({
 }: {
   title: string
   wide?: boolean
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <section className={`styleguide-example${wide ? ' styleguide-example--wide' : ''}`}>
