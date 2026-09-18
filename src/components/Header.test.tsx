@@ -90,7 +90,7 @@ describe('Header mobile navigation', () => {
     )
   })
 
-  it('opens the existing navigation with account and appearance controls', () => {
+  it('opens the existing navigation with the account control and keeps appearance out of the header', () => {
     renderWithAppProviders(<Header />)
 
     const trigger = screen.getByRole('button', { name: 'メニューを開く' })
@@ -104,7 +104,7 @@ describe('Header mobile navigation', () => {
     expect(within(menu).getByRole('link', { name: 'ホーム' })).toBeInTheDocument()
     expect(within(menu).getByRole('link', { name: 'Learn' })).toBeInTheDocument()
     expect(within(menu).getByRole('button', { name: 'ログイン' })).toBeInTheDocument()
-    expect(within(menu).getByRole('radiogroup', { name: '外観' })).toBeInTheDocument()
+    expect(within(menu).queryByRole('radiogroup', { name: '外観' })).not.toBeInTheDocument()
     expect(document.body.style.overflow).toBe('hidden')
   })
 
@@ -150,15 +150,13 @@ describe('Header mobile navigation', () => {
     expect(document.body.style.overflow).toBe('')
   })
 
-  it('keeps the native radio-group Tab stop inside the overlay', () => {
+  it('keeps the account action in the overlay Tab cycle', () => {
     renderWithAppProviders(<Header />)
     fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
 
     const menu = screen.getByRole('dialog', { name: 'メニュー' })
-    const selectedAppearance = within(menu).getByRole('radio', { name: 'システム' })
-    expect(selectedAppearance).toBeChecked()
-
-    selectedAppearance.focus()
+    const login = within(menu).getByRole('button', { name: 'ログイン' })
+    login.focus()
     fireEvent.keyDown(document, { key: 'Tab' })
 
     expect(within(menu).getByRole('link', { name: 'ビジネス日本語ハブ' })).toHaveFocus()
@@ -306,7 +304,7 @@ describe('Header mobile navigation', () => {
       media.emitHeaderBreakpoint(false)
       expect(trigger).toHaveFocus()
 
-      within(desktopTools).getByRole('radio', { name: 'システム' }).focus()
+      within(desktopTools).getByRole('link', { name: 'Business Japanese Hub Plus' }).focus()
       simulateResponsiveFocusLoss()
       media.emitHeaderBreakpoint(false)
       expect(trigger).toHaveFocus()
