@@ -130,7 +130,6 @@ jobs:
   visual-qa:
     name: Homepage visual QA (4 widths × light/dark)
     if: github.event_name == 'pull_request'
-    needs: quality-gate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR head
