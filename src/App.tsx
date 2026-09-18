@@ -8,6 +8,7 @@ import {
 import { BookPage } from './app/BookPage'
 import { AboutPage } from './app/AboutPage'
 import { HomePage } from './app/HomePage'
+import { StyleGuidePage } from './app/StyleGuidePage'
 import { LibraryPage } from './app/LibraryPage'
 import { LibraryLinkPage } from './app/LibraryLinkPage'
 import { NotFoundPage } from './app/NotFoundPage'
@@ -107,6 +108,7 @@ export default function App() {
                     <Route element={<Layout />}>
                       <Route index element={<HomePage />} />
                       <Route path="about" element={<AboutPage />} />
+                      <Route path="styleguide" element={<StyleGuidePage />} />
                       <Route path="plus" element={<PlusPage />} />
                       <Route path="learn" element={<ProductModePage mode="learn" />} />
                       <Route path="learn/:slug" element={<LearnUnitPage />} />
