@@ -91,14 +91,22 @@ test stage fails without a hard infrastructure category, the guard performs a
 bounded diagnostic pass inside the same proved receipt CLI/daemon: it runs each
 regular committed `supabase/tests/**` file individually, in sorted order, using
 the exact allowlist derived from the validated HEAD. A single failing file is
-reported as `pg_tap_file_failure:<committed path>`; zero or multiple failures,
-malformed exit metadata, ambiguous paths or an unproved diagnostic shape fail
-closed to `pg_tap_file_failure:unattributed`. Hard infrastructure categories
-retain precedence and stop the diagnostic pass. The diagnostic pass never
-prints or persists per-file stdout/stderr and cannot make the failed full-suite
-gate green. `tap_plan_mismatch` remains separate. It still returns only
-symbolic categories and a numeric exit code, never raw output, test body text,
-SQL, row values or errors, and falls back to `unknown` otherwise.
+reported as `pg_tap_file_failure:<committed path>`; the exact committed
+`supabase/tests/practice_attempts.test.sql` file may instead be reduced, by the
+same bounded parser, to
+`pg_tap_test_failure:supabase/tests/practice_attempts.test.sql#<bounded assertion ordinal>`
+only when exactly one normal failure block and bounded summary prove the
+ordinal. Every other file remains file-level. Missing, malformed, ambiguous,
+multiple, mismatched or out-of-range evidence remains file-level; zero or
+multiple failing files, malformed exit metadata, ambiguous paths or an
+unproved diagnostic shape fail closed to
+`pg_tap_file_failure:unattributed`. Hard infrastructure categories retain
+precedence and stop the diagnostic pass. `tap_plan_mismatch` remains terminal
+and is never converted to an ordinal. The diagnostic pass never prints or
+persists per-file stdout/stderr and cannot make the failed full-suite gate
+green. It still returns only symbolic categories and a numeric exit code, never
+raw output, test body text, SQL, row values or errors, and falls back to
+`unknown` otherwise.
 `unattributed` is not evidence of an application or migration defect. Other
 command output, environment dumps and private rows remain suppressed. Failed
 gates may report the proved daemon's data-filesystem capacity and owned

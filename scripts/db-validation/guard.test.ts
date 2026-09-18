@@ -71,6 +71,7 @@ test('fixed gates run only in the receipt container, with isolated env and check
   assert.ok(executions.some(a => a.some(v => v.includes(CLI_SHA256) && v.includes(CLI_VERSION))))
   assert.ok(gates.every(a => a.includes(cliReceipt)))
   assert.ok(executions.some(a => a.includes('/usr/local/bin/docker') && a.includes(`${cliReceipt}:/usr/local/bin/docker`)))
+  assert.equal(h.calls.map(a => testFileFromStage(cliStage(a))).filter(Boolean).length, 0)
   assert.deepEqual(h.calls.at(-1), ['rm', '--force', receipt])
 })
 
@@ -502,6 +503,7 @@ const ownedStage = (stage: string[]) => ['--host', 'unix:///outer.sock', 'exec',
   'env', '-i', 'PATH=/usr/local/bin', 'supabase', '--workdir', '/work', ...stage]
 const committedTestPath = 'supabase/tests/entitlement_rls.test.sql'
 const committedOtherTestPath = 'supabase/tests/finance_status_counts.test.sql'
+const ordinalEligibleTestPath = 'supabase/tests/practice_attempts.test.sql'
 test('per-file command diagnostics require an allowlisted committed test path', () => {
   const allowlist = new Set([committedTestPath])
   const result = commandFailure('docker', ownedStage(['test', 'db', '--local', committedTestPath]),
@@ -513,7 +515,153 @@ test('per-file command diagnostics require an allowlisted committed test path', 
     { code: 1, stdout: 'PRIVATE-STDOUT', stderr: 'SQLSTATE 23505 PRIVATE-STDERR' }, allowlist)
   assert.ok(!rejected.message.includes(committedOtherTestPath))
   assert.ok(!rejected.message.includes('PRIVATE'))
-  assert.equal(safePerFileTestDiagnostics('SQLSTATE 23505', committedOtherTestPath, allowlist), 'unknown')
+  assert.equal(safePerFileTestDiagnostics('', 'SQLSTATE 23505', committedOtherTestPath, allowlist), 'unknown')
+})
+test('per-file ordinal attribution is limited to the exact committed practice_attempts file', () => {
+  const path = ordinalEligibleTestPath
+  const allowlist = new Set([path])
+  const output = [
+    `${path} ..`,
+    '# Failed test 13: PRIVATE-DESCRIPTION',
+    'Failed 1/13 subtests',
+  ].join('\n')
+  assert.equal(safePerFileTestDiagnostics(output, '', path, allowlist), `pg_tap_test_failure:${path}#13`)
+  assert.equal(safePerFileTestDiagnostics(output, '', committedTestPath, new Set([committedTestPath])),
+    `pg_tap_file_failure:${committedTestPath}`)
+  assert.equal(safePerFileTestDiagnostics(output, '', 'supabase/tests/uncommitted.test.sql', allowlist), 'unknown')
+
+  const result = commandFailure('docker', ownedStage(['test', 'db', '--local', path]),
+    { code: 1, stdout: output, stderr: 'PRIVATE-STDERR token=PRIVATE-TOKEN' }, allowlist)
+  assert.ok(result.message.includes(`pg_tap_test_failure:${path}#13`))
+  for (const leak of ['PRIVATE-DESCRIPTION', 'PRIVATE-STDERR', 'PRIVATE-TOKEN', 'Failed test', 'subtests', '..']) {
+    assert.ok(!result.message.includes(leak))
+  }
+})
+test('per-file ordinal attribution requires singular bounded evidence', () => {
+  const path = ordinalEligibleTestPath
+  const allowlist = new Set([path])
+  const cases = [
+    [`${path} ..`, '# Failed test 3: PRIVATE-A', '# Failed test 4: PRIVATE-B', 'Failed 1/13 subtests'],
+    [`${path} ..`, '# Failed test 3: PRIVATE', 'Failed 1/13 subtests', 'Failed 1/13 subtests'],
+    [`${path} ..`, '# Failed test 14: PRIVATE', 'Failed 1/13 subtests'],
+    [`${path} ..`, '# Failed test 0: PRIVATE', 'Failed 1/13 subtests'],
+    [`${path} ..`, '# Failed test 1000001: PRIVATE', 'Failed 1/13 subtests'],
+    [`${path} ..`, '# Failed test 3: PRIVATE'],
+    [`${path} ..`, '# Failed test 3: PRIVATE', 'Failed 1/x subtests'],
+    [`${committedTestPath} ..`, '# Failed test 3: PRIVATE', 'Failed 1/13 subtests'],
+  ]
+  for (const output of cases) {
+    assert.equal(safePerFileTestDiagnostics(output.join('\n'), '', path, allowlist), `pg_tap_file_failure:${path}`)
+  }
+})
+test('per-file infrastructure precedence and tap plan mismatch remain terminal', () => {
+  const path = ordinalEligibleTestPath
+  const output = [
+    `${path} ..`,
+    '# Failed test 13: PRIVATE-DESCRIPTION',
+    'Failed 1/13 subtests',
+  ].join('\n')
+  assert.equal(safePerFileTestDiagnostics(output, 'Error: no space left on device', path, new Set([path])), 'disk_full')
+  const planMismatch = ['1..3', 'ok 1 - a', '# Looks like you planned 3 tests but ran 5.'].join('\n')
+  assert.equal(safePerFileTestDiagnostics(planMismatch, '', path, new Set([path])), 'tap_plan_mismatch')
+})
+test('per-file tap plan mismatch outranks non-hard diagnostic categories', () => {
+  const path = ordinalEligibleTestPath
+  const allowlist = new Set([path])
+  const planMismatch = ['1..3', 'ok 1 - a', '# Looks like you planned 3 tests but ran 5.'].join('\n')
+  assert.equal(safeTestDiagnostics(planMismatch, 'SQLSTATE 23505', allowlist), 'tap_plan_mismatch')
+  assert.equal(safePerFileTestDiagnostics(planMismatch, 'SQLSTATE 23505', path, allowlist), 'tap_plan_mismatch')
+  assert.equal(safePerFileTestDiagnostics(planMismatch, 'Error: no space left on device', path, allowlist), 'disk_full')
+})
+test('single committed-file isolation can emit one bounded ordinal and stays red', async () => {
+  const h = harness()
+  const path = ordinalEligibleTestPath
+  h.options.testPaths = [path]
+  const stdout = [
+    `${path} ..`,
+    '# Failed test 13: PRIVATE-DESCRIPTION',
+    'Failed 1/13 subtests',
+  ].join('\n')
+  h.override(a => {
+    const stage = cliStage(a)
+    if (stage === '--workdir /work test db --local supabase/tests') {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a],
+        { code: 1, stdout: '', stderr: 'SQLSTATE 23505' }, new Set(h.options.testPaths!))
+    }
+    if (stage === `--workdir /work test db --local ${path}`) {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a],
+        { code: 1, stdout, stderr: '' }, new Set(h.options.testPaths!))
+    }
+  })
+  const failure = await validateDatabase(h.options).then(
+    () => assert.fail('expected the full-suite gate to fail'),
+    error => error as Error,
+  )
+  assert.ok(failure.message.includes(`pg_tap_test_failure:${path}#13`))
+  assert.ok(!failure.message.includes('PRIVATE-DESCRIPTION'))
+  assert.ok(!failure.message.includes('Failed 1/13'))
+  const paths = h.calls.map(a => testFileFromStage(cliStage(a))).filter(Boolean)
+  assert.deepEqual(paths, [path])
+})
+test('per-file tap plan mismatch remains terminal and stops later isolation', async () => {
+  const h = harness()
+  const path = ordinalEligibleTestPath
+  const later = 'supabase/tests/z_later.test.sql'
+  h.options.testPaths = [path, later]
+  h.override(a => {
+    const stage = cliStage(a)
+    if (stage === '--workdir /work test db --local supabase/tests') {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a],
+        { code: 1, stdout: '# Failed test 3: PRIVATE', stderr: '' }, new Set(h.options.testPaths!))
+    }
+    if (stage === `--workdir /work test db --local ${path}`) {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a], {
+        code: 1,
+        stdout: ['1..3', 'ok 1 - a', '# Looks like you planned 3 tests but ran 5.'].join('\n'),
+        stderr: '',
+      }, new Set(h.options.testPaths!))
+    }
+  })
+  const failure = await validateDatabase(h.options).then(
+    () => assert.fail('expected the full-suite gate to fail'),
+    error => error as Error,
+  )
+  assert.match(failure.message, /tap_plan_mismatch/)
+  assert.ok(!failure.message.includes('#'))
+  assert.ok(!failure.message.includes('Looks like you planned'))
+  const paths = h.calls.map(a => testFileFromStage(cliStage(a))).filter(Boolean)
+  assert.deepEqual(paths, [path])
+})
+test('ordinal attribution cannot survive multiple failing committed files', async () => {
+  const h = harness()
+  const path = ordinalEligibleTestPath
+  const other = committedOtherTestPath
+  h.options.testPaths = [path, other]
+  h.override(a => {
+    const stage = cliStage(a)
+    if (stage === '--workdir /work test db --local supabase/tests') {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a],
+        { code: 1, stdout: '', stderr: 'SQLSTATE 23505' }, new Set(h.options.testPaths!))
+    }
+    if (stage === `--workdir /work test db --local ${path}`) {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a], {
+        code: 1,
+        stdout: [`${path} ..`, '# Failed test 13: PRIVATE-DESCRIPTION', 'Failed 1/13 subtests'].join('\n'),
+        stderr: '',
+      }, new Set(h.options.testPaths!))
+    }
+    if (stage === `--workdir /work test db --local ${other}`) {
+      throw commandFailure('docker', ['--host', h.options.endpoint, ...a],
+        { code: 1, stdout: 'PRIVATE-STDOUT', stderr: 'SQLSTATE 23505' }, new Set(h.options.testPaths!))
+    }
+  })
+  const failure = await validateDatabase(h.options).then(
+    () => assert.fail('expected the full-suite gate to fail'),
+    error => error as Error,
+  )
+  assert.match(failure.message, /pg_tap_file_failure:unattributed/)
+  assert.ok(!failure.message.includes(`#13`))
+  assert.ok(!failure.message.includes('PRIVATE'))
 })
 test('whitelisted test stage reports stdout pgTAP failures symbolically without leaking output', () => {
   const stdout = [

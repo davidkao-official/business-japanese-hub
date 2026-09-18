@@ -54,6 +54,7 @@ function diagnosticError(message: string, diagnostic: DbValidationDiagnostic): E
 }
 
 const TAP_ASSERTION_ORDINAL_MAX = 1_000_000
+const TAP_ORDINAL_ELIGIBLE_TEST_PATH = 'supabase/tests/practice_attempts.test.sql'
 const TAP_HARNESS_HEADER = /^\s*([A-Za-z0-9._/-]+)\s+\.\.\s*(.*)$/i
 const TAP_HARNESS_FAILURE_SIGNAL = /^\s*[A-Za-z0-9._/-]+\s+\.\.\s+Failed\b/im
 const TAP_FAILED_TEST = /^\s*#\s*Failed test(?:\s+([0-9]+))?:\s*/i
@@ -67,6 +68,12 @@ function tapOrdinal(value: string): string | null {
   if (!/^[1-9][0-9]{0,6}$/.test(value)) return null
   const ordinal = Number(value)
   return ordinal <= TAP_ASSERTION_ORDINAL_MAX ? String(ordinal) : null
+}
+
+export function isBoundedOrdinalTestDiagnostic(category: string, path: string): boolean {
+  if (path !== TAP_ORDINAL_ELIGIBLE_TEST_PATH) return false
+  const prefix = `pg_tap_test_failure:${path}#`
+  return category.startsWith(prefix) && tapOrdinal(category.slice(prefix.length)) !== null
 }
 
 function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<string>): string | null {
@@ -135,14 +142,15 @@ function attributedTapFailure(output: string, allowlistedTestPaths: ReadonlySet<
 /**
  * Symbolic pgTAP/TAP classification for the whitelisted local `test db` stage.
  * Scans captured stdout plus stderr internally but only ever returns fixed
- * labels: infrastructure categories win, then a safely anchored TAP plan
- * mismatch, then a recognizable TAP test failure, else `unknown`. A bare
+ * labels: hard infrastructure categories win, then a safely anchored TAP plan
+ * mismatch, then non-hard diagnostic categories, then a recognizable TAP test
+ * failure, else `unknown`. A bare
  * pgTAP `Result: FAIL` summary is not an attributable assertion and fails
  * closed to `unknown`. Original output, SQL and row values are never returned.
  */
 export function safeTestDiagnostics(stdout: string, stderr: string, allowlistedTestPaths: ReadonlySet<string> = new Set()): string {
-  const infrastructure = safeErrorCategories(stderr)
-  if (infrastructure !== 'unknown') return infrastructure
+  const categories = safeErrorCategories(stderr)
+  if (infrastructureCategory(categories)) return categories
   const output = `${stdout}\n${stderr}`
   const planMismatch = [
     /^#\s*looks like you planned \d+ tests? but ran \d+/im,
@@ -150,6 +158,7 @@ export function safeTestDiagnostics(stdout: string, stderr: string, allowlistedT
     /^#\s*bad plan\b[^\n]*\bplanned \d+ tests? but ran \d+/im,
   ].some(pattern => pattern.test(output))
   if (planMismatch) return 'tap_plan_mismatch'
+  if (categories !== 'unknown') return categories
   const testFailure = [
     TAP_FAILED_TEST_SIGNAL,
     TAP_SUBTEST_SUMMARY_SIGNAL,
@@ -164,10 +173,13 @@ export function safeTestDiagnostics(stdout: string, stderr: string, allowlistedT
 /**
  * A per-file run has already fixed the only executable path. Its non-zero
  * exit is therefore sufficient file-level provenance, while hard
- * infrastructure categories still take precedence. Raw output is never
- * returned or persisted.
+ * infrastructure categories still take precedence. The one explicitly
+ * eligible committed file may be reduced to an ordinal by the existing
+ * bounded pgTAP parser; every other per-file failure stays file-level.
+ * Raw output is never returned or persisted.
  */
 export function safePerFileTestDiagnostics(
+  stdout: string,
   stderr: string,
   invokedTestPath: string,
   allowlistedTestPaths: ReadonlySet<string>,
@@ -177,6 +189,12 @@ export function safePerFileTestDiagnostics(
     invokedTestPath.split('/').some(part => part === '.' || part === '..')) return 'unknown'
   const categories = safeErrorCategories(stderr)
   if (infrastructureCategory(categories)) return categories
+  if (invokedTestPath === TAP_ORDINAL_ELIGIBLE_TEST_PATH) {
+    const diagnostic = safeTestDiagnostics(stdout, stderr, allowlistedTestPaths)
+    if (diagnostic === 'tap_plan_mismatch' || isBoundedOrdinalTestDiagnostic(diagnostic, invokedTestPath)) {
+      return diagnostic
+    }
+  }
   return `pg_tap_file_failure:${invokedTestPath}`
 }
 
@@ -212,7 +230,7 @@ export function commandFailure(file: string, args: string[], error: unknown, all
     const diagnostics = stage === testDbStage
       ? safeTestDiagnostics(typeof detail?.stdout === 'string' ? detail.stdout : '', stderr, allowlistedTestPaths)
       : testFilePath
-        ? safePerFileTestDiagnostics(stderr, testFilePath, allowlistedTestPaths)
+        ? safePerFileTestDiagnostics(typeof detail?.stdout === 'string' ? detail.stdout : '', stderr, testFilePath, allowlistedTestPaths)
         : safeErrorCategories(stderr)
     const diagnostic: DbValidationDiagnostic | undefined = stage === testDbStage
       ? { kind: 'test-suite', category: diagnostics, infrastructure: infrastructureCategory(diagnostics), exitCode: typeof code === 'number' ? code : null }
