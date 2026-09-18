@@ -42,7 +42,6 @@
   align-items: center;
   justify-content: flex-start;
   padding: var(--space-5);
-  overflow: hidden;
   border: var(--stroke-thin) solid var(--color-border);
   background: var(--color-surface);
 }
