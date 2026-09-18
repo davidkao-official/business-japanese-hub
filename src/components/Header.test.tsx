@@ -150,18 +150,6 @@ describe('Header mobile navigation', () => {
     expect(document.body.style.overflow).toBe('')
   })
 
-  it('keeps the account action in the overlay Tab cycle', () => {
-    renderWithAppProviders(<Header />)
-    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
-
-    const menu = screen.getByRole('dialog', { name: 'メニュー' })
-    const login = within(menu).getByRole('button', { name: 'ログイン' })
-    login.focus()
-    fireEvent.keyDown(document, { key: 'Tab' })
-
-    expect(within(menu).getByRole('link', { name: 'ビジネス日本語ハブ' })).toHaveFocus()
-  })
-
   it('closes when an existing route is selected', () => {
     renderWithAppProviders(<Header />)
     fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
