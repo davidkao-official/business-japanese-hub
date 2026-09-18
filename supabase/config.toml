@@ -1,7 +1,7 @@
 # Supabase project config (https://supabase.com/docs/guides/cli/config)
 # Minimal config for the #9 payment Edge Functions. Ingress `verify_jwt`
 # contract (decision-record §3.5):
-#   - checkout / orders-status / finance  → platform JWT gate ON
+#   - checkout / orders-status / finance / content-delivery / plus-membership → platform JWT gate ON
 #   - ecpay-callback / ecpay-browser-return → platform JWT gate OFF (ECPay server
 #     POST / browser navigation carry no user JWT; the handlers self-verify)
 #   - paypal-webhook / paypal-browser-return → platform JWT gate OFF (PayPal
@@ -45,6 +45,9 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.practice-attempts]
+verify_jwt = true
+
+[functions.plus-membership]
 verify_jwt = true
 
 [functions.product-analytics]

@@ -20,6 +20,39 @@ export function safeErrorCategories(stderr: string): string {
   return categories.filter(([, pattern]) => pattern.test(stderr)).map(([name]) => name).join(', ') || 'unknown'
 }
 
+const HARD_INFRASTRUCTURE_CATEGORIES = new Set([
+  'disk_full', 'out_of_memory', 'connection_refused', 'network_timeout',
+  'dns_resolution', 'tls_certificate', 'image_pull_rate_limit',
+  'image_pull_access_denied', 'image_manifest_missing', 'permission',
+  'unhealthy', 'exec_format', 'missing_executable', 'database_initialization',
+])
+
+export const DB_VALIDATION_DIAGNOSTIC = Symbol('db-validation-diagnostic')
+
+export interface DbValidationDiagnostic {
+  kind: 'test-suite' | 'test-file'
+  category: string
+  infrastructure: boolean
+  exitCode: number | null
+  path?: string
+}
+
+export function dbValidationDiagnostic(error: unknown): DbValidationDiagnostic | undefined {
+  if (!error || typeof error !== 'object') return undefined
+  const value = (error as { [DB_VALIDATION_DIAGNOSTIC]?: unknown })[DB_VALIDATION_DIAGNOSTIC]
+  return value && typeof value === 'object' ? value as DbValidationDiagnostic : undefined
+}
+
+function infrastructureCategory(categories: string): boolean {
+  return categories.split(', ').some(category => HARD_INFRASTRUCTURE_CATEGORIES.has(category))
+}
+
+function diagnosticError(message: string, diagnostic: DbValidationDiagnostic): Error {
+  const error = new Error(message)
+  Object.defineProperty(error, DB_VALIDATION_DIAGNOSTIC, { value: diagnostic })
+  return error
+}
+
 const TAP_ASSERTION_ORDINAL_MAX = 1_000_000
 const TAP_HARNESS_HEADER = /^\s*([A-Za-z0-9._/-]+)\s+\.\.\s*(.*)$/i
 const TAP_HARNESS_FAILURE_SIGNAL = /^\s*[A-Za-z0-9._/-]+\s+\.\.\s+Failed\b/im
@@ -128,6 +161,25 @@ export function safeTestDiagnostics(stdout: string, stderr: string, allowlistedT
   return provenance ? `pg_tap_test_failure:${provenance}` : 'pg_tap_test_failure:unattributed'
 }
 
+/**
+ * A per-file run has already fixed the only executable path. Its non-zero
+ * exit is therefore sufficient file-level provenance, while hard
+ * infrastructure categories still take precedence. Raw output is never
+ * returned or persisted.
+ */
+export function safePerFileTestDiagnostics(
+  stderr: string,
+  invokedTestPath: string,
+  allowlistedTestPaths: ReadonlySet<string>,
+): string {
+  if (!allowlistedTestPaths.has(invokedTestPath) ||
+    !/^supabase\/tests\/(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+$/.test(invokedTestPath) ||
+    invokedTestPath.split('/').some(part => part === '.' || part === '..')) return 'unknown'
+  const categories = safeErrorCategories(stderr)
+  if (infrastructureCategory(categories)) return categories
+  return `pg_tap_file_failure:${invokedTestPath}`
+}
+
 export function commandFailure(file: string, args: string[], error: unknown, allowlistedTestPaths: ReadonlySet<string> = new Set()): Error {
   const detail = error as { code?: unknown; stderr?: unknown; stdout?: unknown } | null
   const ownedCliStart = file === 'docker' && args.length === 9 && args[0] === '--host' &&
@@ -142,8 +194,13 @@ export function commandFailure(file: string, args: string[], error: unknown, all
   const cliIndex = args.indexOf('supabase')
   const stage = args.slice(cliIndex + 1).join(' ')
   const testDbStage = '--workdir /work test db --local supabase/tests'
+  const testFileMatch = /^--workdir \/work test db --local (supabase\/tests\/(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+)$/.exec(stage)
+  const testFileCandidate = testFileMatch?.[1]
+  const testFilePath = testFileCandidate && !testFileCandidate.split('/').some(part => part === '.' || part === '..') && allowlistedTestPaths.has(testFileCandidate)
+    ? testFileCandidate
+    : undefined
   const fixedStage = ['--workdir /work db start', '--workdir /work db reset --local', testDbStage,
-    '--workdir /work db lint --local --schema public --level warning --fail-on error'].includes(stage)
+    '--workdir /work db lint --local --schema public --level warning --fail-on error'].includes(stage) || testFilePath !== undefined
   const ownedSupabase = file === 'docker' && args[0] === '--host' && /^unix:\/\/\//.test(args[1]) &&
     args[2] === 'exec' && /^[a-f0-9]{64}$/.test(args[3]) && args[4] === 'docker' &&
     args[5] === '--host' && args[6] === 'unix:///var/run/docker.sock' && args[7] === 'exec' &&
@@ -154,8 +211,18 @@ export function commandFailure(file: string, args: string[], error: unknown, all
     const stderr = typeof detail?.stderr === 'string' ? detail.stderr : ''
     const diagnostics = stage === testDbStage
       ? safeTestDiagnostics(typeof detail?.stdout === 'string' ? detail.stdout : '', stderr, allowlistedTestPaths)
-      : safeErrorCategories(stderr)
-    return new Error(`DB validation failed: supabase ${stage} (exit ${code}); ${diagnostics || 'unknown'}; no fallback performed`)
+      : testFilePath
+        ? safePerFileTestDiagnostics(stderr, testFilePath, allowlistedTestPaths)
+        : safeErrorCategories(stderr)
+    const diagnostic: DbValidationDiagnostic | undefined = stage === testDbStage
+      ? { kind: 'test-suite', category: diagnostics, infrastructure: infrastructureCategory(diagnostics), exitCode: typeof code === 'number' ? code : null }
+      : testFilePath
+        ? { kind: 'test-file', category: diagnostics, infrastructure: infrastructureCategory(diagnostics), exitCode: typeof code === 'number' ? code : null, path: testFilePath }
+        : undefined
+    const message = `DB validation failed: supabase ${stage} (exit ${code}); ${diagnostics || 'unknown'}; no fallback performed`
+    return diagnostic
+      ? diagnosticError(message, diagnostic)
+      : new Error(message)
   }
   // Never include unfiltered Supabase output, arbitrary Error.message, stdout or environment.
   return new Error(`DB validation command failed: ${file} ${args[0] ?? ''}; no fallback performed`)

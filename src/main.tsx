@@ -9,6 +9,7 @@ import './styles/legal.css'
 import './styles/editorial-v2.css'
 import './styles/about.css'
 import './styles/product-ia.css'
+import './styles/plus.css'
 
 const root = document.getElementById('root')
 

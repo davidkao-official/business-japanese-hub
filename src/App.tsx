@@ -12,6 +12,7 @@ import { LibraryPage } from './app/LibraryPage'
 import { LibraryLinkPage } from './app/LibraryLinkPage'
 import { NotFoundPage } from './app/NotFoundPage'
 import { ProductModePage } from './app/ProductModePage'
+import { PlusPage } from './app/PlusPage'
 import { LearnUnitPage } from './app/LearnUnitPage'
 import { PracticeActivityPage } from './app/PracticeActivityPage'
 import {
@@ -33,6 +34,11 @@ import { createCheckoutPurchaseExecutor } from './lib/purchase/executor'
 import { configureEdgeFunctionsAuth } from './lib/purchase/executor'
 import type { UserStateRepository } from './lib/persistence/repository'
 import { LearningEvidenceProvider } from './lib/learning/LearningEvidenceContext'
+import { MembershipAccessProvider } from './lib/membership/MembershipAccessContext'
+import {
+  HttpPlusMembershipAccessRepository,
+  type PlusMembershipAccessRepository,
+} from './lib/membership/access'
 import type { LibraryLearningEvidenceRepository } from './lib/learning/repository'
 import { SupabaseLibraryLearningEvidenceRepository } from './lib/learning/supabase'
 
@@ -46,6 +52,7 @@ function createAppServices(): {
   authClient: AuthClient
   repository: UserStateRepository | null
   learningEvidenceRepository: LibraryLearningEvidenceRepository | null
+  membershipAccessRepository: PlusMembershipAccessRepository | null
   getAccessToken: () => Promise<string | null>
 } {
   const platform = createBrowserPlatformServices('library')
@@ -55,20 +62,22 @@ function createAppServices(): {
       authClient: platform.authClient,
       repository: null,
       learningEvidenceRepository: null,
+      membershipAccessRepository: null,
       getAccessToken: async () => null,
     }
   }
   // The authenticated checkout / orders-status Edge Functions need the Supabase
   // session token (Bearer). Wire it once so the executor + result page can
   // authenticate; without a session this resolves to null (no auth header).
-  configureEdgeFunctionsAuth(
-    async () => (await client.auth.getSession()).data.session?.access_token ?? null,
-  )
+  const getAccessToken = async () =>
+    (await client.auth.getSession()).data.session?.access_token ?? null
+  configureEdgeFunctionsAuth(getAccessToken)
   return {
     authClient: platform.authClient,
     repository: new SupabaseUserStateRepository(client),
     learningEvidenceRepository: new SupabaseLibraryLearningEvidenceRepository(client),
-    getAccessToken: async () => (await client.auth.getSession()).data.session?.access_token ?? null,
+    membershipAccessRepository: new HttpPlusMembershipAccessRepository(getAccessToken),
+    getAccessToken,
   }
 }
 
@@ -89,42 +98,45 @@ export default function App() {
   return (
     <AppearanceProvider>
       <AuthProvider authClient={services.authClient}>
-        <LearningEvidenceProvider repository={services.learningEvidenceRepository}>
-          <UserStateProvider repository={services.repository}>
-            <PurchaseProvider executor={purchaseExecutor}>
-              <BrowserRouter basename={routerBasename}>
-                <Routes>
-                  <Route element={<Layout />}>
-                    <Route index element={<HomePage />} />
-                    <Route path="about" element={<AboutPage />} />
-                    <Route path="learn" element={<ProductModePage mode="learn" />} />
-                    <Route path="learn/:slug" element={<LearnUnitPage />} />
-                    <Route path="read" element={<ProductModePage mode="read" />} />
-                    <Route path="practice" element={<ProductModePage mode="practice" />} />
-                    <Route path="practice/web-test" element={<WebTestHubPage />} />
-                    <Route path="practice/web-test/:family" element={<WebTestFamilyPage />} />
-                    <Route path="practice/web-test/:family/:domain" element={<WebTestCategoryPage />} />
-                    <Route path="practice/web-test/:family/:domain/:category" element={<WebTestRunnerEntryPage />} />
-                    <Route path="practice/:slug" element={<PracticeActivityPage />} />
-                    <Route path="my-learning" element={<ProductModePage mode="my-learning" />} />
-                    <Route path="experience" element={<ProductModePage mode="experience" />} />
-                    <Route path="library" element={<LibraryPage />} />
-                    <Route path="library-link" element={<LibraryLinkPage />} />
-                    <Route path="books/:slug" element={<BookPage />} />
-                    <Route path="purchase/result" element={<PurchaseResultPage />} />
-                    <Route path="legal" element={<LegalIndexPage />} />
-                    <Route path="legal/:slug" element={<LegalPage />} />
-                    <Route path="*" element={<NotFoundPage />} />
-                  </Route>
-                  {/* The reader is an immersive surface — it renders OUTSIDE the site
-                      chrome (no Header/Footer) and owns the whole viewport. */}
-                  <Route path="books/:slug/read" element={<ReaderPage />} />
-                  <Route path="books/:slug/read/:chapterSlug" element={<ReaderPage />} />
-                </Routes>
-              </BrowserRouter>
-            </PurchaseProvider>
-          </UserStateProvider>
-        </LearningEvidenceProvider>
+        <MembershipAccessProvider repository={services.membershipAccessRepository}>
+          <LearningEvidenceProvider repository={services.learningEvidenceRepository}>
+            <UserStateProvider repository={services.repository}>
+              <PurchaseProvider executor={purchaseExecutor}>
+                <BrowserRouter basename={routerBasename}>
+                  <Routes>
+                    <Route element={<Layout />}>
+                      <Route index element={<HomePage />} />
+                      <Route path="about" element={<AboutPage />} />
+                      <Route path="plus" element={<PlusPage />} />
+                      <Route path="learn" element={<ProductModePage mode="learn" />} />
+                      <Route path="learn/:slug" element={<LearnUnitPage />} />
+                      <Route path="read" element={<ProductModePage mode="read" />} />
+                      <Route path="practice" element={<ProductModePage mode="practice" />} />
+                      <Route path="practice/web-test" element={<WebTestHubPage />} />
+                      <Route path="practice/web-test/:family" element={<WebTestFamilyPage />} />
+                      <Route path="practice/web-test/:family/:domain" element={<WebTestCategoryPage />} />
+                      <Route path="practice/web-test/:family/:domain/:category" element={<WebTestRunnerEntryPage />} />
+                      <Route path="practice/:slug" element={<PracticeActivityPage />} />
+                      <Route path="my-learning" element={<ProductModePage mode="my-learning" />} />
+                      <Route path="experience" element={<ProductModePage mode="experience" />} />
+                      <Route path="library" element={<LibraryPage />} />
+                      <Route path="library-link" element={<LibraryLinkPage />} />
+                      <Route path="books/:slug" element={<BookPage />} />
+                      <Route path="purchase/result" element={<PurchaseResultPage />} />
+                      <Route path="legal" element={<LegalIndexPage />} />
+                      <Route path="legal/:slug" element={<LegalPage />} />
+                      <Route path="*" element={<NotFoundPage />} />
+                    </Route>
+                    {/* The reader is an immersive surface — it renders OUTSIDE the site
+                        chrome (no Header/Footer) and owns the whole viewport. */}
+                    <Route path="books/:slug/read" element={<ReaderPage />} />
+                    <Route path="books/:slug/read/:chapterSlug" element={<ReaderPage />} />
+                  </Routes>
+                </BrowserRouter>
+              </PurchaseProvider>
+            </UserStateProvider>
+          </LearningEvidenceProvider>
+        </MembershipAccessProvider>
       </AuthProvider>
     </AppearanceProvider>
   )

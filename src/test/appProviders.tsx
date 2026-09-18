@@ -15,6 +15,8 @@ import { AuthProvider } from '@business-japanese-hub/platform-auth'
 import type { AuthClient, SessionUser } from '@business-japanese-hub/platform-auth'
 import { AppearanceProvider } from '../lib/appearance/AppearanceContext'
 import { UserStateProvider } from '../lib/persistence/UserStateContext'
+import { MembershipAccessProvider } from '../lib/membership/MembershipAccessContext'
+import type { PlusMembershipAccessRepository } from '../lib/membership/access'
 import type { UserStateRepository } from '../lib/persistence/repository'
 import type { Entitlement, ReadingState } from '../lib/persistence/types'
 import { PurchaseProvider } from '../lib/purchase/PurchaseContext'
@@ -73,6 +75,7 @@ export interface RenderAppOptions {
   session?: SessionUser | null
   /** Defaults to null (no backend / no sync). */
   repository?: UserStateRepository | null
+  membershipAccessRepository?: PlusMembershipAccessRepository | null
   purchaseExecutor?: PurchaseExecutor
   initialEntries?: string[]
   initialIndex?: number
@@ -82,6 +85,7 @@ export function renderWithAppProviders(ui: ReactElement, options: RenderAppOptio
   const {
     session = null,
     repository = null,
+    membershipAccessRepository = null,
     purchaseExecutor,
     initialEntries = ['/'],
     initialIndex,
@@ -91,13 +95,15 @@ export function renderWithAppProviders(ui: ReactElement, options: RenderAppOptio
   const wrapper = ({ children }: { children: ReactNode }) => (
     <AppearanceProvider>
       <AuthProvider authClient={authClient}>
-        <UserStateProvider repository={repository}>
-          <PurchaseProvider executor={purchaseExecutor}>
-            <MemoryRouter initialEntries={initialEntries} initialIndex={initialIndex}>
-              {children}
-            </MemoryRouter>
-          </PurchaseProvider>
-        </UserStateProvider>
+        <MembershipAccessProvider repository={membershipAccessRepository}>
+          <UserStateProvider repository={repository}>
+            <PurchaseProvider executor={purchaseExecutor}>
+              <MemoryRouter initialEntries={initialEntries} initialIndex={initialIndex}>
+                {children}
+              </MemoryRouter>
+            </PurchaseProvider>
+          </UserStateProvider>
+        </MembershipAccessProvider>
       </AuthProvider>
     </AppearanceProvider>
   )

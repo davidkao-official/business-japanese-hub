@@ -25,6 +25,8 @@ export interface AppStrings {
     main: string
     home: string
     library: string
+    plus: string
+    plusName: string
     skipToContent: string
     openMenu: string
     closeMenu: string
@@ -57,6 +59,52 @@ export interface AppStrings {
     samplesTitle: string
     selectionsLabel: string
     selectionsTitle: string
+  }
+  plus: {
+    eyebrow: string
+    lead: string
+    priceLabel: string
+    priceAmount: string
+    pricePeriod: string
+    priceDisclosure: string
+    availabilityTitle: string
+    availabilityBody: string
+    audienceTitle: string
+    audienceBody: string
+    journeyTitle: string
+    journeySteps: string[]
+    valueTitle: string
+    freeTitle: string
+    freeBody: string
+    plusTitle: string
+    plusBody: string
+    learningSystemTitle: string
+    learningSystemBody: string
+    surfacesTitle: string
+    surfaces: Array<{ title: string; body: string }>
+    accessTitle: string
+    accessBody: string
+    previewTitle: string
+    previewBody: string
+    freeLabel: string
+    plusLabel: string
+    freeAction: string
+    memberAction: string
+    states: {
+      publicTitle: string
+      publicBody: string
+      checkingTitle: string
+      checkingBody: string
+      signedOutTitle: string
+      signedOutBody: string
+      nonMemberTitle: string
+      nonMemberBody: string
+      activeMemberTitle: string
+      activeMemberBody: string
+      unavailableTitle: string
+      unavailableBody: string
+      retry: string
+    }
   }
   learningModes: {
     navigationLabel: string
@@ -296,6 +344,8 @@ const ja: AppStrings = {
     main: 'メインナビゲーション',
     home: 'ホーム',
     library: 'マイライブラリ',
+    plus: 'Plus',
+    plusName: 'Business Japanese Hub Plus',
     skipToContent: '本文へスキップ',
     openMenu: 'メニューを開く',
     closeMenu: 'メニューを閉じる',
@@ -329,6 +379,58 @@ const ja: AppStrings = {
     selectionsLabel: '書籍からの選書',
     selectionsTitle: '公開中の書籍から、読む場所を選ぶ',
   },
+  plus: {
+    eyebrow: 'MEMBERSHIP',
+    lead: '日本求職から入社後まで、学びの記録をつなぐ Business Japanese Hub のメンバーシップです。',
+    priceLabel: 'Early Access',
+    priceAmount: 'NT$299',
+    pricePeriod: '/ 月',
+    priceDisclosure: 'Early Access は月額のみです。年額プランは現在購入できません。料金や提供内容を自動で変更することはありません。',
+    availabilityTitle: 'Early Access は準備中です',
+    availabilityBody: '現在この画面から Plus の支払いはできません。実際に提供できる学習機能だけを表示し、確認できない会員状態では Plus コンテンツを解放しません。',
+    audienceTitle: '対象となる方',
+    audienceBody: 'JLPT N2〜N1 前後で、日本での就職、企業資料の読解、入社後の職場日本語を必要とする中国語話者の学習者。',
+    journeyTitle: '日本での仕事につながる学び',
+    journeySteps: ['日本での求職を準備する', '選考を通過する', '日本企業で働き始める', '職場の日本語を伸ばし続ける'],
+    valueTitle: 'Free と Plus の役割',
+    freeTitle: 'Free',
+    freeBody: '公開された入口と学習コンテンツで、サービスと自分の課題を確かめられます。',
+    plusTitle: 'Plus',
+    plusBody: '対象の学習コンテンツと練習に加え、学習状態を継続的につなぐメンバーシップです。記事を増やすだけのプランではありません。',
+    learningSystemTitle: 'Learning System を中心に',
+    learningSystemBody: '間違いと復習、保存した表現、進捗、根拠のある弱点シグナル、次の一歩を、説明可能な学習状態としてつなぎます。十分な記録がない場合は、足りない状態を正直に表示します。',
+    surfacesTitle: 'Plus の価値をつなぐ学習サーフェス',
+    surfaces: [
+      { title: 'Practice', body: 'Web Test や練習の履歴を、後から振り返れる学習状態へつなげます。' },
+      { title: 'Read', body: '日本のビジネス情報や長文を、学習記録と結びつけます。' },
+      { title: 'Learn / Work in Japan', body: '入社後の報連相、会議、文書など、職場で必要な学びを継続させます。' },
+      { title: 'My Learning', body: 'それぞれの runtime が持つ本当の evidence だけを集約し、次の行動を示します。' },
+    ],
+    accessTitle: 'アクセス状態を正直に表示',
+    accessBody: 'ブラウザのフラグではなく、サーバーが確認した会員状態だけで Plus のロックを解除します。確認できない場合は fail closed とし、会員状態を推測しません。',
+    previewTitle: 'Plus プレビュー',
+    previewBody: 'ロック中でも、どの学習領域が Plus の対象かを確認できます。本文や非公開の問題はここには表示しません。',
+    freeLabel: 'FREE',
+    plusLabel: 'PLUS',
+    freeAction: '無料の学習を始める',
+    memberAction: 'My Learning を見る',
+    states: {
+      publicTitle: 'Free で使える領域',
+      publicBody: '公開コンテンツと無料の入口はそのまま利用できます。',
+      checkingTitle: '会員状態を確認しています',
+      checkingBody: 'サーバーの確認が終わるまで Plus コンテンツはロックされます。',
+      signedOutTitle: 'ログインして会員状態を確認',
+      signedOutBody: 'Plus のロックは、ログイン後にサーバーが確認した会員状態だけで解除されます。',
+      nonMemberTitle: '現在は Free 状態です',
+      nonMemberBody: 'このアカウントに有効な Plus 会員資格は確認できません。Early Access の支払いは、この画面ではまだ開始できません。',
+      activeMemberTitle: 'Plus が有効です',
+      activeMemberBody: 'このアカウントはサーバー上で有効な Plus 会員として確認されました。',
+      unavailableTitle: '会員状態を確認できません',
+      unavailableBody: '安全のため Plus コンテンツはロックしたままです。時間をおいてもう一度お試しください。',
+      retry: 'もう一度確認する',
+    },
+  },
+
   learningModes: {
     navigationLabel: '学習モード',
     serviceLabel: '学習サービス',
@@ -570,6 +672,8 @@ const en: AppStrings = {
     main: 'Main navigation',
     home: 'Home',
     library: 'My Library',
+    plus: 'Plus',
+    plusName: 'Business Japanese Hub Plus',
     skipToContent: 'Skip to content',
     openMenu: 'Open menu',
     closeMenu: 'Close menu',
@@ -603,6 +707,58 @@ const en: AppStrings = {
     selectionsLabel: 'Selected from the books',
     selectionsTitle: 'Find a place to begin in the published books.',
   },
+  plus: {
+    eyebrow: 'MEMBERSHIP',
+    lead: 'A membership that connects learning across Japanese job hunting, selection, and life after joining a company.',
+    priceLabel: 'Early Access',
+    priceAmount: 'NT$299',
+    pricePeriod: '/ month',
+    priceDisclosure: 'Early Access is monthly only. Annual billing is not currently available, and the price will not change automatically.',
+    availabilityTitle: 'Early Access is being prepared',
+    availabilityBody: 'Plus payment is not available from this page yet. We only describe learning features that can be delivered, and we keep Plus content locked when membership cannot be confirmed.',
+    audienceTitle: 'Who it is for',
+    audienceBody: 'Chinese-speaking learners around JLPT N2 to N1 who need Japanese for job hunting, reading business materials, or workplace communication after joining a Japanese company.',
+    journeyTitle: 'Learning that follows the work journey',
+    journeySteps: ['Prepare for a job in Japan', 'Move through the selection process', 'Start work at a Japanese company', 'Keep improving workplace Japanese'],
+    valueTitle: 'How Free and Plus work together',
+    freeTitle: 'Free',
+    freeBody: 'Use public entry points and learning content to discover the service and identify what you need to work on.',
+    plusTitle: 'Plus',
+    plusBody: 'Beyond eligible learning content and practice, Plus is meant to connect your learning state over time. It is not only a plan for unlocking more articles.',
+    learningSystemTitle: 'Built around the Learning System',
+    learningSystemBody: 'Mistakes and review, saved expressions, progress, evidence-based weak-area signals, and the next useful step should form an explainable learning state. When there is not enough evidence, Plus should show that honestly.',
+    surfacesTitle: 'Learning surfaces where Plus can add value',
+    surfaces: [
+      { title: 'Practice', body: 'Connect Web Test and practice history to a learning state you can review later.' },
+      { title: 'Read', body: 'Connect Japanese business information and long-form reading to your learning record.' },
+      { title: 'Learn / Work in Japan', body: 'Continue learning the reporting, meeting, document, and workplace skills needed after joining.' },
+      { title: 'My Learning', body: 'Aggregate only real evidence from each runtime and make the next action explainable.' },
+    ],
+    accessTitle: 'Access states stay truthful',
+    accessBody: 'Plus is unlocked only by membership state confirmed on the server, never by a browser flag. When status cannot be confirmed, the surface fails closed instead of guessing.',
+    previewTitle: 'Plus preview',
+    previewBody: 'Even while locked, you can see which learning areas are intended for Plus. Full member bodies and private questions are not shown here.',
+    freeLabel: 'FREE',
+    plusLabel: 'PLUS',
+    freeAction: 'Start with free learning',
+    memberAction: 'View My Learning',
+    states: {
+      publicTitle: 'Available for free',
+      publicBody: 'Public content and free entry points remain available.',
+      checkingTitle: 'Checking membership',
+      checkingBody: 'Plus content stays locked until the server responds.',
+      signedOutTitle: 'Sign in to check membership',
+      signedOutBody: 'After sign-in, Plus unlocks only when the server confirms an active membership.',
+      nonMemberTitle: 'Currently on Free access',
+      nonMemberBody: 'No active Plus membership was found for this account. Early Access payment cannot be started from this page yet.',
+      activeMemberTitle: 'Plus is active',
+      activeMemberBody: 'This account has an active Plus membership confirmed by the server.',
+      unavailableTitle: 'Membership status is unavailable',
+      unavailableBody: 'Plus content stays locked for safety. Please try again later.',
+      retry: 'Check again',
+    },
+  },
+
   learningModes: {
     navigationLabel: 'Learning modes',
     serviceLabel: 'Learning service',
@@ -844,6 +1000,8 @@ const zhTW: AppStrings = {
     main: '主導覽',
     home: '首頁',
     library: '我的書庫',
+    plus: 'Plus',
+    plusName: 'Business Japanese Hub Plus',
     skipToContent: '跳到主要內容',
     openMenu: '開啟選單',
     closeMenu: '關閉選單',
@@ -877,6 +1035,58 @@ const zhTW: AppStrings = {
     selectionsLabel: '書籍選讀',
     selectionsTitle: '從已公開的書籍中，找到開始閱讀的位置',
   },
+  plus: {
+    eyebrow: 'MEMBERSHIP',
+    lead: '從日本求職、選考到入社後，把學習狀態串起來的 Business Japanese Hub 會員方案。',
+    priceLabel: 'Early Access',
+    priceAmount: 'NT$299',
+    pricePeriod: '/ 月',
+    priceDisclosure: 'Early Access 目前僅提供月繳，年繳尚未開放購買。價格與提供內容不會自動變更。',
+    availabilityTitle: 'Early Access 正在準備中',
+    availabilityBody: '目前還不能在此頁開始 Plus 付款。這裡只會說明實際可提供的學習功能；無法確認會員狀態時，Plus 內容會維持鎖定。',
+    audienceTitle: '適合誰',
+    audienceBody: '日文程度約 JLPT N2 至 N1，正在準備日本求職、閱讀日本企業資料，或需要適應入社後職場日文的華語學習者。',
+    journeyTitle: '跟著日本工作旅程累積',
+    journeySteps: ['準備日本求職', '通過選考', '進入日本企業', '持續提升職場日文'],
+    valueTitle: 'Free 與 Plus 如何一起運作',
+    freeTitle: 'Free',
+    freeBody: '透過公開入口與學習內容，先認識服務並確認自己真正需要加強的地方。',
+    plusTitle: 'Plus',
+    plusBody: '除了符合資格的學習內容與練習，Plus 的核心是持續串起你的學習狀態，而不是只解鎖更多文章。',
+    learningSystemTitle: '以 Learning System 為核心',
+    learningSystemBody: '錯題與複習、已儲存表達、進度、有證據支持的弱點訊號，以及下一步，應該形成可解釋的學習狀態。資料不足時，Plus 也會誠實顯示不足，而不是製造假進度。',
+    surfacesTitle: 'Plus 可以串起價值的學習 surface',
+    surfaces: [
+      { title: 'Practice', body: '把 Web Test 與練習紀錄連到之後可以回顧的學習狀態。' },
+      { title: 'Read', body: '把日本商務資訊與長篇閱讀連到你的學習紀錄。' },
+      { title: 'Learn / Work in Japan', body: '持續學習入社後的報連相、會議、文件與職場溝通。' },
+      { title: 'My Learning', body: '只彙整各 runtime 真正存在的 evidence，並解釋下一個有用行動。' },
+    ],
+    accessTitle: '忠實呈現存取狀態',
+    accessBody: 'Plus 只會依伺服器確認的會員狀態解鎖，不會相信瀏覽器旗標。無法確認狀態時會 fail closed，不會猜測你是否具備會員資格。',
+    previewTitle: 'Plus 預覽',
+    previewBody: '即使內容鎖定，你仍能看到哪些學習區域屬於 Plus。完整會員內容與私有題目不會顯示在這裡。',
+    freeLabel: 'FREE',
+    plusLabel: 'PLUS',
+    freeAction: '先從免費學習開始',
+    memberAction: '查看 My Learning',
+    states: {
+      publicTitle: '目前可免費使用',
+      publicBody: '公開內容與免費入口維持可用。',
+      checkingTitle: '正在確認會員狀態',
+      checkingBody: '在伺服器回覆前，Plus 內容會維持鎖定。',
+      signedOutTitle: '登入後確認會員狀態',
+      signedOutBody: '登入後，只有伺服器確認的有效會員資格才能解除 Plus 鎖定。',
+      nonMemberTitle: '目前是 Free 狀態',
+      nonMemberBody: '這個帳號目前沒有有效的 Plus 會員資格。Early Access 付款尚未在此頁開放。',
+      activeMemberTitle: 'Plus 已啟用',
+      activeMemberBody: '伺服器已確認這個帳號具有有效的 Plus 會員資格。',
+      unavailableTitle: '目前無法確認會員狀態',
+      unavailableBody: '為安全起見，Plus 內容維持鎖定。請稍後再試。',
+      retry: '重新確認',
+    },
+  },
+
   learningModes: {
     navigationLabel: '學習模式',
     serviceLabel: '學習服務',
