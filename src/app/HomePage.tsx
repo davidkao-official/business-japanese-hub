@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { listCatalogEntries } from '../reader/catalog'
-import { useStrings } from '../i18n/strings'
+import { useLocale, useStrings, type Locale } from '../i18n/strings'
 import { BookCover } from '../components/BookCover'
 import {
   COFOUNDER_PROFILE,
@@ -19,12 +19,20 @@ import {
 } from './homeEditorial'
 import { PRODUCT_MODES } from './productModes'
 
+const HOME_TITLE_PHRASES: Record<Locale, readonly string[]> = {
+  ja: ['ビジネス', '日本語', 'ハブ'],
+  en: ['Business Japanese', 'Hub'],
+  'zh-TW': ['商務日語', '中心'],
+}
+
 /**
  * Public learning-service home. The five modes are the primary product entry
  * points; editorial samples remain a real, content-driven Read projection.
  */
 export function HomePage() {
   const strings = useStrings()
+  const locale = useLocale()
+  const titlePhrases = HOME_TITLE_PHRASES[locale] ?? [strings.home.title]
   const entries = listCatalogEntries()
   const editorialFeatures = listEditorialFeatures(entries)
   const contentSamples = listHomeContentSamples(entries)
@@ -37,8 +45,13 @@ export function HomePage() {
       aria-labelledby="home-title"
     >
       <div className="storefront-masthead">
-        <h1 className="page__title" id="home-title">
-          {strings.home.title}
+        <h1 className="page__title hero-title" id="home-title" aria-label={strings.home.title}>
+          {titlePhrases.map((phrase, index) => (
+            <span className="phrase" aria-hidden="true" key={phrase}>
+              {index > 0 && locale === 'en' ? '\u00A0' : ''}
+              {phrase}
+            </span>
+          ))}
         </h1>
         <p className="page__lead">{strings.home.lead}</p>
       </div>
