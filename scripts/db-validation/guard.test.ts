@@ -565,6 +565,14 @@ test('per-file infrastructure precedence and tap plan mismatch remain terminal',
   const planMismatch = ['1..3', 'ok 1 - a', '# Looks like you planned 3 tests but ran 5.'].join('\n')
   assert.equal(safePerFileTestDiagnostics(planMismatch, '', path, new Set([path])), 'tap_plan_mismatch')
 })
+test('per-file tap plan mismatch outranks non-hard diagnostic categories', () => {
+  const path = ordinalEligibleTestPath
+  const allowlist = new Set([path])
+  const planMismatch = ['1..3', 'ok 1 - a', '# Looks like you planned 3 tests but ran 5.'].join('\n')
+  assert.equal(safeTestDiagnostics(planMismatch, 'SQLSTATE 23505', allowlist), 'tap_plan_mismatch')
+  assert.equal(safePerFileTestDiagnostics(planMismatch, 'SQLSTATE 23505', path, allowlist), 'tap_plan_mismatch')
+  assert.equal(safePerFileTestDiagnostics(planMismatch, 'Error: no space left on device', path, allowlist), 'disk_full')
+})
 test('single committed-file isolation can emit one bounded ordinal and stays red', async () => {
   const h = harness()
   const path = ordinalEligibleTestPath
