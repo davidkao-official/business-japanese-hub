@@ -1,9 +1,12 @@
 /** Data-target isolation, not a security sandbox against a Docker administrator. */
+import { dbValidationDiagnostic } from './command-error.ts'
+
 export const IMAGE = 'docker:28.5.2-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac'
 export const CLI_IMAGE = 'node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d'
 export const CLI_SHA256 = 'ff099608ce758b625532ef03a61f4c9520b995e94ff6cd5480dc0428cad64cb3'
 export const CLI_VERSION = '2.115.0'
 export const DATA_ROOT = '/owned-docker-data'
+export const MAX_ISOLATED_TEST_FILES = 64
 // Supabase 2.115 truncates project IDs to 40 characters; keep all 128 token bits.
 export const validationProjectId = (token: string) => `bjh-${token}`
 export type Runner = (args: string[]) => Promise<string>
@@ -19,6 +22,7 @@ export interface Options {
   endpoint: string
   token: string
   source: string
+  testPaths?: readonly string[]
   cancelled: () => boolean
   report: (message: string) => void
 }
@@ -27,6 +31,12 @@ export async function validateDatabase(options: Options): Promise<void> {
   const { endpoint, token, source, cancelled, report } = options
   requireProof(/^unix:\/\/\/[^\r\n]+$/.test(endpoint), 'only an explicit local Unix Docker socket is supported')
   requireProof(/^[a-f0-9]{32}$/.test(token), 'invalid invocation identity')
+  const testPaths = [...(options.testPaths ?? [])].sort()
+  const testPathSet = new Set(testPaths)
+  requireProof(testPaths.length === testPathSet.size, 'ambiguous test-file allowlist')
+  requireProof(testPaths.length <= MAX_ISOLATED_TEST_FILES, 'test-file allowlist exceeds diagnostic bound')
+  requireProof(testPaths.every(path => /^supabase\/tests\/(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+$/.test(path) &&
+    !path.split('/').some(part => part === '.' || part === '..')), 'unsupported test-file allowlist')
   const docker: Runner = args => options.run(['--host', endpoint, ...args])
   const daemon = async () => {
     const value = (await docker(['info', '--format', '{{.ID}}'])).trim()
@@ -188,20 +198,68 @@ tar -xzf /tmp/cli.tar.gz -C /tmp supabase supabase-go`])
     await privateDocker(['cp', '/usr/local/bin/docker', `${cliReceipt}:/usr/local/bin/docker`])
     await privateDocker(['cp', '/etc/ssl/certs/ca-certificates.crt', `${cliReceipt}:/etc/ssl/certs/ca-certificates.crt`])
     requireProof((await privateDocker(['exec', cliReceipt, 'supabase', '--version'])).trim() === CLI_VERSION, 'CLI version mismatch')
+
+    const runFixedGate = async (args: string[]) => {
+      await nestedInventory()
+      await cliProof()
+      requireProof((await inner(['docker', '--host', 'unix:///var/run/docker.sock', 'info', '--format', '{{.ID}}'])).trim() === innerDaemon,
+        'inner daemon identity changed')
+      report(`RUN supabase ${args.join(' ')}`)
+      return privateDocker(['exec', '--workdir', '/work', cliReceipt!, 'env', '-i', 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+        'HOME=/root', 'DOCKER_HOST=unix:///var/run/docker.sock', 'SUPABASE_TELEMETRY_DISABLED=true',
+        'supabase', '--workdir', '/work', ...args])
+    }
+
+    const diagnosticFileState = async (path: string): Promise<'pass' | 'failure' | 'unknown'> => {
+      try {
+        await runFixedGate(['test', 'db', '--local', path])
+        return 'pass'
+      } catch (error) {
+        const diagnostic = dbValidationDiagnostic(error)
+        // Ownership, inventory and hard infrastructure failures remain primary.
+        if (!diagnostic) throw error
+        if (diagnostic.infrastructure) throw error
+        if (diagnostic.kind !== 'test-file' || diagnostic.exitCode === null || !Number.isSafeInteger(diagnostic.exitCode) || diagnostic.exitCode <= 0 ||
+          diagnostic.path !== path || diagnostic.category !== `pg_tap_file_failure:${path}`) return 'unknown'
+        return 'failure'
+      }
+    }
+
+    const isolateTestFileFailure = async (): Promise<string> => {
+      if (!testPaths.length) return 'pg_tap_file_failure:unattributed'
+      const failures: string[] = []
+      for (const path of testPaths) {
+        const state = await diagnosticFileState(path)
+        report(`Diagnostic supabase test db --local ${path}: ${state}`)
+        if (state === 'unknown') return 'pg_tap_file_failure:unattributed'
+        if (state === 'failure') failures.push(path)
+      }
+      return failures.length === 1 ? `pg_tap_file_failure:${failures[0]}` : 'pg_tap_file_failure:unattributed'
+    }
+
     // No arbitrary CLI pass-through, linked metadata, DB URL, host env, sockets or source mounts.
     for (const args of [
       ['db', 'start'], ['db', 'reset', '--local'],
       ['test', 'db', '--local', 'supabase/tests'],
       ['db', 'lint', '--local', '--schema', 'public', '--level', 'warning', '--fail-on', 'error'],
     ]) {
-      await nestedInventory()
-      await cliProof()
-      requireProof((await inner(['docker', '--host', 'unix:///var/run/docker.sock', 'info', '--format', '{{.ID}}'])).trim() === innerDaemon,
-        'inner daemon identity changed')
-      report(`RUN supabase ${args.join(' ')}`)
-      const output = await privateDocker(['exec', '--workdir', '/work', cliReceipt, 'env', '-i', 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-        'HOME=/root', 'DOCKER_HOST=unix:///var/run/docker.sock', 'SUPABASE_TELEMETRY_DISABLED=true',
-        'supabase', '--workdir', '/work', ...args])
+      let output: string
+      try {
+        output = await runFixedGate(args)
+      } catch (error) {
+        if (args[0] === 'test' && args[1] === 'db') {
+          const diagnostic = dbValidationDiagnostic(error)
+          if (diagnostic?.kind === 'test-suite' && !diagnostic.infrastructure && diagnostic.category !== 'tap_plan_mismatch') {
+            const provenance = await isolateTestFileFailure()
+            const base = error instanceof Error ? error.message : 'DB validation failed'
+            const suffix = `; ${diagnostic.category}; no fallback performed`
+            throw new Error(base.endsWith(suffix)
+              ? `${base.slice(0, -suffix.length)}; ${provenance}; no fallback performed`
+              : `${base}; ${provenance}`)
+          }
+        }
+        throw error
+      }
       report(`PASS supabase ${args.join(' ')}`)
       if (args[0] === 'test' || args[1] === 'lint') report(output)
     }

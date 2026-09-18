@@ -72,8 +72,8 @@ The printed receipt is an investigation lead, not authorization to clean up a
 later invocation. A Docker administrator can bypass these controls; agents
 must use the canonical entrypoint instead of issuing raw commands.
 Only the fixed inner CLI container's pre-DB `docker start` failure includes a
-bounded (4 KiB) stderr diagnostic and numeric exit code. Supabase failures,
-in the four fixed stages, include only fixed error categories (such as disk capacity, image pull,
+bounded (4 KiB) stderr diagnostic and numeric exit code. Supabase failures in
+the fixed gates include only fixed error categories (such as disk capacity, image pull,
 connection, TLS, permission or health) and a numeric exit code; no original
 Supabase error text is returned. Only the whitelisted local
 `supabase --workdir /work test db --local supabase/tests` stage additionally
@@ -86,12 +86,20 @@ one bounded `# Failed test <ordinal>:` line and one standalone bounded
 `Failed <n>/<m> subtests` summary, with `1 <= n <= m`. Passing harness blocks
 are ignored. The path must be allowlisted from the validated committed HEAD;
 descriptions, counts, source positions and TAP bodies are never returned.
-Otherwise it returns
-`pg_tap_test_failure:unattributed`. `tap_plan_mismatch` remains separate. It
-still returns only symbolic categories and a numeric exit code, never raw
-output, test body text, SQL, row values or errors, and falls back to `unknown`
-otherwise. `unattributed` is not evidence of an application or migration
-defect. Other
+Otherwise it returns `pg_tap_test_failure:unattributed`. When that full-suite
+test stage fails without a hard infrastructure category, the guard performs a
+bounded diagnostic pass inside the same proved receipt CLI/daemon: it runs each
+regular committed `supabase/tests/**` file individually, in sorted order, using
+the exact allowlist derived from the validated HEAD. A single failing file is
+reported as `pg_tap_file_failure:<committed path>`; zero or multiple failures,
+malformed exit metadata, ambiguous paths or an unproved diagnostic shape fail
+closed to `pg_tap_file_failure:unattributed`. Hard infrastructure categories
+retain precedence and stop the diagnostic pass. The diagnostic pass never
+prints or persists per-file stdout/stderr and cannot make the failed full-suite
+gate green. `tap_plan_mismatch` remains separate. It still returns only
+symbolic categories and a numeric exit code, never raw output, test body text,
+SQL, row values or errors, and falls back to `unknown` otherwise.
+`unattributed` is not evidence of an application or migration defect. Other
 command output, environment dumps and private rows remain suppressed. Failed
 gates may report the proved daemon's data-filesystem capacity and owned
 containers' status, exit code, OOM flag and health status; never environment
