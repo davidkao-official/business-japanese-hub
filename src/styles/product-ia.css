@@ -383,7 +383,7 @@
   }
 }
 
-@media (max-width: 63.99rem) {
+@media (max-width: 74.99rem) {
   .learning-modes__list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
