@@ -1,5 +1,5 @@
 /** Data-target isolation, not a security sandbox against a Docker administrator. */
-import { dbValidationDiagnostic } from './command-error.ts'
+import { dbValidationDiagnostic, isBoundedOrdinalTestDiagnostic } from './command-error.ts'
 
 export const IMAGE = 'docker:28.5.2-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac'
 export const CLI_IMAGE = 'node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d'
@@ -210,18 +210,24 @@ tar -xzf /tmp/cli.tar.gz -C /tmp supabase supabase-go`])
         'supabase', '--workdir', '/work', ...args])
     }
 
-    const diagnosticFileState = async (path: string): Promise<'pass' | 'failure' | 'unknown'> => {
+    type DiagnosticFileState =
+      | { state: 'pass' }
+      | { state: 'failure'; category: string }
+      | { state: 'unknown' }
+
+    const diagnosticFileState = async (path: string): Promise<DiagnosticFileState> => {
       try {
         await runFixedGate(['test', 'db', '--local', path])
-        return 'pass'
+        return { state: 'pass' }
       } catch (error) {
         const diagnostic = dbValidationDiagnostic(error)
-        // Ownership, inventory and hard infrastructure failures remain primary.
-        if (!diagnostic) throw error
-        if (diagnostic.infrastructure) throw error
+        // Ownership, inventory, hard infrastructure and TAP plan mismatches remain terminal.
+        if (!diagnostic || diagnostic.infrastructure || diagnostic.category === 'tap_plan_mismatch') throw error
         if (diagnostic.kind !== 'test-file' || diagnostic.exitCode === null || !Number.isSafeInteger(diagnostic.exitCode) || diagnostic.exitCode <= 0 ||
-          diagnostic.path !== path || diagnostic.category !== `pg_tap_file_failure:${path}`) return 'unknown'
-        return 'failure'
+          diagnostic.path !== path) return { state: 'unknown' }
+        const fileCategory = `pg_tap_file_failure:${path}`
+        if (diagnostic.category !== fileCategory && !isBoundedOrdinalTestDiagnostic(diagnostic.category, path)) return { state: 'unknown' }
+        return { state: 'failure', category: diagnostic.category }
       }
     }
 
@@ -230,11 +236,11 @@ tar -xzf /tmp/cli.tar.gz -C /tmp supabase supabase-go`])
       const failures: string[] = []
       for (const path of testPaths) {
         const state = await diagnosticFileState(path)
-        report(`Diagnostic supabase test db --local ${path}: ${state}`)
-        if (state === 'unknown') return 'pg_tap_file_failure:unattributed'
-        if (state === 'failure') failures.push(path)
+        report(`Diagnostic supabase test db --local ${path}: ${state.state}`)
+        if (state.state === 'unknown') return 'pg_tap_file_failure:unattributed'
+        if (state.state === 'failure') failures.push(state.category)
       }
-      return failures.length === 1 ? `pg_tap_file_failure:${failures[0]}` : 'pg_tap_file_failure:unattributed'
+      return failures.length === 1 ? failures[0] : 'pg_tap_file_failure:unattributed'
     }
 
     // No arbitrary CLI pass-through, linked metadata, DB URL, host env, sockets or source mounts.
