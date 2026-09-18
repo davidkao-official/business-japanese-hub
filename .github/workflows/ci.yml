@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  issues: write
+  pull-requests: write
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -123,3 +125,94 @@ jobs:
 
       - name: Validate database in an owned disposable daemon
         run: pnpm validate:db
+
+
+  visual-qa:
+    name: Homepage visual QA (4 widths × light/dark)
+    if: github.event_name == 'pull_request'
+    needs: quality-gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install repository dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright test runner for CI
+        run: pnpm add -Dw @playwright/test@1.55.0
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run homepage visual QA
+        run: pnpm exec playwright test --config=playwright.config.ts
+        env:
+          VISUAL_BASELINE_URL: https://business-japanese-hub.pages.dev/
+          VISUAL_CANDIDATE_URL: http://127.0.0.1:4173/
+
+      - name: Upload before / after screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-qa-pr-${{ github.event.pull_request.number }}
+          path: artifacts/visual-qa
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Add visual QA link to pull request
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          JOB_STATUS: ${{ job.status }}
+        with:
+          script: |
+            const marker = '<!-- business-japanese-hub-visual-qa -->'
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            const body = [
+              marker,
+              '### Homepage visual QA',
+              '',
+              `Status: **${process.env.JOB_STATUS}**`,
+              '',
+              'Screenshots cover **375 / 768 / 1100 / 1440px** in **Light + Dark**.',
+              'The artifact contains both `before/` (current production) and `after/` (this PR) full-page screenshots.',
+              '',
+              `[Open workflow run and download **visual-qa-pr-${context.issue.number}**](${runUrl})`,
+            ].join('\n')
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            })
+            const existing = comments.find((comment) => comment.body?.includes(marker))
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              })
+            }
