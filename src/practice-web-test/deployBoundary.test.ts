@@ -31,7 +31,9 @@ describe('canonical browser deployment boundary', () => {
   it('keeps GitHub source admission in clean, public-only checkouts', () => {
     const workflow = readFileSync(resolve(import.meta.dirname, '../../.github/workflows/ci.yml'), 'utf8')
     expect(workflow).toContain('ref: ${{ github.event.pull_request.head.sha || github.sha }}')
-    expect(workflow.match(/persist-credentials: false/g)).toHaveLength(2)
+    const checkoutCount = workflow.match(/uses: actions\/checkout@v6/g)?.length ?? 0
+    expect(checkoutCount).toBeGreaterThanOrEqual(2)
+    expect(workflow.match(/persist-credentials: false/g)).toHaveLength(checkoutCount)
     expect(workflow.match(/run: pnpm check:public-content-boundary/g)).toHaveLength(2)
     expect(workflow).not.toContain('business-japanese-hub-content')
   })
