@@ -65,7 +65,7 @@ export function MyLearningPage({ fetchSnapshot = fetchPracticeLearningSnapshot }
   if (currentPageState.kind === 'unavailable') return <MyLearningShell><StatePanel title="學習紀錄暫時無法取得" body="目前無法讀取你的已儲存 evidence；不會用本機資料替代。" action={<button className="btn btn--secondary" type="button" onClick={() => setRequestKey((current) => current + 1)}>重試</button>} /></MyLearningShell>
   if (currentPageState.kind !== 'ready') return <MyLearningShell><StatePanel title="載入你的學習紀錄" body="正在讀取已儲存的 Practice evidence。" /></MyLearningShell>
 
-  return <MyLearningContent snapshot={currentPageState.snapshot} />
+  return <MyLearningShell><MyLearningContent snapshot={currentPageState.snapshot} /></MyLearningShell>
 }
 
 function MyLearningShell({ children }: { children: ReactNode }) {

@@ -66,6 +66,18 @@ describe('My Learning page', () => {
     expect(screen.getByRole('link', { name: '開始 Web Test 練習' })).toHaveAttribute('href', '/practice/web-test')
   })
 
+  it('keeps the page shell around a ready snapshot', async () => {
+    mockSnapshot(snapshot())
+    renderWithAppProviders(<MyLearningPage />, {
+      session: { id: 'member-1', email: 'member@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+
+    await waitFor(() => expect(screen.getByRole('link', { name: '開始 Web Test 練習' })).toBeInTheDocument())
+    expect(screen.getByRole('heading', { level: 1, name: '把下一次練習接在上一次之後' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 }).closest('section')).toHaveClass('page', 'my-learning-page')
+  })
+
   it('does not render a loaded user A snapshot after an in-place switch to user B', async () => {
     const fetchSnapshot = vi.fn()
       .mockResolvedValueOnce({ kind: 'ok' as const, snapshot: continuationSnapshot('vocabulary-in-context') })
