@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { PRACTICE_ATTEMPT_TIMEOUT_MS } from '../../practice-web-test/client'
 import { fetchPracticeLearningSnapshot } from './practiceMyLearningClient'
 
 const revision = 'a'.repeat(64)
@@ -42,6 +43,7 @@ const snapshot = {
 } as const
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
 })
@@ -95,5 +97,26 @@ describe('fetchPracticeLearningSnapshot', () => {
     const result = await fetchPracticeLearningSnapshot(vi.fn().mockResolvedValue('token'))
 
     expect(result).toEqual({ kind: 'unavailable' })
+  })
+
+  it.each([
+    ['token retrieval', () => new Promise<string | null>(() => {})],
+    ['HTTP fetch', async () => {
+      vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+      vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
+      return 'token'
+    }],
+    ['response parsing', async () => {
+      vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, ok: true, json: () => new Promise<never>(() => {}) }))
+      return 'token'
+    }],
+  ])('maps a stalled %s to unavailable', async (_stage, getAccessToken) => {
+    vi.useFakeTimers()
+    const result = fetchPracticeLearningSnapshot(getAccessToken)
+
+    await vi.advanceTimersByTimeAsync(PRACTICE_ATTEMPT_TIMEOUT_MS)
+
+    await expect(result).resolves.toEqual({ kind: 'unavailable' })
   })
 })

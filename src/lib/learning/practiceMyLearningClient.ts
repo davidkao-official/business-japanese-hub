@@ -4,6 +4,7 @@ import type {
   PracticeReviewItem,
   PracticeWeakArea,
 } from './practiceMyLearning'
+import { PRACTICE_ATTEMPT_TIMEOUT_MS } from '../../practice-web-test/client'
 
 export type PracticeLearningFetchResult =
   | { kind: 'ok'; snapshot: PracticeLearningSnapshot }
@@ -13,6 +14,19 @@ function functionsBaseUrl(): string | null {
   const explicit = import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL as string | undefined
   const supabase = import.meta.env.VITE_SUPABASE_URL as string | undefined
   return (explicit || (supabase ? `${supabase.replace(/\/+$/, '')}/functions/v1` : '')).replace(/\/+$/, '') || null
+}
+
+class PracticeLearningRequestTimeout extends Error {}
+
+function requestDeadline(controller: AbortController): { promise: Promise<never>; cancel: () => void } {
+  let timer: ReturnType<typeof globalThis.setTimeout>
+  const promise = new Promise<never>((_, reject) => {
+    timer = globalThis.setTimeout(() => {
+      controller.abort()
+      reject(new PracticeLearningRequestTimeout())
+    }, PRACTICE_ATTEMPT_TIMEOUT_MS)
+  })
+  return { promise, cancel: () => globalThis.clearTimeout(timer) }
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -64,29 +78,29 @@ function validSnapshot(value: unknown): value is PracticeLearningSnapshot {
 export async function fetchPracticeLearningSnapshot(
   getAccessToken: () => Promise<string | null>,
 ): Promise<PracticeLearningFetchResult> {
-  let token: string | null
+  const controller = new AbortController()
+  const deadline = requestDeadline(controller)
   try {
-    token = await getAccessToken()
-  } catch {
-    return { kind: 'unavailable' }
-  }
-  if (!token) return { kind: 'signed-out' }
-  const base = functionsBaseUrl()
-  if (!base) return { kind: 'unavailable' }
-  try {
-    const response = await fetch(`${base}/my-learning`, {
+    const token = await Promise.race([getAccessToken(), deadline.promise])
+    if (!token) return { kind: 'signed-out' }
+    const base = functionsBaseUrl()
+    if (!base) return { kind: 'unavailable' }
+    const response = await Promise.race([fetch(`${base}/my-learning`, {
       method: 'GET',
       cache: 'no-store',
       headers: { Authorization: `Bearer ${token}` },
-    })
+      signal: controller.signal,
+    }), deadline.promise])
     if (response.status === 401) return { kind: 'signed-out' }
     if (response.status === 403) return { kind: 'non-member' }
     if (!response.ok) return { kind: 'unavailable' }
-    const body = await response.json() as { source?: unknown; snapshot?: unknown }
+    const body = await Promise.race([response.json() as Promise<{ source?: unknown; snapshot?: unknown }>, deadline.promise])
     return body.source === 'practice-web-test' && validSnapshot(body.snapshot)
       ? { kind: 'ok', snapshot: body.snapshot }
       : { kind: 'unavailable' }
   } catch {
     return { kind: 'unavailable' }
+  } finally {
+    deadline.cancel()
   }
 }

@@ -68,18 +68,18 @@ describe('My Learning page', () => {
 
   it('does not render a loaded user A snapshot after an in-place switch to user B', async () => {
     const fetchSnapshot = vi.fn()
-      .mockResolvedValueOnce({ kind: 'ok' as const, snapshot: continuationSnapshot('A-only-category') })
+      .mockResolvedValueOnce({ kind: 'ok' as const, snapshot: continuationSnapshot('vocabulary-in-context') })
       .mockImplementationOnce(() => new Promise<PracticeLearningFetchResult>(() => {}))
     const rendered = renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} />, {
       session: { id: 'member-a', email: 'a@example.com' },
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getAllByText(/A-only-category/).length).toBeGreaterThan(0))
+    await waitFor(() => expect(screen.getAllByText('文脈語彙').length).toBeGreaterThan(0))
     act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b', email: 'b@example.com' }))
     await waitFor(() => expect(fetchSnapshot).toHaveBeenCalledTimes(2))
 
-    expect(screen.queryByText(/A-only-category/)).not.toBeInTheDocument()
+    expect(screen.queryByText('文脈語彙')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '載入你的學習紀錄' })).toBeInTheDocument()
   })
 
@@ -88,7 +88,7 @@ describe('My Learning page', () => {
     const requestA = new Promise<PracticeLearningFetchResult>((resolve) => { resolveA = resolve })
     const fetchSnapshot = vi.fn()
       .mockImplementationOnce(() => requestA)
-      .mockResolvedValueOnce({ kind: 'ok' as const, snapshot: continuationSnapshot('B-only-category') })
+      .mockResolvedValueOnce({ kind: 'ok' as const, snapshot: continuationSnapshot('semantic-relation') })
     const rendered = renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} />, {
       session: { id: 'member-a', email: 'a@example.com' },
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
@@ -96,12 +96,12 @@ describe('My Learning page', () => {
 
     await waitFor(() => expect(fetchSnapshot).toHaveBeenCalledTimes(1))
     act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b', email: 'b@example.com' }))
-    await waitFor(() => expect(screen.getAllByText(/B-only-category/).length).toBeGreaterThan(0))
-    act(() => resolveA({ kind: 'ok', snapshot: continuationSnapshot('A-only-category') }))
+    await waitFor(() => expect(screen.getAllByText('語句關係').length).toBeGreaterThan(0))
+    act(() => resolveA({ kind: 'ok', snapshot: continuationSnapshot('vocabulary-in-context') }))
     await Promise.resolve()
 
-    expect(screen.getAllByText(/B-only-category/).length).toBeGreaterThan(0)
-    expect(screen.queryByText(/A-only-category/)).not.toBeInTheDocument()
+    expect(screen.getAllByText('語句關係').length).toBeGreaterThan(0)
+    expect(screen.queryByText('文脈語彙')).not.toBeInTheDocument()
   })
 
   it('surfaces a persisted mistake as the primary exact review action', async () => {
@@ -117,6 +117,8 @@ describe('My Learning page', () => {
 
     await waitFor(() => expect(screen.getAllByRole('link', { name: '複習這一題' })[0]).toBeInTheDocument())
     expect(screen.getByText('最近答錯的題目')).toBeInTheDocument()
+    expect(screen.getAllByText('文脈語彙').length).toBeGreaterThan(0)
+    expect(screen.queryByText('vocabulary-in-context')).not.toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: '複習這一題' })[0]).toHaveAttribute(
       'href',
       '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning&review=question-1&reviewVersion=2',
@@ -136,6 +138,8 @@ describe('My Learning page', () => {
     })
 
     await waitFor(() => expect(screen.getByRole('link', { name: '繼續這個類別' })).toBeInTheDocument())
+    expect(screen.getByText('接著練習「文脈語彙」；系統沒有保存單一 session 位置。')).toBeInTheDocument()
+    expect(screen.queryByText(/vocabulary-in-context/)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '繼續這個類別' })).toHaveAttribute(
       'href',
       '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning',
@@ -150,6 +154,44 @@ describe('My Learning page', () => {
     })
 
     await waitFor(() => expect(screen.getByText('目前的作答樣本還不足以支持分類訊號。')).toBeInTheDocument())
+  })
+
+  it('renders the weak-area label from the discovery catalog', async () => {
+    mockSnapshot(snapshot({
+      recentAttempts: [{ ...review, correct: false }],
+      weakArea: {
+        domain: 'verbal',
+        category: 'vocabulary-in-context',
+        sampleCount: 5,
+        incorrectCount: 2,
+        accuracyPercent: 60,
+        latestAt: review.createdAt,
+      },
+    }))
+    renderWithAppProviders(<MyLearningPage />, {
+      session: { id: 'member-1', email: 'member@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+
+    await waitFor(() => expect(screen.getByText('文脈語彙：最近 5 題中有 2 題答錯，正答率 60%。')).toBeInTheDocument())
+    expect(screen.queryByText(/vocabulary-in-context/)).not.toBeInTheDocument()
+  })
+
+  it('does not expose an unresolved category slug in user-facing copy', async () => {
+    const unknown = { ...review, category: 'internal-only-category' }
+    mockSnapshot(snapshot({
+      recentAttempts: [{ ...unknown, correct: true }],
+      nextAction: { kind: 'continue-practice', item: unknown },
+    }))
+    renderWithAppProviders(<MyLearningPage />, {
+      session: { id: 'member-1', email: 'member@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+
+    await waitFor(() => expect(screen.getByText('目前分類')).toBeInTheDocument())
+    expect(screen.getAllByText('目前分類').length).toBeGreaterThan(0)
+    expect(screen.queryByText(/internal-only-category/)).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('這筆紀錄目前無法安全開啟，請從最新的 Web Test 入口選擇練習範圍。')
   })
 
   it('shows the endpoint non-member state when membership access is cached as active', async () => {
