@@ -105,7 +105,7 @@ function actionFor(item: PracticeReviewItem, review: boolean): { title: string; 
 }
 
 function categoryLabelFor(item: Pick<PracticeReviewItem, 'contentId' | 'contentRevision' | 'testFamily' | 'domain' | 'category'>): string {
-  if (!catalog || item.contentId !== catalog.releaseIdentity.contentId || item.contentRevision !== catalog.releaseIdentity.revision) return UNKNOWN_CATEGORY_LABEL
+  if (!catalog || item.contentId !== catalog.releaseIdentity.contentId) return UNKNOWN_CATEGORY_LABEL
   return practiceDiscoveryCategoryLabel(catalog.releaseIdentity.contentId, item.testFamily, item.domain, item.category) ?? UNKNOWN_CATEGORY_LABEL
 }
 

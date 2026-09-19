@@ -208,6 +208,22 @@ describe('My Learning page', () => {
     expect(screen.queryByText(/vocabulary-in-context/)).not.toBeInTheDocument()
   })
 
+  it('keeps a known category label for an immutable attempt from an earlier release', async () => {
+    const earlierReleaseAttempt = {
+      ...review,
+      contentRevision: 'a'.repeat(64),
+      correct: true,
+    }
+    mockSnapshot(snapshot({ recentAttempts: [earlierReleaseAttempt] }))
+    renderWithAppProviders(<MyLearningPage />, {
+      session: { id: 'member-1', email: 'member@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+
+    await waitFor(() => expect(screen.getByText('文脈語彙')).toBeInTheDocument())
+    expect(screen.queryByText('目前分類')).not.toBeInTheDocument()
+  })
+
   it('does not expose an unresolved category slug in user-facing copy', async () => {
     const unknown = { ...review, category: 'internal-only-category' }
     mockSnapshot(snapshot({
