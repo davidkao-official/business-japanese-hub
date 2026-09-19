@@ -82,7 +82,7 @@ function NonMemberState() {
 
 function MyLearningContent({ snapshot }: { snapshot: PracticeLearningSnapshot }) {
   const nextAction = snapshot.nextAction.kind === 'start-practice'
-    ? { title: '從 Web Test 開始', body: '完成一題後，這裡才會出現你的實際作答紀錄。', href: '/practice/web-test', label: '開始 Web Test 練習' }
+    ? { title: '從 Web Test 開始', body: '選擇一個目前可用的 Web Test 類別，繼續建立學習紀錄。', href: '/practice/web-test', label: '開始 Web Test 練習' }
     : snapshot.nextAction.kind === 'review-mistake'
       ? actionFor(snapshot.nextAction.item, true)
       : actionFor(snapshot.nextAction.item, false)

@@ -222,6 +222,8 @@ describe('My Learning page', () => {
 
     await waitFor(() => expect(screen.getByText('文脈語彙')).toBeInTheDocument())
     expect(screen.queryByText('目前分類')).not.toBeInTheDocument()
+    expect(screen.getByText('選擇一個目前可用的 Web Test 類別，繼續建立學習紀錄。')).toBeInTheDocument()
+    expect(screen.queryByText('完成一題後，這裡才會出現你的實際作答紀錄。')).not.toBeInTheDocument()
   })
 
   it('does not expose an unresolved category slug in user-facing copy', async () => {
