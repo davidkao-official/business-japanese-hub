@@ -117,6 +117,7 @@ describe('My Learning page', () => {
 
     await waitFor(() => expect(screen.getAllByRole('link', { name: '複習這一題' })[0]).toBeInTheDocument())
     expect(screen.getByText('最近答錯的題目')).toBeInTheDocument()
+    expect(screen.queryByText(/#117/)).not.toBeInTheDocument()
     expect(screen.getAllByText('文脈語彙').length).toBeGreaterThan(0)
     expect(screen.queryByText('vocabulary-in-context')).not.toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: '複習這一題' })[0]).toHaveAttribute(
