@@ -6,10 +6,12 @@
  * as evidence of paid access.
  */
 
+import { tokenSubject } from '../auth/tokenSubject'
+
 export type PlusMembershipAccess = 'active' | 'non-member' | 'unavailable'
 
 export interface PlusMembershipAccessRepository {
-  getAccess(): Promise<PlusMembershipAccess>
+  getAccess(expectedUserId: string): Promise<PlusMembershipAccess>
 }
 
 export interface PlusMembershipAccessRequestOptions {
@@ -38,6 +40,7 @@ export function parsePlusMembershipAccess(value: unknown): PlusMembershipAccess 
  */
 export async function fetchPlusMembershipAccess(
   getAccessToken: () => Promise<string | null>,
+  expectedUserId: string,
   options: PlusMembershipAccessRequestOptions = {},
 ): Promise<PlusMembershipAccess> {
   let token: string | null = null
@@ -47,6 +50,7 @@ export async function fetchPlusMembershipAccess(
     return 'unavailable'
   }
   if (!token) return 'unavailable'
+  if (tokenSubject(token) !== expectedUserId) return 'unavailable'
 
   const baseUrl = options.baseUrl === undefined ? functionsBaseUrl() : options.baseUrl
   if (!baseUrl) return 'unavailable'
@@ -73,7 +77,7 @@ export class HttpPlusMembershipAccessRepository implements PlusMembershipAccessR
     private readonly options: PlusMembershipAccessRequestOptions = {},
   ) {}
 
-  getAccess(): Promise<PlusMembershipAccess> {
-    return fetchPlusMembershipAccess(this.getAccessToken, this.options)
+  getAccess(expectedUserId: string): Promise<PlusMembershipAccess> {
+    return fetchPlusMembershipAccess(this.getAccessToken, expectedUserId, this.options)
   }
 }

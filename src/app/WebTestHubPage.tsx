@@ -204,7 +204,18 @@ export function WebTestRunnerEntryPage() {
   const { family: familyParam, domain: domainParam, category: categoryParam } = useParams()
   const [searchParams] = useSearchParams()
   const mode = searchParams.get('mode')
-  const validSearch = [...searchParams.keys()].length === 1 && searchParams.has('mode')
+  const reviewQuestionId = searchParams.get('review')
+  const reviewVersionParam = searchParams.get('reviewVersion')
+  const reviewVersion = reviewVersionParam === null ? null : Number(reviewVersionParam)
+  const hasReviewParams = searchParams.has('review') || searchParams.has('reviewVersion')
+  const validReview = !hasReviewParams || (
+    searchParams.has('review') && searchParams.has('reviewVersion') &&
+    typeof reviewQuestionId === 'string' && reviewQuestionId.length > 0 && reviewQuestionId.length <= 128 && reviewQuestionId.trim() === reviewQuestionId &&
+    reviewVersion !== null && Number.isSafeInteger(reviewVersion) && reviewVersion > 0
+  )
+  const searchKeys = [...searchParams.keys()]
+  const validSearch = validReview && searchKeys.length === (hasReviewParams ? 3 : 1) &&
+    searchKeys.includes('mode') && (!hasReviewParams || (searchKeys.includes('review') && searchKeys.includes('reviewVersion')))
   const family = catalog && findPracticeDiscoveryFamily(catalog, familyParam)
   const domain = catalog && findPracticeDiscoveryDomain(catalog, familyParam, domainParam)
   const category = catalog && findPracticeDiscoveryCategory(catalog, familyParam, domainParam, categoryParam)
@@ -237,8 +248,8 @@ export function WebTestRunnerEntryPage() {
   const primaryElapsedMsRef = useRef<number | null>(null)
   const persistenceGenerationRef = useRef(0)
   const userId = user?.id
-  const selectionKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? '', userId ?? ''].join('|')
-  const selectionScopeKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? ''].join('|')
+  const selectionKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? '', reviewQuestionId ?? '', reviewVersionParam ?? '', userId ?? ''].join('|')
+  const selectionScopeKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? '', reviewQuestionId ?? '', reviewVersionParam ?? ''].join('|')
   useEffect(() => {
     persistenceGenerationRef.current += 1
     let cancelled = false
@@ -281,13 +292,17 @@ export function WebTestRunnerEntryPage() {
       if (result.kind !== 'ok') { setState({ kind: result.kind }); return }
       const questions = selectableQuestions(result.payload, family!.testFamily, domain!.domain, category!.category, mode!)
       if (questions.length === 0) { setState({ kind: 'unavailable' }); return }
-      if (questions.some((entry) => resolveQuestionCheckpoints(result.payload, entry) === null)) { setState({ kind: 'unavailable' }); return }
-      setState({ kind: 'ready', payload: result.payload, questions, selectionKey })
-      if (questions[0]?.answer.input.kind === 'ordering') setResponse(questions[0].answer.input.choices.map((choice) => choice.id))
+      const selectedQuestions = reviewQuestionId === null
+        ? questions
+        : questions.filter((entry) => entry.id === reviewQuestionId && entry.version === reviewVersion)
+      if (selectedQuestions.length === 0) { setState({ kind: 'stale-review' }); return }
+      if (selectedQuestions.some((entry) => resolveQuestionCheckpoints(result.payload, entry) === null)) { setState({ kind: 'unavailable' }); return }
+      setState({ kind: 'ready', payload: result.payload, questions: selectedQuestions, selectionKey })
+      if (selectedQuestions[0]?.answer.input.kind === 'ordering') setResponse(selectedQuestions[0].answer.input.choices.map((choice) => choice.id))
       startedAt.current = Date.now()
     })
     return () => { cancelled = true; persistenceGenerationRef.current += 1 }
-  }, [authLoading, userId, getAccessToken, selectionKey, selectionScopeKey, family, domain, category, mode, validMode, validSearch])
+  }, [authLoading, userId, getAccessToken, selectionKey, selectionScopeKey, family, domain, category, mode, reviewQuestionId, reviewVersion, validMode, validReview, validSearch])
   const question = state.kind === 'ready' ? state.questions[index] : undefined
   const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
   useEffect(() => {
@@ -440,11 +455,12 @@ export function WebTestRunnerEntryPage() {
   )
 }
 
-type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[]; selectionKey: string }
+type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' | 'stale-review' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[]; selectionKey: string }
 
 function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHeadingRef, checkpointHeadingRef, categoryLabel, state, finish, question, response, answers, feedback, checkpointIndex, checkpointResponse, checkpointFeedback, persistence, canRetryPersist, lastCorrect, lastExplanation, setResponse, setCheckpointResponse, onRetryPersist, onSubmit, onCheckpointSubmit, onCheckpointNext, onNext }: { questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; completionHeadingRef: RefObject<HTMLHeadingElement | null>; checkpointHeadingRef: RefObject<HTMLHeadingElement | null>; categoryLabel: string; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: RunnerAnswer[]; feedback: { question: RuntimeQuestion; correct: boolean } | null; checkpointIndex: number | null; checkpointResponse: RunnerResponse; checkpointFeedback: boolean | null; persistence: 'idle' | RunnerPersistence; canRetryPersist: boolean; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; setCheckpointResponse: (value: RunnerResponse) => void; onRetryPersist: () => void; onSubmit: () => void; onCheckpointSubmit: () => void; onCheckpointNext: () => void; onNext: () => void }) {
   if (state.kind === 'signed-out') return <section className="web-test-hub__runner-handoff"><h2>需要登入</h2><p>請登入後才能載入會員練習內容。</p></section>
   if (state.kind === 'forbidden') return <section className="web-test-hub__runner-handoff"><h2>需要 Plus 會員資格</h2><p>目前帳號沒有可用的 Plus 練習存取權。</p></section>
+  if (state.kind === 'stale-review') return <section className="web-test-hub__runner-handoff"><h2>這個複習項目已無法使用</h2><p>題目版本可能已更新，請回到 My Learning 重新整理學習紀錄。</p></section>
   if (state.kind === 'missing' || state.kind === 'unavailable') return <section className="web-test-hub__runner-handoff"><h2>練習暫時無法使用</h2><p>目前無法取得已發布練習內容，請稍後再試。</p></section>
   if (state.kind === 'idle' || state.kind === 'loading') return <section className="web-test-hub__runner-handoff"><h2>載入練習</h2><p>正在確認已發布內容與會員存取權。</p></section>
   if (finish) {

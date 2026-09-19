@@ -12,6 +12,7 @@ import { LibraryPage } from './app/LibraryPage'
 import { LibraryLinkPage } from './app/LibraryLinkPage'
 import { NotFoundPage } from './app/NotFoundPage'
 import { ProductModePage } from './app/ProductModePage'
+import { MyLearningPage } from './app/MyLearningPage'
 import { PlusPage } from './app/PlusPage'
 import { LearnUnitPage } from './app/LearnUnitPage'
 import { PracticeActivityPage } from './app/PracticeActivityPage'
@@ -117,7 +118,7 @@ export default function App() {
                       <Route path="practice/web-test/:family/:domain" element={<WebTestCategoryPage />} />
                       <Route path="practice/web-test/:family/:domain/:category" element={<WebTestRunnerEntryPage />} />
                       <Route path="practice/:slug" element={<PracticeActivityPage />} />
-                      <Route path="my-learning" element={<ProductModePage mode="my-learning" />} />
+                      <Route path="my-learning" element={<MyLearningPage />} />
                       <Route path="experience" element={<ProductModePage mode="experience" />} />
                       <Route path="library" element={<LibraryPage />} />
                       <Route path="library-link" element={<LibraryLinkPage />} />

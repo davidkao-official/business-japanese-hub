@@ -60,7 +60,7 @@ export function MembershipAccessProvider({
     let cancelled = false
 
     void repository
-      .getAccess()
+      .getAccess(userId)
       .then((access) => {
         if (!cancelled) setResult({ requestKey: refreshKey, userId, access })
       })

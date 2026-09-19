@@ -108,6 +108,30 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.queryByRole('button', { name: /開始|送出|開始練習/ })).not.toBeInTheDocument()
   })
 
+  it('loads only the persisted question for an exact My Learning review link', async () => {
+    const payload = syntheticRuntimePayload('指定複習題的合成題幹')
+    const question = payload.questionBank.questions[0]!
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload })
+    renderWebTestAt(
+      `/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning&review=${encodeURIComponent(question.id)}&reviewVersion=${question.version}`,
+      { session: { id: 'synthetic-member' } },
+    )
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '指定複習題的合成題幹' })).toBeInTheDocument())
+    expect(screen.getByText('第 1／1 題')).toBeInTheDocument()
+  })
+
+  it('fails closed when an exact review question is no longer in the current release', async () => {
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('目前版本的合成題幹') })
+    renderWebTestAt(
+      '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning&review=removed-question&reviewVersion=1',
+      { session: { id: 'synthetic-member' } },
+    )
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '這個複習項目已無法使用' })).toBeInTheDocument())
+    expect(screen.getByText('題目版本可能已更新，請回到 My Learning 重新整理學習紀錄。')).toBeInTheDocument()
+  })
+
   it('runs a synthetic member flow with ordering, authored feedback, and truthful category results', async () => {
     fetchPracticePayloadMock.mockClear()
     const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', nonProprietaryPracticeQuestionBankFixture)

@@ -26,11 +26,17 @@ export interface MockAuthClient extends AuthClient {
   emitAuthStateChange(user: SessionUser | null): void
 }
 
+function accessTokenFor(user: SessionUser): string {
+  return `header.${btoa(JSON.stringify({ sub: user.id })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')}.signature`
+}
+
 /** Auth client whose session restore resolves immediately to `session`. */
 export function createMockAuthClient(session: SessionUser | null): MockAuthClient {
   const listeners: Array<(user: SessionUser | null) => void> = []
+  let currentSession = session
   return {
-    getSession: vi.fn().mockResolvedValue(session),
+    getSession: vi.fn(() => Promise.resolve(currentSession)),
+    getAccessToken: vi.fn(() => Promise.resolve(currentSession ? accessTokenFor(currentSession) : null)),
     signInWithPassword: vi.fn().mockResolvedValue({
       user: { id: 'u-1', email: 'reader@example.com' },
     }),
@@ -44,6 +50,7 @@ export function createMockAuthClient(session: SessionUser | null): MockAuthClien
       return () => {}
     }),
     emitAuthStateChange(nextUser) {
+      currentSession = nextUser
       for (const listener of listeners) listener(nextUser)
     },
   }
