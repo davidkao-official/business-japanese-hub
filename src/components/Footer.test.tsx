@@ -28,6 +28,10 @@ describe('footer', () => {
     expect(screen.getByText(SELLER_DISCLOSURE.name)).toBeInTheDocument()
     expect(screen.getByText('（登録名確認中）')).toBeInTheDocument()
 
+    // appearance controls live in the footer so the header never gets squeezed
+    expect(screen.getByRole('radiogroup', { name: '外観' })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'システム' })).toBeChecked()
+
     // existing footer note is preserved
     expect(screen.getByText('© ビジネス日本語ハブ')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'ビジネス日本語ハブ' })).toHaveAttribute('href', '/')

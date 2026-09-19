@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { AppearanceControl } from './AppearanceControl'
 import { useLocale, useStrings } from '../i18n/strings'
 import { listLegalDocuments, SELLER_DISCLOSURE } from '../legal-content'
 
@@ -26,6 +27,9 @@ export function Footer() {
               ))}
             </ul>
           </nav>
+        </div>
+        <div className="site-footer__appearance">
+          <AppearanceControl />
         </div>
         <div className="site-footer__details">
           <p className="site-footer__seller">

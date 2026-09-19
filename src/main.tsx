@@ -10,6 +10,7 @@ import './styles/editorial-v2.css'
 import './styles/about.css'
 import './styles/product-ia.css'
 import './styles/plus.css'
+import './styles/styleguide.css'
 
 const root = document.getElementById('root')
 

@@ -1,0 +1,96 @@
+/* Visual QA-only component stress surface. */
+.styleguide-page {
+  gap: var(--space-8);
+}
+
+.styleguide-page__intro {
+  display: grid;
+  gap: var(--space-3);
+  max-width: var(--measure-reading);
+}
+
+.styleguide-page__eyebrow,
+.styleguide-example__label {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.styleguide-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.styleguide-example {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.styleguide-example--wide {
+  grid-column: 1 / -1;
+}
+
+.styleguide-example__surface {
+  display: flex;
+  min-width: 0;
+  min-height: 8rem;
+  align-items: center;
+  justify-content: flex-start;
+  padding: var(--space-5);
+  border: var(--stroke-thin) solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.styleguide-badge,
+.styleguide-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-min-h);
+  padding-inline: var(--space-4);
+  border: var(--stroke-thin) solid var(--color-border-strong);
+  border-radius: var(--radius-pill);
+}
+
+.styleguide-badge {
+  background: var(--color-accent-soft);
+}
+
+.styleguide-tag {
+  background: var(--color-surface-muted);
+}
+
+.styleguide-hero-title {
+  max-width: 100%;
+  font-family: var(--font-serif);
+  font-size: var(--editorial-home-title-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--editorial-home-title-leading);
+  letter-spacing: var(--editorial-display-tracking);
+}
+
+.styleguide-section-title {
+  max-width: 22ch;
+  font-family: var(--font-serif);
+  font-size: var(--editorial-section-title-size);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--leading-tight);
+}
+
+@media (max-width: 47.99rem) {
+  .styleguide-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .styleguide-example--wide {
+    grid-column: auto;
+  }
+
+  .styleguide-example__surface {
+    padding: var(--space-4);
+  }
+}
