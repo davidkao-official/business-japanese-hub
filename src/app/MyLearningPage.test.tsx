@@ -91,8 +91,26 @@ describe('My Learning page', () => {
     act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b', email: 'b@example.com' }))
     await waitFor(() => expect(fetchSnapshot).toHaveBeenCalledTimes(2))
 
+    expect(fetchSnapshot).toHaveBeenNthCalledWith(1, expect.any(Function), 'member-a')
+    expect(fetchSnapshot).toHaveBeenNthCalledWith(2, expect.any(Function), 'member-b')
+
     expect(screen.queryByText('文脈語彙')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '載入你的學習紀錄' })).toBeInTheDocument()
+  })
+
+  it('binds membership access to the current owner during an in-place A to B switch', async () => {
+    const getAccess = vi.fn().mockResolvedValue('active')
+    const rendered = renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'unavailable' })} />, {
+      session: { id: 'member-a', email: 'a@example.com' },
+      membershipAccessRepository: { getAccess },
+    })
+
+    await waitFor(() => expect(getAccess).toHaveBeenCalledTimes(1))
+    act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b', email: 'b@example.com' }))
+    await waitFor(() => expect(getAccess).toHaveBeenCalledTimes(2))
+
+    expect(getAccess).toHaveBeenNthCalledWith(1, 'member-a')
+    expect(getAccess).toHaveBeenNthCalledWith(2, 'member-b')
   })
 
   it('ignores a late user A result after the page switches to user B', async () => {

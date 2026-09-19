@@ -1,5 +1,6 @@
 import type { PracticeRuntimePayload } from '../content-delivery/privatePracticeQuestionBank'
 import { PRIVATE_CONTENT_REVISION, isPrivateContentId } from '../content-delivery/references'
+import { tokenSubject } from '../lib/auth/tokenSubject'
 import { validateRuntimePayload } from './runtime'
 import type { RunnerResponse } from './runtime'
 
@@ -37,19 +38,6 @@ function functionsBaseUrl(): string | null {
   const explicit = import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL as string | undefined
   const supabase = import.meta.env.VITE_SUPABASE_URL as string | undefined
   return (explicit || (supabase ? `${supabase.replace(/\/+$/, '')}/functions/v1` : '')).replace(/\/+$/, '') || null
-}
-
-function tokenSubject(token: string): string | null {
-  const encodedPayload = token.split('.')[1]
-  if (!encodedPayload) return null
-  try {
-    const normalized = encodedPayload.replace(/-/g, '+').replace(/_/g, '/')
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
-    const payload = JSON.parse(globalThis.atob(padded)) as { sub?: unknown }
-    return typeof payload.sub === 'string' ? payload.sub : null
-  } catch {
-    return null
-  }
 }
 
 class PracticeRequestTimeout extends Error {}

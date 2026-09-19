@@ -5,6 +5,7 @@ import type {
   PracticeWeakArea,
 } from './practiceMyLearning'
 import { PRACTICE_ATTEMPT_TIMEOUT_MS } from '../../practice-web-test/client'
+import { tokenSubject } from '../auth/tokenSubject'
 
 export type PracticeLearningFetchResult =
   | { kind: 'ok'; snapshot: PracticeLearningSnapshot }
@@ -77,12 +78,14 @@ function validSnapshot(value: unknown): value is PracticeLearningSnapshot {
 
 export async function fetchPracticeLearningSnapshot(
   getAccessToken: () => Promise<string | null>,
+  expectedUserId: string,
 ): Promise<PracticeLearningFetchResult> {
   const controller = new AbortController()
   const deadline = requestDeadline(controller)
   try {
     const token = await Promise.race([getAccessToken(), deadline.promise])
     if (!token) return { kind: 'signed-out' }
+    if (tokenSubject(token) !== expectedUserId) return { kind: 'unavailable' }
     const base = functionsBaseUrl()
     if (!base) return { kind: 'unavailable' }
     const response = await Promise.race([fetch(`${base}/my-learning`, {

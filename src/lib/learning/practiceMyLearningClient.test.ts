@@ -3,6 +3,7 @@ import { PRACTICE_ATTEMPT_TIMEOUT_MS } from '../../practice-web-test/client'
 import { fetchPracticeLearningSnapshot } from './practiceMyLearningClient'
 
 const revision = 'a'.repeat(64)
+const jwtFor = (sub: string) => `header.${btoa(JSON.stringify({ sub })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')}.signature`
 
 const snapshot = {
   recentAttempts: [{
@@ -53,9 +54,23 @@ describe('fetchPracticeLearningSnapshot', () => {
     const fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
 
-    const result = await fetchPracticeLearningSnapshot(vi.fn().mockResolvedValue(null))
+    const result = await fetchPracticeLearningSnapshot(vi.fn().mockResolvedValue(null), 'member-1')
 
     expect(result).toEqual({ kind: 'signed-out' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('does not send a prior-session bearer that resolves late after an A to B switch', async () => {
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ source: 'practice-web-test', snapshot }), { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    let resolveToken!: (token: string) => void
+    const priorSessionToken = new Promise<string>((resolve) => { resolveToken = resolve })
+
+    const result = fetchPracticeLearningSnapshot(() => priorSessionToken, 'member-b')
+    resolveToken(jwtFor('member-a'))
+
+    await expect(result).resolves.toEqual({ kind: 'unavailable' })
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -67,7 +82,7 @@ describe('fetchPracticeLearningSnapshot', () => {
     vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status })))
 
-    const result = await fetchPracticeLearningSnapshot(vi.fn().mockResolvedValue('token'))
+    const result = await fetchPracticeLearningSnapshot(vi.fn().mockResolvedValue(jwtFor('member-1')), 'member-1')
 
     expect(result).toEqual({ kind })
   })
@@ -77,11 +92,11 @@ describe('fetchPracticeLearningSnapshot', () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ source: 'practice-web-test', snapshot }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
 
-    const result = await fetchPracticeLearningSnapshot(vi.fn().mockResolvedValue('token'))
+    const result = await fetchPracticeLearningSnapshot(vi.fn().mockResolvedValue(jwtFor('member-1')), 'member-1')
 
     expect(result).toEqual({ kind: 'ok', snapshot })
     expect(fetchMock).toHaveBeenCalledWith('https://functions.example.test/my-learning', expect.objectContaining({
-      headers: { Authorization: 'Bearer token' },
+      headers: { Authorization: `Bearer ${jwtFor('member-1')}` },
       cache: 'no-store',
     }))
   })
@@ -94,7 +109,7 @@ describe('fetchPracticeLearningSnapshot', () => {
     }
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ source: 'practice-web-test', snapshot: forged }), { status: 200 })))
 
-    const result = await fetchPracticeLearningSnapshot(vi.fn().mockResolvedValue('token'))
+    const result = await fetchPracticeLearningSnapshot(vi.fn().mockResolvedValue(jwtFor('member-1')), 'member-1')
 
     expect(result).toEqual({ kind: 'unavailable' })
   })
@@ -104,16 +119,16 @@ describe('fetchPracticeLearningSnapshot', () => {
     ['HTTP fetch', async () => {
       vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
       vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
-      return 'token'
+      return jwtFor('member-1')
     }],
     ['response parsing', async () => {
       vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 200, ok: true, json: () => new Promise<never>(() => {}) }))
-      return 'token'
+      return jwtFor('member-1')
     }],
   ])('maps a stalled %s to unavailable', async (_stage, getAccessToken) => {
     vi.useFakeTimers()
-    const result = fetchPracticeLearningSnapshot(getAccessToken)
+    const result = fetchPracticeLearningSnapshot(getAccessToken, 'member-1')
 
     await vi.advanceTimersByTimeAsync(PRACTICE_ATTEMPT_TIMEOUT_MS)
 

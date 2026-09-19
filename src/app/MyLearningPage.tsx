@@ -45,7 +45,7 @@ export function MyLearningPage({ fetchSnapshot = fetchPracticeLearningSnapshot }
     void Promise.resolve().then(async () => {
       if (cancelled || requestGeneration !== requestGenerationRef.current) return
       setPageState({ kind: 'loading', ownerId })
-      const result = await fetchSnapshot(getAccessToken)
+      const result = await fetchSnapshot(getAccessToken, ownerId)
       if (cancelled || requestGeneration !== requestGenerationRef.current) return
       setPageState(result.kind === 'ok' ? { kind: 'ready', ownerId, snapshot: result.snapshot } : { kind: result.kind, ownerId })
     })
