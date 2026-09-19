@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import catalogDocument from '../practice-web-test/released-discovery-catalog.json'
 import {
@@ -17,7 +17,10 @@ import { useAuth } from '@business-japanese-hub/platform-auth'
 
 const catalog = validatePracticeDiscoveryCatalog(catalogDocument) ? catalogDocument : null
 
-type PageState = { kind: 'idle' | 'loading' | 'unavailable'; snapshot?: PracticeLearningSnapshot }
+type PageState =
+  | { kind: 'idle' }
+  | { kind: 'loading' | 'unavailable'; ownerId: string }
+  | { kind: 'ready'; ownerId: string; snapshot: PracticeLearningSnapshot }
 type SnapshotFetcher = typeof fetchPracticeLearningSnapshot
 
 export function MyLearningPage({ fetchSnapshot = fetchPracticeLearningSnapshot }: { fetchSnapshot?: SnapshotFetcher } = {}) {
@@ -26,20 +29,29 @@ export function MyLearningPage({ fetchSnapshot = fetchPracticeLearningSnapshot }
   const { state: membershipState, retry: retryMembership } = useMembershipAccess()
   const [requestKey, setRequestKey] = useState(0)
   const [pageState, setPageState] = useState<PageState>({ kind: 'idle' })
+  const requestGenerationRef = useRef(0)
+  const currentPageState: PageState = user && pageState.kind !== 'idle' && pageState.ownerId === user.id
+    ? pageState
+    : { kind: 'idle' }
 
   useEffect(() => {
     if (authLoading || !user || membershipState.kind !== 'active-member') {
       return
     }
     let cancelled = false
+    const ownerId = user.id
+    const requestGeneration = ++requestGenerationRef.current
     void Promise.resolve().then(async () => {
-      if (cancelled) return
-      setPageState({ kind: 'loading' })
+      if (cancelled || requestGeneration !== requestGenerationRef.current) return
+      setPageState({ kind: 'loading', ownerId })
       const result = await fetchSnapshot(getAccessToken)
-      if (cancelled) return
-      setPageState(result.kind === 'ok' ? { kind: 'idle', snapshot: result.snapshot } : { kind: 'unavailable' })
+      if (cancelled || requestGeneration !== requestGenerationRef.current) return
+      setPageState(result.kind === 'ok' ? { kind: 'ready', ownerId, snapshot: result.snapshot } : { kind: 'unavailable', ownerId })
     })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      requestGenerationRef.current += 1
+    }
   }, [authLoading, fetchSnapshot, getAccessToken, membershipState.kind, requestKey, user])
 
   if (authLoading) return <MyLearningShell><StatePanel title="確認你的學習狀態" body="正在確認登入與會員狀態。" /></MyLearningShell>
@@ -47,10 +59,10 @@ export function MyLearningPage({ fetchSnapshot = fetchPracticeLearningSnapshot }
   if (membershipState.kind === 'checking') return <MyLearningShell><StatePanel title="確認 Plus 存取權" body="正在確認這個帳號的會員狀態。" /></MyLearningShell>
   if (membershipState.kind === 'non-member') return <MyLearningShell><section className="my-learning-page__state" aria-labelledby="my-learning-member-title"><h2 id="my-learning-member-title">My Learning 是 Plus 會員學習紀錄</h2><p>成為 Plus 會員後，系統會保存你的 Practice 作答、錯題與下一步。</p><Link className="btn btn--primary" to="/plus">了解 Plus</Link></section></MyLearningShell>
   if (membershipState.kind === 'unavailable') return <MyLearningShell><StatePanel title="目前無法確認會員狀態" body="會員權限暫時無法確認，學習紀錄在確認前不會顯示。" action={<button className="btn btn--secondary" type="button" onClick={retryMembership}>重試</button>} /></MyLearningShell>
-  if (pageState.kind === 'unavailable') return <MyLearningShell><StatePanel title="學習紀錄暫時無法取得" body="目前無法讀取你的已儲存 evidence；不會用本機資料替代。" action={<button className="btn btn--secondary" type="button" onClick={() => setRequestKey((current) => current + 1)}>重試</button>} /></MyLearningShell>
-  if (pageState.kind === 'loading' || !pageState.snapshot) return <MyLearningShell><StatePanel title="載入你的學習紀錄" body="正在讀取已儲存的 Practice evidence。" /></MyLearningShell>
+  if (currentPageState.kind === 'unavailable') return <MyLearningShell><StatePanel title="學習紀錄暫時無法取得" body="目前無法讀取你的已儲存 evidence；不會用本機資料替代。" action={<button className="btn btn--secondary" type="button" onClick={() => setRequestKey((current) => current + 1)}>重試</button>} /></MyLearningShell>
+  if (currentPageState.kind !== 'ready') return <MyLearningShell><StatePanel title="載入你的學習紀錄" body="正在讀取已儲存的 Practice evidence。" /></MyLearningShell>
 
-  return <MyLearningContent snapshot={pageState.snapshot} />
+  return <MyLearningContent snapshot={currentPageState.snapshot} />
 }
 
 function MyLearningShell({ children }: { children: ReactNode }) {

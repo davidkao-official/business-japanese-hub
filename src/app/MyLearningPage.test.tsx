@@ -1,4 +1,4 @@
-import { cleanup, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { MyLearningPage } from './MyLearningPage'
 import { renderWithAppProviders } from '../test/appProviders'
@@ -6,6 +6,7 @@ import type {
   PracticeLearningSnapshot,
   PracticeReviewItem,
 } from '../lib/learning/practiceMyLearning'
+import type { PracticeLearningFetchResult } from '../lib/learning/practiceMyLearningClient'
 
 const revision = '62361e0be9ecc7792a55c0a670bc126621eaea4196fd8407ded2882cf342506c'
 
@@ -36,6 +37,14 @@ function mockSnapshot(value: PracticeLearningSnapshot): void {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ source: 'practice-web-test', snapshot: value }), { status: 200 })))
 }
 
+function continuationSnapshot(category: string): PracticeLearningSnapshot {
+  const item = { ...review, category }
+  return snapshot({
+    recentAttempts: [{ ...item, correct: true }],
+    nextAction: { kind: 'continue-practice', item },
+  })
+}
+
 describe('My Learning page', () => {
   it('shows a sign-in direction without requesting member evidence when signed out', async () => {
     renderWithAppProviders(<MyLearningPage />)
@@ -55,6 +64,44 @@ describe('My Learning page', () => {
     expect(screen.getByText('目前還沒有已儲存的 Practice 作答。')).toBeInTheDocument()
     expect(screen.queryByText(/正答率|弱點|連續|百分位/)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '開始 Web Test 練習' })).toHaveAttribute('href', '/practice/web-test')
+  })
+
+  it('does not render a loaded user A snapshot after an in-place switch to user B', async () => {
+    const fetchSnapshot = vi.fn()
+      .mockResolvedValueOnce({ kind: 'ok' as const, snapshot: continuationSnapshot('A-only-category') })
+      .mockImplementationOnce(() => new Promise<PracticeLearningFetchResult>(() => {}))
+    const rendered = renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} />, {
+      session: { id: 'member-a', email: 'a@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+
+    await waitFor(() => expect(screen.getAllByText(/A-only-category/).length).toBeGreaterThan(0))
+    act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b', email: 'b@example.com' }))
+    await waitFor(() => expect(fetchSnapshot).toHaveBeenCalledTimes(2))
+
+    expect(screen.queryByText(/A-only-category/)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '載入你的學習紀錄' })).toBeInTheDocument()
+  })
+
+  it('ignores a late user A result after the page switches to user B', async () => {
+    let resolveA!: (result: PracticeLearningFetchResult) => void
+    const requestA = new Promise<PracticeLearningFetchResult>((resolve) => { resolveA = resolve })
+    const fetchSnapshot = vi.fn()
+      .mockImplementationOnce(() => requestA)
+      .mockResolvedValueOnce({ kind: 'ok' as const, snapshot: continuationSnapshot('B-only-category') })
+    const rendered = renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} />, {
+      session: { id: 'member-a', email: 'a@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+
+    await waitFor(() => expect(fetchSnapshot).toHaveBeenCalledTimes(1))
+    act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b', email: 'b@example.com' }))
+    await waitFor(() => expect(screen.getAllByText(/B-only-category/).length).toBeGreaterThan(0))
+    act(() => resolveA({ kind: 'ok', snapshot: continuationSnapshot('A-only-category') }))
+    await Promise.resolve()
+
+    expect(screen.getAllByText(/B-only-category/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/A-only-category/)).not.toBeInTheDocument()
   })
 
   it('surfaces a persisted mistake as the primary exact review action', async () => {
