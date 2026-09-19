@@ -71,6 +71,13 @@ service-role-only private_content_release
 future bounded Practice renderer
 ```
 
+每次受控 Practice import 由單一 service-only transaction RPC
+`import_practice_question_release` 寫入 immutable release 並更新目前 release 的 stable question id/version
+projection。缺席於新 release 的 identity 會被標為 unavailable；`practice_review_queue`
+只 join 目前 available identity，因此 retired/removed 題目不再 actionable，而
+ `practice_attempts` 永遠不會被更新或刪除。projection 只接受已 import 的 release，並以
+monotonic `questionBank.version` 拒絕回退；browser 沒有 availability table 或 RPC mutation 權限。
+
 CSV 是為 spreadsheet/editorial workflow 準備的 deterministic adapter；rich `answer`、`coreExplanation`、`itemAnalysis`、`provenance` 欄位以 JSON cell 保存，避免為不同 question input type 發明另一套 UI schema。`practice-question-bank-base.json` 保留 bank version 與 vocabulary catalog；converter 將 CSV rows 放入 question bank，之後 validator 才會檢查所有 cross-reference。
 
 受控 import 僅接受 status 為 `released` 的題目，並要求 reviewer、release notes、originality attestation、Japanese prompt/explanation、deterministic answer contract、正確的 category/subcategory、support-overlay vocabulary refs 與禁止 source/recalled/leaked/official-test fields。`targetSeconds` 是 internal practice target；schema 沒有 official-time metadata，帶有這類 field 的 artifact 必須 fail closed。`content-delivery` 使用 server-only `plus_membership_access` projection：只有 active 且未過期才查詢／回傳 payload；missing、expired、revoked 或其他 non-qualifying 狀態回傳 `403` 且不查詢 payload；projection lookup failure 回傳 `503` 且不查詢 payload。browser flag 永遠不能 authorize。這是 delivery primitive；#107 的 recurring lifecycle/commercial/production activation 仍維持其既有邊界。

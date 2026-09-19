@@ -17,6 +17,7 @@ import type { Env } from './env.ts';
 
 export interface DbError {
   message: string;
+  code?: string | null;
 }
 
 export interface DbResult<T = unknown> {

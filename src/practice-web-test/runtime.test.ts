@@ -45,6 +45,7 @@ describe('SPI runner runtime seam', () => {
     expect(selected.map((entry) => entry.version)).toEqual([1, 2])
   })
 
+
   it('selects web delivery items while excluding matching test-center items', () => {
     const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', nonProprietaryPracticeQuestionBankFixture)
     expect(release.ok).toBe(true)
