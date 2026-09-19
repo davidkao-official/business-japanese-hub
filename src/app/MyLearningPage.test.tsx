@@ -152,6 +152,30 @@ describe('My Learning page', () => {
     await waitFor(() => expect(screen.getByText('目前的作答樣本還不足以支持分類訊號。')).toBeInTheDocument())
   })
 
+  it('shows the endpoint non-member state when membership access is cached as active', async () => {
+    const fetchSnapshot = vi.fn().mockResolvedValue({ kind: 'non-member' as const })
+    renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} />, {
+      session: { id: 'member-1', email: 'member@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'My Learning 是 Plus 會員學習紀錄' })).toBeInTheDocument())
+    expect(screen.getByRole('link', { name: '了解 Plus' })).toHaveAttribute('href', '/plus')
+    expect(screen.queryByRole('heading', { name: '學習紀錄暫時無法取得' })).not.toBeInTheDocument()
+  })
+
+  it('shows the endpoint signed-out state when auth still has a cached user', async () => {
+    const fetchSnapshot = vi.fn().mockResolvedValue({ kind: 'signed-out' as const })
+    renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} />, {
+      session: { id: 'member-1', email: 'member@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: '登入後查看你的學習紀錄' })).toBeInTheDocument())
+    expect(screen.getByRole('link', { name: '前往 Web Test 練習入口' })).toHaveAttribute('href', '/practice/web-test')
+    expect(screen.queryByRole('heading', { name: '學習紀錄暫時無法取得' })).not.toBeInTheDocument()
+  })
+
   it('renders membership and endpoint failures as truthful recovery states', async () => {
     const membership = { getAccess: vi.fn().mockResolvedValue('non-member') }
     renderWithAppProviders(<MyLearningPage />, {

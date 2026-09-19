@@ -19,7 +19,7 @@ const catalog = validatePracticeDiscoveryCatalog(catalogDocument) ? catalogDocum
 
 type PageState =
   | { kind: 'idle' }
-  | { kind: 'loading' | 'unavailable'; ownerId: string }
+  | { kind: 'signed-out' | 'non-member' | 'loading' | 'unavailable'; ownerId: string }
   | { kind: 'ready'; ownerId: string; snapshot: PracticeLearningSnapshot }
 type SnapshotFetcher = typeof fetchPracticeLearningSnapshot
 
@@ -46,7 +46,7 @@ export function MyLearningPage({ fetchSnapshot = fetchPracticeLearningSnapshot }
       setPageState({ kind: 'loading', ownerId })
       const result = await fetchSnapshot(getAccessToken)
       if (cancelled || requestGeneration !== requestGenerationRef.current) return
-      setPageState(result.kind === 'ok' ? { kind: 'ready', ownerId, snapshot: result.snapshot } : { kind: 'unavailable', ownerId })
+      setPageState(result.kind === 'ok' ? { kind: 'ready', ownerId, snapshot: result.snapshot } : { kind: result.kind, ownerId })
     })
     return () => {
       cancelled = true
@@ -55,10 +55,12 @@ export function MyLearningPage({ fetchSnapshot = fetchPracticeLearningSnapshot }
   }, [authLoading, fetchSnapshot, getAccessToken, membershipState.kind, requestKey, user])
 
   if (authLoading) return <MyLearningShell><StatePanel title="確認你的學習狀態" body="正在確認登入與會員狀態。" /></MyLearningShell>
-  if (!user) return <MyLearningShell><section className="my-learning-page__state" aria-labelledby="my-learning-sign-in-title"><h2 id="my-learning-sign-in-title">登入後查看你的學習紀錄</h2><p>登入後，已儲存的 Web Test 作答與複習項目會在不同裝置間保留。</p><AuthPanel /><Link className="page__action" to="/practice/web-test">前往 Web Test 練習入口</Link></section></MyLearningShell>
+  if (!user) return <MyLearningShell><SignedOutState /></MyLearningShell>
   if (membershipState.kind === 'checking') return <MyLearningShell><StatePanel title="確認 Plus 存取權" body="正在確認這個帳號的會員狀態。" /></MyLearningShell>
-  if (membershipState.kind === 'non-member') return <MyLearningShell><section className="my-learning-page__state" aria-labelledby="my-learning-member-title"><h2 id="my-learning-member-title">My Learning 是 Plus 會員學習紀錄</h2><p>成為 Plus 會員後，系統會保存你的 Practice 作答、錯題與下一步。</p><Link className="btn btn--primary" to="/plus">了解 Plus</Link></section></MyLearningShell>
+  if (membershipState.kind === 'non-member') return <MyLearningShell><NonMemberState /></MyLearningShell>
   if (membershipState.kind === 'unavailable') return <MyLearningShell><StatePanel title="目前無法確認會員狀態" body="會員權限暫時無法確認，學習紀錄在確認前不會顯示。" action={<button className="btn btn--secondary" type="button" onClick={retryMembership}>重試</button>} /></MyLearningShell>
+  if (currentPageState.kind === 'signed-out') return <MyLearningShell><SignedOutState /></MyLearningShell>
+  if (currentPageState.kind === 'non-member') return <MyLearningShell><NonMemberState /></MyLearningShell>
   if (currentPageState.kind === 'unavailable') return <MyLearningShell><StatePanel title="學習紀錄暫時無法取得" body="目前無法讀取你的已儲存 evidence；不會用本機資料替代。" action={<button className="btn btn--secondary" type="button" onClick={() => setRequestKey((current) => current + 1)}>重試</button>} /></MyLearningShell>
   if (currentPageState.kind !== 'ready') return <MyLearningShell><StatePanel title="載入你的學習紀錄" body="正在讀取已儲存的 Practice evidence。" /></MyLearningShell>
 
@@ -67,6 +69,14 @@ export function MyLearningPage({ fetchSnapshot = fetchPracticeLearningSnapshot }
 
 function MyLearningShell({ children }: { children: ReactNode }) {
   return <section className="page my-learning-page" lang="zh-TW" aria-labelledby="my-learning-title"><div className="my-learning-page__intro"><p className="product-mode-page__eyebrow" lang="en">My Learning · Practice</p><h1 className="page__title" id="my-learning-title">把下一次練習接在上一次之後</h1><p className="page__lead">這裡只顯示已由 Web Test 儲存的作答 evidence，幫你回到最值得繼續的地方。</p></div>{children}</section>
+}
+
+function SignedOutState() {
+  return <section className="my-learning-page__state" aria-labelledby="my-learning-sign-in-title"><h2 id="my-learning-sign-in-title">登入後查看你的學習紀錄</h2><p>登入後，已儲存的 Web Test 作答與複習項目會在不同裝置間保留。</p><AuthPanel /><Link className="page__action" to="/practice/web-test">前往 Web Test 練習入口</Link></section>
+}
+
+function NonMemberState() {
+  return <section className="my-learning-page__state" aria-labelledby="my-learning-member-title"><h2 id="my-learning-member-title">My Learning 是 Plus 會員學習紀錄</h2><p>成為 Plus 會員後，系統會保存你的 Practice 作答、錯題與下一步。</p><Link className="btn btn--primary" to="/plus">了解 Plus</Link></section>
 }
 
 function MyLearningContent({ snapshot }: { snapshot: PracticeLearningSnapshot }) {
