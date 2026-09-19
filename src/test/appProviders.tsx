@@ -31,6 +31,7 @@ export function createMockAuthClient(session: SessionUser | null): MockAuthClien
   const listeners: Array<(user: SessionUser | null) => void> = []
   return {
     getSession: vi.fn().mockResolvedValue(session),
+    getAccessToken: vi.fn().mockResolvedValue(session ? 'test-access-token' : null),
     signInWithPassword: vi.fn().mockResolvedValue({
       user: { id: 'u-1', email: 'reader@example.com' },
     }),

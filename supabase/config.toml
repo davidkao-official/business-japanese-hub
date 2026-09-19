@@ -50,6 +50,9 @@ verify_jwt = true
 [functions.plus-membership]
 verify_jwt = true
 
+[functions.my-learning]
+verify_jwt = true
+
 [functions.product-analytics]
 verify_jwt = false
 

@@ -99,6 +99,7 @@ user/scenario 的目前 progress，保留已發生的 evidence。Reset 還必須
 | --- | --- | --- | --- |
 | Library | `chapter_opened` | Book id + released revision + Chapter id | `null` |
 | Career Game | `outcome_reached` | Scenario id + content version + Outcome id | authored `strong` / `mixed` / `risky` |
+| Practice / Web Test | persisted attempt + current review row | content id + release revision + question id/version + current category/mode | `correct` boolean |
 
 `source_event_id` 使 retry idempotent；DB uniqueness 防止同一 logical action 重複寫入。
 Library 的 `chapter_opened` 另以 user + release + chapter + skill 作 durable exposure boundary，
@@ -109,6 +110,14 @@ Library 的 `chapter_opened` 另以 user + release + chapter + skill 作 durable
 summary UI，因此刻意不建立
 「最近練習」、推薦、completion aggregate、mastery score 或另一張 materialized read
 model。未來只有在有實際 consumer 與 documented deterministic rule 時才新增 read seam。
+
+Practice / Web Test 的 `practice_attempts` 與 `practice_review_queue` 則由 #117 定義為
+獨立、server-owned 的 bounded evidence source；#109 的 `/my-learning` 只讀取這兩個
+source 與目前可用題目，並以 deterministic priority（actionable mistake → 最近的目前
+類別 → Web Test 入口）產生下一步。它不把 Practice 映射成 Library／Game 的 shared
+event schema，也不聲稱跨產品 mastery。My Learning 只顯示最近 50 筆 Practice attempts、
+目前仍可複習的錯題，以及在同一 category/domain 至少 5 筆且至少 2 筆答錯時才顯示的
+weak-area signal；沒有 derived evidence 時顯示 empty state，讀取失敗時 fail closed。
 
 Library 的一次 `chapter_opened` 以「當前 stable user id + 當前 Book/Chapter mount」為前端
 觸發邊界；Supabase token refresh 即使產生新 user object，也不得在章節沒有重新開啟時
