@@ -119,20 +119,36 @@ async function readAvailability(
   reviews: PracticeReviewItem[],
 ): Promise<Record<string, unknown>[] | null> {
   const rows = [...attempts, ...reviews]
-  const contentIds = [...new Set(rows.map((row) => row.contentId))]
-  const questionIds = [...new Set(rows.map((row) => row.questionId))]
-  if (contentIds.length === 0 || questionIds.length === 0) return []
-  try {
-    const result = await db.from('practice_question_availability')
-      .select(AVAILABILITY_COLUMNS)
-      .in('content_id', contentIds)
-      .in('question_id', questionIds)
-      .eq('available', true)
-      .limit(Math.min(rows.length, LIMIT * 2))
-    return result.error || !Array.isArray(result.data) ? null : result.data
-  } catch {
-    return null
+  const keys = new Map<string, Pick<PracticeAvailability, 'contentId' | 'testFamily' | 'domain' | 'category' | 'practiceMode'>>()
+  for (const row of rows) {
+    const key = `${row.contentId}\0${row.testFamily}\0${row.domain}\0${row.category}\0${row.practiceMode}`
+    keys.set(key, {
+      contentId: row.contentId,
+      testFamily: row.testFamily,
+      domain: row.domain,
+      category: row.category,
+      practiceMode: row.practiceMode,
+    })
   }
+  if (keys.size === 0) return []
+  const results = await Promise.all([...keys.values()].map(async (key) => {
+    try {
+      const result = await db.from('practice_question_availability')
+        .select(AVAILABILITY_COLUMNS)
+        .eq('content_id', key.contentId)
+        .eq('test_family', key.testFamily)
+        .eq('domain', key.domain)
+        .eq('category', key.category)
+        .eq('practice_mode', key.practiceMode)
+        .eq('available', true)
+        .limit(1)
+      return result.error || !Array.isArray(result.data) ? null : result.data
+    } catch {
+      return null
+    }
+  }))
+  if (results.some((result) => result === null)) return null
+  return results.flatMap((result) => result ?? [])
 }
 
 export async function handleMyLearning(req: HandlerRequest, deps: MyLearningDeps): Promise<HandlerResult> {

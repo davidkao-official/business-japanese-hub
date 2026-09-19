@@ -114,6 +114,37 @@ describe('my-learning handler', () => {
     expect(database.callsFor('practice_attempts', 'limit')[0]?.args).toEqual([50])
   })
 
+  it('continues a practiced category when its historical question ID is retired', async () => {
+    const database = createMockDb({
+      'auth:getUser': { data: { id: userId } },
+      practice_attempts: { data: [attemptRow] },
+      practice_review_queue: { data: [] },
+      practice_question_availability: { data: [{ ...availabilityRow, question_id: 'question-2' }] },
+    })
+
+    const result = await handleMyLearning(request(), deps(database))
+    const body = JSON.parse(result.body) as { snapshot: { nextAction: { kind: string; item?: { questionId: string; category: string; domain: string; practiceMode: string } } } }
+    const availabilityInCalls = database.callsFor('practice_question_availability', 'in')
+    const availabilityEqCalls = database.callsFor('practice_question_availability', 'eq')
+
+    expect(result.status).toBe(200)
+    expect(body.snapshot.nextAction).toEqual({
+      kind: 'continue-practice',
+      item: expect.objectContaining({
+        questionId: 'question-2',
+        category: attemptRow.category,
+        domain: attemptRow.domain,
+        practiceMode: attemptRow.practice_mode,
+      }),
+    })
+    expect(availabilityInCalls).not.toContainEqual({ table: 'practice_question_availability', method: 'in', args: ['question_id', [attemptRow.question_id]] })
+    expect(availabilityEqCalls).toEqual(expect.arrayContaining([
+      { table: 'practice_question_availability', method: 'eq', args: ['category', attemptRow.category] },
+      { table: 'practice_question_availability', method: 'eq', args: ['domain', attemptRow.domain] },
+      { table: 'practice_question_availability', method: 'eq', args: ['practice_mode', attemptRow.practice_mode] },
+    ]))
+  })
+
   it('fails closed when the evidence read is unavailable', async () => {
     const database = createMockDb({
       'auth:getUser': { data: { id: userId } },
