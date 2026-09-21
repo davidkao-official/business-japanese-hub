@@ -84,6 +84,10 @@
   --space-9: 6rem; /*   96px */
   --section-gap: var(--space-8);
 
+  /* SPI explainer page geometry */
+  --spi-explainer-container-max-width: 68rem;
+  --spi-explainer-content-max-width: 58rem;
+
   /* ---------------------------------------------------------------
    * Landing page — scoped extension points for #79–#81
    * These do not replace the shared Library / Reader geometry above.
