@@ -473,6 +473,15 @@
   line-height: var(--leading-relaxed);
 }
 
+.web-test-hub__explainer-hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.web-test-hub__explainer-hint a {
+  color: var(--color-accent);
+}
+
 .practice-activity-grid {
   display: grid;
   gap: var(--space-4);

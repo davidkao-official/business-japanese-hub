@@ -1,6 +1,10 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
+
+const SPI_EXPLAINER_DESCRIPTION =
+  'SPI 是什麼？給想在日本求職的外國人求職者：說明 SPI 3 與 Web Test 的測驗內容、作答時間與準備方向。'
 
 const SECTIONS = [
   'SPI 3 是什麼？',
@@ -40,8 +44,28 @@ function DavidCallout({ accessibleName, children }: { accessibleName: string; ch
   )
 }
 
+/** Keeps the SPI explainer route description scoped to its mounted route lifetime. */
+function useSpiExplainerDescription(): void {
+  useEffect(() => {
+    const existing = document.querySelector<HTMLMetaElement>('meta[name="description"]')
+    const description = existing ?? document.createElement('meta')
+    const created = existing === null
+    if (created) {
+      description.name = 'description'
+      document.head.append(description)
+    }
+    const previous = description.content
+    description.content = SPI_EXPLAINER_DESCRIPTION
+    return () => {
+      if (created) description.remove()
+      else description.content = previous
+    }
+  }, [])
+}
+
 export function SpiExplainerPage() {
   useDocumentTitle('SPI是什麼？在日本求職前一定要知道的 網路測驗 | Business Japanese Hub')
+  useSpiExplainerDescription()
 
   return (
     <article className="spi-explainer" lang="zh-TW" aria-labelledby="spi-explainer-title">
