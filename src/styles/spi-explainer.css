@@ -1,12 +1,12 @@
 .spi-explainer {
   width: 100%;
-  max-width: 68rem;
+  max-width: var(--spi-explainer-container-max-width);
   margin-inline: auto;
   color: var(--color-text);
 }
 
 .spi-explainer__hero {
-  max-width: 58rem;
+  max-width: var(--spi-explainer-content-max-width);
   padding-block-end: var(--editorial-section-padding);
   border-bottom: var(--stroke-thin) solid var(--color-text);
 }
@@ -82,7 +82,7 @@
   display: grid;
   grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
   gap: var(--space-4);
-  max-width: 58rem;
+  max-width: var(--spi-explainer-content-max-width);
   margin-block: var(--space-6);
   padding: var(--space-4) 0;
   border-block: var(--stroke-thin) solid var(--color-border);
@@ -97,7 +97,7 @@
 
 .spi-explainer__sections {
   display: grid;
-  max-width: 58rem;
+  max-width: var(--spi-explainer-content-max-width);
 }
 
 .spi-explainer__section {
@@ -237,7 +237,7 @@
 }
 
 .spi-explainer__cta {
-  max-width: 58rem;
+  max-width: var(--spi-explainer-content-max-width);
   margin-block: var(--editorial-section-padding);
   padding: var(--space-6);
   background: var(--color-surface-muted);
@@ -249,7 +249,7 @@
 }
 
 .spi-explainer__sources {
-  max-width: 58rem;
+  max-width: var(--spi-explainer-content-max-width);
   padding-top: var(--space-5);
   border-top: var(--stroke-thin) solid var(--color-border);
 }
