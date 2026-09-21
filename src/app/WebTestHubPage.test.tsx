@@ -86,7 +86,12 @@ describe('Web Test discovery and runner-entry routes', () => {
     renderWebTestAt('/practice/web-test')
 
     expect(screen.getByRole('heading', { name: '日本求職網路測驗刷題' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /SPI/ })).toHaveAttribute('href', '/practice/web-test/spi')
+    expect(screen.getByRole('link', { name: '第一次準備 SPI？先看 SPI 是什麼' })).toHaveAttribute(
+      'href',
+      '/practice/web-test/about-spi',
+    )
+    const families = screen.getByRole('region', { name: '選擇測驗類型' })
+    expect(within(families).getByRole('link', { name: /SPI/ })).toHaveAttribute('href', '/practice/web-test/spi')
     expect(screen.queryByText('玉手箱', { selector: '.web-test-hub__family-title' })).not.toBeInTheDocument()
 
     cleanup()

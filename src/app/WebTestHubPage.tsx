@@ -97,6 +97,9 @@ export function WebTestHubPage() {
         <p className="page__lead">
           從 SPI 開始，透過日文題幹與解法練習日本求職選考中常見的閱讀與推理能力。
         </p>
+        <p className="web-test-hub__explainer-hint">
+          <Link to="/practice/web-test/about-spi">第一次準備 SPI？先看 SPI 是什麼</Link>
+        </p>
       </div>
 
       <section className="web-test-hub__families" aria-labelledby="web-test-family-title">
