@@ -21,6 +21,13 @@ const terminalAuthoritySql = readFileSync(
   ),
   'utf8',
 );
+const successorRetireSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922150000_plus_membership_lifecycle_successor_retire.sql',
+  ),
+  'utf8',
+);
 
 describe('#164 membership lifecycle migration', () => {
   it('seeds the approved monthly plans without date-based repricing', () => {
@@ -161,5 +168,37 @@ describe('#164 membership lifecycle terminal authority migration', () => {
       expect(terminalAuthoritySql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
     }
     expect(terminalAuthoritySql).not.toMatch(/\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i);
+  });
+});
+
+describe('#164 membership lifecycle successor retire migration', () => {
+  it('durably retires the superseded stream before a newer stream becomes current', () => {
+    expect(successorRetireSql).toContain('create or replace function public.record_plus_membership_event');
+    expect(successorRetireSql).toContain('retire the superseded stream when a newer start');
+    expect(successorRetireSql).toContain('where source_system = v_state.source_system');
+    expect(successorRetireSql).toContain('and source_customer_id = v_state.source_customer_id');
+    expect(successorRetireSql).toContain('and source_subscription_id = v_state.source_subscription_id');
+    expect(successorRetireSql).toContain('if v_subscription_retired then');
+    expect(successorRetireSql).toContain("return 'replayed'");
+    expect(successorRetireSql).toContain("return 'stale'");
+  });
+
+  it('preserves current-stream terminal authority and the noncurrent-terminal path', () => {
+    expect(successorRetireSql).toContain('insert into public.plus_membership_access as access_row');
+    expect(successorRetireSql).toContain('least(access_row.current_period_end, excluded.current_period_end)');
+    expect(successorRetireSql).toContain('current_period_end = least(current_period_end, v_subscription.terminal_at)');
+    expect(successorRetireSql).toContain('if v_terminal or v_period_end_terminal then');
+    expect(successorRetireSql).toContain('A replaced/noncurrent stream can only retire its own binding');
+    expect(successorRetireSql).not.toContain('drop table public.plus_membership_access');
+  });
+
+  it('does not introduce provider-specific or Book commerce identifiers', () => {
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(successorRetireSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
+    }
+    expect(successorRetireSql).not.toMatch(/\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i);
   });
 });

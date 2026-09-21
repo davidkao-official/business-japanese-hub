@@ -1,6 +1,6 @@
 begin;
 
-select plan(114);
+select plan(122);
 
 select has_table('public', 'plus_membership_plan', 'Plus plans are durable server-owned data');
 select has_table('public', 'plus_membership_event', 'lifecycle events are durable audit data');
@@ -33,7 +33,8 @@ insert into auth.users (id, aud, role) values
   ('50000000-0000-0000-0000-000000000170', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000171', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000172', 'authenticated', 'authenticated'),
-  ('50000000-0000-0000-0000-000000000173', 'authenticated', 'authenticated');
+  ('50000000-0000-0000-0000-000000000173', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000174', 'authenticated', 'authenticated');
 
 select is(public.record_plus_membership_event('source-a','customer-164','subscription-old','start-164','50000000-0000-0000-0000-000000000164','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','started creates active membership');
 select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000164'),'active','started state is active');
@@ -145,6 +146,15 @@ select is(public.record_plus_membership_event('source-a','customer-173','subscri
 select is(public.record_plus_membership_event('source-a','customer-173','subscription-173-old','cancel-173-old','50000000-0000-0000-0000-000000000173','plus_early_access_monthly','membership_canceled','2026-09-06T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z',true),'stale','replaced-stream period-end evidence remains stale');
 select is((select retired_at is not null from public.plus_membership_subscription where source_subscription_id='subscription-173-old'),true,'replaced-stream period-end evidence retires only the old binding');
 select is((select current_period_end from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000173'),'2026-10-05T00:00:00Z'::timestamptz,'replaced-stream period-end evidence cannot clamp current access');
+
+select is(public.record_plus_membership_event('source-a','customer-174','subscription-174-old','start-174-old','50000000-0000-0000-0000-000000000174','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','superseded-stream test starts its first stream');
+select is(public.record_plus_membership_event('source-a','customer-174','subscription-174-new','start-174-new','50000000-0000-0000-0000-000000000174','plus_early_access_monthly','membership_started','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z','2026-10-05T00:00:00Z'),'applied','a newer start selects the replacement stream');
+select is((select retired_at is not null from public.plus_membership_subscription where source_subscription_id='subscription-174-old'),true,'selecting a replacement stream durably retires the superseded binding');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000174'),'subscription-174-new','the replacement stream becomes current');
+select is(public.record_plus_membership_event('source-a','customer-174','subscription-174-old','late-start-174-old','50000000-0000-0000-0000-000000000174','plus_early_access_monthly','membership_started','2026-10-10T00:00:00Z','2026-10-10T00:00:00Z','2026-11-10T00:00:00Z'),'stale','a delayed newer start on the replaced stream cannot become current again');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000174'),'subscription-174-new','the delayed replaced-stream start leaves the selected stream unchanged');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000174'),'active','the delayed replaced-stream start cannot alter current access');
+select is(public.record_plus_membership_event('source-a','customer-174','subscription-174-old','late-pending-174-old','50000000-0000-0000-0000-000000000174','plus_early_access_monthly','membership_pending','2026-10-12T00:00:00Z','2026-10-12T00:00:00Z','2026-11-12T00:00:00Z'),'stale','a delayed pending on the replaced stream stays stale');
 
 delete from auth.users where id='50000000-0000-0000-0000-000000000164';
 select ok((select count(*) from public.plus_membership_event where source_customer_id='customer-164') > 0,'audit evidence survives auth deletion');

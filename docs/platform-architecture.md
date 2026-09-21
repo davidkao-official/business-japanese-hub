@@ -179,9 +179,11 @@ nonempty source identifiers cannot collide through `:` concatenation. A
 stale after the stream is retired and does not correct terminal
 refund/reversal/dispute evidence; a distinct stream is required. Once
 replaced, late events from the old stream remain audit evidence but cannot update
-state or `plus_membership_access`; terminal evidence also retires that old
-binding, so later events on it remain stale and never touch the current stream's
-access. Terminal evidence that is older than the reducer's current ordering is
+state or `plus_membership_access`; selecting the replacement durably retires the
+superseded binding, and terminal evidence retires its own binding, so later
+events on the old stream (including a delayed newer start) remain stale and never
+touch the current stream's access. Terminal evidence that is older than the
+reducer's current ordering is
 still stale for reducer state, but it keeps terminal authority over the current
 stream's projection: an immediate terminal revokes access, and a delayed
 period-end cancellation clamps access at its durable cutoff. A

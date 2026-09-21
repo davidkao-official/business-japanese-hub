@@ -36,12 +36,14 @@ rebind streams.
 
 `plus_membership_event` remains append-only audit evidence. Effective
 cancellation, expiry, revocation, refund, reversal, and dispute retire a
-stream permanently. Late active/renewal/restoration events are retained as
-stale evidence and cannot resurrect it; only a distinct non-retired stream may
-become current. `membership_pending` is an explicit no-access state projected
-to the existing #139 non-member seam; it can become active only through a
-newer event on the same non-retired stream. Ambiguous or stale evidence stays
-unavailable.
+stream permanently, and selecting a replacement stream retires the stream it
+supersedes. Late active/renewal/restoration events are retained as stale
+evidence and cannot resurrect it; only a distinct non-retired stream may
+become current, and later events on a superseded stream (including a delayed
+newer start) stay stale. `membership_pending` is an explicit no-access state
+projected to the existing #139 non-member seam; it can become active only
+through a newer event on the same non-retired stream. Ambiguous or stale
+evidence stays unavailable.
 
 The finance API returns bounded row samples for investigation, but its
 reconciliation/actionable totals come from the exact server-only
