@@ -161,6 +161,28 @@ Architecture 必須保留：
 
 Recurring lifecycle / membership state / access projection 由 #107 定義。舊 one-time Book payment implementation 可以 reuse，但不能推導「每種 learning content 都需要自己的 purchase/entitlement product」。
 
+Issue #164 adds the provider-neutral server lifecycle substrate without changing
+#139's consumer seam. `plus_membership_plan` is the authoritative monthly plan
+catalog (Early Access is TWD 29900 minor units and active; Standard is TWD
+39900 minor units and intentionally inactive). `plus_membership_event` is an
+append-only normalized audit log whose stream identity is the explicit tuple
+`source_system + source_customer_id + source_subscription_id`; it is not an
+arbitrary provider/source bucket. `plus_membership_state` is the deterministic
+current-stream reducer state per user. The service-role-only
+`record_plus_membership_event` writer deduplicates source event IDs and verifies
+the full stream identity,
+serializes each user, orders events within a stream by `(occurred_at, event_id)`,
+and permits only a newer start event to select a replacement stream. A
+`membership_restored` event is the explicit correction for a refund/reversal/
+dispute revocation. Once
+replaced, late events from the old stream remain audit evidence but cannot update
+state or `plus_membership_access`. A `membership_canceled` event with
+`cancel_at_period_end = true` remains `active` until a separate effective-end /
+expiry event; immediate cancellation is `canceled`, and no grace period is
+invented. The lifecycle vocabulary has no `pending` state. It does not implement
+a provider, checkout, webhook, dunning, reconciliation, annual billing, legal
+activation, or Book commerce.
+
 ## 11. Delivery boundary
 
 Current delivery priority 是 **Plus Early Access preparation**：
