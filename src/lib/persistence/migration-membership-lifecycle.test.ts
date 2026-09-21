@@ -70,6 +70,13 @@ const elapsedScheduledTerminalSql = readFileSync(
   ),
   'utf8',
 );
+const pendingSuccessionPrecedenceSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922220000_plus_membership_lifecycle_pending_succession_precedence.sql',
+  ),
+  'utf8',
+);
 const lifecyclePgTapSql = readFileSync(
   join(process.cwd(), 'supabase/tests/plus_membership_lifecycle.test.sql'),
   'utf8',
@@ -903,8 +910,72 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
     );
   });
 
+  it('repairs live pending succession and same-stream confirmation precedence', () => {
+    // A newer membership_pending on a distinct stream may not supersede a live
+    // pending current stream; only a confirmed membership_started may.
+    expect(pendingSuccessionPrecedenceSql).toContain(
+      'or (v_membership_status = \'pending\'\n             and v_state.membership_status = \'pending\'\n             and not v_current_stream_retired)',
+    );
+    expect(pendingSuccessionPrecedenceSql).toContain(
+      "or p_event_type not in ('membership_started', 'membership_pending') then",
+    );
+    // A same-timestamp confirmed start wins the tie against a live pending
+    // state without consulting the source event id.
+    expect(pendingSuccessionPrecedenceSql).toContain(
+      'and not (v_event.occurred_at = v_state.last_event_occurred_at\n                  and p_event_type = \'membership_started\'\n                  and v_state.membership_status = \'pending\') then',
+    );
+    // The pending state still cannot regress an active/past_due stream.
+    expect(pendingSuccessionPrecedenceSql).toContain(
+      "(v_state.membership_status in ('active', 'past_due') and v_membership_status = 'pending')",
+    );
+    // Retired bindings still reject before reducer state is read, so a pending
+    // state can never resurrect a retired stream.
+    const retiredReturn = pendingSuccessionPrecedenceSql.indexOf('if v_subscription_retired then');
+    const stateRead = pendingSuccessionPrecedenceSql.indexOf(
+      'select * into v_state from public.plus_membership_state',
+    );
+    expect(retiredReturn).toBeGreaterThan(-1);
+    expect(stateRead).toBeGreaterThan(-1);
+    expect(retiredReturn).toBeLessThan(stateRead);
+  });
+
+  it('keeps the pending-succession migration server-only, provider-neutral and lock-ordered', () => {
+    const userLock = pendingSuccessionPrecedenceSql.indexOf(
+      'hashtextextended(p_user_id::text, 164)',
+    );
+    const streamLock = pendingSuccessionPrecedenceSql.indexOf(
+      "p_source_system || ':' || p_source_customer_id || ':' || p_source_subscription_id, 164",
+    );
+    const firstSubscriptionLock = pendingSuccessionPrecedenceSql.indexOf(
+      'from public.plus_membership_subscription',
+    );
+    expect(userLock).toBeGreaterThan(-1);
+    expect(streamLock).toBeGreaterThan(-1);
+    expect(firstSubscriptionLock).toBeGreaterThan(-1);
+    expect(userLock).toBeLessThan(streamLock);
+    expect(streamLock).toBeLessThan(firstSubscriptionLock);
+    expect(pendingSuccessionPrecedenceSql).toContain(
+      'revoke all on function public.record_plus_membership_event',
+    );
+    expect(pendingSuccessionPrecedenceSql).toContain(
+      'grant execute on function public.record_plus_membership_event',
+    );
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(pendingSuccessionPrecedenceSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
+    }
+    expect(pendingSuccessionPrecedenceSql).not.toMatch(
+      /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
+    );
+  });
+
   it('adds pgTAP user cases with a corrected plan count', () => {
     expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000184');
+    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000185');
+    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000186');
+    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000187');
     expect(lifecyclePgTapSql).toContain(
       '#164 P1 elapsed scheduled terminal rejects a pre-cutoff successor delivered after the cutoff',
     );
@@ -914,6 +985,15 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
     expect(lifecyclePgTapSql).toContain(
       '#164 P1 elapsed scheduled terminal cannot resurrect the elapsed stream',
     );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 P1 newer pending B cannot supersede a live pending stream A',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 P1 same-timestamp confirmed start applies even with a lower source event id',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 P1 reverse delivery keeps the active confirmation',
+    );
     // The declared plan must count every TAP assertion in the file exactly.
     const declaredPlan = lifecyclePgTapSql.match(/select plan\((\d+)\)/);
     expect(declaredPlan).not.toBeNull();
@@ -922,6 +1002,6 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(226);
+    expect(Number(declaredPlan![1])).toBe(245);
   });
 });

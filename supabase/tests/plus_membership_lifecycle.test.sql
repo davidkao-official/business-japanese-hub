@@ -1,6 +1,6 @@
 begin;
 
-select plan(226);
+select plan(245);
 
 select has_table('public', 'plus_membership_plan', 'Plus plans are durable server-owned data');
 select has_table('public', 'plus_membership_event', 'lifecycle events are durable audit data');
@@ -44,7 +44,10 @@ insert into auth.users (id, aud, role) values
   ('50000000-0000-0000-0000-000000000181', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000182', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000183', 'authenticated', 'authenticated'),
-  ('50000000-0000-0000-0000-000000000184', 'authenticated', 'authenticated');
+  ('50000000-0000-0000-0000-000000000184', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000185', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000186', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000187', 'authenticated', 'authenticated');
 
 select is(public.record_plus_membership_event('source-a','customer-164','subscription-old','start-164','50000000-0000-0000-0000-000000000164','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','started creates active membership');
 select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000164'),'active','started state is active');
@@ -281,6 +284,28 @@ select is((select source_subscription_id from public.plus_membership_state where
 select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000184'),'active','#164 P1 elapsed scheduled terminal grants active access to the post-cutoff successor');
 select is(public.record_plus_membership_event('source-a','customer-184','subscription-184-a','renew-184-a-late','50000000-0000-0000-0000-000000000184','plus_early_access_monthly','membership_renewed',now() - interval '3 days',now() - interval '20 days',now() + interval '10 days'),'stale','#164 P1 elapsed scheduled terminal cannot resurrect the elapsed stream');
 select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000184'),'subscription-184-c','#164 P1 elapsed scheduled terminal keeps the post-cutoff successor after a late elapsed-stream event');
+
+select is(public.record_plus_membership_event('source-a','customer-185','subscription-185-a','pending-185-a','50000000-0000-0000-0000-000000000185','plus_early_access_monthly','membership_pending','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','#164 P1 live pending stream A becomes current');
+select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000185'),'pending','#164 P1 live pending stream A is pending');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000185'),'pending','#164 P1 live pending stream A projects pending');
+select is(public.record_plus_membership_event('source-a','customer-185','subscription-185-b','pending-185-b','50000000-0000-0000-0000-000000000185','plus_early_access_monthly','membership_pending','2026-09-05T00:00:00Z','2026-09-05T00:00:00Z','2026-10-05T00:00:00Z'),'stale','#164 P1 newer pending B cannot supersede a live pending stream A');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000185'),'subscription-185-a','#164 P1 rejected pending B leaves stream A current');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000185'),'pending','#164 P1 rejected pending B cannot change stream A pending access');
+select is((select retired_at is null from public.plus_membership_subscription where source_subscription_id='subscription-185-a'),true,'#164 P1 rejected pending B cannot retire the live stream A binding');
+select is(public.record_plus_membership_event('source-a','customer-185','subscription-185-a','start-185-a','50000000-0000-0000-0000-000000000185','plus_early_access_monthly','membership_started','2026-09-06T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','#164 P1 confirmed start on stream A applies after rejected pending B');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000185'),'subscription-185-a','#164 P1 confirmed start keeps stream A current');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000185'),'active','#164 P1 confirmed start grants active access on stream A');
+
+select is(public.record_plus_membership_event('source-a','customer-186','subscription-186-a','evt-186-zz','50000000-0000-0000-0000-000000000186','plus_early_access_monthly','membership_pending','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','#164 P1 same-timestamp pending with the higher event id becomes current');
+select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000186'),'pending','#164 P1 same-timestamp pending state is durable');
+select is(public.record_plus_membership_event('source-a','customer-186','subscription-186-a','evt-186-aa','50000000-0000-0000-0000-000000000186','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','#164 P1 same-timestamp confirmed start applies even with a lower source event id');
+select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000186'),'active','#164 P1 same-timestamp confirmed start makes the state active');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000186'),'active','#164 P1 same-timestamp confirmed start grants active access');
+
+select is(public.record_plus_membership_event('source-a','customer-187','subscription-187-a','evt-187-aa','50000000-0000-0000-0000-000000000187','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','#164 P1 reverse delivery starts active on the same timestamp');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000187'),'active','#164 P1 reverse delivery projects active access');
+select is(public.record_plus_membership_event('source-a','customer-187','subscription-187-a','evt-187-zz','50000000-0000-0000-0000-000000000187','plus_early_access_monthly','membership_pending','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'stale','#164 P1 reverse delivery pending stays stale despite a higher source event id');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000187'),'active','#164 P1 reverse delivery keeps the active confirmation');
 
 delete from auth.users where id='50000000-0000-0000-0000-000000000164';
 select ok((select count(*) from public.plus_membership_event where source_customer_id='customer-164') > 0,'audit evidence survives auth deletion');
