@@ -89,13 +89,14 @@ export function SpiExplainerPage() {
               <caption>SPI 3 作答時間參考</caption>
               <thead><tr><th scope="col">項目</th><th scope="col">說明</th></tr></thead>
               <tbody>
-                <tr><th scope="row">公開資料概略時間</th><td>約 30–40 分鐘</td></tr>
-                <tr><th scope="row">實際應考時間</th><td>依實施方式與個別企業指示而異；請以企業通知為準。</td></tr>
+                <tr><th scope="row">性格検査</th><td>約 30–40 分鐘</td></tr>
+                <tr><th scope="row">能力検査</th><td>約 35–70 分鐘</td></tr>
+                <tr><th scope="row">實際應考時間</th><td>兩者皆依實施方式而異；實際時間請以企業通知為準。</td></tr>
                 <tr><th scope="row">編輯說明</th><td>這是來源提供的概略資訊，不代表所有測驗使用相同時間或題數。</td></tr>
               </tbody>
             </table>
           </div>
-          <p className="spi-explainer__source">來源：Recruit Management Solutions，SPI 3 服務介紹。公開概略時間為「30 分鐘至 40 分鐘」，並註明依實施方式而異。</p>
+          <p className="spi-explainer__source">來源：Recruit Management Solutions，SPI 3 服務介紹。性格検査約 30–40 分鐘、能力検査約 35–70 分鐘；時間依實施方式而異。</p>
         </Section>
 
         <Section title={SECTIONS[5]}>
