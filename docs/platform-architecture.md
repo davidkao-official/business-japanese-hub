@@ -172,15 +172,22 @@ current-stream reducer state per user. The service-role-only
 `record_plus_membership_event` writer deduplicates source event IDs and verifies
 the full stream identity,
 serializes each user, orders events within a stream by `(occurred_at, event_id)`,
-and permits only a newer start event to select a replacement stream. A
+and permits only a newer start event to select a replacement stream. Each
+durable `event_id` is derived from length-prefixed segments, so arbitrary
+nonempty source identifiers cannot collide through `:` concatenation. A
 `membership_restored` event is retained as append-only audit evidence, but is
 stale after the stream is retired and does not correct terminal
 refund/reversal/dispute evidence; a distinct stream is required. Once
 replaced, late events from the old stream remain audit evidence but cannot update
 state or `plus_membership_access`; terminal evidence also retires that old
-binding, so later events on it remain stale. A `membership_canceled` event with
-`cancel_at_period_end = true` records an irreversible terminal cutoff at the
-effective `current_period_end`: the projection remains `active` and usable
+binding, so later events on it remain stale and never touch the current stream's
+access. Terminal evidence that is older than the reducer's current ordering is
+still stale for reducer state, but it keeps terminal authority over the current
+stream's projection: an immediate terminal revokes access, and a delayed
+period-end cancellation clamps access at its durable cutoff. A
+`membership_canceled` event with `cancel_at_period_end = true` records an
+irreversible terminal cutoff at the effective `current_period_end`: the
+projection remains `active` and usable
 before that instant, but the same stream cannot start, renew, reactivate, restore,
 or become `pending` at or after it. No separate `membership_expired` event is
 required to enforce the cutoff, and no generic grace period is invented.

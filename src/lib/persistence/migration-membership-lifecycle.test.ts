@@ -14,6 +14,13 @@ const finalRepairSql = readFileSync(
   join(process.cwd(), 'supabase/migrations/20260922130000_plus_membership_lifecycle_access_clamp.sql'),
   'utf8',
 );
+const terminalAuthoritySql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922140000_plus_membership_lifecycle_terminal_authority.sql',
+  ),
+  'utf8',
+);
 
 describe('#164 membership lifecycle migration', () => {
   it('seeds the approved monthly plans without date-based repricing', () => {
@@ -119,5 +126,40 @@ describe('#164 membership lifecycle access clamp migration', () => {
     expect(finalRepairSql).toContain("return 'stale'");
     expect(finalRepairSql).toContain('insert into public.plus_membership_access');
     expect(finalRepairSql).not.toContain('drop table public.plus_membership_access');
+  });
+});
+
+describe('#164 membership lifecycle terminal authority migration', () => {
+  it('enforces terminal authority for ordering-stale same-stream evidence before returning stale', () => {
+    expect(terminalAuthoritySql).toContain('create or replace function public.record_plus_membership_event');
+    expect(terminalAuthoritySql).toContain('on conflict (source_system, source_event_id) do nothing');
+    expect(terminalAuthoritySql).toContain('insert into public.plus_membership_access as access_row');
+    expect(terminalAuthoritySql).toContain('least(access_row.current_period_end, excluded.current_period_end)');
+    expect(terminalAuthoritySql).toContain(
+      'current_period_end = least(current_period_end, v_subscription.terminal_at)',
+    );
+    expect(terminalAuthoritySql).toContain('if v_terminal or v_period_end_terminal then');
+    expect(terminalAuthoritySql).toContain('A replaced/noncurrent stream can only retire its own binding');
+    expect(terminalAuthoritySql).toContain("return 'replayed'");
+    expect(terminalAuthoritySql).toContain("return 'stale'");
+    expect(terminalAuthoritySql).not.toContain('drop table public.plus_membership_access');
+  });
+
+  it('derives unambiguous audit event ids for arbitrary nonempty identifiers', () => {
+    expect(terminalAuthoritySql).toContain('length(p_source_system)::text');
+    expect(terminalAuthoritySql).toContain('length(p_source_customer_id)::text');
+    expect(terminalAuthoritySql).toContain('length(p_source_subscription_id)::text');
+    expect(terminalAuthoritySql).toContain('length(p_source_event_id)::text');
+    expect(terminalAuthoritySql).not.toContain("|| p_source_system || ':' || p_source_customer_id");
+  });
+
+  it('does not introduce provider-specific or Book commerce identifiers', () => {
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(terminalAuthoritySql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
+    }
+    expect(terminalAuthoritySql).not.toMatch(/\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i);
   });
 });
