@@ -24,6 +24,24 @@
 | `platform_tax_config` | 0003 | Japan consumption-tax status boundary (#25). Seeded `('japan_consumption_tax_status','unresolved')` — fail-closed: never apply 10% tax / claim tax-inclusive pricing until explicitly `taxable` or `exempt`. | Server-only (clients must not override). |
 | `order_email_outbox` | 20260820100000 | Durable order-confirmation delivery. First fulfillment enqueues one `order-confirmation-v1` row; the worker owns `pending → processing → sent/retry/dead`. | Server-only; no client policy or privilege. |
 | `scheduled_job_health` | 20260822171000 | Run-token-fenced repair/reconcile/email heartbeat state used by paid-launch readiness. | Server-only. |
+| `plus_membership_subscription` | 20260922110000 | Canonical provider-neutral source-stream binding (`source_system + customer + subscription → user_id`) and permanent terminal retirement evidence for recurring Plus lifecycle. | Server-only; bind-once and lifecycle writes occur only through the service-role reducer. |
+
+## Plus membership lifecycle repair (#164)
+
+`plus_membership_subscription` is the durable authority for source identity. The
+first accepted event binds a stream to its user; later calls resolve that stored
+binding and reject a claimed-user mismatch before writing lifecycle evidence,
+state, or the `plus_membership_access` projection. Browser roles cannot bind or
+rebind streams.
+
+`plus_membership_event` remains append-only audit evidence. Effective
+cancellation, expiry, revocation, refund, reversal, and dispute retire a
+stream permanently. Late active/renewal/restoration events are retained as
+stale evidence and cannot resurrect it; only a distinct non-retired stream may
+become current. `membership_pending` is an explicit no-access state projected
+to the existing #139 non-member seam; it can become active only through a
+newer event on the same non-retired stream. Ambiguous or stale evidence stays
+unavailable.
 
 The finance API returns bounded row samples for investigation, but its
 reconciliation/actionable totals come from the exact server-only
