@@ -1,6 +1,6 @@
 begin;
 
-select plan(245);
+select plan(253);
 
 select has_table('public', 'plus_membership_plan', 'Plus plans are durable server-owned data');
 select has_table('public', 'plus_membership_event', 'lifecycle events are durable audit data');
@@ -47,7 +47,8 @@ insert into auth.users (id, aud, role) values
   ('50000000-0000-0000-0000-000000000184', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000185', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000186', 'authenticated', 'authenticated'),
-  ('50000000-0000-0000-0000-000000000187', 'authenticated', 'authenticated');
+  ('50000000-0000-0000-0000-000000000187', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000188', 'authenticated', 'authenticated');
 
 select is(public.record_plus_membership_event('source-a','customer-164','subscription-old','start-164','50000000-0000-0000-0000-000000000164','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','started creates active membership');
 select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000164'),'active','started state is active');
@@ -306,6 +307,15 @@ select is(public.record_plus_membership_event('source-a','customer-187','subscri
 select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000187'),'active','#164 P1 reverse delivery projects active access');
 select is(public.record_plus_membership_event('source-a','customer-187','subscription-187-a','evt-187-zz','50000000-0000-0000-0000-000000000187','plus_early_access_monthly','membership_pending','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'stale','#164 P1 reverse delivery pending stays stale despite a higher source event id');
 select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000187'),'active','#164 P1 reverse delivery keeps the active confirmation');
+
+select is(public.record_plus_membership_event('source-a','customer-188','subscription-188-a','evt-188-zz','50000000-0000-0000-0000-000000000188','plus_early_access_monthly','membership_pending','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','#164 P1 confirmation watermark records the same-timestamp pending zzz');
+select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000188'),'pending','#164 P1 confirmation watermark pending zzz is durable');
+select is(public.record_plus_membership_event('source-a','customer-188','subscription-188-a','evt-188-aa','50000000-0000-0000-0000-000000000188','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','#164 P1 confirmation watermark started aaa wins the same-timestamp tie');
+select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000188'),'active','#164 P1 confirmation watermark semantic state becomes active');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000188'),'active','#164 P1 confirmation watermark grants active access');
+select is((select last_event_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000188'),(select event_id from public.plus_membership_event where source_system='source-a' and source_event_id='evt-188-zz'),'#164 P1 confirmation watermark keeps the recorded pending event id');
+select is(public.record_plus_membership_event('source-a','customer-188','subscription-188-a','evt-188-mm','50000000-0000-0000-0000-000000000188','plus_early_access_monthly','membership_payment_failed','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'stale','#164 P1 same-timestamp payment failure below the watermark stays stale');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000188'),'active','#164 P1 stale payment failure cannot revoke active access');
 
 delete from auth.users where id='50000000-0000-0000-0000-000000000164';
 select ok((select count(*) from public.plus_membership_event where source_customer_id='customer-164') > 0,'audit evidence survives auth deletion');

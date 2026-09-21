@@ -77,6 +77,13 @@ const pendingSuccessionPrecedenceSql = readFileSync(
   ),
   'utf8',
 );
+const pendingConfirmationWatermarkSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922230000_plus_membership_lifecycle_pending_confirmation_watermark.sql',
+  ),
+  'utf8',
+);
 const lifecyclePgTapSql = readFileSync(
   join(process.cwd(), 'supabase/tests/plus_membership_lifecycle.test.sql'),
   'utf8',
@@ -1002,6 +1009,93 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(245);
+    expect(Number(declaredPlan![1])).toBe(253);
+  });
+});
+
+describe('#164 membership lifecycle pending confirmation watermark migration', () => {
+  it('keeps the recorded ordering watermark monotonic when a confirmation wins the same-timestamp tie', () => {
+    // The confirmation still takes semantic precedence over a live pending
+    // state at the same occurred_at, regardless of source event id.
+    expect(pendingConfirmationWatermarkSql).toContain(
+      'and not (v_event.occurred_at = v_state.last_event_occurred_at\n                  and p_event_type = \'membership_started\'\n                  and v_state.membership_status = \'pending\') then',
+    );
+    // Ordinary chronological ordering still uses the strict event-key compare.
+    expect(pendingConfirmationWatermarkSql).toContain(
+      '(v_event.occurred_at, v_event.event_id) <= (v_state.last_event_occurred_at, v_state.last_event_id)',
+    );
+    // The confirmation is detected and cannot reduce the recorded watermark.
+    expect(pendingConfirmationWatermarkSql).toContain(
+      'v_confirmation_tie := v_event.occurred_at = v_state.last_event_occurred_at',
+    );
+    expect(pendingConfirmationWatermarkSql).toContain(
+      'if v_confirmation_tie\n         and (v_state.last_event_occurred_at, v_state.last_event_id)\n             > (v_watermark_occurred_at, v_watermark_event_id) then',
+    );
+    expect(pendingConfirmationWatermarkSql).toContain(
+      'v_watermark_occurred_at := v_state.last_event_occurred_at;',
+    );
+    expect(pendingConfirmationWatermarkSql).toContain(
+      'v_watermark_event_id := v_state.last_event_id;',
+    );
+    // The state write uses the preserved watermark rather than the raw event key.
+    expect(pendingConfirmationWatermarkSql).toContain(
+      'last_event_occurred_at = v_watermark_occurred_at,',
+    );
+    expect(pendingConfirmationWatermarkSql).toContain(
+      'last_event_id = v_watermark_event_id, updated_at = now();',
+    );
+    expect(pendingConfirmationWatermarkSql).not.toContain(
+      'last_event_occurred_at = excluded.last_event_occurred_at,',
+    );
+  });
+
+  it('keeps the pending-confirmation migration server-only, provider-neutral and lock-ordered', () => {
+    const userLock = pendingConfirmationWatermarkSql.indexOf(
+      'hashtextextended(p_user_id::text, 164)',
+    );
+    const streamLock = pendingConfirmationWatermarkSql.indexOf(
+      "p_source_system || ':' || p_source_customer_id || ':' || p_source_subscription_id, 164",
+    );
+    const firstSubscriptionLock = pendingConfirmationWatermarkSql.indexOf(
+      'from public.plus_membership_subscription',
+    );
+    expect(userLock).toBeGreaterThan(-1);
+    expect(streamLock).toBeGreaterThan(-1);
+    expect(firstSubscriptionLock).toBeGreaterThan(-1);
+    expect(userLock).toBeLessThan(streamLock);
+    expect(streamLock).toBeLessThan(firstSubscriptionLock);
+    expect(pendingConfirmationWatermarkSql).toContain(
+      'revoke all on function public.record_plus_membership_event',
+    );
+    expect(pendingConfirmationWatermarkSql).toContain(
+      'grant execute on function public.record_plus_membership_event',
+    );
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(pendingConfirmationWatermarkSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
+    }
+    expect(pendingConfirmationWatermarkSql).not.toMatch(
+      /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
+    );
+  });
+
+  it('adds pgTAP cases for the monotonic confirmation watermark with a corrected plan count', () => {
+    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000188');
+    expect(lifecyclePgTapSql).toContain(
+      '#164 P1 confirmation watermark keeps the recorded pending event id',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 P1 same-timestamp payment failure below the watermark stays stale',
+    );
+    const declaredPlan = lifecyclePgTapSql.match(/select plan\((\d+)\)/);
+    expect(declaredPlan).not.toBeNull();
+    const pgTapAssertions = lifecyclePgTapSql.match(
+      /^select (?:is|ok|isnt|has_table|has_table_privilege|has_function_privilege|throws_ok|col_is_null|lives_ok|matches)\(/gm,
+    );
+    expect(pgTapAssertions).not.toBeNull();
+    expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
+    expect(Number(declaredPlan![1])).toBe(253);
   });
 });
