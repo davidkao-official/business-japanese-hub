@@ -42,6 +42,20 @@ const terminalSuccessorSelectionSql = readFileSync(
   ),
   'utf8',
 );
+const terminalEvidenceOrderSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922180000_plus_membership_lifecycle_terminal_evidence_order.sql',
+  ),
+  'utf8',
+);
+const scheduledTerminalBarrierSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922190000_plus_membership_lifecycle_scheduled_terminal_barrier.sql',
+  ),
+  'utf8',
+);
 
 describe('#164 membership lifecycle migration', () => {
   it('seeds the approved monthly plans without date-based repricing', () => {
@@ -384,6 +398,198 @@ describe('#164 membership lifecycle terminal successor selection migration', () 
       expect(terminalSuccessorSelectionSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
     }
     expect(terminalSuccessorSelectionSql).not.toMatch(
+      /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
+    );
+  });
+});
+
+describe('#164 membership lifecycle terminal evidence order migration', () => {
+  it('orders a cross-stream successor against durable terminal evidence instead of bypassing ordering', () => {
+    expect(terminalEvidenceOrderSql).toContain(
+      'create or replace function public.record_plus_membership_event',
+    );
+    expect(terminalEvidenceOrderSql).toContain('v_current_stream_retired boolean := false');
+    expect(terminalEvidenceOrderSql).toContain('v_ordering_barrier_occurred_at timestamptz');
+    expect(terminalEvidenceOrderSql).toContain('v_ordering_barrier_event_id text');
+    // A retired current binding is resolved from durable subscription rows.
+    expect(terminalEvidenceOrderSql).toContain('select current_stream.retired_at is not null');
+    expect(terminalEvidenceOrderSql).toContain(
+      'from public.plus_membership_subscription current_stream',
+    );
+    // The barrier is the stream's earliest terminal evidence, not the reducer clock.
+    expect(terminalEvidenceOrderSql).toContain('v_ordering_barrier_occurred_at := v_state.last_event_occurred_at');
+    expect(terminalEvidenceOrderSql).toContain('if v_current_stream_retired then');
+    expect(terminalEvidenceOrderSql).toContain(
+      'from public.plus_membership_event terminal_event',
+    );
+    expect(terminalEvidenceOrderSql).toContain(
+      'and terminal_event.source_subscription_id = v_state.source_subscription_id',
+    );
+    expect(terminalEvidenceOrderSql).toContain(
+      "or (terminal_event.event_type = 'membership_canceled'",
+    );
+    expect(terminalEvidenceOrderSql).toContain(
+      'order by terminal_event.occurred_at, terminal_event.event_id',
+    );
+    // Deterministic tie ordering is preserved by comparing (occurred_at, event_id).
+    expect(terminalEvidenceOrderSql).toContain(
+      '(v_event.occurred_at, v_event.event_id) <= (v_ordering_barrier_occurred_at, v_ordering_barrier_event_id)',
+    );
+    // The unconditional ordering bypass from the previous migration is gone.
+    expect(terminalEvidenceOrderSql).not.toContain('and not v_current_stream_retired)');
+  });
+
+  it('lets a newer confirmed start supersede pending without letting pending replace active', () => {
+    expect(terminalEvidenceOrderSql).toContain(
+      "(v_state.membership_status in ('active', 'past_due') and v_membership_status = 'pending')",
+    );
+    // A distinct newer membership_started may take over a pending current stream.
+    expect(terminalEvidenceOrderSql).not.toContain(
+      "or (v_state.membership_status = 'pending' and v_membership_status = 'active')",
+    );
+    expect(terminalEvidenceOrderSql).toContain(
+      "or p_event_type not in ('membership_started', 'membership_pending') then",
+    );
+  });
+
+  it('still retires the superseded stream and cannot resurrect a retired stream', () => {
+    expect(terminalEvidenceOrderSql).toContain(
+      'and source_subscription_id = v_state.source_subscription_id',
+    );
+    expect(terminalEvidenceOrderSql).toContain('set retired_at = coalesce(retired_at, now()),');
+    const retiredReturn = terminalEvidenceOrderSql.indexOf('if v_subscription_retired then');
+    const stateRead = terminalEvidenceOrderSql.indexOf(
+      'select * into v_state from public.plus_membership_state',
+    );
+    expect(retiredReturn).toBeGreaterThan(-1);
+    expect(stateRead).toBeGreaterThan(-1);
+    expect(retiredReturn).toBeLessThan(stateRead);
+  });
+
+  it('keeps the lock order and server-only execution boundary', () => {
+    const userLock = terminalEvidenceOrderSql.indexOf('hashtextextended(p_user_id::text, 164)');
+    const streamLock = terminalEvidenceOrderSql.indexOf(
+      "p_source_system || ':' || p_source_customer_id || ':' || p_source_subscription_id, 164",
+    );
+    const firstSubscriptionLock = terminalEvidenceOrderSql.indexOf(
+      'from public.plus_membership_subscription',
+    );
+    expect(userLock).toBeGreaterThan(-1);
+    expect(streamLock).toBeGreaterThan(-1);
+    expect(firstSubscriptionLock).toBeGreaterThan(-1);
+    expect(userLock).toBeLessThan(streamLock);
+    expect(streamLock).toBeLessThan(firstSubscriptionLock);
+    expect(terminalEvidenceOrderSql).not.toContain(
+      'hashtextextended(v_subscription.user_id::text, 164)',
+    );
+    expect(terminalEvidenceOrderSql).toContain(
+      'revoke all on function public.record_plus_membership_event',
+    );
+    expect(terminalEvidenceOrderSql).toContain(
+      'grant execute on function public.record_plus_membership_event',
+    );
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(terminalEvidenceOrderSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
+    }
+    expect(terminalEvidenceOrderSql).not.toMatch(
+      /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
+    );
+  });
+});
+
+describe('#164 membership lifecycle scheduled terminal barrier migration', () => {
+  it('orders a cross-stream successor against the durable scheduled terminal authority', () => {
+    expect(scheduledTerminalBarrierSql).toContain(
+      'create or replace function public.record_plus_membership_event',
+    );
+    // The writer reads the retired binding's durable scheduled authority.
+    expect(scheduledTerminalBarrierSql).toContain('current_stream.terminal_at,');
+    expect(scheduledTerminalBarrierSql).toContain('current_stream.terminal_event_id');
+    expect(scheduledTerminalBarrierSql).toContain('v_current_stream_terminal_at timestamptz');
+    expect(scheduledTerminalBarrierSql).toContain('v_current_stream_terminal_event_id text');
+    expect(scheduledTerminalBarrierSql).toContain(
+      'if v_current_stream_retired and v_current_stream_terminal_at is not null then',
+    );
+    // terminal_at, not the reducer clock, is the barrier once it exists.
+    expect(scheduledTerminalBarrierSql).toContain(
+      'v_ordering_barrier_occurred_at := v_current_stream_terminal_at;',
+    );
+    // The terminal event identity is the deterministic exact-tie breaker.
+    expect(scheduledTerminalBarrierSql).toContain(
+      'v_ordering_barrier_event_id := v_current_stream_terminal_event_id;',
+    );
+    expect(scheduledTerminalBarrierSql).toContain(
+      '(v_event.occurred_at, v_event.event_id) <= (v_ordering_barrier_occurred_at, v_ordering_barrier_event_id)',
+    );
+    // The unconditional ordering bypass from 20260922170000 is gone.
+    expect(scheduledTerminalBarrierSql).not.toContain('and not v_current_stream_retired)');
+  });
+
+  it('preserves immediate-terminal evidence ordering and non-retired reducer ordering', () => {
+    // A retired stream without a scheduled cutoff keeps the earliest-event barrier.
+    expect(scheduledTerminalBarrierSql).toContain('elsif v_current_stream_retired then');
+    expect(scheduledTerminalBarrierSql).toContain(
+      'from public.plus_membership_event terminal_event',
+    );
+    expect(scheduledTerminalBarrierSql).toContain(
+      'order by terminal_event.occurred_at, terminal_event.event_id',
+    );
+    expect(scheduledTerminalBarrierSql).toContain(
+      "or (terminal_event.event_type = 'membership_canceled'",
+    );
+    // A non-retired current stream still uses its reducer clock as the barrier.
+    expect(scheduledTerminalBarrierSql).toContain(
+      'v_ordering_barrier_occurred_at := v_state.last_event_occurred_at;',
+    );
+    expect(scheduledTerminalBarrierSql).toContain(
+      'v_ordering_barrier_event_id := v_state.last_event_id;',
+    );
+    // Successor retirement and the retired-stream rejection are unchanged.
+    expect(scheduledTerminalBarrierSql).toContain('set retired_at = coalesce(retired_at, now()),');
+    expect(scheduledTerminalBarrierSql).toContain(
+      'and source_subscription_id = v_state.source_subscription_id',
+    );
+    const retiredReturn = scheduledTerminalBarrierSql.indexOf('if v_subscription_retired then');
+    const stateRead = scheduledTerminalBarrierSql.indexOf(
+      'select * into v_state from public.plus_membership_state',
+    );
+    expect(retiredReturn).toBeGreaterThan(-1);
+    expect(stateRead).toBeGreaterThan(-1);
+    expect(retiredReturn).toBeLessThan(stateRead);
+  });
+
+  it('keeps the lock order and server-only execution boundary', () => {
+    const userLock = scheduledTerminalBarrierSql.indexOf('hashtextextended(p_user_id::text, 164)');
+    const streamLock = scheduledTerminalBarrierSql.indexOf(
+      "p_source_system || ':' || p_source_customer_id || ':' || p_source_subscription_id, 164",
+    );
+    const firstSubscriptionLock = scheduledTerminalBarrierSql.indexOf(
+      'from public.plus_membership_subscription',
+    );
+    expect(userLock).toBeGreaterThan(-1);
+    expect(streamLock).toBeGreaterThan(-1);
+    expect(firstSubscriptionLock).toBeGreaterThan(-1);
+    expect(userLock).toBeLessThan(streamLock);
+    expect(streamLock).toBeLessThan(firstSubscriptionLock);
+    expect(scheduledTerminalBarrierSql).not.toContain(
+      'hashtextextended(v_subscription.user_id::text, 164)',
+    );
+    expect(scheduledTerminalBarrierSql).toContain(
+      'revoke all on function public.record_plus_membership_event',
+    );
+    expect(scheduledTerminalBarrierSql).toContain(
+      'grant execute on function public.record_plus_membership_event',
+    );
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(scheduledTerminalBarrierSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
+    }
+    expect(scheduledTerminalBarrierSql).not.toMatch(
       /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
     );
   });
