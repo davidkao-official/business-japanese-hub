@@ -35,6 +35,13 @@ const successorRetireLockOrderSql = readFileSync(
   ),
   'utf8',
 );
+const terminalSuccessorSelectionSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922170000_plus_membership_lifecycle_terminal_successor_selection.sql',
+  ),
+  'utf8',
+);
 
 describe('#164 membership lifecycle migration', () => {
   it('seeds the approved monthly plans without date-based repricing', () => {
@@ -271,6 +278,112 @@ describe('#164 membership lifecycle successor retire lock order migration', () =
       expect(successorRetireLockOrderSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
     }
     expect(successorRetireLockOrderSql).not.toMatch(
+      /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
+    );
+  });
+});
+
+describe('#164 membership lifecycle terminal successor selection migration', () => {
+  it('lets a fresh start become current once the current stream is terminal', () => {
+    expect(terminalSuccessorSelectionSql).toContain(
+      'create or replace function public.record_plus_membership_event',
+    );
+    expect(terminalSuccessorSelectionSql).toContain('v_current_stream_retired boolean := false');
+    expect(terminalSuccessorSelectionSql).toContain('v_current_stream_retired := exists (');
+    expect(terminalSuccessorSelectionSql).toContain(
+      'from public.plus_membership_subscription current_stream',
+    );
+    expect(terminalSuccessorSelectionSql).toContain(
+      'and current_stream.retired_at is not null',
+    );
+    // Ordering is enforced only while the current stream is not retired.
+    expect(terminalSuccessorSelectionSql).toContain(
+      '(v_event.occurred_at, v_event.event_id) <= (v_state.last_event_occurred_at, v_state.last_event_id)',
+    );
+    expect(terminalSuccessorSelectionSql).toContain('and not v_current_stream_retired)');
+    expect(terminalSuccessorSelectionSql).toContain(
+      "or p_event_type not in ('membership_started', 'membership_pending') then",
+    );
+    // Lock order stays per-user -> per-stream -> stream rows.
+    const userLock = terminalSuccessorSelectionSql.indexOf(
+      'hashtextextended(p_user_id::text, 164)',
+    );
+    const streamLock = terminalSuccessorSelectionSql.indexOf(
+      "p_source_system || ':' || p_source_customer_id || ':' || p_source_subscription_id, 164",
+    );
+    const firstSubscriptionLock = terminalSuccessorSelectionSql.indexOf(
+      'from public.plus_membership_subscription',
+    );
+    expect(userLock).toBeGreaterThan(-1);
+    expect(streamLock).toBeGreaterThan(-1);
+    expect(firstSubscriptionLock).toBeGreaterThan(-1);
+    expect(userLock).toBeLessThan(streamLock);
+    expect(streamLock).toBeLessThan(firstSubscriptionLock);
+    expect(terminalSuccessorSelectionSql).not.toContain(
+      'hashtextextended(v_subscription.user_id::text, 164)',
+    );
+  });
+
+  it('still retires the superseded stream and cannot resurrect a retired stream', () => {
+    expect(terminalSuccessorSelectionSql).toContain(
+      'and source_subscription_id = v_state.source_subscription_id',
+    );
+    expect(terminalSuccessorSelectionSql).toContain(
+      'set retired_at = coalesce(retired_at, now()),',
+    );
+    // Retired bindings are rejected before reducer state is read, so an old
+    // stream can never take authority back from the current one.
+    const retiredReturn = terminalSuccessorSelectionSql.indexOf('if v_subscription_retired then');
+    const stateRead = terminalSuccessorSelectionSql.indexOf(
+      'select * into v_state from public.plus_membership_state',
+    );
+    expect(retiredReturn).toBeGreaterThan(-1);
+    expect(stateRead).toBeGreaterThan(-1);
+    expect(retiredReturn).toBeLessThan(stateRead);
+  });
+
+  it('fails closed only when a duplicate event id carries different lifecycle facts', () => {
+    expect(terminalSuccessorSelectionSql).toContain(
+      'on conflict (source_system, source_event_id) do nothing',
+    );
+    expect(terminalSuccessorSelectionSql).toContain('if v_event.event_type <> p_event_type');
+    expect(terminalSuccessorSelectionSql).toContain('or v_event.plan_code <> p_plan_code');
+    expect(terminalSuccessorSelectionSql).toContain('or v_event.occurred_at <> p_occurred_at');
+    expect(terminalSuccessorSelectionSql).toContain('or v_event.period_start <> p_period_start');
+    expect(terminalSuccessorSelectionSql).toContain('or v_event.period_end <> p_period_end');
+    expect(terminalSuccessorSelectionSql).toContain(
+      'or v_event.cancel_at_period_end <> coalesce(p_cancel_at_period_end, false) then',
+    );
+    expect(terminalSuccessorSelectionSql).toContain(
+      "raise exception 'membership source event facts conflict for %/%'",
+    );
+    // The fact check runs before the replay return, so a mismatch never replays.
+    const factsConflict = terminalSuccessorSelectionSql.indexOf('membership source event facts conflict');
+    const replayReturn = terminalSuccessorSelectionSql.indexOf("return 'replayed'");
+    expect(factsConflict).toBeGreaterThan(-1);
+    expect(replayReturn).toBeGreaterThan(-1);
+    expect(factsConflict).toBeLessThan(replayReturn);
+    // Metadata stays outside identity: it is documented and never compared.
+    expect(terminalSuccessorSelectionSql).toContain(
+      'Metadata is intentionally excluded from identity',
+    );
+    expect(terminalSuccessorSelectionSql).not.toContain('v_event.metadata <>');
+  });
+
+  it('keeps the writer server-only without provider-specific or Book commerce identifiers', () => {
+    expect(terminalSuccessorSelectionSql).toContain(
+      'revoke all on function public.record_plus_membership_event',
+    );
+    expect(terminalSuccessorSelectionSql).toContain(
+      'grant execute on function public.record_plus_membership_event',
+    );
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(terminalSuccessorSelectionSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
+    }
+    expect(terminalSuccessorSelectionSql).not.toMatch(
       /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
     );
   });

@@ -1,6 +1,6 @@
 begin;
 
-select plan(122);
+select plan(134);
 
 select has_table('public', 'plus_membership_plan', 'Plus plans are durable server-owned data');
 select has_table('public', 'plus_membership_event', 'lifecycle events are durable audit data');
@@ -34,7 +34,8 @@ insert into auth.users (id, aud, role) values
   ('50000000-0000-0000-0000-000000000171', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000172', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000173', 'authenticated', 'authenticated'),
-  ('50000000-0000-0000-0000-000000000174', 'authenticated', 'authenticated');
+  ('50000000-0000-0000-0000-000000000174', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000175', 'authenticated', 'authenticated');
 
 select is(public.record_plus_membership_event('source-a','customer-164','subscription-old','start-164','50000000-0000-0000-0000-000000000164','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','started creates active membership');
 select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000164'),'active','started state is active');
@@ -80,6 +81,9 @@ select is(public.record_plus_membership_event('source-a','customer-166','subscri
 select is(public.record_plus_membership_event('source-a','customer-166','subscription-166','replay-166','50000000-0000-0000-0000-000000000166','plus_early_access_monthly','membership_started','2026-09-08T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z',false,'{"replay":true}'::jsonb),'replayed','replay has no second effect');
 select is((select count(*) from public.plus_membership_event where source_event_id='replay-166'),1::bigint,'replay is deduplicated by full source identity');
 select throws_ok($$select public.record_plus_membership_event('source-a','customer-165','subscription-165','start-164','50000000-0000-0000-0000-000000000165','plus_early_access_monthly','membership_started','2026-09-09T00:00:00Z','2026-09-09T00:00:00Z','2026-10-09T00:00:00Z')$$, 'P0001', 'membership source event identity conflict for source-a/start-164', 'reused event id with changed identity fails closed');
+select throws_ok($$select public.record_plus_membership_event('source-a','customer-166','subscription-166','replay-166','50000000-0000-0000-0000-000000000166','plus_early_access_monthly','membership_renewed','2026-09-08T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z')$$, 'P0001', 'membership source event facts conflict for source-a/replay-166', 'a duplicate event id with a different event type fails closed');
+select throws_ok($$select public.record_plus_membership_event('source-a','customer-166','subscription-166','replay-166','50000000-0000-0000-0000-000000000166','plus_early_access_monthly','membership_started','2026-09-08T00:00:00Z','2026-09-02T00:00:00Z','2026-10-02T00:00:00Z')$$, 'P0001', 'membership source event facts conflict for source-a/replay-166', 'a duplicate event id with a different period fails closed');
+select is(public.record_plus_membership_event('source-a','customer-166','subscription-166','replay-166','50000000-0000-0000-0000-000000000166','plus_early_access_monthly','membership_started','2026-09-08T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z',false,'{"replay":2}'::jsonb),'replayed','a metadata-only difference still replays after fact conflicts');
 
 select is(public.record_plus_membership_event('source-a','customer-166','subscription-166','z-first-166','50000000-0000-0000-0000-000000000166','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'stale','older same-stream candidate cannot replace the newer accepted event');
 select is(public.record_plus_membership_event('source-a','customer-166','subscription-166','a-equal-166','50000000-0000-0000-0000-000000000166','plus_early_access_monthly','membership_expired','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'stale','equal-time candidate is ordered deterministically');
@@ -155,6 +159,16 @@ select is(public.record_plus_membership_event('source-a','customer-174','subscri
 select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000174'),'subscription-174-new','the delayed replaced-stream start leaves the selected stream unchanged');
 select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000174'),'active','the delayed replaced-stream start cannot alter current access');
 select is(public.record_plus_membership_event('source-a','customer-174','subscription-174-old','late-pending-174-old','50000000-0000-0000-0000-000000000174','plus_early_access_monthly','membership_pending','2026-10-12T00:00:00Z','2026-10-12T00:00:00Z','2026-11-12T00:00:00Z'),'stale','a delayed pending on the replaced stream stays stale');
+
+select is(public.record_plus_membership_event('source-a','customer-175','subscription-175-a','start-175','50000000-0000-0000-0000-000000000175','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','#164 P1 sequence starts stream A');
+select is(public.record_plus_membership_event('source-a','customer-175','subscription-175-a','renew-175','50000000-0000-0000-0000-000000000175','plus_early_access_monthly','membership_renewed','2026-09-20T00:00:00Z','2026-09-20T00:00:00Z','2026-10-20T00:00:00Z'),'applied','#164 P1 sequence renews stream A at t20');
+select is(public.record_plus_membership_event('source-a','customer-175','subscription-175-a','revoke-old-175','50000000-0000-0000-0000-000000000175','plus_early_access_monthly','membership_revoked','2026-09-10T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'stale','#164 P1 old terminal A at t10 stays stale for the reducer');
+select is((select last_event_occurred_at from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000175'),'2026-09-20T00:00:00Z'::timestamptz,'#164 P1 reducer clock still points at A t20');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000175'),'revoked','#164 P1 stale terminal A still revokes access');
+select is((select retired_at is not null from public.plus_membership_subscription where source_subscription_id='subscription-175-a'),true,'#164 P1 stale terminal A retires its own binding');
+select is(public.record_plus_membership_event('source-a','customer-175','subscription-175-b','start-175-b','50000000-0000-0000-0000-000000000175','plus_early_access_monthly','membership_started','2026-09-15T00:00:00Z','2026-09-15T00:00:00Z','2026-10-15T00:00:00Z'),'applied','#164 P1 distinct start B at t15 applies once A is retired');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000175'),'subscription-175-b','#164 P1 stream B becomes current despite A reducer clock t20');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000175'),'active','#164 P1 stream B receives active access');
 
 delete from auth.users where id='50000000-0000-0000-0000-000000000164';
 select ok((select count(*) from public.plus_membership_event where source_customer_id='customer-164') > 0,'audit evidence survives auth deletion');
