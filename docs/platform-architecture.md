@@ -171,7 +171,10 @@ arbitrary provider/source bucket. `plus_membership_state` is the deterministic
 current-stream reducer state per user. The service-role-only
 `record_plus_membership_event` writer deduplicates source event IDs and verifies
 the full stream identity,
-serializes each user, orders events within a stream by `(occurred_at, event_id)`,
+serializes each user (acquiring the per-user advisory lock before the per-stream
+lock and any subscription row lock, so a replacement stream retiring the
+outgoing current stream cannot deadlock against a concurrent event on that
+outgoing stream), orders events within a stream by `(occurred_at, event_id)`,
 and permits only a newer start event to select a replacement stream. Each
 durable `event_id` is derived from length-prefixed segments, so arbitrary
 nonempty source identifiers cannot collide through `:` concatenation. A

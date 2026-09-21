@@ -28,6 +28,13 @@ const successorRetireSql = readFileSync(
   ),
   'utf8',
 );
+const successorRetireLockOrderSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922160000_plus_membership_lifecycle_successor_retire_lock_order.sql',
+  ),
+  'utf8',
+);
 
 describe('#164 membership lifecycle migration', () => {
   it('seeds the approved monthly plans without date-based repricing', () => {
@@ -200,5 +207,71 @@ describe('#164 membership lifecycle successor retire migration', () => {
       expect(successorRetireSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
     }
     expect(successorRetireSql).not.toMatch(/\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i);
+  });
+});
+
+describe('#164 membership lifecycle successor retire lock order migration', () => {
+  it('acquires the per-user lock before the per-stream lock and any stream row lock', () => {
+    expect(successorRetireLockOrderSql).toContain(
+      'create or replace function public.record_plus_membership_event',
+    );
+    const userLock = successorRetireLockOrderSql.indexOf('hashtextextended(p_user_id::text, 164)');
+    const streamLock = successorRetireLockOrderSql.indexOf(
+      "p_source_system || ':' || p_source_customer_id || ':' || p_source_subscription_id, 164",
+    );
+    const firstSubscriptionLock = successorRetireLockOrderSql.indexOf(
+      'from public.plus_membership_subscription',
+    );
+    expect(userLock).toBeGreaterThan(-1);
+    expect(streamLock).toBeGreaterThan(-1);
+    expect(firstSubscriptionLock).toBeGreaterThan(-1);
+    expect(userLock).toBeLessThan(streamLock);
+    expect(streamLock).toBeLessThan(firstSubscriptionLock);
+    expect(successorRetireLockOrderSql).not.toContain(
+      'hashtextextended(v_subscription.user_id::text, 164)',
+    );
+  });
+
+  it('preserves successor retirement, terminal authority, and stale/replay behavior', () => {
+    expect(successorRetireLockOrderSql).toContain('where source_system = v_state.source_system');
+    expect(successorRetireLockOrderSql).toContain(
+      'and source_customer_id = v_state.source_customer_id',
+    );
+    expect(successorRetireLockOrderSql).toContain(
+      'and source_subscription_id = v_state.source_subscription_id',
+    );
+    expect(successorRetireLockOrderSql).toContain('insert into public.plus_membership_access as access_row');
+    expect(successorRetireLockOrderSql).toContain(
+      'least(access_row.current_period_end, excluded.current_period_end)',
+    );
+    expect(successorRetireLockOrderSql).toContain(
+      'current_period_end = least(current_period_end, v_subscription.terminal_at)',
+    );
+    expect(successorRetireLockOrderSql).toContain('if v_terminal or v_period_end_terminal then');
+    expect(successorRetireLockOrderSql).toContain(
+      'A replaced/noncurrent stream can only retire its own binding',
+    );
+    expect(successorRetireLockOrderSql).toContain('if v_subscription_retired then');
+    expect(successorRetireLockOrderSql).toContain("return 'replayed'");
+    expect(successorRetireLockOrderSql).toContain("return 'stale'");
+    expect(successorRetireLockOrderSql).not.toContain('drop table public.plus_membership_access');
+  });
+
+  it('keeps the writer server-only without provider-specific or Book commerce identifiers', () => {
+    expect(successorRetireLockOrderSql).toContain(
+      'revoke all on function public.record_plus_membership_event',
+    );
+    expect(successorRetireLockOrderSql).toContain(
+      'grant execute on function public.record_plus_membership_event',
+    );
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(successorRetireLockOrderSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
+    }
+    expect(successorRetireLockOrderSql).not.toMatch(
+      /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
+    );
   });
 });
