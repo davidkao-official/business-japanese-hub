@@ -196,10 +196,11 @@ projection remains `active` and usable
 before that instant, but the same stream cannot start, renew, reactivate, restore,
 or become `pending` at or after it. No separate `membership_expired` event is
 required to enforce the cutoff, and no generic grace period is invented.
-`membership_pending` is an explicit no-access/unavailable state and can become
-active only through a newer event on a non-terminal stream. It does not
-implement a provider, checkout, webhook, dunning, reconciliation, annual
-billing, legal activation, or Book commerce.
+`membership_pending` is an explicit no-access state projected through #139 as
+non-member, and can become active only through a newer event on a non-terminal
+stream; `unavailable` remains only a #139 delivery/lookup failure, not a
+lifecycle state. It does not implement a provider, checkout, webhook, dunning,
+reconciliation, annual billing, legal activation, or Book commerce.
 
 ## 11. Delivery boundary
 

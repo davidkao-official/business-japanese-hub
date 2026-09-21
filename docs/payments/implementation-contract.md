@@ -42,8 +42,10 @@ evidence and cannot resurrect it; only a distinct non-retired stream may
 become current, and later events on a superseded stream (including a delayed
 newer start) stay stale. `membership_pending` is an explicit no-access state
 projected to the existing #139 non-member seam; it can become active only
-through a newer event on the same non-retired stream. Ambiguous or stale
-evidence stays unavailable.
+through a newer event on the same non-retired stream. Stale or otherwise
+rejected lifecycle evidence is not `unavailable`: the reducer preserves the
+current projection, or terminal authority revokes/clamps access. `unavailable`
+is reserved for a #139 delivery/lookup failure.
 
 The finance API returns bounded row samples for investigation, but its
 reconciliation/actionable totals come from the exact server-only
