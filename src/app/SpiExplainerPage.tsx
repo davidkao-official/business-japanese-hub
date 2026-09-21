@@ -31,9 +31,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-function DavidCallout({ children }: { children: ReactNode }) {
+function DavidCallout({ accessibleName, children }: { accessibleName: string; children: ReactNode }) {
   return (
-    <aside className="spi-explainer__david" aria-label="David 觀點">
+    <aside className="spi-explainer__david" aria-label={accessibleName}>
       <p className="spi-explainer__label">David 觀點</p>
       {children}
     </aside>
@@ -50,7 +50,7 @@ export function SpiExplainerPage() {
         <h1 id="spi-explainer-title">SPI是什麼？在日本求職前一定要知道的 網路測驗</h1>
         <p className="spi-explainer__dek">如果你打算進入日本企業工作，只準備 JLPT 並不夠。SPI 3 是日本企業在新卒採用與中途採用中，都可能遇到的重要適性測驗。</p>
         <p>很多外國求職者第一次接觸日本求職時，會以為 SPI 只是日本大學生找第一份工作時才需要考的測驗。其實，SPI 會出現在新卒採用，也可能出現在中途採用。即使已有數年工作經驗，轉職時仍可能遇到。</p>
-        <DavidCallout>
+        <DavidCallout accessibleName="David 觀點：Web Test 對選考的影響">
           <p>David 認識許多正在找工作的學生，以及正在轉職的社會人士，不論是日本人還是外國人，都曾經因為沒有好好準備 Web Test，而在選考初期就被淘汰。</p>
           <p>即使履歷、學歷、工作經驗都沒有問題，只要網路測驗沒有通過，<strong>連之後參加面試、向企業展現自己的機會都可能拿不到。</strong></p>
         </DavidCallout>
@@ -128,7 +128,7 @@ export function SpiExplainerPage() {
 
         <Section title={SECTIONS[11]}>
           <p>Web Test 可能成為選考初期的足切り關卡。若未通過，有些企業不會安排後續面試；履歷、學歷與工作經驗便可能沒有機會在面試中被看見。</p>
-          <DavidCallout>
+          <DavidCallout accessibleName="David 觀點：未準備 Web Test 的選考結果">
             <p>David 認識不少日本人與外國人，本身的學歷與工作經歷其實並不差，但因為沒有事先準備 SPI、玉手箱或其他 Web Test，最後直接在筆試階段被淘汰。</p>
             <p>問題不是面試表現不好，而是<strong>根本沒有進入面試。</strong></p>
           </DavidCallout>
@@ -158,7 +158,7 @@ export function SpiExplainerPage() {
           <p>企業下一步真正想確認的是，你能不能使用日文快速理解資訊、解決問題，並且在日本的工作環境中完成任務。</p>
           <p className="spi-explainer__pullquote">N1，是證明你會日文。SPI，是日本企業開始判斷你能不能用日文工作的地方。</p>
           <p>SPI 並不只是新卒學生才需要面對的考試。新卒會遇到，中途轉職也可能遇到。若 Web Test 沒有通過，再好的履歷、學歷與工作經驗，都可能還來不及讓面試官看到。</p>
-          <DavidCallout>
+          <DavidCallout accessibleName="David 觀點：SPI 的準備起點">
             <p>David 建議先從日文閱讀速度、語彙、邏輯判斷與基礎計算開始，再依企業指定的測驗形式安排練習。</p>
           </DavidCallout>
           <p className="spi-explainer__closing">真正的日本求職日文，往往從 JLPT N1 之後才開始。</p>

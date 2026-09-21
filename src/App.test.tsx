@@ -93,6 +93,9 @@ describe('application shell', () => {
       expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
     }
     expect(screen.getAllByText('David 觀點')).toHaveLength(3)
+    expect(screen.getByRole('complementary', { name: 'David 觀點：Web Test 對選考的影響' })).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'David 觀點：未準備 Web Test 的選考結果' })).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'David 觀點：SPI 的準備起點' })).toBeInTheDocument()
     expect(screen.getByText(/David 認識許多正在找工作的學生/)).toBeInTheDocument()
     expect(screen.getByText(/N1，是證明你會日文。SPI，是日本企業開始判斷你能不能用日文工作的地方。/)).toBeInTheDocument()
     const timingTable = screen.getByRole('table', { name: 'SPI 3 作答時間參考' })
