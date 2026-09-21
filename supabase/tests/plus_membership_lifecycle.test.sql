@@ -1,6 +1,6 @@
 begin;
 
-select plan(93);
+select plan(95);
 
 select has_table('public', 'plus_membership_plan', 'Plus plans are durable server-owned data');
 select has_table('public', 'plus_membership_event', 'lifecycle events are durable audit data');
@@ -99,6 +99,8 @@ select is((select membership_status from public.plus_membership_state where user
 select is((select terminal_at from public.plus_membership_subscription where source_subscription_id='subscription-168'),'2026-10-01T00:00:00Z'::timestamptz,'period-end cancellation stores its effective terminal cutoff');
 select is((select terminal_event_id is not null from public.plus_membership_subscription where source_subscription_id='subscription-168'),true,'period-end cancellation stores terminal evidence');
 select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000168'),'active','access projection remains active before the effective end');
+select is(public.record_plus_membership_event('source-a','customer-168','subscription-168','renew-before-end-168','50000000-0000-0000-0000-000000000168','plus_early_access_monthly','membership_renewed','2026-09-15T00:00:00Z','2026-10-01T00:00:00Z','2026-11-01T00:00:00Z'),'applied','pre-cutoff same-stream renewal is accepted');
+select is((select current_period_end from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000168'),'2026-10-01T00:00:00Z'::timestamptz,'pre-cutoff renewal cannot extend access past terminal_at');
 select is(public.record_plus_membership_event('source-a','customer-168','subscription-168','renew-after-end-168','50000000-0000-0000-0000-000000000168','plus_early_access_monthly','membership_renewed','2026-10-01T00:00:00Z','2026-10-01T00:00:00Z','2026-11-01T00:00:00Z'),'stale','same stream cannot renew at its effective terminal end');
 select is(public.record_plus_membership_event('source-a','customer-168','subscription-168','start-after-end-168','50000000-0000-0000-0000-000000000168','plus_early_access_monthly','membership_started','2026-10-02T00:00:00Z','2026-10-02T00:00:00Z','2026-11-02T00:00:00Z'),'stale','same stream cannot start after its effective terminal end');
 select is(public.record_plus_membership_event('source-a','customer-168','subscription-168','reactivate-after-end-168','50000000-0000-0000-0000-000000000168','plus_early_access_monthly','membership_reactivated','2026-10-03T00:00:00Z','2026-10-02T00:00:00Z','2026-11-02T00:00:00Z'),'stale','same stream cannot reactivate after its effective terminal end');

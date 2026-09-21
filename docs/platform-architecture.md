@@ -173,8 +173,9 @@ current-stream reducer state per user. The service-role-only
 the full stream identity,
 serializes each user, orders events within a stream by `(occurred_at, event_id)`,
 and permits only a newer start event to select a replacement stream. A
-`membership_restored` event is the explicit correction for a refund/reversal/
-dispute revocation. Once
+`membership_restored` event is retained as append-only audit evidence, but is
+stale after the stream is retired and does not correct terminal
+refund/reversal/dispute evidence; a distinct stream is required. Once
 replaced, late events from the old stream remain audit evidence but cannot update
 state or `plus_membership_access`; terminal evidence also retires that old
 binding, so later events on it remain stale. A `membership_canceled` event with

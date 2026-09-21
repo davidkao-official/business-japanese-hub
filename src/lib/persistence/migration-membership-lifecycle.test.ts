@@ -10,6 +10,10 @@ const repairSql = readFileSync(
   join(process.cwd(), 'supabase/migrations/20260922120000_plus_membership_lifecycle_terminal_repair.sql'),
   'utf8',
 );
+const finalRepairSql = readFileSync(
+  join(process.cwd(), 'supabase/migrations/20260922130000_plus_membership_lifecycle_access_clamp.sql'),
+  'utf8',
+);
 
 describe('#164 membership lifecycle migration', () => {
   it('seeds the approved monthly plans without date-based repricing', () => {
@@ -103,5 +107,17 @@ describe('#164 membership lifecycle terminal repair migration', () => {
       expect(repairSql).toContain(`'${event}'`);
     }
     expect(repairSql).toContain('grant execute on function public.record_plus_membership_event');
+  });
+});
+
+describe('#164 membership lifecycle access clamp migration', () => {
+  it('only changes the writer projection to honor terminal_at', () => {
+    expect(finalRepairSql).toContain('create or replace function public.record_plus_membership_event');
+    expect(finalRepairSql).toContain('least(v_event.period_end, v_subscription.terminal_at)');
+    expect(finalRepairSql).toContain('if v_subscription_retired then');
+    expect(finalRepairSql).toContain("return 'replayed'");
+    expect(finalRepairSql).toContain("return 'stale'");
+    expect(finalRepairSql).toContain('insert into public.plus_membership_access');
+    expect(finalRepairSql).not.toContain('drop table public.plus_membership_access');
   });
 });
