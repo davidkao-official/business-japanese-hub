@@ -56,6 +56,13 @@ const scheduledTerminalBarrierSql = readFileSync(
   ),
   'utf8',
 );
+const effectiveTerminalAuthoritySql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922200000_plus_membership_lifecycle_effective_terminal_authority.sql',
+  ),
+  'utf8',
+);
 
 describe('#164 membership lifecycle migration', () => {
   it('seeds the approved monthly plans without date-based repricing', () => {
@@ -590,6 +597,130 @@ describe('#164 membership lifecycle scheduled terminal barrier migration', () =>
       expect(scheduledTerminalBarrierSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
     }
     expect(scheduledTerminalBarrierSql).not.toMatch(
+      /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
+    );
+  });
+});
+
+describe('#164 membership lifecycle effective terminal authority migration', () => {
+  it('uses the effective earliest terminal authority for cross-stream successor ordering', () => {
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'create or replace function public.record_plus_membership_event',
+    );
+    // The writer keeps both terminal authorities available for a retired stream.
+    expect(effectiveTerminalAuthoritySql).toContain('current_stream.terminal_at,');
+    expect(effectiveTerminalAuthoritySql).toContain('current_stream.terminal_event_id');
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'v_current_stream_immediate_terminal_at timestamptz',
+    );
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'v_current_stream_immediate_terminal_event_id text',
+    );
+    // The earliest immediate terminal evidence is read from durable events.
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'into v_current_stream_immediate_terminal_at,',
+    );
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'from public.plus_membership_event terminal_event',
+    );
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'order by terminal_event.occurred_at, terminal_event.event_id',
+    );
+    expect(effectiveTerminalAuthoritySql).toContain(
+      "or (terminal_event.event_type = 'membership_canceled'",
+    );
+    // The scheduled terminal wins only when it is not later than the immediate terminal.
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'and (v_current_stream_immediate_terminal_at is null',
+    );
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'or v_current_stream_terminal_at <= v_current_stream_immediate_terminal_at) then',
+    );
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'v_ordering_barrier_occurred_at := v_current_stream_terminal_at;',
+    );
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'v_ordering_barrier_event_id := v_current_stream_terminal_event_id;',
+    );
+    // An earlier immediate terminal becomes the barrier instead of the later cutoff.
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'elsif v_current_stream_immediate_terminal_at is not null then',
+    );
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'v_ordering_barrier_occurred_at := v_current_stream_immediate_terminal_at;',
+    );
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'v_ordering_barrier_event_id := v_current_stream_immediate_terminal_event_id;',
+    );
+    // Ordering is never bypassed for a retired stream.
+    expect(effectiveTerminalAuthoritySql).toContain(
+      '(v_event.occurred_at, v_event.event_id) <= (v_ordering_barrier_occurred_at, v_ordering_barrier_event_id)',
+    );
+    expect(effectiveTerminalAuthoritySql).not.toContain('and not v_current_stream_retired)');
+    // The earlier single-authority branch from 20260922190000 is replaced.
+    expect(effectiveTerminalAuthoritySql).not.toContain(
+      'if v_current_stream_retired and v_current_stream_terminal_at is not null then',
+    );
+  });
+
+  it('preserves reducer-clock fallback, successor retirement and retired-stream rejection', () => {
+    // A non-retired current stream still uses its reducer clock as the barrier.
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'v_ordering_barrier_occurred_at := v_state.last_event_occurred_at;',
+    );
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'v_ordering_barrier_event_id := v_state.last_event_id;',
+    );
+    // A retired stream with no terminal authority keeps the reducer-clock fallback.
+    expect(effectiveTerminalAuthoritySql).toContain('if v_current_stream_retired then');
+    // Pending replacement and successor retirement rules are unchanged.
+    expect(effectiveTerminalAuthoritySql).toContain(
+      "(v_state.membership_status in ('active', 'past_due') and v_membership_status = 'pending')",
+    );
+    expect(effectiveTerminalAuthoritySql).toContain('set retired_at = coalesce(retired_at, now()),');
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'and source_subscription_id = v_state.source_subscription_id',
+    );
+    const retiredReturn = effectiveTerminalAuthoritySql.indexOf('if v_subscription_retired then');
+    const stateRead = effectiveTerminalAuthoritySql.indexOf(
+      'select * into v_state from public.plus_membership_state',
+    );
+    expect(retiredReturn).toBeGreaterThan(-1);
+    expect(stateRead).toBeGreaterThan(-1);
+    expect(retiredReturn).toBeLessThan(stateRead);
+  });
+
+  it('keeps the lock order, server-only boundary and provider-neutral vocabulary', () => {
+    const userLock = effectiveTerminalAuthoritySql.indexOf(
+      'hashtextextended(p_user_id::text, 164)',
+    );
+    const streamLock = effectiveTerminalAuthoritySql.indexOf(
+      "p_source_system || ':' || p_source_customer_id || ':' || p_source_subscription_id, 164",
+    );
+    const firstSubscriptionLock = effectiveTerminalAuthoritySql.indexOf(
+      'from public.plus_membership_subscription',
+    );
+    expect(userLock).toBeGreaterThan(-1);
+    expect(streamLock).toBeGreaterThan(-1);
+    expect(firstSubscriptionLock).toBeGreaterThan(-1);
+    expect(userLock).toBeLessThan(streamLock);
+    expect(streamLock).toBeLessThan(firstSubscriptionLock);
+    expect(effectiveTerminalAuthoritySql).not.toContain(
+      'hashtextextended(v_subscription.user_id::text, 164)',
+    );
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'revoke all on function public.record_plus_membership_event',
+    );
+    expect(effectiveTerminalAuthoritySql).toContain(
+      'grant execute on function public.record_plus_membership_event',
+    );
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(effectiveTerminalAuthoritySql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
+    }
+    expect(effectiveTerminalAuthoritySql).not.toMatch(
       /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
     );
   });
