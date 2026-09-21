@@ -119,7 +119,7 @@ select is((select membership_status from public.plus_membership_access where use
 
 delete from auth.users where id='50000000-0000-0000-0000-000000000164';
 select ok((select count(*) from public.plus_membership_event where source_customer_id='customer-164') > 0,'audit evidence survives auth deletion');
-select is((select user_id from public.plus_membership_subscription where source_customer_id='customer-164'),null::uuid,'deleted accounts leave retained source evidence unavailable');
+select is((select bool_and(user_id is null) from public.plus_membership_subscription where source_customer_id='customer-164'),true,'deleted accounts leave retained source evidence unavailable');
 select is((select count(*) from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000164'),0::bigint,'derived state may cascade with the account');
 
 select * from finish();
