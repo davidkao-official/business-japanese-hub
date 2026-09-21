@@ -6,6 +6,10 @@ const sql = readFileSync(
   join(process.cwd(), 'supabase/migrations/20260922100000_plus_membership_lifecycle.sql'),
   'utf8',
 );
+const repairSql = readFileSync(
+  join(process.cwd(), 'supabase/migrations/20260922120000_plus_membership_lifecycle_terminal_repair.sql'),
+  'utf8',
+);
 
 describe('#164 membership lifecycle migration', () => {
   it('seeds the approved monthly plans without date-based repricing', () => {
@@ -70,5 +74,34 @@ describe('#164 membership lifecycle migration', () => {
       expect(sql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
     }
     expect(sql).not.toMatch(/\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i);
+  });
+});
+
+describe('#164 membership lifecycle terminal repair migration', () => {
+  it('adds an effective terminal cutoff without changing the #139 projection seam', () => {
+    expect(repairSql).toContain('add column terminal_at timestamptz');
+    expect(repairSql).toContain('add column terminal_event_id text');
+    expect(repairSql).toContain("v_period_end_terminal := p_event_type = 'membership_canceled' and p_cancel_at_period_end");
+    expect(repairSql).toContain('terminal_at <= p_occurred_at or v_subscription.terminal_at <= now()');
+    expect(repairSql).toContain('membership_started\', \'membership_renewed\', \'membership_reactivated\'');
+    expect(repairSql).toContain("'membership_restored', 'membership_pending'");
+    expect(repairSql).toContain('Keep the earliest effective end');
+    expect(repairSql).toContain('insert into public.plus_membership_access');
+    expect(repairSql).not.toContain('drop table public.plus_membership_access');
+  });
+
+  it('retires terminal stale bindings before stale returns and preserves idempotency', () => {
+    expect(repairSql).toContain('Terminal evidence retires its own binding');
+    expect(repairSql).toContain('retired_at = coalesce(retired_at, now())');
+    expect(repairSql).toContain('retired_event_id = coalesce(retired_event_id, v_event.event_id)');
+    expect(repairSql).toContain('if v_subscription_retired then');
+    expect(repairSql).toContain('on conflict (source_system, source_event_id) do nothing');
+    expect(repairSql).toContain("return 'replayed'");
+    expect(repairSql).toContain("return 'stale'");
+    for (const event of ['membership_expired', 'membership_revoked', 'membership_refunded', 'membership_reversed', 'membership_disputed']) {
+      expect(repairSql).toContain(`p_event_type in ('membership_expired', 'membership_revoked', 'membership_refunded', 'membership_reversed', 'membership_disputed')`);
+      expect(repairSql).toContain(`'${event}'`);
+    }
+    expect(repairSql).toContain('grant execute on function public.record_plus_membership_event');
   });
 });

@@ -176,12 +176,17 @@ and permits only a newer start event to select a replacement stream. A
 `membership_restored` event is the explicit correction for a refund/reversal/
 dispute revocation. Once
 replaced, late events from the old stream remain audit evidence but cannot update
-state or `plus_membership_access`. A `membership_canceled` event with
-`cancel_at_period_end = true` remains `active` until a separate effective-end /
-expiry event; immediate cancellation is `canceled`, and no grace period is
-invented. The lifecycle vocabulary has no `pending` state. It does not implement
-a provider, checkout, webhook, dunning, reconciliation, annual billing, legal
-activation, or Book commerce.
+state or `plus_membership_access`; terminal evidence also retires that old
+binding, so later events on it remain stale. A `membership_canceled` event with
+`cancel_at_period_end = true` records an irreversible terminal cutoff at the
+effective `current_period_end`: the projection remains `active` and usable
+before that instant, but the same stream cannot start, renew, reactivate, restore,
+or become `pending` at or after it. No separate `membership_expired` event is
+required to enforce the cutoff, and no generic grace period is invented.
+`membership_pending` is an explicit no-access/unavailable state and can become
+active only through a newer event on a non-terminal stream. It does not
+implement a provider, checkout, webhook, dunning, reconciliation, annual
+billing, legal activation, or Book commerce.
 
 ## 11. Delivery boundary
 
