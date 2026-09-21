@@ -1,6 +1,6 @@
 begin;
 
-select plan(212);
+select plan(226);
 
 select has_table('public', 'plus_membership_plan', 'Plus plans are durable server-owned data');
 select has_table('public', 'plus_membership_event', 'lifecycle events are durable audit data');
@@ -43,7 +43,8 @@ insert into auth.users (id, aud, role) values
   ('50000000-0000-0000-0000-000000000180', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000181', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000182', 'authenticated', 'authenticated'),
-  ('50000000-0000-0000-0000-000000000183', 'authenticated', 'authenticated');
+  ('50000000-0000-0000-0000-000000000183', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000184', 'authenticated', 'authenticated');
 
 select is(public.record_plus_membership_event('source-a','customer-164','subscription-old','start-164','50000000-0000-0000-0000-000000000164','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','started creates active membership');
 select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000164'),'active','started state is active');
@@ -263,6 +264,23 @@ select is((select terminal_at from public.plus_membership_subscription where sou
 select is(public.record_plus_membership_event('source-a','customer-183','subscription-183-b','start-183-b','50000000-0000-0000-0000-000000000183','plus_early_access_monthly','membership_started','2026-09-07T00:00:00Z','2026-09-07T00:00:00Z','2026-10-07T00:00:00Z'),'applied','#164 P1 effective terminal authority reverse order successor applies between the immediate terminal and the scheduled cutoff');
 select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000183'),'subscription-183-b','#164 P1 effective terminal authority reverse order successor is current');
 select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000183'),'active','#164 P1 effective terminal authority reverse order successor receives active access');
+
+select is(public.record_plus_membership_event('source-a','customer-184','subscription-184-a','start-184-a','50000000-0000-0000-0000-000000000184','plus_early_access_monthly','membership_started',now() - interval '30 days',now() - interval '30 days',now() + interval '30 days'),'applied','#164 P1 elapsed scheduled terminal starts stream A');
+select is(public.record_plus_membership_event('source-a','customer-184','subscription-184-a','cancel-184-a','50000000-0000-0000-0000-000000000184','plus_early_access_monthly','membership_canceled',now() - interval '20 days',now() - interval '30 days',now() + interval '30 days',true),'applied','#164 P1 elapsed scheduled terminal records the scheduled cutoff without retiring');
+select is((select retired_at is null from public.plus_membership_subscription where source_subscription_id='subscription-184-a'),true,'#164 P1 elapsed scheduled terminal leaves the future cutoff binding live');
+-- The durable scheduled cutoff is now in the past: emulate elapsing wall-clock time.
+update public.plus_membership_subscription set terminal_at = now() - interval '10 days' where source_subscription_id='subscription-184-a';
+select is(public.record_plus_membership_event('source-a','customer-184','subscription-184-b','start-184-b-old','50000000-0000-0000-0000-000000000184','plus_early_access_monthly','membership_started',now() - interval '15 days',now() - interval '15 days',now() + interval '15 days'),'stale','#164 P1 elapsed scheduled terminal rejects a pre-cutoff successor delivered after the cutoff');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000184'),'subscription-184-a','#164 P1 elapsed scheduled terminal leaves the reducer state on the elapsed stream');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000184'),'expired','#164 P1 elapsed scheduled terminal ends access for a rejected pre-cutoff successor');
+select is((select current_period_end from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000184'),now() - interval '10 days','#164 P1 elapsed scheduled terminal clamps the rejected pre-cutoff successor access to the terminal cutoff, not the future horizon');
+select is((select retired_at is not null from public.plus_membership_subscription where source_subscription_id='subscription-184-a'),true,'#164 P1 elapsed scheduled terminal durably retires the elapsed current binding');
+select is((select retired_event_id from public.plus_membership_subscription where source_subscription_id='subscription-184-a'),(select event_id from public.plus_membership_event where source_system='source-a' and source_event_id='cancel-184-a'),'#164 P1 elapsed scheduled terminal retires on the scheduled terminal evidence');
+select is(public.record_plus_membership_event('source-a','customer-184','subscription-184-c','start-184-c','50000000-0000-0000-0000-000000000184','plus_early_access_monthly','membership_started',now() - interval '5 days',now() - interval '5 days',now() + interval '25 days'),'applied','#164 P1 elapsed scheduled terminal accepts a successor strictly after the cutoff');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000184'),'subscription-184-c','#164 P1 elapsed scheduled terminal makes the post-cutoff successor current');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000184'),'active','#164 P1 elapsed scheduled terminal grants active access to the post-cutoff successor');
+select is(public.record_plus_membership_event('source-a','customer-184','subscription-184-a','renew-184-a-late','50000000-0000-0000-0000-000000000184','plus_early_access_monthly','membership_renewed',now() - interval '3 days',now() - interval '20 days',now() + interval '10 days'),'stale','#164 P1 elapsed scheduled terminal cannot resurrect the elapsed stream');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000184'),'subscription-184-c','#164 P1 elapsed scheduled terminal keeps the post-cutoff successor after a late elapsed-stream event');
 
 delete from auth.users where id='50000000-0000-0000-0000-000000000164';
 select ok((select count(*) from public.plus_membership_event where source_customer_id='customer-164') > 0,'audit evidence survives auth deletion');

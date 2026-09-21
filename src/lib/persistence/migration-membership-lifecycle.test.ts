@@ -63,6 +63,17 @@ const effectiveTerminalAuthoritySql = readFileSync(
   ),
   'utf8',
 );
+const elapsedScheduledTerminalSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922210000_plus_membership_lifecycle_elapsed_scheduled_terminal.sql',
+  ),
+  'utf8',
+);
+const lifecyclePgTapSql = readFileSync(
+  join(process.cwd(), 'supabase/tests/plus_membership_lifecycle.test.sql'),
+  'utf8',
+);
 
 describe('#164 membership lifecycle migration', () => {
   it('seeds the approved monthly plans without date-based repricing', () => {
@@ -723,5 +734,194 @@ describe('#164 membership lifecycle effective terminal authority migration', () 
     expect(effectiveTerminalAuthoritySql).not.toMatch(
       /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
     );
+  });
+});
+
+describe('#164 membership lifecycle elapsed scheduled terminal migration', () => {
+  it('retires an elapsed scheduled current stream before the cross-stream successor comparison', () => {
+    expect(elapsedScheduledTerminalSql).toContain(
+      'create or replace function public.record_plus_membership_event',
+    );
+    // A durable cutoff that wall-clock time already reached retires the current
+    // state stream binding even when no event has retired it yet.
+    expect(elapsedScheduledTerminalSql).toContain('if not v_current_stream_retired');
+    expect(elapsedScheduledTerminalSql).toContain(
+      'and v_current_stream_terminal_at is not null',
+    );
+    expect(elapsedScheduledTerminalSql).toContain(
+      'and v_current_stream_terminal_at <= now() then',
+    );
+    expect(elapsedScheduledTerminalSql).toContain(
+      'set retired_at = coalesce(retired_at, now()),',
+    );
+    expect(elapsedScheduledTerminalSql).toContain('v_current_stream_retired := true;');
+    // The retirement happens before both the barrier selection and the
+    // successor ordering comparison, so a pre-cutoff arrival is measured
+    // against the scheduled terminal rather than the reducer clock.
+    const elapsedRetirement = elapsedScheduledTerminalSql.indexOf(
+      'and v_current_stream_terminal_at <= now() then',
+    );
+    const barrierSelection = elapsedScheduledTerminalSql.indexOf(
+      'v_ordering_barrier_occurred_at := v_state.last_event_occurred_at;',
+    );
+    const successorComparison = elapsedScheduledTerminalSql.indexOf(
+      '(v_event.occurred_at, v_event.event_id) <= (v_ordering_barrier_occurred_at, v_ordering_barrier_event_id)',
+    );
+    expect(elapsedRetirement).toBeGreaterThan(-1);
+    expect(barrierSelection).toBeGreaterThan(-1);
+    expect(successorComparison).toBeGreaterThan(-1);
+    expect(elapsedRetirement).toBeLessThan(barrierSelection);
+    expect(barrierSelection).toBeLessThan(successorComparison);
+    // The scheduled terminal becomes the barrier once the binding is retired.
+    expect(elapsedScheduledTerminalSql).toContain(
+      'v_ordering_barrier_occurred_at := v_current_stream_terminal_at;',
+    );
+    expect(elapsedScheduledTerminalSql).toContain(
+      'v_ordering_barrier_event_id := v_current_stream_terminal_event_id;',
+    );
+  });
+
+  it('preserves the immediate-vs-scheduled authority and noncurrent terminal handling', () => {
+    // The effective earliest terminal authority is still selected from the
+    // durable records; the elapsed branch only promotes terminal_at <= now().
+    expect(elapsedScheduledTerminalSql).toContain(
+      'and (v_current_stream_immediate_terminal_at is null',
+    );
+    expect(elapsedScheduledTerminalSql).toContain(
+      'or v_current_stream_terminal_at <= v_current_stream_immediate_terminal_at) then',
+    );
+    expect(elapsedScheduledTerminalSql).toContain(
+      'elsif v_current_stream_immediate_terminal_at is not null then',
+    );
+    // A genuinely live current stream without terminal_at keeps the reducer clock.
+    expect(elapsedScheduledTerminalSql).toContain(
+      'v_ordering_barrier_occurred_at := v_state.last_event_occurred_at;',
+    );
+    expect(elapsedScheduledTerminalSql).toContain(
+      'v_ordering_barrier_event_id := v_state.last_event_id;',
+    );
+    // Ordering is never bypassed and noncurrent terminal evidence may only
+    // retire its own binding, so access cannot change from that evidence.
+    expect(elapsedScheduledTerminalSql).not.toContain('and not v_current_stream_retired)');
+    expect(elapsedScheduledTerminalSql).toContain(
+      'A replaced/noncurrent stream can only retire its own binding',
+    );
+    expect(elapsedScheduledTerminalSql).toContain('if v_terminal or v_period_end_terminal then');
+  });
+
+  it('clamps the elapsed current stream projection to the terminal cutoff', () => {
+    // A period-end cancellation must not keep an active future access horizon
+    // once wall-clock time has reached the durable cutoff, even without a
+    // separate expiry event. The elapsed branch retires the binding and clamps
+    // the published projection to the cutoff as a terminal non-member state.
+    expect(elapsedScheduledTerminalSql).toContain(
+      'update public.plus_membership_access',
+    );
+    expect(elapsedScheduledTerminalSql).toContain("set membership_status = 'expired',");
+    expect(elapsedScheduledTerminalSql).toContain(
+      'current_period_end = least(current_period_end, v_current_stream_terminal_at),',
+    );
+    // The clamp lives inside the elapsed branch, after the binding is retired
+    // and before the successor ordering comparison, so a stale successor
+    // leaves the clamped projection while an accepted successor overwrites it.
+    const elapsedBranch = elapsedScheduledTerminalSql.indexOf(
+      'and v_current_stream_terminal_at <= now() then',
+    );
+    const accessClamp = elapsedScheduledTerminalSql.indexOf(
+      'current_period_end = least(current_period_end, v_current_stream_terminal_at),',
+    );
+    const branchRetiredFlag = elapsedScheduledTerminalSql.indexOf(
+      'v_current_stream_retired := true;',
+    );
+    const successorComparison = elapsedScheduledTerminalSql.indexOf(
+      '(v_event.occurred_at, v_event.event_id) <= (v_ordering_barrier_occurred_at, v_ordering_barrier_event_id)',
+    );
+    expect(elapsedBranch).toBeGreaterThan(-1);
+    expect(accessClamp).toBeGreaterThan(-1);
+    expect(branchRetiredFlag).toBeGreaterThan(-1);
+    expect(successorComparison).toBeGreaterThan(-1);
+    expect(elapsedBranch).toBeLessThan(accessClamp);
+    expect(accessClamp).toBeLessThan(branchRetiredFlag);
+    expect(branchRetiredFlag).toBeLessThan(successorComparison);
+  });
+
+  it('keeps successor retirement, no-resurrection and non-retired ordering intact', () => {
+    expect(elapsedScheduledTerminalSql).toContain(
+      "or p_event_type not in ('membership_started', 'membership_pending') then",
+    );
+    expect(elapsedScheduledTerminalSql).toContain(
+      "(v_state.membership_status in ('active', 'past_due') and v_membership_status = 'pending')",
+    );
+    // The superseded stream is still retired durably on an accepted succession.
+    expect(elapsedScheduledTerminalSql).toContain(
+      'and source_subscription_id = v_state.source_subscription_id',
+    );
+    expect(elapsedScheduledTerminalSql).toContain('set retired_at = coalesce(retired_at, now()),');
+    // Retired incoming bindings are rejected before reducer state is read, so an
+    // elapsed stream can never resurrect.
+    const retiredReturn = elapsedScheduledTerminalSql.indexOf('if v_subscription_retired then');
+    const stateRead = elapsedScheduledTerminalSql.indexOf(
+      'select * into v_state from public.plus_membership_state',
+    );
+    expect(retiredReturn).toBeGreaterThan(-1);
+    expect(stateRead).toBeGreaterThan(-1);
+    expect(retiredReturn).toBeLessThan(stateRead);
+  });
+
+  it('keeps the lock order, server-only boundary and provider-neutral vocabulary', () => {
+    const userLock = elapsedScheduledTerminalSql.indexOf(
+      'hashtextextended(p_user_id::text, 164)',
+    );
+    const streamLock = elapsedScheduledTerminalSql.indexOf(
+      "p_source_system || ':' || p_source_customer_id || ':' || p_source_subscription_id, 164",
+    );
+    const firstSubscriptionLock = elapsedScheduledTerminalSql.indexOf(
+      'from public.plus_membership_subscription',
+    );
+    expect(userLock).toBeGreaterThan(-1);
+    expect(streamLock).toBeGreaterThan(-1);
+    expect(firstSubscriptionLock).toBeGreaterThan(-1);
+    expect(userLock).toBeLessThan(streamLock);
+    expect(streamLock).toBeLessThan(firstSubscriptionLock);
+    expect(elapsedScheduledTerminalSql).not.toContain(
+      'hashtextextended(v_subscription.user_id::text, 164)',
+    );
+    expect(elapsedScheduledTerminalSql).toContain(
+      'revoke all on function public.record_plus_membership_event',
+    );
+    expect(elapsedScheduledTerminalSql).toContain(
+      'grant execute on function public.record_plus_membership_event',
+    );
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(elapsedScheduledTerminalSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
+    }
+    expect(elapsedScheduledTerminalSql).not.toMatch(
+      /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
+    );
+  });
+
+  it('adds pgTAP user cases with a corrected plan count', () => {
+    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000184');
+    expect(lifecyclePgTapSql).toContain(
+      '#164 P1 elapsed scheduled terminal rejects a pre-cutoff successor delivered after the cutoff',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 P1 elapsed scheduled terminal accepts a successor strictly after the cutoff',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 P1 elapsed scheduled terminal cannot resurrect the elapsed stream',
+    );
+    // The declared plan must count every TAP assertion in the file exactly.
+    const declaredPlan = lifecyclePgTapSql.match(/select plan\((\d+)\)/);
+    expect(declaredPlan).not.toBeNull();
+    const pgTapAssertions = lifecyclePgTapSql.match(
+      /^select (?:is|ok|isnt|has_table|has_table_privilege|has_function_privilege|throws_ok|col_is_null|lives_ok|matches)\(/gm,
+    );
+    expect(pgTapAssertions).not.toBeNull();
+    expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
+    expect(Number(declaredPlan![1])).toBe(226);
   });
 });
