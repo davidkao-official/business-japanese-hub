@@ -77,6 +77,28 @@ describe('application shell', () => {
     expect(heading).toHaveTextContent('ビジネス日本語ハブ')
   })
 
+  it('serves the public SPI explainer route with the required editorial structure and practice CTA', () => {
+    window.history.replaceState(null, '', '/practice/web-test/about-spi')
+    render(<App />)
+
+    expect(screen.getByRole('heading', { level: 1, name: 'SPI是什麼？在日本求職前一定要知道的 網路測驗' })).toBeInTheDocument()
+    for (const heading of [
+      'SPI 3 是什麼？', 'SPI 主要在測什麼？', 'SPI 3 的主要種類', 'SPI 怎麼考？',
+      'SPI 大概要考多久？', 'SPI 真正考的是「快速＋正確」', '為什麼很多 N1 合格者還是覺得 SPI 很難？',
+      '對外國人而言，SPI 往往比 JLPT 更難', '外國人最大的問題：腦中還在「翻譯」',
+      '什麼叫做「快速解題」？', '什麼叫做「正確解題」？', '想進大型企業，SPI 不能只是「有準備就好」',
+      '正答率 90% 可以當作高標準目標', '能力測驗高分，也不代表一定會通過', '日本求職不只有 SPI',
+      '外國人應該怎麼開始準備？', 'David 給想在日本工作的外國人的建議',
+    ]) {
+      expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
+    }
+    expect(screen.getAllByText('David 觀點')).toHaveLength(3)
+    expect(screen.getByText(/David 認識許多正在找工作的學生/)).toBeInTheDocument()
+    expect(screen.getByText(/N1，是證明你會日文。SPI，是日本企業開始判斷你能不能用日文工作的地方。/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '日本求職網路測驗刷題' })).toHaveAttribute('href', '/practice/web-test')
+    expect(screen.queryByText(/David 監修/)).not.toBeInTheDocument()
+  })
+
   it('renders the library route with the signed-out state', async () => {
     renderWithAppProviders(
       <Routes>

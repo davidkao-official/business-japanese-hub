@@ -7,6 +7,7 @@ import {
 } from '@business-japanese-hub/platform-auth'
 import { BookPage } from './app/BookPage'
 import { AboutPage } from './app/AboutPage'
+import { SpiExplainerPage } from './app/SpiExplainerPage'
 import { HomePage } from './app/HomePage'
 import { LibraryPage } from './app/LibraryPage'
 import { LibraryLinkPage } from './app/LibraryLinkPage'
@@ -114,6 +115,7 @@ export default function App() {
                       <Route path="read" element={<ProductModePage mode="read" />} />
                       <Route path="practice" element={<ProductModePage mode="practice" />} />
                       <Route path="practice/web-test" element={<WebTestHubPage />} />
+                      <Route path="practice/web-test/about-spi" element={<SpiExplainerPage />} />
                       <Route path="practice/web-test/:family" element={<WebTestFamilyPage />} />
                       <Route path="practice/web-test/:family/:domain" element={<WebTestCategoryPage />} />
                       <Route path="practice/web-test/:family/:domain/:category" element={<WebTestRunnerEntryPage />} />
