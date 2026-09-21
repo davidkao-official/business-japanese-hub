@@ -84,7 +84,17 @@ export function SpiExplainerPage() {
         </Section>
 
         <Section title={SECTIONS[4]}>
-          <p>Recruit 公開資料將 SPI 3 的作答時間概括為約 30 至 40 分鐘，實際時間依實施方式而異。這不代表所有測驗都使用相同時間或相同題數，應以個別企業的考試指示為準。</p>
+          <div className="spi-explainer__table-wrap">
+            <table>
+              <caption>SPI 3 作答時間參考</caption>
+              <thead><tr><th scope="col">項目</th><th scope="col">說明</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">公開資料概略時間</th><td>約 30–40 分鐘</td></tr>
+                <tr><th scope="row">實際應考時間</th><td>依實施方式與個別企業指示而異；請以企業通知為準。</td></tr>
+                <tr><th scope="row">編輯說明</th><td>這是來源提供的概略資訊，不代表所有測驗使用相同時間或題數。</td></tr>
+              </tbody>
+            </table>
+          </div>
           <p className="spi-explainer__source">來源：Recruit Management Solutions，SPI 3 服務介紹。公開概略時間為「30 分鐘至 40 分鐘」，並註明依實施方式而異。</p>
         </Section>
 
