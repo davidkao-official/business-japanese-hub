@@ -197,8 +197,14 @@ before that instant, but the same stream cannot start, renew, reactivate, restor
 or become `pending` at or after it. No separate `membership_expired` event is
 required to enforce the cutoff, and no generic grace period is invented.
 `membership_pending` is an explicit no-access state projected through #139 as
-non-member, and can become active only through a newer event on a non-terminal
-stream; `unavailable` remains only a #139 delivery/lookup failure, not a
+non-member. A same-stream `membership_started` confirmation outranks pending
+regardless of delivery order or timestamp, but must still be newer than any
+recorded predecessor succession barrier and respect terminal/plan gates. Both
+orders retain the maximum observed event watermark without letting later pending
+regress active access. Pending updates preserve the predecessor barrier until
+confirmation. Direct admission refreshes its durable row before buffered plan
+changes, so the applied plan and its admission marker stay consistent.
+`unavailable` remains only a #139 delivery/lookup failure, not a
 lifecycle state. It does not implement a provider, checkout, webhook, dunning,
 reconciliation, annual billing, legal activation, or Book commerce.
 

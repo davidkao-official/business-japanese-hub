@@ -1035,7 +1035,7 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(516);
+    expect(Number(declaredPlan![1])).toBe(581);
   });
 });
 
@@ -1127,7 +1127,7 @@ describe('#164 buffered successor-stream evidence migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(516);
+    expect(Number(declaredPlan![1])).toBe(581);
   });
 });
 
@@ -1214,7 +1214,7 @@ describe('#164 membership lifecycle pending confirmation watermark migration', (
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(516);
+    expect(Number(declaredPlan![1])).toBe(581);
   });
 });
 
@@ -1328,7 +1328,7 @@ describe('#164 membership lifecycle monotonic pending succession migration', () 
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(516);
+    expect(Number(declaredPlan![1])).toBe(581);
   });
 });
 
@@ -1415,7 +1415,7 @@ describe('#164 displaced pending watermark migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(516);
+    expect(Number(declaredPlan![1])).toBe(581);
   });
 });
 
@@ -1549,7 +1549,7 @@ describe('#164 admission marker and terminal reconciliation migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(516);
+    expect(Number(declaredPlan![1])).toBe(581);
   });
 
   it('makes scheduled terminal authority, terminal-dominant buffered folds, and plan-specific admission structural invariants', () => {
