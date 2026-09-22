@@ -84,6 +84,13 @@ const pendingConfirmationWatermarkSql = readFileSync(
   ),
   'utf8',
 );
+const monotonicPendingSuccessionSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922240000_plus_membership_lifecycle_monotonic_pending_succession.sql',
+  ),
+  'utf8',
+);
 const lifecyclePgTapSql = readFileSync(
   join(process.cwd(), 'supabase/tests/plus_membership_lifecycle.test.sql'),
   'utf8',
@@ -1009,7 +1016,7 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(253);
+    expect(Number(declaredPlan![1])).toBe(286);
   });
 });
 
@@ -1096,6 +1103,120 @@ describe('#164 membership lifecycle pending confirmation watermark migration', (
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(253);
+    expect(Number(declaredPlan![1])).toBe(286);
+  });
+});
+
+describe('#164 membership lifecycle monotonic pending succession migration', () => {
+  it('advances the ordering watermark for a semantically stale same-timestamp pending', () => {
+    expect(monotonicPendingSuccessionSql).toContain(
+      "if v_membership_status = 'pending'",
+    );
+    expect(monotonicPendingSuccessionSql).toContain(
+      'and v_event.occurred_at = v_state.last_event_occurred_at',
+    );
+    expect(monotonicPendingSuccessionSql).toContain(
+      'set last_event_occurred_at = v_event.occurred_at,',
+    );
+  });
+
+  it('orders a confirmed successor against the live pending stream succession barrier', () => {
+    expect(monotonicPendingSuccessionSql).toContain(
+      'add column if not exists succession_barrier_occurred_at timestamptz',
+    );
+    expect(monotonicPendingSuccessionSql).toContain(
+      'add column if not exists succession_barrier_event_id text',
+    );
+    expect(monotonicPendingSuccessionSql).toContain(
+      "elsif v_state.membership_status = 'pending'",
+    );
+    expect(monotonicPendingSuccessionSql).toContain(
+      'and v_state.succession_barrier_occurred_at is not null then',
+    );
+    expect(monotonicPendingSuccessionSql).toContain(
+      'v_ordering_barrier_occurred_at := v_state.succession_barrier_occurred_at;',
+    );
+    expect(monotonicPendingSuccessionSql).toContain(
+      'succession_barrier_occurred_at = v_succession_barrier_occurred_at,',
+    );
+    expect(monotonicPendingSuccessionSql).toContain(
+      'succession_barrier_event_id = v_succession_barrier_event_id,',
+    );
+    // Unconfirmed pending still cannot retire a live pending or active stream.
+    expect(monotonicPendingSuccessionSql).toContain('not v_current_stream_retired)');
+    expect(monotonicPendingSuccessionSql).toContain(
+      "or (v_state.membership_status in ('active', 'past_due') and v_membership_status = 'pending')",
+    );
+  });
+
+  it('keeps the applied watermark monotonic and the equal-cutoff terminal id deterministic', () => {
+    expect(monotonicPendingSuccessionSql).toContain(
+      'v_watermark_occurred_at := v_state.last_event_occurred_at;',
+    );
+    expect(monotonicPendingSuccessionSql).toContain(
+      'or (p_period_end = terminal_at and v_event.event_id < terminal_event_id)',
+    );
+    expect(monotonicPendingSuccessionSql).toContain(
+      'last_event_occurred_at = v_watermark_occurred_at,',
+    );
+    expect(monotonicPendingSuccessionSql).not.toContain(
+      'last_event_occurred_at = excluded.last_event_occurred_at,',
+    );
+  });
+
+  it('keeps the monotonic pending succession migration server-only, provider-neutral and lock-ordered', () => {
+    const userLock = monotonicPendingSuccessionSql.indexOf(
+      'hashtextextended(p_user_id::text, 164)',
+    );
+    const streamLock = monotonicPendingSuccessionSql.indexOf(
+      "p_source_system || ':' || p_source_customer_id || ':' || p_source_subscription_id, 164",
+    );
+    const firstSubscriptionLock = monotonicPendingSuccessionSql.indexOf(
+      'from public.plus_membership_subscription',
+    );
+    expect(userLock).toBeGreaterThan(-1);
+    expect(streamLock).toBeGreaterThan(-1);
+    expect(firstSubscriptionLock).toBeGreaterThan(-1);
+    expect(userLock).toBeLessThan(streamLock);
+    expect(streamLock).toBeLessThan(firstSubscriptionLock);
+    expect(monotonicPendingSuccessionSql).toContain(
+      'revoke all on function public.record_plus_membership_event',
+    );
+    expect(monotonicPendingSuccessionSql).toContain(
+      'grant execute on function public.record_plus_membership_event',
+    );
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(monotonicPendingSuccessionSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
+    }
+    expect(monotonicPendingSuccessionSql).not.toMatch(
+      /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
+    );
+  });
+
+  it('adds pgTAP cases for the monotonic succession repair with a corrected plan count', () => {
+    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000189');
+    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000190');
+    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000191');
+    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000192');
+    expect(lifecyclePgTapSql).toContain(
+      '#164 P1a reverse delivery advances the watermark to the stale pending key',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 P1b earlier confirmed start C displaces the live pending stream B',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 P2 equal cutoff selects the least durable evidence id regardless of arrival',
+    );
+    const declaredPlan = lifecyclePgTapSql.match(/select plan\((\d+)\)/);
+    expect(declaredPlan).not.toBeNull();
+    const pgTapAssertions = lifecyclePgTapSql.match(
+      /^select (?:is|ok|isnt|has_table|has_table_privilege|has_function_privilege|throws_ok|col_is_null|lives_ok|matches)\(/gm,
+    );
+    expect(pgTapAssertions).not.toBeNull();
+    expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
+    expect(Number(declaredPlan![1])).toBe(286);
   });
 });
