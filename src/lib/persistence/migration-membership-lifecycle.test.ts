@@ -11,7 +11,10 @@ const repairSql = readFileSync(
   'utf8',
 );
 const finalRepairSql = readFileSync(
-  join(process.cwd(), 'supabase/migrations/20260922130000_plus_membership_lifecycle_access_clamp.sql'),
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922290000_plus_membership_lifecycle_final_terminal_retirement.sql',
+  ),
   'utf8',
 );
 const terminalAuthoritySql = readFileSync(
@@ -205,11 +208,13 @@ describe('#164 membership lifecycle terminal repair migration', () => {
   });
 });
 
-describe('#164 membership lifecycle access clamp migration', () => {
-  it('only changes the writer projection to honor terminal_at', () => {
+describe('#164 membership lifecycle final terminal retirement migration', () => {
+  it('always retires terminal evidence before allowing pre-terminal retired-stream selection', () => {
     expect(finalRepairSql).toContain('create or replace function public.record_plus_membership_event');
     expect(finalRepairSql).toContain('least(v_event.period_end, v_subscription.terminal_at)');
     expect(finalRepairSql).toContain('if v_subscription_retired then');
+    expect(finalRepairSql).toContain('if v_terminal or v_boundary_reached then');
+    expect(finalRepairSql).not.toContain('v_defer_terminal_retirement');
     expect(finalRepairSql).toContain("return 'replayed'");
     expect(finalRepairSql).toContain("return 'stale'");
     expect(finalRepairSql).toContain('insert into public.plus_membership_access');
@@ -1030,7 +1035,7 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(338);
+    expect(Number(declaredPlan![1])).toBe(421);
   });
 });
 
@@ -1122,7 +1127,7 @@ describe('#164 buffered successor-stream evidence migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(338);
+    expect(Number(declaredPlan![1])).toBe(421);
   });
 });
 
@@ -1209,7 +1214,7 @@ describe('#164 membership lifecycle pending confirmation watermark migration', (
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(338);
+    expect(Number(declaredPlan![1])).toBe(421);
   });
 });
 
@@ -1323,7 +1328,7 @@ describe('#164 membership lifecycle monotonic pending succession migration', () 
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(338);
+    expect(Number(declaredPlan![1])).toBe(421);
   });
 });
 
@@ -1410,6 +1415,143 @@ describe('#164 displaced pending watermark migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(338);
+    expect(Number(declaredPlan![1])).toBe(421);
+  });
+});
+
+describe('#164 admission marker and terminal reconciliation migration', () => {
+  it('reconciles buffered successor terminal evidence and durable plan admission', () => {
+    // A stream retired by its own durable terminal evidence may still accept a
+    // pre-terminal lifecycle event; the retirement itself is preserved and the
+    // event must still beat the current stream's ordering barrier.
+    expect(finalRepairSql).toContain('if v_subscription_retired then');
+    expect(finalRepairSql).toContain('v_retired_own_terminal_at');
+    expect(finalRepairSql).toContain(
+      "terminal_event.event_type = 'membership_canceled'",
+    );
+    expect(finalRepairSql).toContain(
+      '>= (v_retired_own_terminal_at, v_retired_own_terminal_event_id) then',
+    );
+    // The accepted stream's ordering clock resets to its own key, and the fold
+    // reconciles terminal evidence as well as active/past_due evidence.
+    expect(finalRepairSql).not.toContain('v_displaces_live_pending');
+    expect(finalRepairSql).toContain(
+      'v_watermark_occurred_at := v_event.occurred_at;',
+    );
+    expect(finalRepairSql).toContain(
+      'v_watermark_event_id := v_event.event_id;',
+    );
+    expect(finalRepairSql).toContain(
+      "buffered.membership_status in ('active', 'past_due', 'canceled', 'expired', 'revoked')",
+    );
+    expect(finalRepairSql).toContain(
+      "if v_buffered_status in ('canceled', 'expired', 'revoked') then",
+    );
+    // Plan admission is a durable marker, not merely a preexisting binding.
+    expect(finalRepairSql).toContain(
+      'add column if not exists admitted_at timestamptz',
+    );
+    expect(finalRepairSql).toContain(
+      'and (not v_binding_preexisting or v_subscription.admitted_at is null)',
+    );
+    expect(finalRepairSql).toContain(
+      'set admitted_at = coalesce(admitted_at, v_event.occurred_at)',
+    );
+    expect(finalRepairSql).toContain(
+      "if p_event_type = 'membership_started'",
+    );
+    // The period-end cutoff authority and the monotonic same-stream guard stay.
+    expect(finalRepairSql).toContain(
+      "v_period_end_terminal := p_event_type = 'membership_canceled' and p_cancel_at_period_end",
+    );
+    expect(finalRepairSql).toContain(
+      'v_watermark_occurred_at := v_state.last_event_occurred_at;',
+    );
+    expect(finalRepairSql).toContain("return 'replayed'");
+    expect(finalRepairSql).toContain("return 'stale'");
+  });
+
+  it('keeps the admission marker migration server-only, provider-neutral and lock-ordered', () => {
+    const userLock = finalRepairSql.indexOf(
+      'hashtextextended(p_user_id::text, 164)',
+    );
+    const streamLock = finalRepairSql.indexOf(
+      "p_source_system || ':' || p_source_customer_id || ':' || p_source_subscription_id, 164",
+    );
+    const firstSubscriptionLock = finalRepairSql.indexOf(
+      'from public.plus_membership_subscription',
+    );
+    expect(userLock).toBeGreaterThan(-1);
+    expect(streamLock).toBeGreaterThan(-1);
+    expect(firstSubscriptionLock).toBeGreaterThan(-1);
+    expect(userLock).toBeLessThan(streamLock);
+    expect(streamLock).toBeLessThan(firstSubscriptionLock);
+    expect(finalRepairSql).toContain(
+      'revoke all on function public.record_plus_membership_event',
+    );
+    expect(finalRepairSql).toContain(
+      'grant execute on function public.record_plus_membership_event',
+    );
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(finalRepairSql).not.toMatch(
+        new RegExp(`\\b${identifier}\\b`, 'i'),
+      );
+    }
+    expect(finalRepairSql).not.toMatch(
+      /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
+    );
+  });
+
+  it('adds pgTAP cases for both successor-terminal orders, the replacement watermark and inactive-plan admission', () => {
+    for (const user of ['198', '199', '200', '201', '202', '203', '204', '205']) {
+      expect(lifecyclePgTapSql).toContain(`50000000-0000-0000-0000-000000000${user}`);
+    }
+    expect(lifecyclePgTapSql).toContain(
+      '#164 successor terminal forward delivery buffers the unselected C terminal before its start',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 successor terminal forward delivery folds the buffered terminal into C state',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 successor terminal reverse delivery applies the C terminal after its start',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 successor terminal forward delivery ends on its own confirmed successor',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 replacement watermark forward delivery folds the buffered failure on C ordering',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 replacement watermark reverse delivery resets the reducer clock to accepted C t15',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 replacement watermark arrival orders converge on one projection',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 terminal retires C while the stale terminal result leaves current A unchanged',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 inactive-plan admission rejects a start on a pending-created binding',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 inactive-plan admission still accepts period-end cancellation on an admitted binding',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 inactive-plan admission keeps the admitted stream clamped at the cutoff',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 inactive-plan admission enforces the period-end cutoff without an expiration event',
+    );
+    const declaredPlan = lifecyclePgTapSql.match(/select plan\((\d+)\)/);
+    expect(declaredPlan).not.toBeNull();
+    const pgTapAssertions = lifecyclePgTapSql.match(
+      /^select (?:is|ok|isnt|has_table|has_table_privilege|has_function_privilege|throws_ok|col_is_null|lives_ok|matches)\(/gm,
+    );
+    expect(pgTapAssertions).not.toBeNull();
+    expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
+    expect(Number(declaredPlan![1])).toBe(421);
   });
 });
