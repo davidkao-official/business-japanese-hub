@@ -1210,7 +1210,7 @@ describe('#164 membership lifecycle pending confirmation watermark migration', (
       '#164 P1 confirmation watermark keeps the recorded pending event id',
     );
     expect(lifecyclePgTapSql).toContain(
-      '#164 P1 same-timestamp payment failure below the watermark stays stale',
+      '#165 same-timestamp payment failure below observed pending still applies',
     );
     expectLifecycleTapPlans();
   });

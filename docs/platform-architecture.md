@@ -224,8 +224,9 @@ change admission. The applied-key migration recovers only exact matching project
 facts and otherwise conservatively keeps the former barrier; it never changes access or
 invents historical eligibility. `unavailable` remains only a #139 delivery/lookup
 failure, not a lifecycle state. It does not implement a provider, checkout, webhook,
-dunning, reconciliation, annual billing, legal activation, or Book commerce. ## 11.
-Delivery boundary
+dunning, reconciliation, annual billing, legal activation, or Book commerce.
+
+## 11. Delivery boundary
 
 Current delivery priority 是 **Plus Early Access preparation**：
 
