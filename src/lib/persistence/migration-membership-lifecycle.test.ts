@@ -13,7 +13,7 @@ const repairSql = readFileSync(
 const finalRepairSql = readFileSync(
   join(
     process.cwd(),
-    'supabase/migrations/20260922320000_plus_membership_lifecycle_terminal_authority_followup.sql',
+    'supabase/migrations/20260922330000_plus_membership_lifecycle_admission_followup.sql',
   ),
   'utf8',
 );
@@ -1035,7 +1035,7 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(444);
+    expect(Number(declaredPlan![1])).toBe(474);
   });
 });
 
@@ -1127,7 +1127,7 @@ describe('#164 buffered successor-stream evidence migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(444);
+    expect(Number(declaredPlan![1])).toBe(474);
   });
 });
 
@@ -1214,7 +1214,7 @@ describe('#164 membership lifecycle pending confirmation watermark migration', (
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(444);
+    expect(Number(declaredPlan![1])).toBe(474);
   });
 });
 
@@ -1328,7 +1328,7 @@ describe('#164 membership lifecycle monotonic pending succession migration', () 
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(444);
+    expect(Number(declaredPlan![1])).toBe(474);
   });
 });
 
@@ -1415,7 +1415,7 @@ describe('#164 displaced pending watermark migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(444);
+    expect(Number(declaredPlan![1])).toBe(474);
   });
 });
 
@@ -1452,10 +1452,11 @@ describe('#164 admission marker and terminal reconciliation migration', () => {
     );
     expect(finalRepairSql).toContain('add column if not exists admitted_plan_code text');
     expect(finalRepairSql).toContain('v_subscription.admitted_plan_code is distinct from p_plan_code');
-    expect(finalRepairSql).toContain('admitted_plan_code = coalesce(admitted_plan_code, p_plan_code)');
+    expect(finalRepairSql).toContain('admitted_plan_code = case');
     expect(finalRepairSql).toContain(
-      "if p_event_type = 'membership_started'",
+      "p_event_type in (\n           'membership_renewed', 'membership_reactivated', 'membership_restored'",
     );
+    expect(finalRepairSql).toContain("if v_buffered_event_type = 'membership_started'");
     // The period-end cutoff authority and the monotonic same-stream guard stay.
     expect(finalRepairSql).toContain(
       "v_period_end_terminal := p_event_type = 'membership_canceled' and p_cancel_at_period_end",
@@ -1548,7 +1549,7 @@ describe('#164 admission marker and terminal reconciliation migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(444);
+    expect(Number(declaredPlan![1])).toBe(474);
   });
 
   it('makes scheduled terminal authority, terminal-dominant buffered folds, and plan-specific admission structural invariants', () => {
@@ -1564,5 +1565,13 @@ describe('#164 admission marker and terminal reconciliation migration', () => {
     );
     expect(finalRepairSql).toContain('v_earliest_terminal_event_id text');
     expect(finalRepairSql).toContain('when terminal_event.event_type = \'membership_canceled\'');
+    expect(finalRepairSql).toContain('or admitted_plan_code is distinct from p_plan_code');
+    expect(finalRepairSql).toContain('or admitted_plan_code is distinct from v_buffered_plan_code');
+    expect(lifecyclePgTapSql).toContain(
+      '#164 admitted-plan transition advances the durable exact-plan marker',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 buffered-start admission delivery orders converge on the exact admitted plan',
+    );
   });
 });

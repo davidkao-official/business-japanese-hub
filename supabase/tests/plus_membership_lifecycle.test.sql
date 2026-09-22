@@ -1,6 +1,6 @@
 begin;
 
-select plan(444);
+select plan(474);
 
 select has_table('public', 'plus_membership_plan', 'Plus plans are durable server-owned data');
 select has_table('public', 'plus_membership_event', 'lifecycle events are durable audit data');
@@ -68,7 +68,10 @@ insert into auth.users (id, aud, role) values
   ('50000000-0000-0000-0000-000000000205', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000206', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000207', 'authenticated', 'authenticated'),
-  ('50000000-0000-0000-0000-000000000208', 'authenticated', 'authenticated');
+  ('50000000-0000-0000-0000-000000000208', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000209', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000210', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000211', 'authenticated', 'authenticated');
 
 select is(public.record_plus_membership_event('source-a','customer-164','subscription-old','start-164','50000000-0000-0000-0000-000000000164','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','started creates active membership');
 select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000164'),'active','started state is active');
@@ -584,6 +587,50 @@ select is(public.record_plus_membership_event('source-a','customer-208','subscri
 select is((select retired_event_id from public.plus_membership_subscription where source_subscription_id='subscription-208-c'),(select event_id from public.plus_membership_event where source_system='source-a' and source_event_id='revoke-208-c'),'#164 retirement stores C earliest effective terminal authority');
 select is(public.record_plus_membership_event('source-a','customer-208','subscription-208-c','start-208-c','50000000-0000-0000-0000-000000000208','plus_early_access_monthly','membership_started',now() - interval '15 days',now() - interval '30 days',now() + interval '20 days'),'stale','#164 C start after its immediate terminal cannot replace A before scheduled cutoff');
 select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000208'),'subscription-208-a','#164 earliest terminal reconciliation leaves current A unchanged');
+
+-- An admitted stream may move to a different plan only while that incoming
+-- plan is live. That successful application advances the exact-plan marker,
+-- so later same-plan lifecycle evidence stays valid when new sales close.
+update public.plus_membership_plan set active = true where plan_code = 'plus_standard_monthly';
+select is((select active from public.plus_membership_plan where plan_code='plus_standard_monthly'),true,'#164 admitted-plan transition enables the explicit Standard fixture');
+select is(public.record_plus_membership_event('source-a','customer-209','subscription-209','start-209-early','50000000-0000-0000-0000-000000000209','plus_early_access_monthly','membership_started',now() - interval '4 days',now() - interval '4 days',now() + interval '26 days'),'applied','#164 admitted-plan transition starts an admitted Early Access stream');
+select is((select admitted_plan_code from public.plus_membership_subscription where source_subscription_id='subscription-209'),'plus_early_access_monthly','#164 admitted-plan transition records the initial exact plan');
+select is(public.record_plus_membership_event('source-a','customer-209','subscription-209','renew-209-standard','50000000-0000-0000-0000-000000000209','plus_standard_monthly','membership_renewed',now() - interval '3 days',now() - interval '3 days',now() + interval '27 days'),'applied','#164 admitted-plan transition applies the live Standard renewal on an admitted stream');
+select is((select plan_code from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000209'),'plus_standard_monthly','#164 admitted-plan transition projects the applied Standard plan');
+select is((select admitted_plan_code from public.plus_membership_subscription where source_subscription_id='subscription-209'),'plus_standard_monthly','#164 admitted-plan transition advances the durable exact-plan marker');
+update public.plus_membership_plan set active = false where plan_code = 'plus_standard_monthly';
+select is((select active from public.plus_membership_plan where plan_code='plus_standard_monthly'),false,'#164 admitted-plan transition closes Standard to new sales after its active application');
+select is(public.record_plus_membership_event('source-a','customer-209','subscription-209','renew-209-standard-closed','50000000-0000-0000-0000-000000000209','plus_standard_monthly','membership_renewed',now() - interval '2 days',now() - interval '2 days',now() + interval '28 days'),'applied','#164 admitted-plan transition accepts later same-plan renewal after Standard closes');
+select is(public.record_plus_membership_event('source-a','customer-209','subscription-209','cancel-209-standard-closed','50000000-0000-0000-0000-000000000209','plus_standard_monthly','membership_canceled',now() - interval '1 day',now() - interval '2 days',now() + interval '28 days',true),'applied','#164 admitted-plan transition accepts later same-plan period-end cancellation after Standard closes');
+select is((select admitted_plan_code from public.plus_membership_subscription where source_subscription_id='subscription-209'),'plus_standard_monthly','#164 admitted-plan transition keeps the advanced marker after same-plan lifecycle evidence');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000209'),'active','#164 admitted-plan transition preserves the pre-cutoff active projection');
+
+-- A stale later start on C is durable but not admitted while A is current. Once
+-- a strictly earlier C start becomes current, the buffered Standard start folds
+-- into authoritative active state/access and must advance the exact-plan marker.
+update public.plus_membership_plan set active = true where plan_code = 'plus_standard_monthly';
+select is(public.record_plus_membership_event('source-a','customer-210','subscription-210-a','start-210-a','50000000-0000-0000-0000-000000000210','plus_early_access_monthly','membership_started',now() - interval '10 days',now() - interval '10 days',now() + interval '20 days'),'applied','#164 buffered-start admission forward delivery starts A after C evidence');
+select is(public.record_plus_membership_event('source-a','customer-210','subscription-210-c','start-210-c-standard-later','50000000-0000-0000-0000-000000000210','plus_standard_monthly','membership_started',now() - interval '20 days',now() - interval '20 days',now() + interval '10 days'),'stale','#164 buffered-start admission forward delivery records later C Standard start while A remains current');
+select is(public.record_plus_membership_event('source-a','customer-210','subscription-210-a','revoke-210-a','50000000-0000-0000-0000-000000000210','plus_early_access_monthly','membership_revoked',now() - interval '30 days',now() - interval '10 days',now() + interval '20 days'),'stale','#164 buffered-start admission forward delivery retires A at its earlier terminal authority');
+select is(public.record_plus_membership_event('source-a','customer-210','subscription-210-c','start-210-c-early','50000000-0000-0000-0000-000000000210','plus_early_access_monthly','membership_started',now() - interval '25 days',now() - interval '25 days',now() + interval '5 days'),'applied','#164 buffered-start admission forward delivery makes the earlier C start current and folds Standard');
+select is((select plan_code from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000210'),'plus_standard_monthly','#164 buffered-start admission forward delivery projects folded Standard state');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000210'),'active','#164 buffered-start admission forward delivery projects folded active access');
+select is((select admitted_plan_code from public.plus_membership_subscription where source_subscription_id='subscription-210-c'),'plus_standard_monthly','#164 buffered-start admission forward delivery marks the folded Standard start');
+select is((select admitted_at from public.plus_membership_subscription where source_subscription_id='subscription-210-c'),(select occurred_at from public.plus_membership_event where source_system='source-a' and source_event_id='start-210-c-standard-later'),'#164 buffered-start admission forward delivery records folded Standard evidence time');
+
+-- Reverse delivery reaches the same C Standard state, access, and exact-plan
+-- marker without a buffered fold.
+select is(public.record_plus_membership_event('source-a','customer-211','subscription-211-a','start-211-a','50000000-0000-0000-0000-000000000211','plus_early_access_monthly','membership_started',now() - interval '10 days',now() - interval '10 days',now() + interval '20 days'),'applied','#164 buffered-start admission reverse delivery starts A');
+select is(public.record_plus_membership_event('source-a','customer-211','subscription-211-a','revoke-211-a','50000000-0000-0000-0000-000000000211','plus_early_access_monthly','membership_revoked',now() - interval '30 days',now() - interval '10 days',now() + interval '20 days'),'stale','#164 buffered-start admission reverse delivery retires A at the same terminal authority');
+select is(public.record_plus_membership_event('source-a','customer-211','subscription-211-c','start-211-c-early','50000000-0000-0000-0000-000000000211','plus_early_access_monthly','membership_started',now() - interval '25 days',now() - interval '25 days',now() + interval '5 days'),'applied','#164 buffered-start admission reverse delivery applies the earlier C start');
+select is(public.record_plus_membership_event('source-a','customer-211','subscription-211-c','start-211-c-standard-later','50000000-0000-0000-0000-000000000211','plus_standard_monthly','membership_started',now() - interval '20 days',now() - interval '20 days',now() + interval '10 days'),'applied','#164 buffered-start admission reverse delivery applies Standard directly');
+select is((select plan_code from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000211'),'plus_standard_monthly','#164 buffered-start admission reverse delivery projects Standard state');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000211'),'active','#164 buffered-start admission reverse delivery projects active access');
+select is((select admitted_plan_code from public.plus_membership_subscription where source_subscription_id='subscription-211-c'),'plus_standard_monthly','#164 buffered-start admission reverse delivery marks Standard directly');
+select is((select admitted_at from public.plus_membership_subscription where source_subscription_id='subscription-211-c'),(select occurred_at from public.plus_membership_event where source_system='source-a' and source_event_id='start-211-c-standard-later'),'#164 buffered-start admission reverse delivery records direct Standard evidence time');
+select is((select admitted_plan_code from public.plus_membership_subscription where source_subscription_id='subscription-210-c'),(select admitted_plan_code from public.plus_membership_subscription where source_subscription_id='subscription-211-c'),'#164 buffered-start admission delivery orders converge on the exact admitted plan');
+select is((select admitted_at from public.plus_membership_subscription where source_subscription_id='subscription-210-c'),(select admitted_at from public.plus_membership_subscription where source_subscription_id='subscription-211-c'),'#164 buffered-start admission delivery orders converge on admitted evidence time');
+select is((select current_period_end from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000210'),(select current_period_end from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000211'),'#164 buffered-start admission delivery orders converge on access horizon');
 
 delete from auth.users where id='50000000-0000-0000-0000-000000000164';
 select ok((select count(*) from public.plus_membership_event where source_customer_id='customer-164') > 0,'audit evidence survives auth deletion');
