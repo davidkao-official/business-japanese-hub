@@ -1,6 +1,6 @@
 begin;
 
-select plan(303);
+select plan(338);
 
 select has_table('public', 'plus_membership_plan', 'Plus plans are durable server-owned data');
 select has_table('public', 'plus_membership_event', 'lifecycle events are durable audit data');
@@ -54,7 +54,10 @@ insert into auth.users (id, aud, role) values
   ('50000000-0000-0000-0000-000000000191', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000192', 'authenticated', 'authenticated'),
   ('50000000-0000-0000-0000-000000000193', 'authenticated', 'authenticated'),
-  ('50000000-0000-0000-0000-000000000194', 'authenticated', 'authenticated');
+  ('50000000-0000-0000-0000-000000000194', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000195', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000196', 'authenticated', 'authenticated'),
+  ('50000000-0000-0000-0000-000000000197', 'authenticated', 'authenticated');
 
 select is(public.record_plus_membership_event('source-a','customer-164','subscription-old','start-164','50000000-0000-0000-0000-000000000164','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','started creates active membership');
 select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000164'),'active','started state is active');
@@ -378,6 +381,46 @@ select is((select membership_status from public.plus_membership_access where use
 select is(public.record_plus_membership_event('source-a','customer-194','subscription-194-b','pending-194-b','50000000-0000-0000-0000-000000000194','plus_early_access_monthly','membership_pending','2026-09-20T00:00:00Z','2026-09-20T00:00:00Z','2026-10-20T00:00:00Z'),'stale','#164 displaced pending watermark reverse delivery later live pending B stays stale');
 select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000194'),'subscription-194-c','#164 displaced pending watermark reverse delivery keeps confirmed C current');
 select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000194'),'past_due','#164 displaced pending watermark reverse delivery ends past_due');
+
+select is(public.record_plus_membership_event('source-a','customer-195','subscription-195-a','start-195-a','50000000-0000-0000-0000-000000000195','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','#164 buffered successor evidence forward delivery starts terminal-predecessor A');
+select is(public.record_plus_membership_event('source-a','customer-195','subscription-195-a','revoke-195-a','50000000-0000-0000-0000-000000000195','plus_early_access_monthly','membership_revoked','2026-09-05T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','#164 buffered successor evidence forward delivery makes A terminal at t5');
+select is(public.record_plus_membership_event('source-a','customer-195','subscription-195-b','pending-195-b','50000000-0000-0000-0000-000000000195','plus_early_access_monthly','membership_pending','2026-09-20T00:00:00Z','2026-09-20T00:00:00Z','2026-10-20T00:00:00Z'),'applied','#164 buffered successor evidence forward delivery makes live pending B current at t20');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000195'),'subscription-195-b','#164 buffered successor evidence forward delivery keeps live pending B current before the buffered failure');
+select is(public.record_plus_membership_event('source-a','customer-195','subscription-195-c','fail-195-c','50000000-0000-0000-0000-000000000195','plus_early_access_monthly','membership_payment_failed','2026-09-15T00:00:00Z','2026-09-10T00:00:00Z','2026-10-10T00:00:00Z'),'stale','#164 buffered successor evidence forward delivery records C failure before its start as stale');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000195'),'subscription-195-b','#164 buffered successor evidence forward delivery leaves live pending B current while C failure is buffered');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000195'),'pending','#164 buffered successor evidence forward delivery leaves B pending access unchanged while C failure is buffered');
+select is((select count(*) from public.plus_membership_event where source_subscription_id='subscription-195-c'),1::bigint,'#164 buffered successor evidence forward delivery keeps the buffered C failure durable');
+select is(public.record_plus_membership_event('source-a','customer-195','subscription-195-c','start-195-c','50000000-0000-0000-0000-000000000195','plus_early_access_monthly','membership_started','2026-09-10T00:00:00Z','2026-09-10T00:00:00Z','2026-10-10T00:00:00Z'),'applied','#164 buffered successor evidence forward delivery makes confirmed C current at t10');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000195'),'subscription-195-c','#164 buffered successor evidence forward delivery selects confirmed C as current');
+select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000195'),'past_due','#164 buffered successor evidence forward delivery folds the durable failure into C state');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000195'),'past_due','#164 buffered successor evidence forward delivery ends C access past_due');
+select is((select last_event_occurred_at from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000195'),'2026-09-15T00:00:00Z'::timestamptz,'#164 buffered successor evidence forward delivery adopts the buffered failure watermark');
+select is((select retired_at is not null from public.plus_membership_subscription where source_subscription_id='subscription-195-b'),true,'#164 buffered successor evidence forward delivery durably retires displaced B');
+select is(public.record_plus_membership_event('source-a','customer-195','subscription-195-c','fail-195-c','50000000-0000-0000-0000-000000000195','plus_early_access_monthly','membership_payment_failed','2026-09-15T00:00:00Z','2026-09-10T00:00:00Z','2026-10-10T00:00:00Z'),'replayed','#164 buffered successor evidence forward delivery replays the durable failure without a second effect');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000195'),'past_due','#164 buffered successor evidence forward delivery replay keeps C access past_due');
+select is(public.record_plus_membership_event('source-a','customer-195','subscription-195-b','renew-195-b-late','50000000-0000-0000-0000-000000000195','plus_early_access_monthly','membership_renewed','2026-09-25T00:00:00Z','2026-09-20T00:00:00Z','2026-10-20T00:00:00Z'),'stale','#164 buffered successor evidence forward delivery cannot resurrect displaced B');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000195'),'subscription-195-c','#164 buffered successor evidence forward delivery keeps confirmed C after the late B renewal');
+
+select is(public.record_plus_membership_event('source-a','customer-196','subscription-196-a','start-196-a','50000000-0000-0000-0000-000000000196','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','#164 buffered successor evidence reverse delivery starts terminal-predecessor A');
+select is(public.record_plus_membership_event('source-a','customer-196','subscription-196-a','revoke-196-a','50000000-0000-0000-0000-000000000196','plus_early_access_monthly','membership_revoked','2026-09-05T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','#164 buffered successor evidence reverse delivery makes A terminal at t5');
+select is(public.record_plus_membership_event('source-a','customer-196','subscription-196-b','pending-196-b','50000000-0000-0000-0000-000000000196','plus_early_access_monthly','membership_pending','2026-09-20T00:00:00Z','2026-09-20T00:00:00Z','2026-10-20T00:00:00Z'),'applied','#164 buffered successor evidence reverse delivery makes live pending B current at t20');
+select is(public.record_plus_membership_event('source-a','customer-196','subscription-196-c','start-196-c','50000000-0000-0000-0000-000000000196','plus_early_access_monthly','membership_started','2026-09-10T00:00:00Z','2026-09-10T00:00:00Z','2026-10-10T00:00:00Z'),'applied','#164 buffered successor evidence reverse delivery applies confirmed C at t10 first');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000196'),'subscription-196-c','#164 buffered successor evidence reverse delivery keeps confirmed C current');
+select is(public.record_plus_membership_event('source-a','customer-196','subscription-196-c','fail-196-c','50000000-0000-0000-0000-000000000196','plus_early_access_monthly','membership_payment_failed','2026-09-15T00:00:00Z','2026-09-10T00:00:00Z','2026-10-10T00:00:00Z'),'applied','#164 buffered successor evidence reverse delivery applies C failure at t15');
+select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000196'),'past_due','#164 buffered successor evidence reverse delivery state is past_due');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000196'),'past_due','#164 buffered successor evidence reverse delivery access is past_due');
+
+select is(public.record_plus_membership_event('source-a','customer-197','subscription-197','start-197','50000000-0000-0000-0000-000000000197','plus_early_access_monthly','membership_started','2026-09-01T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z'),'applied','#164 inactive-plan admission starts an already-bound stream');
+update public.plus_membership_plan set active = false where plan_code = 'plus_early_access_monthly';
+select is((select active from public.plus_membership_plan where plan_code = 'plus_early_access_monthly'),false,'#164 inactive-plan admission deactivates the plan for the case');
+select is(public.record_plus_membership_event('source-a','customer-197','subscription-197','cancel-197','50000000-0000-0000-0000-000000000197','plus_early_access_monthly','membership_canceled','2026-09-02T00:00:00Z','2026-09-01T00:00:00Z','2026-10-01T00:00:00Z',true),'applied','#164 inactive-plan admission accepts period-end cancellation on an already-bound stream');
+select is((select terminal_at from public.plus_membership_subscription where source_subscription_id='subscription-197'),'2026-10-01T00:00:00Z'::timestamptz,'#164 inactive-plan admission records the durable cutoff');
+select is((select terminal_event_id is not null from public.plus_membership_subscription where source_subscription_id='subscription-197'),true,'#164 inactive-plan admission records terminal evidence');
+select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000197'),'active','#164 inactive-plan admission keeps state active before the effective end');
+select is((select current_period_end from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000197'),'2026-10-01T00:00:00Z'::timestamptz,'#164 inactive-plan admission clamps access at the recorded cutoff');
+select is(public.record_plus_membership_event('source-a','customer-197','subscription-197','renew-197-late','50000000-0000-0000-0000-000000000197','plus_early_access_monthly','membership_renewed','2026-10-02T00:00:00Z','2026-10-01T00:00:00Z','2026-11-01T00:00:00Z'),'stale','#164 inactive-plan admission cannot extend cut-off access through renewal');
+select is((select current_period_end from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000197'),'2026-10-01T00:00:00Z'::timestamptz,'#164 inactive-plan admission leaves access not extendable');
+update public.plus_membership_plan set active = true where plan_code = 'plus_early_access_monthly';
 
 delete from auth.users where id='50000000-0000-0000-0000-000000000164';
 select ok((select count(*) from public.plus_membership_event where source_customer_id='customer-164') > 0,'audit evidence survives auth deletion');

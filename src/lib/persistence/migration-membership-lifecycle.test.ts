@@ -98,6 +98,13 @@ const displacedPendingWatermarkSql = readFileSync(
   ),
   'utf8',
 );
+const bufferedStreamEvidenceSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922260000_plus_membership_lifecycle_buffered_stream_evidence.sql',
+  ),
+  'utf8',
+);
 const lifecyclePgTapSql = readFileSync(
   join(process.cwd(), 'supabase/tests/plus_membership_lifecycle.test.sql'),
   'utf8',
@@ -1023,7 +1030,99 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(303);
+    expect(Number(declaredPlan![1])).toBe(338);
+  });
+});
+
+describe('#164 buffered successor-stream evidence migration', () => {
+  it('folds durable successor evidence and gates plan admission to a new activation', () => {
+    expect(bufferedStreamEvidenceSql).toContain('v_binding_preexisting boolean := false;');
+    expect(bufferedStreamEvidenceSql).toContain('v_binding_preexisting := found;');
+    expect(bufferedStreamEvidenceSql).toContain('v_stream_became_current boolean := false;');
+    expect(bufferedStreamEvidenceSql).toContain('v_stream_became_current := true;');
+    expect(bufferedStreamEvidenceSql).toContain('if v_stream_became_current then');
+    // Plan availability only gates a new binding that would project active
+    // access, and never terminal period-end cancellation evidence.
+    expect(bufferedStreamEvidenceSql).toContain('if not v_binding_preexisting');
+    expect(bufferedStreamEvidenceSql).toContain("p_event_type <> 'membership_canceled'");
+    expect(bufferedStreamEvidenceSql).toContain(
+      "buffered.membership_status in ('active', 'past_due')",
+    );
+    expect(bufferedStreamEvidenceSql).toContain("'membership_payment_failed'");
+    // The displaced-pending watermark reset and the monotonic guard survive.
+    expect(bufferedStreamEvidenceSql).toContain('if v_displaces_live_pending then');
+    expect(bufferedStreamEvidenceSql).toContain(
+      'v_watermark_occurred_at := v_state.last_event_occurred_at;',
+    );
+    expect(bufferedStreamEvidenceSql).toContain(
+      'v_ordering_barrier_occurred_at := v_state.succession_barrier_occurred_at;',
+    );
+    expect(bufferedStreamEvidenceSql).toContain("return 'replayed'");
+    expect(bufferedStreamEvidenceSql).toContain("return 'stale'");
+  });
+
+  it('keeps the buffered successor-stream evidence migration server-only, provider-neutral and lock-ordered', () => {
+    const userLock = bufferedStreamEvidenceSql.indexOf(
+      'hashtextextended(p_user_id::text, 164)',
+    );
+    const streamLock = bufferedStreamEvidenceSql.indexOf(
+      "p_source_system || ':' || p_source_customer_id || ':' || p_source_subscription_id, 164",
+    );
+    const firstSubscriptionLock = bufferedStreamEvidenceSql.indexOf(
+      'from public.plus_membership_subscription',
+    );
+    expect(userLock).toBeGreaterThan(-1);
+    expect(streamLock).toBeGreaterThan(-1);
+    expect(firstSubscriptionLock).toBeGreaterThan(-1);
+    expect(userLock).toBeLessThan(streamLock);
+    expect(streamLock).toBeLessThan(firstSubscriptionLock);
+    expect(bufferedStreamEvidenceSql).toContain(
+      'revoke all on function public.record_plus_membership_event',
+    );
+    expect(bufferedStreamEvidenceSql).toContain(
+      'grant execute on function public.record_plus_membership_event',
+    );
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(bufferedStreamEvidenceSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
+    }
+    expect(bufferedStreamEvidenceSql).not.toMatch(
+      /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
+    );
+  });
+
+  it('adds pgTAP cases proving both delivery orders fold to past_due and inactive-plan cancellation records its cutoff', () => {
+    for (const user of ['195', '196', '197']) {
+      expect(lifecyclePgTapSql).toContain(`50000000-0000-0000-0000-000000000${user}`);
+    }
+    expect(lifecyclePgTapSql).toContain(
+      '#164 buffered successor evidence forward delivery records C failure before its start as stale',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 buffered successor evidence forward delivery folds the durable failure into C state',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 buffered successor evidence forward delivery ends C access past_due',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 buffered successor evidence reverse delivery access is past_due',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 inactive-plan admission accepts period-end cancellation on an already-bound stream',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 inactive-plan admission leaves access not extendable',
+    );
+    const declaredPlan = lifecyclePgTapSql.match(/select plan\((\d+)\)/);
+    expect(declaredPlan).not.toBeNull();
+    const pgTapAssertions = lifecyclePgTapSql.match(
+      /^select (?:is|ok|isnt|has_table|has_table_privilege|has_function_privilege|throws_ok|col_is_null|lives_ok|matches)\(/gm,
+    );
+    expect(pgTapAssertions).not.toBeNull();
+    expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
+    expect(Number(declaredPlan![1])).toBe(338);
   });
 });
 
@@ -1110,7 +1209,7 @@ describe('#164 membership lifecycle pending confirmation watermark migration', (
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(303);
+    expect(Number(declaredPlan![1])).toBe(338);
   });
 });
 
@@ -1224,7 +1323,7 @@ describe('#164 membership lifecycle monotonic pending succession migration', () 
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(303);
+    expect(Number(declaredPlan![1])).toBe(338);
   });
 });
 
@@ -1311,6 +1410,6 @@ describe('#164 displaced pending watermark migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(303);
+    expect(Number(declaredPlan![1])).toBe(338);
   });
 });
