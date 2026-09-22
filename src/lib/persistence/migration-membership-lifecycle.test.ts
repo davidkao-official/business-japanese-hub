@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -108,10 +108,29 @@ const bufferedStreamEvidenceSql = readFileSync(
   ),
   'utf8',
 );
-const lifecyclePgTapSql = readFileSync(
-  join(process.cwd(), 'supabase/tests/plus_membership_lifecycle.test.sql'),
-  'utf8',
-);
+const lifecyclePgTapFiles = readdirSync(join(process.cwd(), 'supabase/tests'))
+  .filter((file) => /^plus_membership_lifecycle(?:_[a-z_]+)?\.test\.sql$/.test(file))
+  .sort()
+  .map((file) => ({
+    file,
+    sql: readFileSync(join(process.cwd(), 'supabase/tests', file), 'utf8'),
+  }));
+const lifecyclePgTapSql = lifecyclePgTapFiles.map(({ sql }) => sql).join('\n');
+
+function expectLifecycleTapPlans() {
+  let total = 0;
+  for (const { file, sql } of lifecyclePgTapFiles) {
+    const declaredPlan = sql.match(/select plan\((\d+)\)/);
+    const assertions = sql.match(
+      /^select (?:is|ok|isnt|has_table|has_table_privilege|has_function_privilege|throws_ok|col_is_null|lives_ok|matches)\(/gm,
+    );
+    expect(declaredPlan, file).not.toBeNull();
+    expect(assertions, file).not.toBeNull();
+    expect(assertions!.length, file).toBe(Number(declaredPlan![1]));
+    total += Number(declaredPlan![1]);
+  }
+  expect(total).toBe(581);
+}
 
 describe('#164 membership lifecycle migration', () => {
   it('seeds the approved monthly plans without date-based repricing', () => {
@@ -1027,15 +1046,8 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
     expect(lifecyclePgTapSql).toContain(
       '#164 P1 reverse delivery keeps the active confirmation',
     );
-    // The declared plan must count every TAP assertion in the file exactly.
-    const declaredPlan = lifecyclePgTapSql.match(/select plan\((\d+)\)/);
-    expect(declaredPlan).not.toBeNull();
-    const pgTapAssertions = lifecyclePgTapSql.match(
-      /^select (?:is|ok|isnt|has_table|has_table_privilege|has_function_privilege|throws_ok|col_is_null|lives_ok|matches)\(/gm,
-    );
-    expect(pgTapAssertions).not.toBeNull();
-    expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(581);
+    // Each isolated file declares its exact TAP plan; the total coverage is preserved.
+    expectLifecycleTapPlans();
   });
 });
 
@@ -1120,14 +1132,7 @@ describe('#164 buffered successor-stream evidence migration', () => {
     expect(lifecyclePgTapSql).toContain(
       '#164 inactive-plan admission leaves access not extendable',
     );
-    const declaredPlan = lifecyclePgTapSql.match(/select plan\((\d+)\)/);
-    expect(declaredPlan).not.toBeNull();
-    const pgTapAssertions = lifecyclePgTapSql.match(
-      /^select (?:is|ok|isnt|has_table|has_table_privilege|has_function_privilege|throws_ok|col_is_null|lives_ok|matches)\(/gm,
-    );
-    expect(pgTapAssertions).not.toBeNull();
-    expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(581);
+    expectLifecycleTapPlans();
   });
 });
 
@@ -1207,14 +1212,7 @@ describe('#164 membership lifecycle pending confirmation watermark migration', (
     expect(lifecyclePgTapSql).toContain(
       '#164 P1 same-timestamp payment failure below the watermark stays stale',
     );
-    const declaredPlan = lifecyclePgTapSql.match(/select plan\((\d+)\)/);
-    expect(declaredPlan).not.toBeNull();
-    const pgTapAssertions = lifecyclePgTapSql.match(
-      /^select (?:is|ok|isnt|has_table|has_table_privilege|has_function_privilege|throws_ok|col_is_null|lives_ok|matches)\(/gm,
-    );
-    expect(pgTapAssertions).not.toBeNull();
-    expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(581);
+    expectLifecycleTapPlans();
   });
 });
 
@@ -1321,14 +1319,7 @@ describe('#164 membership lifecycle monotonic pending succession migration', () 
     expect(lifecyclePgTapSql).toContain(
       '#164 P2 equal cutoff selects the least durable evidence id regardless of arrival',
     );
-    const declaredPlan = lifecyclePgTapSql.match(/select plan\((\d+)\)/);
-    expect(declaredPlan).not.toBeNull();
-    const pgTapAssertions = lifecyclePgTapSql.match(
-      /^select (?:is|ok|isnt|has_table|has_table_privilege|has_function_privilege|throws_ok|col_is_null|lives_ok|matches)\(/gm,
-    );
-    expect(pgTapAssertions).not.toBeNull();
-    expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(581);
+    expectLifecycleTapPlans();
   });
 });
 
@@ -1408,14 +1399,7 @@ describe('#164 displaced pending watermark migration', () => {
     expect(lifecyclePgTapSql).toContain(
       '#164 displaced pending watermark reverse delivery ends past_due',
     );
-    const declaredPlan = lifecyclePgTapSql.match(/select plan\((\d+)\)/);
-    expect(declaredPlan).not.toBeNull();
-    const pgTapAssertions = lifecyclePgTapSql.match(
-      /^select (?:is|ok|isnt|has_table|has_table_privilege|has_function_privilege|throws_ok|col_is_null|lives_ok|matches)\(/gm,
-    );
-    expect(pgTapAssertions).not.toBeNull();
-    expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(581);
+    expectLifecycleTapPlans();
   });
 });
 
@@ -1542,14 +1526,7 @@ describe('#164 admission marker and terminal reconciliation migration', () => {
     expect(lifecyclePgTapSql).toContain(
       '#164 inactive-plan admission enforces the period-end cutoff without an expiration event',
     );
-    const declaredPlan = lifecyclePgTapSql.match(/select plan\((\d+)\)/);
-    expect(declaredPlan).not.toBeNull();
-    const pgTapAssertions = lifecyclePgTapSql.match(
-      /^select (?:is|ok|isnt|has_table|has_table_privilege|has_function_privilege|throws_ok|col_is_null|lives_ok|matches)\(/gm,
-    );
-    expect(pgTapAssertions).not.toBeNull();
-    expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(581);
+    expectLifecycleTapPlans();
   });
 
   it('makes scheduled terminal authority, terminal-dominant buffered folds, and plan-specific admission structural invariants', () => {
