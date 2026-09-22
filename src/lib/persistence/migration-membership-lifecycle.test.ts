@@ -91,6 +91,13 @@ const monotonicPendingSuccessionSql = readFileSync(
   ),
   'utf8',
 );
+const displacedPendingWatermarkSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260922250000_plus_membership_lifecycle_displaced_pending_watermark.sql',
+  ),
+  'utf8',
+);
 const lifecyclePgTapSql = readFileSync(
   join(process.cwd(), 'supabase/tests/plus_membership_lifecycle.test.sql'),
   'utf8',
@@ -1016,7 +1023,7 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(286);
+    expect(Number(declaredPlan![1])).toBe(303);
   });
 });
 
@@ -1103,7 +1110,7 @@ describe('#164 membership lifecycle pending confirmation watermark migration', (
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(286);
+    expect(Number(declaredPlan![1])).toBe(303);
   });
 });
 
@@ -1217,6 +1224,93 @@ describe('#164 membership lifecycle monotonic pending succession migration', () 
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(286);
+    expect(Number(declaredPlan![1])).toBe(303);
+  });
+});
+
+describe('#164 displaced pending watermark migration', () => {
+  it('resets the applied reducer watermark when a confirmed start displaces a live pending stream', () => {
+    expect(displacedPendingWatermarkSql).toContain(
+      'v_displaces_live_pending boolean := false;',
+    );
+    expect(displacedPendingWatermarkSql).toContain('v_displaces_live_pending := true;');
+    // The reset only runs on the distinct-stream succession-barrier path, after
+    // the stale check, and it reuses the confirmed start event key.
+    expect(displacedPendingWatermarkSql).toContain('if v_displaces_live_pending then');
+    expect(displacedPendingWatermarkSql).toContain(
+      'v_watermark_occurred_at := v_event.occurred_at;',
+    );
+    expect(displacedPendingWatermarkSql).toContain(
+      'v_watermark_event_id := v_event.event_id;',
+    );
+    // The same-stream stale-pending watermark advancement (P1a) is preserved.
+    expect(displacedPendingWatermarkSql).toContain("if v_membership_status = 'pending'");
+    expect(displacedPendingWatermarkSql).toContain(
+      'set last_event_occurred_at = v_event.occurred_at,',
+    );
+    // The ordinary monotonic non-rewind guard is untouched.
+    expect(displacedPendingWatermarkSql).toContain(
+      'v_watermark_occurred_at := v_state.last_event_occurred_at;',
+    );
+    expect(displacedPendingWatermarkSql).toContain(
+      'last_event_occurred_at = v_watermark_occurred_at,',
+    );
+  });
+
+  it('keeps the displaced pending watermark migration server-only, provider-neutral and lock-ordered', () => {
+    const userLock = displacedPendingWatermarkSql.indexOf(
+      'hashtextextended(p_user_id::text, 164)',
+    );
+    const streamLock = displacedPendingWatermarkSql.indexOf(
+      "p_source_system || ':' || p_source_customer_id || ':' || p_source_subscription_id, 164",
+    );
+    const firstSubscriptionLock = displacedPendingWatermarkSql.indexOf(
+      'from public.plus_membership_subscription',
+    );
+    expect(userLock).toBeGreaterThan(-1);
+    expect(streamLock).toBeGreaterThan(-1);
+    expect(firstSubscriptionLock).toBeGreaterThan(-1);
+    expect(userLock).toBeLessThan(streamLock);
+    expect(streamLock).toBeLessThan(firstSubscriptionLock);
+    expect(displacedPendingWatermarkSql).toContain(
+      'revoke all on function public.record_plus_membership_event',
+    );
+    expect(displacedPendingWatermarkSql).toContain(
+      'grant execute on function public.record_plus_membership_event',
+    );
+    for (const identifier of [
+      'paypal', 'ecpay', 'stripe', 'newebpay',
+      'orders', 'payments', 'refunds', 'book_entitlement', 'book_entitlements',
+    ]) {
+      expect(displacedPendingWatermarkSql).not.toMatch(new RegExp(`\\b${identifier}\\b`, 'i'));
+    }
+    expect(displacedPendingWatermarkSql).not.toMatch(
+      /\/functions\/v1\/(?:checkout|[^\s/]*webhook)\b/i,
+    );
+  });
+
+  it('adds pgTAP cases proving both delivery orders end past_due with an accurate plan', () => {
+    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000193');
+    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000194');
+    expect(lifecyclePgTapSql).toContain(
+      '#164 displaced pending watermark forward delivery applies C payment failure at t15',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 displaced pending watermark forward delivery ends past_due',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 displaced pending watermark reverse delivery applies C payment failure at t15',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 displaced pending watermark reverse delivery ends past_due',
+    );
+    const declaredPlan = lifecyclePgTapSql.match(/select plan\((\d+)\)/);
+    expect(declaredPlan).not.toBeNull();
+    const pgTapAssertions = lifecyclePgTapSql.match(
+      /^select (?:is|ok|isnt|has_table|has_table_privilege|has_function_privilege|throws_ok|col_is_null|lives_ok|matches)\(/gm,
+    );
+    expect(pgTapAssertions).not.toBeNull();
+    expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
+    expect(Number(declaredPlan![1])).toBe(303);
   });
 });
