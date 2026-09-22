@@ -13,7 +13,7 @@ const repairSql = readFileSync(
 const finalRepairSql = readFileSync(
   join(
     process.cwd(),
-    'supabase/migrations/20260922330000_plus_membership_lifecycle_admission_followup.sql',
+    'supabase/migrations/20260922340000_plus_membership_lifecycle_buffered_admission_followup.sql',
   ),
   'utf8',
 );
@@ -1035,7 +1035,7 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(474);
+    expect(Number(declaredPlan![1])).toBe(516);
   });
 });
 
@@ -1127,7 +1127,7 @@ describe('#164 buffered successor-stream evidence migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(474);
+    expect(Number(declaredPlan![1])).toBe(516);
   });
 });
 
@@ -1214,7 +1214,7 @@ describe('#164 membership lifecycle pending confirmation watermark migration', (
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(474);
+    expect(Number(declaredPlan![1])).toBe(516);
   });
 });
 
@@ -1328,7 +1328,7 @@ describe('#164 membership lifecycle monotonic pending succession migration', () 
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(474);
+    expect(Number(declaredPlan![1])).toBe(516);
   });
 });
 
@@ -1415,7 +1415,7 @@ describe('#164 displaced pending watermark migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(474);
+    expect(Number(declaredPlan![1])).toBe(516);
   });
 });
 
@@ -1456,7 +1456,7 @@ describe('#164 admission marker and terminal reconciliation migration', () => {
     expect(finalRepairSql).toContain(
       "p_event_type in (\n           'membership_renewed', 'membership_reactivated', 'membership_restored'",
     );
-    expect(finalRepairSql).toContain("if v_buffered_event_type = 'membership_started'");
+    expect(finalRepairSql).toContain("v_buffered_event_type = 'membership_started'");
     // The period-end cutoff authority and the monotonic same-stream guard stay.
     expect(finalRepairSql).toContain(
       "v_period_end_terminal := p_event_type = 'membership_canceled' and p_cancel_at_period_end",
@@ -1503,7 +1503,7 @@ describe('#164 admission marker and terminal reconciliation migration', () => {
   });
 
   it('adds pgTAP cases for both successor-terminal orders, the replacement watermark and inactive-plan admission', () => {
-    for (const user of ['198', '199', '200', '201', '202', '203', '204', '205']) {
+    for (const user of ['198', '199', '200', '201', '202', '203', '204', '205', '212', '213']) {
       expect(lifecyclePgTapSql).toContain(`50000000-0000-0000-0000-000000000${user}`);
     }
     expect(lifecyclePgTapSql).toContain(
@@ -1549,7 +1549,7 @@ describe('#164 admission marker and terminal reconciliation migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(474);
+    expect(Number(declaredPlan![1])).toBe(516);
   });
 
   it('makes scheduled terminal authority, terminal-dominant buffered folds, and plan-specific admission structural invariants', () => {
@@ -1573,5 +1573,18 @@ describe('#164 admission marker and terminal reconciliation migration', () => {
     expect(lifecyclePgTapSql).toContain(
       '#164 buffered-start admission delivery orders converge on the exact admitted plan',
     );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 buffered-plan transition forward delivery advances the exact-plan marker',
+    );
+    expect(lifecyclePgTapSql).toContain(
+      '#164 buffered-plan transition delivery orders converge on renewal admission evidence',
+    );
+    expect(finalRepairSql).toContain(
+      'plus_membership_event_stream_occurred_at_event_id_idx',
+    );
+    expect(finalRepairSql).toContain(
+      "'membership_started', 'membership_renewed',\n           'membership_reactivated', 'membership_restored'",
+    );
+    expect(finalRepairSql).toContain('returning * into v_subscription');
   });
 });
