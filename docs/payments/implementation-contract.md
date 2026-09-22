@@ -34,24 +34,35 @@ binding and reject a claimed-user mismatch before writing lifecycle evidence,
 state, or the `plus_membership_access` projection. Browser roles cannot bind or
 rebind streams.
 
-`plus_membership_event` remains append-only audit evidence. Effective
-cancellation, expiry, revocation, refund, reversal, and dispute retire a
-stream permanently, and selecting a replacement stream retires the stream it
-supersedes. Late active/renewal/restoration events are retained as stale
-evidence and cannot resurrect it; only a distinct non-retired stream may
-become current, and later events on a superseded stream (including a delayed
-newer start) stay stale. `membership_pending` is an explicit no-access state
-projected to the existing #139 non-member seam. A valid same-stream
-`membership_started` confirmation outranks pending regardless of timestamp,
-subject to exact-plan admission and predecessor/terminal authority. Recorded
-terminal evidence is reconciled even below the pending watermark; confirmation
-never resurrects terminal access, and the watermark remains monotonic. Scheduled
-cancellation records a cutoff but cannot activate an unadmitted exact stream/plan;
-a valid pre-cutoff start may establish admission and then retain access only to
-that cutoff. Stale or otherwise
-rejected lifecycle evidence is not `unavailable`: the reducer preserves the
-current projection, or terminal authority revokes/clamps access. `unavailable`
-is reserved for a #139 delivery/lookup failure.
+`plus_membership_event` remains append-only audit evidence. Effective cancellation,
+expiry, revocation, refund, reversal, and dispute retire a stream permanently.
+Replacement permanently retires only an admitted stream. An unadmitted pending selection
+is provisional: displacement preserves its binding and inherited predecessor barrier, so
+later confirmation can still compete. With no predecessor, pending itself creates no
+authoritative ordering barrier. Late active/renewal/restoration events are retained as
+stale evidence and cannot resurrect it; only a distinct non-retired stream may become
+current, and later events on a superseded stream (including a delayed newer start) stay
+stale. `membership_pending` is an explicit no-access state projected to the existing
+#139 non-member seam. A valid same-stream `membership_started` confirmation outranks
+pending regardless of timestamp, subject to exact-plan admission and
+predecessor/terminal authority. Recorded authoritative evidence is reconciled in event
+order even below the observed pending watermark; confirmation never resurrects terminal
+access. The observed `last_event_*` watermark remains monotonic, while the separate
+`applied_event_*` key orders actual projection changes. Ignored pending cannot suppress
+a renewal or payment failure. Follow-up events before an admitted start remain pending
+and cannot grant access. Immutable `plan_active_when_observed` records the server
+catalog at first receipt under a plan-row lock. The separate immutable
+`activation_eligible_when_observed` records whether active catalog, exact-plan
+admission, or earlier eligible same-stream/plan evidence on an unadmitted stream permits
+the event. This preserves eligible buffered transitions and later same-plan receipts
+after catalog closure; eligible follow-up evidence alone never grants first admission.
+Historical unknown provenance cannot establish or change an admission; admitted
+same-plan lifecycle continues. Scheduled cancellation records a cutoff but cannot
+activate an unadmitted exact stream/plan; a valid pre-cutoff start may establish
+admission and then retain access only to that cutoff. Stale or otherwise rejected
+lifecycle evidence is not `unavailable`: the reducer preserves the current projection,
+or terminal authority revokes/clamps access. `unavailable` is reserved for a #139
+delivery/lookup failure.
 
 The finance API returns bounded row samples for investigation, but its
 reconciliation/actionable totals come from the exact server-only

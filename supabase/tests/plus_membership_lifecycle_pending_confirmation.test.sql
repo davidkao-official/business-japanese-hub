@@ -1,4 +1,4 @@
--- Isolated lifecycle scenario group; all assertions retained from the original suite.
+-- Isolated lifecycle scenario group; applied ordering is separate from observed pending evidence.
 begin;
 
 select plan(65);
@@ -25,16 +25,16 @@ select is((select admitted_plan_code from public.plus_membership_subscription wh
 select is((select admitted_at from public.plus_membership_subscription where source_subscription_id='subscription-214'),(select occurred_at from public.plus_membership_event where source_event_id='start-214'),'#165 pending-first confirmation records admitted evidence time');
 select is((select last_event_occurred_at from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000214'),(select occurred_at from public.plus_membership_event where source_event_id='pending-214'),'#165 pending-first confirmation keeps the t20 watermark');
 select is((select last_event_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000214'),(select event_id from public.plus_membership_event where source_system='source-a' and source_event_id='pending-214'),'#165 pending-first confirmation keeps the pending watermark identity');
-select is(public.record_plus_membership_event('source-a','customer-214','subscription-214','fail-214','50000000-0000-0000-0000-000000000214','plus_early_access_monthly','membership_payment_failed',now() - interval '10 days',now() - interval '10 days',now() + interval '15 days'),'stale','#165 pending-first intervening t15 payment failure stays stale');
-select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000214'),'active','#165 pending-first stale payment failure leaves state active');
-select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000214'),'active','#165 pending-first stale payment failure leaves access active');
-select is((select current_period_end from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000214'),now() + interval '15 days','#165 pending-first stale payment failure leaves access horizon unchanged');
-select is((select last_event_occurred_at from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000214'),(select occurred_at from public.plus_membership_event where source_event_id='pending-214'),'#165 pending-first stale payment failure leaves the t20 watermark');
-select is((select last_event_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000214'),(select event_id from public.plus_membership_event where source_system='source-a' and source_event_id='pending-214'),'#165 pending-first stale payment failure leaves the watermark identity');
+select is(public.record_plus_membership_event('source-a','customer-214','subscription-214','fail-214','50000000-0000-0000-0000-000000000214','plus_early_access_monthly','membership_payment_failed',now() - interval '10 days',now() - interval '10 days',now() + interval '15 days'),'applied','#165 pending-first intervening t15 payment failure applies');
+select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000214'),'past_due','#165 pending-first payment failure reduces state to past_due');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000214'),'past_due','#165 pending-first payment failure revokes active access');
+select is((select current_period_end from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000214'),now() + interval '15 days','#165 pending-first applied payment failure leaves access horizon unchanged');
+select is((select last_event_occurred_at from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000214'),(select occurred_at from public.plus_membership_event where source_event_id='pending-214'),'#165 pending-first applied payment failure leaves the t20 watermark');
+select is((select last_event_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000214'),(select event_id from public.plus_membership_event where source_system='source-a' and source_event_id='pending-214'),'#165 pending-first applied payment failure leaves the watermark identity');
 
 -- Reverse delivery: the same start is delivered first, then pending t20 is
--- status-stale but advances the watermark. The same t15 evidence must stay
--- stale after either delivery order.
+-- status-stale but advances only the observed watermark. The t15 failure
+-- applies after either delivery order and becomes the reducer ordering key.
 select is(public.record_plus_membership_event('source-a','customer-215','subscription-215','start-215','50000000-0000-0000-0000-000000000215','plus_early_access_monthly','membership_started',now() - interval '15 days',now() - interval '15 days',now() + interval '15 days'),'applied','#165 reverse older t10 confirmation starts active state');
 select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000215'),'active','#165 reverse start produces active state');
 select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000215'),'active','#165 reverse start grants access');
@@ -49,12 +49,12 @@ select is((select admitted_plan_code from public.plus_membership_subscription wh
 select is((select admitted_at from public.plus_membership_subscription where source_subscription_id='subscription-215'),(select occurred_at from public.plus_membership_event where source_event_id='start-215'),'#165 reverse pending preserves admitted evidence time');
 select is((select last_event_occurred_at from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000215'),(select occurred_at from public.plus_membership_event where source_event_id='pending-215'),'#165 reverse pending advances the t20 watermark');
 select is((select last_event_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000215'),(select event_id from public.plus_membership_event where source_system='source-a' and source_event_id='pending-215'),'#165 reverse pending records the pending watermark identity');
-select is(public.record_plus_membership_event('source-a','customer-215','subscription-215','fail-215','50000000-0000-0000-0000-000000000215','plus_early_access_monthly','membership_payment_failed',now() - interval '10 days',now() - interval '10 days',now() + interval '15 days'),'stale','#165 reverse intervening t15 payment failure stays stale');
-select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000215'),'active','#165 reverse stale payment failure leaves state active');
-select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000215'),'active','#165 reverse stale payment failure leaves access active');
-select is((select current_period_end from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000215'),now() + interval '15 days','#165 reverse stale payment failure leaves access horizon unchanged');
-select is((select last_event_occurred_at from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000215'),(select occurred_at from public.plus_membership_event where source_event_id='pending-215'),'#165 reverse stale payment failure leaves the t20 watermark');
-select is((select last_event_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000215'),(select event_id from public.plus_membership_event where source_system='source-a' and source_event_id='pending-215'),'#165 reverse stale payment failure leaves the watermark identity');
+select is(public.record_plus_membership_event('source-a','customer-215','subscription-215','fail-215','50000000-0000-0000-0000-000000000215','plus_early_access_monthly','membership_payment_failed',now() - interval '10 days',now() - interval '10 days',now() + interval '15 days'),'applied','#165 reverse intervening t15 payment failure applies');
+select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000215'),'past_due','#165 reverse payment failure reduces state to past_due');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000215'),'past_due','#165 reverse payment failure revokes active access');
+select is((select current_period_end from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000215'),now() + interval '15 days','#165 reverse applied payment failure leaves access horizon unchanged');
+select is((select last_event_occurred_at from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000215'),(select occurred_at from public.plus_membership_event where source_event_id='pending-215'),'#165 reverse applied payment failure leaves the t20 watermark');
+select is((select last_event_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000215'),(select event_id from public.plus_membership_event where source_system='source-a' and source_event_id='pending-215'),'#165 reverse applied payment failure leaves the watermark identity');
 
 -- Delivery-order convergence across the two same-stream fixtures.
 select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000214'),(select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000215'),'#165 pending confirmation orders converge on state status');

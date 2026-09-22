@@ -129,7 +129,7 @@ function expectLifecycleTapPlans() {
     expect(assertions!.length, file).toBe(Number(declaredPlan![1]));
     total += Number(declaredPlan![1]);
   }
-  expect(total).toBe(1097);
+  expect(total).toBe(1473);
 }
 
 describe('#164 membership lifecycle migration', () => {
