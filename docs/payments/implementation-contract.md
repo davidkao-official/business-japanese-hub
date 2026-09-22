@@ -41,8 +41,14 @@ supersedes. Late active/renewal/restoration events are retained as stale
 evidence and cannot resurrect it; only a distinct non-retired stream may
 become current, and later events on a superseded stream (including a delayed
 newer start) stay stale. `membership_pending` is an explicit no-access state
-projected to the existing #139 non-member seam; it can become active only
-through a newer event on the same non-retired stream. Stale or otherwise
+projected to the existing #139 non-member seam. A valid same-stream
+`membership_started` confirmation outranks pending regardless of timestamp,
+subject to exact-plan admission and predecessor/terminal authority. Recorded
+terminal evidence is reconciled even below the pending watermark; confirmation
+never resurrects terminal access, and the watermark remains monotonic. Scheduled
+cancellation records a cutoff but cannot activate an unadmitted exact stream/plan;
+a valid pre-cutoff start may establish admission and then retain access only to
+that cutoff. Stale or otherwise
 rejected lifecycle evidence is not `unavailable`: the reducer preserves the
 current projection, or terminal authority revokes/clamps access. `unavailable`
 is reserved for a #139 delivery/lookup failure.

@@ -1,4 +1,4 @@
--- Isolated lifecycle scenario group; all assertions retained from the original suite.
+-- Isolated exact-plan admission and durable terminal evidence scenarios.
 begin;
 
 select plan(22);
@@ -14,13 +14,12 @@ insert into auth.users (id, aud, role) values
 select is(public.record_plus_membership_event('source-a','customer-206','subscription-206','start-206','50000000-0000-0000-0000-000000000206','plus_early_access_monthly','membership_started',now() - interval '2 days',now() - interval '2 days',now() + interval '28 days'),'applied','#164 plan-specific admission records Early Access activation');
 select throws_ok($$select public.record_plus_membership_event('source-a','customer-206','subscription-206','renew-standard-206','50000000-0000-0000-0000-000000000206','plus_standard_monthly','membership_renewed',now() - interval '1 day',now() - interval '2 days',now() + interval '29 days')$$, 'P0001', 'plan plus_standard_monthly is not active for membership activation', '#164 inactive changed plan cannot use a different admitted plan marker');
 
--- A pending-only inactive-plan binding is not admitted. Its period-end
--- cancellation has an active pre-cutoff projection, so it cannot bypass the
--- catalog gate that protects the intentionally inactive Standard plan.
+-- Cancellation records terminal authority without activation. An unadmitted
+-- inactive-plan stream stays pending; actual confirmation remains catalog-gated.
 update public.plus_membership_plan set active = false where plan_code = 'plus_standard_monthly';
 select is(public.record_plus_membership_event('source-a','customer-207','subscription-207','pending-207','50000000-0000-0000-0000-000000000207','plus_standard_monthly','membership_pending',now() - interval '2 days',now() - interval '2 days',now() + interval '28 days'),'applied','#164 unadmitted inactive-plan fixture accepts only pending evidence');
-select throws_ok($$select public.record_plus_membership_event('source-a','customer-207','subscription-207','cancel-207','50000000-0000-0000-0000-000000000207','plus_standard_monthly','membership_canceled',now() - interval '1 day',now() - interval '2 days',now() + interval '28 days',true)$$, 'P0001', 'plan plus_standard_monthly is not active for membership activation', '#164 unadmitted inactive-plan period-end cancellation cannot project active access');
-select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000207'),'pending','#164 rejected inactive-plan cancellation leaves only pending state');
+select is(public.record_plus_membership_event('source-a','customer-207','subscription-207','cancel-207','50000000-0000-0000-0000-000000000207','plus_standard_monthly','membership_canceled',now() - interval '1 day',now() - interval '2 days',now() + interval '28 days',true),'applied','#164 unadmitted inactive-plan cancellation records cutoff without activation');
+select is((select membership_status from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000207'),'pending','#164 accepted inactive-plan cancellation leaves only pending state');
 
 -- Terminal delivery order cannot widen C's retired-stream exception: C's
 -- immediate revocation is effective before its later scheduled cutoff, so a

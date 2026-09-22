@@ -192,7 +192,7 @@ stream's projection: an immediate terminal revokes access, and a delayed
 period-end cancellation clamps access at its durable cutoff. A
 `membership_canceled` event with `cancel_at_period_end = true` records an
 irreversible terminal cutoff at the effective `current_period_end`: the
-projection remains `active` and usable
+an already admitted projection remains `active` and usable
 before that instant, but the same stream cannot start, renew, reactivate, restore,
 or become `pending` at or after it. No separate `membership_expired` event is
 required to enforce the cutoff, and no generic grace period is invented.
@@ -204,10 +204,16 @@ orders retain the maximum observed event watermark without letting later pending
 regress active access. Pending updates preserve the predecessor barrier until
 confirmation. Direct admission refreshes its durable row before buffered plan
 changes, so the applied plan and its admission marker stay consistent.
+Scheduled cancellation supplies a cutoff, not admission: an unadmitted exact
+stream/plan stays pending with no access even when its catalog plan is active
+(or has closed). Direct and buffered cancellation follow the same rule. A valid
+pre-cutoff start may establish admission before the cutoff is applied.
+Same-stream pending confirmation reconciles recorded terminal evidence even
+below its monotonic watermark; no delivery order may restore access after
+immediate termination.
 `unavailable` remains only a #139 delivery/lookup failure, not a
 lifecycle state. It does not implement a provider, checkout, webhook, dunning,
 reconciliation, annual billing, legal activation, or Book commerce.
-
 ## 11. Delivery boundary
 
 Current delivery priority 是 **Plus Early Access preparation**：
