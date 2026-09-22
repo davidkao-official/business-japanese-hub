@@ -1,6 +1,6 @@
 begin;
 
-select plan(421);
+select plan(433);
 
 select has_table('public', 'plus_membership_plan', 'Plus plans are durable server-owned data');
 select has_table('public', 'plus_membership_event', 'lifecycle events are durable audit data');
@@ -540,6 +540,29 @@ select is(public.record_plus_membership_event('source-a','customer-203','subscri
 select is((select current_period_end from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000203'),'2026-11-01T00:00:00Z'::timestamptz,'#164 inactive-plan admission keeps the admitted stream clamped at the cutoff');
 select is((select count(*) from public.plus_membership_event where source_subscription_id='subscription-203' and event_type='membership_expired'),0::bigint,'#164 inactive-plan admission enforces the period-end cutoff without an expiration event');
 update public.plus_membership_plan set active = true where plan_code = 'plus_early_access_monthly';
+
+-- A delivered-after-cutoff period-end cancellation is terminal authority for
+-- its own old stream without manufacturing a separate expiration event.
+select public.record_plus_membership_event('source-a','customer-204','subscription-204-a','start-204-a','50000000-0000-0000-0000-000000000204','plus_early_access_monthly','membership_started',now() - interval '20 days',now() - interval '20 days',now() - interval '1 day');
+select is(public.record_plus_membership_event('source-a','customer-204','subscription-204-a','cancel-204-a','50000000-0000-0000-0000-000000000204','plus_early_access_monthly','membership_canceled',now() - interval '2 days',now() - interval '20 days',now() - interval '1 day',true),'stale','#164 scheduled terminal becomes stale terminal authority at its effective end without expiry');
+select is((select count(*) from public.plus_membership_event where source_subscription_id='subscription-204-a' and event_type='membership_expired'),0::bigint,'#164 scheduled terminal needs no separate expiry evidence');
+select is(public.record_plus_membership_event('source-a','customer-204','subscription-204-b','start-204-b','50000000-0000-0000-0000-000000000204','plus_early_access_monthly','membership_started',now(),now(),now() + interval '30 days'),'applied','#164 scheduled terminal permits a successor after its effective end');
+select is(public.record_plus_membership_event('source-a','customer-204','subscription-204-a','late-precutoff-start-204-a','50000000-0000-0000-0000-000000000204','plus_early_access_monthly','membership_started',now() - interval '5 days',now() - interval '20 days',now() - interval '1 day'),'stale','#164 scheduled old-stream evidence cannot replace its successor after terminal reconciliation');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000204'),'subscription-204-b','#164 scheduled terminal reconciliation leaves successor projection unchanged');
+
+-- Buffered immediate terminal evidence outranks a later active event when the
+-- older confirming start finally makes this stream current.
+select public.record_plus_membership_event('source-a','customer-205','subscription-205-a','start-205-a','50000000-0000-0000-0000-000000000205','plus_early_access_monthly','membership_started',now() - interval '30 days',now() - interval '30 days',now() + interval '30 days');
+select is(public.record_plus_membership_event('source-a','customer-205','subscription-205-c','revoke-205-c','50000000-0000-0000-0000-000000000205','plus_early_access_monthly','membership_revoked',now() - interval '10 days',now() - interval '20 days',now() + interval '20 days'),'stale','#164 buffered immediate terminal is durable before C confirmation');
+select is(public.record_plus_membership_event('source-a','customer-205','subscription-205-c','renew-205-c','50000000-0000-0000-0000-000000000205','plus_early_access_monthly','membership_renewed',now() - interval '5 days',now() - interval '20 days',now() + interval '30 days'),'stale','#164 later buffered active evidence cannot undo C terminal authority');
+select is(public.record_plus_membership_event('source-a','customer-205','subscription-205-c','start-205-c','50000000-0000-0000-0000-000000000205','plus_early_access_monthly','membership_started',now() - interval '15 days',now() - interval '20 days',now() + interval '20 days'),'applied','#164 confirming C start applies before folding its durable evidence');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000205'),'revoked','#164 immediate terminal dominates later buffered active evidence in access projection');
+select is((select retired_event_id from public.plus_membership_subscription where source_subscription_id='subscription-205-c'),(select event_id from public.plus_membership_event where source_system='source-a' and source_event_id='revoke-205-c'),'#164 buffered terminal retires only C binding');
+
+-- Admission is durable for its exact plan, not a blanket bypass for any later
+-- inactive plan code on the same provider stream.
+select is(public.record_plus_membership_event('source-a','customer-206','subscription-206','start-206','50000000-0000-0000-0000-000000000206','plus_early_access_monthly','membership_started',now() - interval '2 days',now() - interval '2 days',now() + interval '28 days'),'applied','#164 plan-specific admission records Early Access activation');
+select throws_ok($$select public.record_plus_membership_event('source-a','customer-206','subscription-206','renew-standard-206','50000000-0000-0000-0000-000000000206','plus_standard_monthly','membership_renewed',now() - interval '1 day',now() - interval '2 days',now() + interval '29 days')$$, 'P0001', 'plan plus_standard_monthly is not active for membership activation', '#164 inactive changed plan cannot use a different admitted plan marker');
 
 delete from auth.users where id='50000000-0000-0000-0000-000000000164';
 select ok((select count(*) from public.plus_membership_event where source_customer_id='customer-164') > 0,'audit evidence survives auth deletion');

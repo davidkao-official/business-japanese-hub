@@ -13,7 +13,7 @@ const repairSql = readFileSync(
 const finalRepairSql = readFileSync(
   join(
     process.cwd(),
-    'supabase/migrations/20260922290000_plus_membership_lifecycle_final_terminal_retirement.sql',
+    'supabase/migrations/20260922310000_plus_membership_lifecycle_terminal_plan_repair.sql',
   ),
   'utf8',
 );
@@ -1035,7 +1035,7 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(421);
+    expect(Number(declaredPlan![1])).toBe(433);
   });
 });
 
@@ -1127,7 +1127,7 @@ describe('#164 buffered successor-stream evidence migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(421);
+    expect(Number(declaredPlan![1])).toBe(433);
   });
 });
 
@@ -1214,7 +1214,7 @@ describe('#164 membership lifecycle pending confirmation watermark migration', (
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(421);
+    expect(Number(declaredPlan![1])).toBe(433);
   });
 });
 
@@ -1328,7 +1328,7 @@ describe('#164 membership lifecycle monotonic pending succession migration', () 
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(421);
+    expect(Number(declaredPlan![1])).toBe(433);
   });
 });
 
@@ -1415,7 +1415,7 @@ describe('#164 displaced pending watermark migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(421);
+    expect(Number(declaredPlan![1])).toBe(433);
   });
 });
 
@@ -1444,19 +1444,15 @@ describe('#164 admission marker and terminal reconciliation migration', () => {
     expect(finalRepairSql).toContain(
       "buffered.membership_status in ('active', 'past_due', 'canceled', 'expired', 'revoked')",
     );
-    expect(finalRepairSql).toContain(
-      "if v_buffered_status in ('canceled', 'expired', 'revoked') then",
-    );
+    expect(finalRepairSql).toContain('if v_buffered_event_type in (');
+    expect(finalRepairSql).toContain("and not v_buffered_cancel_at_period_end) then");
     // Plan admission is a durable marker, not merely a preexisting binding.
     expect(finalRepairSql).toContain(
       'add column if not exists admitted_at timestamptz',
     );
-    expect(finalRepairSql).toContain(
-      'and (not v_binding_preexisting or v_subscription.admitted_at is null)',
-    );
-    expect(finalRepairSql).toContain(
-      'set admitted_at = coalesce(admitted_at, v_event.occurred_at)',
-    );
+    expect(finalRepairSql).toContain('add column if not exists admitted_plan_code text');
+    expect(finalRepairSql).toContain('v_subscription.admitted_plan_code is distinct from p_plan_code');
+    expect(finalRepairSql).toContain('admitted_plan_code = coalesce(admitted_plan_code, p_plan_code)');
     expect(finalRepairSql).toContain(
       "if p_event_type = 'membership_started'",
     );
@@ -1552,6 +1548,16 @@ describe('#164 admission marker and terminal reconciliation migration', () => {
     );
     expect(pgTapAssertions).not.toBeNull();
     expect(pgTapAssertions!.length).toBe(Number(declaredPlan![1]));
-    expect(Number(declaredPlan![1])).toBe(421);
+    expect(Number(declaredPlan![1])).toBe(433);
+  });
+
+  it('makes scheduled terminal authority, terminal-dominant buffered folds, and plan-specific admission structural invariants', () => {
+    expect(finalRepairSql).toContain('v_retired_own_terminal_at := v_subscription.terminal_at');
+    expect(finalRepairSql).toContain('v_retired_own_terminal_event_id := v_subscription.terminal_event_id');
+    expect(finalRepairSql).toContain('buffered.event_type in (');
+    expect(finalRepairSql).toContain("or (buffered.event_type = 'membership_canceled'");
+    expect(finalRepairSql).toContain('order by (');
+    expect(finalRepairSql).toContain('v_buffered_event_type in (');
+    expect(finalRepairSql).toContain('admitted_plan_code = coalesce(bound.admitted_plan_code, activation.plan_code)');
   });
 });
