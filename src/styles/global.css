@@ -243,7 +243,7 @@ ol {
 }
 
 /* ---------------------------------------------------------------
- * Header tools — nav + appearance control grouped on the same row
+ * Header tools — navigation and account / locale controls
  * --------------------------------------------------------------- */
 .site-header__tools {
   display: flex;

@@ -58,6 +58,29 @@ export interface AppStrings {
   home: {
     title: string
     lead: string
+    concept: {
+      badge: string
+      headline: {
+        opening: string
+        examJapanese: string
+        afterExam: string
+        beforeWorkplace: string
+        workplaceJapanese: string[]
+        ending: string
+      }
+      support: string
+      startLearning: string
+      aboutPlatform: string
+      visualLabel: string
+      visualTitle: string
+      visualBody: string
+      journeyTitle: string
+      journeySteps: Array<{ title: string; detail: string }>
+      pillarsTitle: string
+      pillars: Array<{ title: string; body: string }>
+      valueTitle: string
+      valueBody: string
+    }
     featureLabel: string
     featureTitle: string
     samplesLabel: string
@@ -383,6 +406,35 @@ const ja: AppStrings = {
   home: {
     title: 'ビジネス日本語ハブ',
     lead: '日本求職から日本職場での成長まで、仕事で使える日本語能力を学び続けるためのサービスです。',
+    concept: {
+      badge: '試験の先へ、仕事で使う日本語',
+      headline: {
+        opening: '「', examJapanese: '試験の日本語', afterExam: '」', beforeWorkplace: 'から「',
+        workplaceJapanese: ['日本の', 'ビジネス社会で使う', '日本語'], ending: '」へ。',
+      },
+      support: '日本での就職、企業資料の読解、職場の会話へ。知っている日本語を、仕事で使える力につなげます。',
+      startLearning: '学習を始める',
+      aboutPlatform: 'サービスについて',
+      visualLabel: 'JAPANESE AT WORK',
+      visualTitle: '読む。考える。伝える。',
+      visualBody: '仕事の文脈から、次に使える日本語を学ぶ。',
+      journeyTitle: '仕事につながる学びの道筋',
+      journeySteps: [
+        { title: '商業資料を読む', detail: '企業・産業の情報を読む' },
+        { title: '社会人語彙を知る', detail: '意味と使われ方をつかむ' },
+        { title: '日本の仕事を理解する', detail: '職場や社会の背景を知る' },
+        { title: '考えを伝え、話し合う', detail: '職場での対話につなげる' },
+      ],
+      pillarsTitle: '日本で働くための日本語を、4つの力から。',
+      pillars: [
+        { title: 'Business Reading', body: '公開中の日本語資料を読み、企業や商業の文脈をつかむ。' },
+        { title: 'Professional Vocabulary', body: '仕事や社会で使われる語彙を、実際の文脈とともに知る。' },
+        { title: 'Japan Literacy', body: '日本の職場、産業、ビジネス社会への理解を深める。' },
+        { title: 'Business Discussion', body: '相手に伝わる表現を考え、仕事の対話へつなげる。' },
+      ],
+      valueTitle: '試験の先へ。日本語を仕事で生かす力に。',
+      valueBody: '日本での就職準備、ビジネス資料の読解、入社後の職場への適応まで。実際の仕事の流れに沿って、日本語を学び続けられます。',
+    },
     featureLabel: '本の構造',
     featureTitle: '実務で使う言葉を、文脈の中で読む',
     samplesLabel: '表現のサンプル',
@@ -717,6 +769,35 @@ const en: AppStrings = {
   home: {
     title: 'Business Japanese Hub',
     lead: 'A learning service for Japanese job hunting, business reading, and growth in the workplace.',
+    concept: {
+      badge: 'Japanese for work beyond the exam',
+      headline: {
+        opening: 'Move beyond ', examJapanese: 'Japanese for JLPT exams', afterExam: ' and', beforeWorkplace: ' into ',
+        workplaceJapanese: ['the language of ', 'Japan’s business world'], ending: '.',
+      },
+      support: 'Build on the Japanese you know for job hunting, business reading, and communication at work in Japan.',
+      startLearning: 'Start learning',
+      aboutPlatform: 'About the platform',
+      visualLabel: 'JAPANESE AT WORK',
+      visualTitle: 'Read. Think. Communicate.',
+      visualBody: 'Learn Japanese through the contexts where work happens.',
+      journeyTitle: 'A learning path connected to work',
+      journeySteps: [
+        { title: 'Read business materials', detail: 'Explore company and industry information' },
+        { title: 'Build professional vocabulary', detail: 'Understand meaning and use in context' },
+        { title: 'Understand work in Japan', detail: 'Learn about workplace and social context' },
+        { title: 'Share ideas and discuss', detail: 'Take part in workplace conversations' },
+      ],
+      pillarsTitle: 'Four ways to build Japanese for working in Japan.',
+      pillars: [
+        { title: 'Business Reading', body: 'Read public Japanese materials and understand their business context.' },
+        { title: 'Professional Vocabulary', body: 'Learn the language of work and society in real contexts.' },
+        { title: 'Japan Literacy', body: 'Understand Japanese workplaces, industries, and business society.' },
+        { title: 'Business Discussion', body: 'Find clear ways to express ideas and take part in work conversations.' },
+      ],
+      valueTitle: 'Use Japanese as a skill for work, not only for exams.',
+      valueBody: 'From preparing for a job in Japan and reading business materials to adapting after you join a company, keep learning along the real work journey.',
+    },
     featureLabel: 'How the books are structured',
     featureTitle: 'Read workplace language in context.',
     samplesLabel: 'Expression samples',
@@ -1051,6 +1132,35 @@ const zhTW: AppStrings = {
   home: {
     title: '商務日語中心',
     lead: '從日本求職、商務閱讀到職場成長，持續學習工作中真正需要的日語能力。',
+    concept: {
+      badge: '從日文檢定，走向日本職場',
+      headline: {
+        opening: '從「', examJapanese: '日文檢定的日文', afterExam: '」，', beforeWorkplace: '成長為「',
+        workplaceJapanese: ['日本商業社會', '的日文'], ending: '」。',
+      },
+      support: '通過 JLPT，不代表已經能自在地在日本職場工作。從求職、商業閱讀到職場溝通，把熟悉的日文轉化為工作能力。',
+      startLearning: '開始學習商業日文',
+      aboutPlatform: '了解這個平台',
+      visualLabel: 'JAPANESE AT WORK',
+      visualTitle: '閱讀・思考・溝通',
+      visualBody: '從真實工作情境出發，探索下一步能用上的日文。',
+      journeyTitle: '連結工作旅程的學習方向',
+      journeySteps: [
+        { title: '讀懂商業資料', detail: '閱讀企業與產業資訊' },
+        { title: '理解社會人語彙', detail: '掌握詞語的意思與用法' },
+        { title: '認識日本職場', detail: '理解工作與社會背景' },
+        { title: '表達想法並參與討論', detail: '連結實際職場對話' },
+      ],
+      pillarsTitle: '從四種能力，繼續學習在日本工作所需的日文。',
+      pillars: [
+        { title: 'Business Reading', body: '閱讀公開的日本語資料，掌握企業與商業脈絡。' },
+        { title: 'Professional Vocabulary', body: '在真實語境中理解工作與社會使用的語彙。' },
+        { title: 'Japan Literacy', body: '認識日本職場、產業與商業社會的背景。' },
+        { title: 'Business Discussion', body: '思考清楚傳達的方式，參與職場對話。' },
+      ],
+      valueTitle: '不只學會日文，而是讓日文成為你的工作能力。',
+      valueBody: '從準備日本求職、閱讀商業資料，到進入企業後適應職場，讓進階日文學習貼近真實的工作旅程。',
+    },
     featureLabel: '書本結構',
     featureTitle: '在真實脈絡中閱讀職場日語',
     samplesLabel: '表達範例',
@@ -1366,6 +1476,35 @@ const zhCN: AppStrings = {
   home: {
     title: '商务日语中心',
     lead: '从日本求职、商务阅读到职场成长，持续学习工作中真正需要的日语能力。',
+    concept: {
+      badge: '从日语考试，走向日本职场',
+      headline: {
+        opening: '从「', examJapanese: '日语考试中的日语', afterExam: '」，', beforeWorkplace: '成长为「',
+        workplaceJapanese: ['日本商业社会', '中的日语'], ending: '」。',
+      },
+      support: '通过 JLPT，不代表已经能自在地在日本职场工作。从求职、商业阅读到职场沟通，把熟悉的日语转化为工作能力。',
+      startLearning: '开始学习商务日语',
+      aboutPlatform: '了解这个平台',
+      visualLabel: 'JAPANESE AT WORK',
+      visualTitle: '阅读・思考・沟通',
+      visualBody: '从真实工作情境出发，探索下一步能用上的日语。',
+      journeyTitle: '连接工作旅程的学习方向',
+      journeySteps: [
+        { title: '读懂商业资料', detail: '阅读企业与行业信息' },
+        { title: '理解职场词汇', detail: '掌握词语的含义与用法' },
+        { title: '认识日本职场', detail: '理解工作与社会背景' },
+        { title: '表达想法并参与讨论', detail: '连接实际职场对话' },
+      ],
+      pillarsTitle: '从四种能力，继续学习在日本工作所需的日语。',
+      pillars: [
+        { title: 'Business Reading', body: '阅读公开的日语资料，理解企业与商业语境。' },
+        { title: 'Professional Vocabulary', body: '在真实语境中理解工作与社会使用的词汇。' },
+        { title: 'Japan Literacy', body: '认识日本职场、产业与商业社会背景。' },
+        { title: 'Business Discussion', body: '思考清晰表达的方式，参与职场对话。' },
+      ],
+      valueTitle: '不只学会日语，也让日语成为你的工作能力。',
+      valueBody: '从准备日本求职、阅读商业资料，到进入企业后适应职场，让进阶日语学习贴近真实的工作旅程。',
+    },
     featureLabel: '内容结构', featureTitle: '在真实语境中阅读职场日语',
     samplesLabel: '表达示例', samplesTitle: '从真实句子与对话开始学习',
     selectionsLabel: '精选书籍', selectionsTitle: '从已发布的书籍中找到阅读起点',

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useLocale, useStrings } from '../i18n/strings'
 import { legalContentLocaleFor, listLegalDocuments, SELLER_DISCLOSURE } from '../legal-content'
+import { AppearanceControl } from './AppearanceControl'
 
 export function Footer() {
   const strings = useStrings()
@@ -15,6 +16,9 @@ export function Footer() {
           <Link className="site-footer__brand" to="/">
             {strings.app.name}
           </Link>
+          <div className="site-footer__appearance">
+            <AppearanceControl />
+          </div>
           <nav aria-label={strings.legal.footerLabel} className="site-footer__legal">
             <ul className="site-footer__legal-list">
               <li>

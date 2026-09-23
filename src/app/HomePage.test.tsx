@@ -16,13 +16,14 @@ describe('learning-service home', () => {
   it('keeps Japanese homepage headings readable as intact phrase units', () => {
     renderWithAppProviders(<HomePage />)
 
-    const title = screen.getByRole('heading', { level: 1, name: 'ビジネス日本語ハブ' })
-    expect(title).toHaveAttribute('aria-label', 'ビジネス日本語ハブ')
-    expect(title).toHaveTextContent('ビジネス日本語ハブ')
+    const title = screen.getByRole('heading', {
+      level: 1,
+      name: '「試験の日本語」から「日本のビジネス社会で使う日本語」へ。',
+    })
+    expect(title).toHaveAttribute('aria-label', '「試験の日本語」から「日本のビジネス社会で使う日本語」へ。')
+    expect(title).toHaveAttribute('lang', 'ja')
     expect(Array.from(title.querySelectorAll('.phrase'), (phrase) => phrase.textContent)).toEqual([
-      'ビジネス',
-      '日本語',
-      'ハブ',
+      '「試験の日本語」', 'から「', '日本の', 'ビジネス社会で使う', '日本語」へ。',
     ])
 
     const featureTitle = screen.getByRole('heading', {
@@ -51,9 +52,41 @@ describe('learning-service home', () => {
     setLocalePreference('zh-CN')
     renderWithAppProviders(<HomePage />)
 
-    const title = screen.getByRole('heading', { level: 1, name: '商务日语中心' })
-    expect(title).toHaveTextContent('商务日语中心')
-    expect(title.querySelector('.phrase')).toBeNull()
+    const title = screen.getByRole('heading', {
+      level: 1,
+      name: '从「日语考试中的日语」，成长为「日本商业社会中的日语」。',
+    })
+    expect(title).toHaveTextContent('从「日语考试中的日语」，成长为「日本商业社会中的日语」。')
+    expect(title.querySelector('.phrase')).not.toBeNull()
+  })
+
+  it('presents the exact Traditional Chinese headline and working learning/about actions', () => {
+    setLocalePreference('zh-TW')
+    renderWithAppProviders(<HomePage />)
+
+    const headline = '從「日文檢定的日文」，成長為「日本商業社會的日文」。'
+    const title = screen.getByRole('heading', { level: 1, name: headline })
+    expect(title).toHaveTextContent(headline)
+    expect(title).toHaveAttribute('lang', 'zh-TW')
+    expect(screen.getByRole('link', { name: '開始學習商業日文' })).toHaveAttribute('href', '/learn')
+    expect(screen.getByRole('link', { name: '了解這個平台' })).toHaveAttribute('href', '/about')
+    expect(document.querySelectorAll('.concept-journey__step')).toHaveLength(4)
+    expect(document.querySelectorAll('.concept-pillar')).toHaveLength(4)
+    expect(screen.getByRole('heading', { name: '連結工作旅程的學習方向' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '從四種能力，繼續學習在日本工作所需的日文。' })).toBeInTheDocument()
+  })
+
+  it('provides homepage messaging in English through the typed locale contract', () => {
+    setLocalePreference('en')
+    renderWithAppProviders(<HomePage />)
+
+    expect(screen.getByRole('heading', {
+      level: 1,
+      name: 'Move beyond Japanese for JLPT exams and into the language of Japan’s business world.',
+    })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Start learning' })).toHaveAttribute('href', '/learn')
+    expect(document.querySelectorAll('.concept-journey__step')).toHaveLength(4)
+    expect(document.querySelectorAll('.concept-pillar')).toHaveLength(4)
   })
 
   it('makes the five learning modes primary without rendering a one-time Book sales shell', () => {

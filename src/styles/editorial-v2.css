@@ -1080,9 +1080,7 @@
   .site-header__tools {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      'navigation account'
-      'appearance appearance';
+    grid-template-areas: 'navigation account';
     align-items: center;
     gap: var(--space-2) var(--space-3);
     justify-content: initial;
@@ -1105,11 +1103,6 @@
   .account-control {
     grid-area: account;
     justify-self: end;
-  }
-
-  .appearance-control {
-    grid-area: appearance;
-    justify-self: start;
   }
 
   .storefront-masthead {
@@ -1538,7 +1531,7 @@
  * Closing offer and mobile navigation — Issue #81
  * ---------------------------------------------------------------------
  * The offer is a projection of the released paid catalog entry. The menu
- * keeps the existing top-level IA and shared account / appearance controls;
+ * keeps the existing top-level IA and shared account controls;
  * it does not create a second product navigation model.
  * ===================================================================== */
 
@@ -1666,6 +1659,12 @@
   text-decoration: none;
 }
 
+.site-footer__appearance {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
 .site-footer__legal {
   min-width: 0;
 }
@@ -1701,24 +1700,26 @@
 }
 
 @media (min-width: 80rem) {
-  /* Keep the full desktop IA available while letting its tool row use a second
-   * line when the brand, navigation, account, appearance, and locale controls
-   * exceed the available width. This prevents horizontal overlap and clipped
-   * account labels at the 1280px desktop breakpoint. */
+  /* The five canonical modes and shared account / locale controls fit beside
+   * the brand on a single desktop row. Appearance is available in the footer. */
+  .site-header__inner {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+
   .site-header__tools {
     column-gap: var(--space-2);
     row-gap: var(--space-2);
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .site-nav {
     min-width: 0;
-    flex: 0 1 auto;
+    flex: 0 0 auto;
   }
 
   .site-nav__list {
     justify-content: flex-end;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .site-nav__link {
@@ -1726,7 +1727,6 @@
   }
 
   .site-header__tools > .account-control,
-  .site-header__tools > .appearance-control,
   .site-header__tools > .language-control--desktop {
     flex: 0 0 auto;
   }
@@ -1816,8 +1816,7 @@
   }
 
   .mobile-menu .site-nav,
-  .mobile-menu .account-control,
-  .mobile-menu .appearance-control {
+  .mobile-menu .account-control {
     grid-area: auto;
   }
 
@@ -1905,10 +1904,6 @@
   .mobile-menu__controls .account-control__panel {
     position: static;
     width: min(var(--measure-reading), calc(100vw - (var(--container-padding) * 2)));
-  }
-
-  .mobile-menu__controls .appearance-control {
-    justify-self: start;
   }
 
   .storefront-offer__body {

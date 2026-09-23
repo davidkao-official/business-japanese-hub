@@ -23,6 +23,9 @@ function collectShape(value: unknown): unknown {
   if (value === null || typeof value !== 'object') {
     return typeof value
   }
+  if (Array.isArray(value)) {
+    return ['array', value.length === 0 ? 'empty' : collectShape(value[0])]
+  }
   const shape: Record<string, unknown> = {}
   for (const [key, child] of Object.entries(value)) {
     shape[key] = collectShape(child)

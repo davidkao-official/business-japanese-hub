@@ -11,6 +11,7 @@ import './styles/about.css'
 import './styles/product-ia.css'
 import './styles/spi-explainer.css'
 import './styles/plus.css'
+import './styles/home-concept-c.css'
 
 const root = document.getElementById('root')
 
