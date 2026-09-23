@@ -23,7 +23,7 @@ describe('learning-service home', () => {
     expect(title).toHaveAttribute('aria-label', '「試験の日本語」から「日本のビジネス社会で使う日本語」へ。')
     expect(title).toHaveAttribute('lang', 'ja')
     expect(Array.from(title.querySelectorAll('.phrase'), (phrase) => phrase.textContent)).toEqual([
-      '「', '試験の日本語', '」から「', '日本の', 'ビジネス社会で使う', '日本語', '」へ。',
+      '「試験の日本語」', 'から「', '日本の', 'ビジネス社会で使う', '日本語」へ。',
     ])
 
     const featureTitle = screen.getByRole('heading', {

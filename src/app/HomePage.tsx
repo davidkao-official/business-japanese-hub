@@ -79,7 +79,8 @@ function ConceptHero() {
   const headline = [
     concept.headline.opening,
     concept.headline.examJapanese,
-    concept.headline.transition,
+    concept.headline.afterExam,
+    concept.headline.beforeWorkplace,
     ...concept.headline.workplaceJapanese,
     concept.headline.ending,
   ].join('')
@@ -89,13 +90,16 @@ function ConceptHero() {
       <div className="concept-home-hero__copy">
         <p className="concept-home-hero__badge">{concept.badge}</p>
         <h1 className="concept-home-hero__title" id="home-title" lang={locale} aria-label={headline}>
-          <span className="phrase">{concept.headline.opening}</span>
-          <span className="phrase">{concept.headline.examJapanese}</span>
-          <span className="phrase">{concept.headline.transition}</span>
-          {concept.headline.workplaceJapanese.map((phrase) => (
-            <span className="phrase concept-home-hero__accent" key={phrase}>{phrase}</span>
+          <span className="phrase">
+            {concept.headline.opening}{concept.headline.examJapanese}{concept.headline.afterExam}
+          </span>
+          <span className="phrase">{concept.headline.beforeWorkplace}</span>
+          {concept.headline.workplaceJapanese.map((phrase, index) => (
+            <span className="phrase" key={`${index}-${phrase}`}>
+              <span className="concept-home-hero__accent">{phrase}</span>
+              {index === concept.headline.workplaceJapanese.length - 1 ? concept.headline.ending : null}
+            </span>
           ))}
-          <span className="phrase">{concept.headline.ending}</span>
         </h1>
         <p className="concept-home-hero__support">{concept.support}</p>
         <div className="concept-home-hero__actions">

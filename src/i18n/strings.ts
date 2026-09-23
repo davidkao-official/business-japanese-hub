@@ -63,7 +63,8 @@ export interface AppStrings {
       headline: {
         opening: string
         examJapanese: string
-        transition: string
+        afterExam: string
+        beforeWorkplace: string
         workplaceJapanese: string[]
         ending: string
       }
@@ -408,7 +409,7 @@ const ja: AppStrings = {
     concept: {
       badge: 'N1の先にある、日本語を学ぶ',
       headline: {
-        opening: '「', examJapanese: '試験の日本語', transition: '」から「',
+        opening: '「', examJapanese: '試験の日本語', afterExam: '」', beforeWorkplace: 'から「',
         workplaceJapanese: ['日本の', 'ビジネス社会で使う', '日本語'], ending: '」へ。',
       },
       support: '日本での就職、企業資料の読解、職場の会話へ。知っている日本語を、仕事で使える力につなげます。',
@@ -431,8 +432,8 @@ const ja: AppStrings = {
         { title: 'Japan Literacy', body: '日本の職場、産業、ビジネス社会への理解を深める。' },
         { title: 'Business Discussion', body: '相手に伝わる表現を考え、仕事の対話へつなげる。' },
       ],
-      valueTitle: '日文不只用來考試，也能成為工作的能力。',
-      valueBody: '從準備日本求職、閱讀商業資料，到進入企業後適應職場，Business Japanese Hub 讓進階日文學習貼近真實的工作旅程。',
+      valueTitle: '試験の先へ。日本語を仕事で生かす力に。',
+      valueBody: '日本での就職準備、ビジネス資料の読解、入社後の職場への適応まで。実際の仕事の流れに沿って、日本語を学び続けられます。',
     },
     featureLabel: '本の構造',
     featureTitle: '実務で使う言葉を、文脈の中で読む',
@@ -771,7 +772,7 @@ const en: AppStrings = {
     concept: {
       badge: 'Japanese learning beyond JLPT N1',
       headline: {
-        opening: 'Move from ', examJapanese: 'Japanese for JLPT exams', transition: ' to ',
+        opening: 'Move from ', examJapanese: 'Japanese for JLPT exams', afterExam: '', beforeWorkplace: ' to ',
         workplaceJapanese: ['Japanese for ', 'Japan’s business world'], ending: '.',
       },
       support: 'Build on the Japanese you know for job hunting, business reading, and communication at work in Japan.',
@@ -1134,7 +1135,7 @@ const zhTW: AppStrings = {
     concept: {
       badge: 'JLPT N1 之後，日文從這裡開始',
       headline: {
-        opening: '從「', examJapanese: '日文檢定的日文', transition: '」，成長為「',
+        opening: '從「', examJapanese: '日文檢定的日文', afterExam: '」，', beforeWorkplace: '成長為「',
         workplaceJapanese: ['日本商業社會', '的日文'], ending: '」。',
       },
       support: '通過 JLPT，不代表已經能自在地在日本職場工作。從求職、商業閱讀到職場溝通，把熟悉的日文轉化為工作能力。',
@@ -1478,7 +1479,7 @@ const zhCN: AppStrings = {
     concept: {
       badge: 'JLPT N1 之后，日语从这里开始',
       headline: {
-        opening: '从「', examJapanese: '日语考试中的日语', transition: '」，成长为「',
+        opening: '从「', examJapanese: '日语考试中的日语', afterExam: '」，', beforeWorkplace: '成长为「',
         workplaceJapanese: ['日本商业社会', '中的日语'], ending: '」。',
       },
       support: '通过 JLPT，不代表已经能自在地在日本职场工作。从求职、商业阅读到职场沟通，把熟悉的日语转化为工作能力。',

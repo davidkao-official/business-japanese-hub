@@ -1,8 +1,7 @@
 .concept-c-home {
   --home-container: 80rem;
-  --home-side-space: clamp(1.25rem, 4vw, 4rem);
   display: block;
-  width: min(calc(100% - 2 * var(--home-side-space)), var(--home-container));
+  width: 100%;
   max-width: var(--home-container);
   padding: 0;
   background: var(--home-bg);
@@ -12,7 +11,7 @@
 
 .concept-home-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(25rem, 0.95fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(25rem, 0.8fr);
   align-items: center;
   gap: clamp(2rem, 4vw, 3.75rem);
   min-height: 38rem;
@@ -33,7 +32,7 @@
   border: 1px solid var(--home-border);
   border-radius: var(--home-radius-pill);
   background: var(--home-accent-soft);
-  color: var(--home-accent);
+  color: var(--home-accent-label);
   font-size: var(--text-sm);
   font-weight: var(--font-weight-semibold);
   line-height: 1.3;
@@ -41,9 +40,9 @@
 }
 
 .concept-home-hero__title {
-  max-width: 14ch;
+  max-width: none;
   margin: 0;
-  font-size: clamp(2.35rem, 4.2vw, 4.3rem);
+  font-size: clamp(2.4rem, 2.8vw, 2.8rem);
   font-weight: var(--font-weight-bold);
   line-height: 1.18;
   letter-spacing: -0.045em;
@@ -56,6 +55,7 @@
 }
 
 .concept-home-hero__title:lang(en) .phrase {
+  display: inline;
   white-space: normal;
 }
 
@@ -191,7 +191,7 @@
 }
 
 .concept-home-visual__paper-title {
-  font-size: clamp(1.45rem, 2.6vw, 2.1rem);
+  font-size: clamp(1.45rem, 2.1vw, 1.8rem);
   font-weight: var(--font-weight-bold);
   letter-spacing: -0.03em;
 }
@@ -418,7 +418,7 @@
   }
 
   .concept-home-hero__title {
-    font-size: clamp(2.15rem, 4.2vw, 3.4rem);
+    font-size: clamp(2.15rem, 3.8vw, 2.9rem);
   }
 
   .concept-pillars__list {
@@ -439,8 +439,8 @@
   }
 
   .concept-home-hero__title {
-    max-width: 16ch;
-    font-size: clamp(2.25rem, 7vw, 3.5rem);
+    max-width: none;
+    font-size: clamp(1.8rem, 5vw, 2.9rem);
   }
 
   .concept-home-hero__visual {
@@ -454,10 +454,6 @@
 }
 
 @media (max-width: 36rem) {
-  .concept-c-home {
-    --home-side-space: 1.125rem;
-  }
-
   .concept-home-hero {
     gap: 1.75rem;
     padding-block: 1.75rem 2.75rem;
@@ -470,7 +466,7 @@
 
   .concept-home-hero__title {
     max-width: 100%;
-    font-size: clamp(2rem, 9vw, 2.6rem);
+    font-size: clamp(1.4rem, 7.2vw, 2rem);
     letter-spacing: -0.035em;
   }
 

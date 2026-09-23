@@ -134,6 +134,7 @@
   --home-accent: #c84b12;
   --home-accent-hover: #a63c0d;
   --home-accent-contrast: #ffffff;
+  --home-accent-label: #a63c0d;
   --home-accent-soft: #ffede2;
   --home-border: #eadfd7;
   --home-border-strong: #d8c9be;
@@ -370,6 +371,7 @@
   --home-accent: #ff9a68;
   --home-accent-hover: #ffb28e;
   --home-accent-contrast: #211e1b;
+  --home-accent-label: #ff9a68;
   --home-accent-soft: #40291f;
   --home-border: #403730;
   --home-border-strong: #59493d;
