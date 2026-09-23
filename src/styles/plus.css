@@ -290,6 +290,18 @@
   }
 }
 
+@media (max-width: 25rem) {
+  /* The nested access and auth panels must leave room for single-line actions. */
+  .plus-access {
+    padding-inline: var(--space-3);
+  }
+
+  .plus-access .auth-panel,
+  .plus-access .auth-panel__actions .btn {
+    padding-inline: var(--space-2);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .plus-page *,
   .plus-page *::before,
