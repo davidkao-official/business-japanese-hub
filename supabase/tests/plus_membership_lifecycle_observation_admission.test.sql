@@ -274,7 +274,7 @@ select is(public.record_plus_membership_event(
   '50000000-0000-0000-0000-000000000611','plus_early_access_monthly',
   'membership_pending',now() - interval '5 days',now() - interval '5 days',now() + interval '25 days'
 ),'applied','#165 buffered admission barrier pending B t20 becomes current');
-select is((select succession_barrier_event_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000611'),(select event_id from public.plus_membership_event where source_event_id='revoke-611-a'),'#165 buffered admission barrier records predecessor terminal identity');
+select is((select succession_barrier_event_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000611'),(select event_id from public.plus_membership_event where source_event_id='start-611-a'),'#165 buffered admission barrier records predecessor initial-start identity');
 select is(public.record_plus_membership_event(
   'source-a','customer-611','subscription-611-b','pending-611-b-later',
   '50000000-0000-0000-0000-000000000611','plus_early_access_monthly',

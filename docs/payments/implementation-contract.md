@@ -36,21 +36,24 @@ rebind streams.
 
 `plus_membership_event` remains append-only audit evidence. Effective cancellation,
 expiry, revocation, refund, reversal, and dispute retire a stream permanently.
-Replacement permanently retires only an admitted stream. An unadmitted pending selection
-is provisional: displacement preserves its binding and inherited predecessor barrier, so
-later confirmation can still compete. With no predecessor, pending itself creates no
-authoritative ordering barrier. Late active/renewal/restoration events are retained as
-stale evidence and cannot resurrect it; only a distinct non-retired stream may become
-current, and later events on a superseded stream (including a delayed newer start) stay
-stale. `membership_pending` is an explicit no-access state projected to the existing
-#139 non-member seam. A valid same-stream `membership_started` confirmation outranks
-pending regardless of timestamp, subject to exact-plan admission and
-predecessor/terminal authority. Recorded authoritative evidence is reconciled in event
-order even below the observed pending watermark; confirmation never resurrects terminal
-access. The observed `last_event_*` watermark remains monotonic, while the separate
-`applied_event_*` key orders actual projection changes. Ignored pending cannot suppress
-a renewal or payment failure. Follow-up events before an admitted start remain pending
-and cannot grant access. Immutable `plan_active_when_observed` records the server
+Replacement permanently retires only an admitted stream. Each source subscription has
+one immutable canonical initial `membership_started` identity; a different second start
+fails closed, and later lifecycle changes use renewal/reactivation/restoration.
+Cross-stream confirmed-start selection compares `(occurred_at,event_id)` from those
+initial starts, never applied, observed, admitted, or terminal clocks. Immediate and
+scheduled terminal evidence retires or clamps only its own stream. An unadmitted pending
+selection is provisional: displacement preserves its binding and inherits the current
+predecessor's initial-start selection authority, not its terminal event time. It cannot
+mint access, and replacement of an admitted stream remains final. `membership_pending`
+is an explicit no-access state projected to the existing #139 non-member seam. A valid
+same-stream `membership_started` confirmation outranks pending regardless of timestamp,
+subject to exact-plan admission and predecessor authority. Recorded authoritative
+evidence is reconciled in event order even below the observed pending watermark; a
+confirmation never resurrects terminal access. The observed `last_event_*` watermark
+remains monotonic, while the separate `applied_event_*` key orders actual projection
+changes. Ignored pending cannot suppress a renewal or payment failure. Follow-up events
+before an admitted start remain pending and cannot grant access. Pending updates preserve
+the predecessor selection key until confirmation. Immutable `plan_active_when_observed` records the server
 catalog at first receipt under a plan-row lock. The separate immutable
 `activation_eligible_when_observed` records whether active catalog, exact-plan
 admission, or earlier eligible same-stream/plan evidence on an unadmitted stream permits

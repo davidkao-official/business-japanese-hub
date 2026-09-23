@@ -174,7 +174,11 @@ full stream identity, serializes each user (acquiring the per-user advisory lock
 the per-stream lock and any subscription row lock, so a replacement stream retiring the
 outgoing current stream cannot deadlock against a concurrent event on that outgoing
 stream), orders events within a stream by `(occurred_at, event_id)`, and permits only a
-newer start event to select a replacement stream. Each durable `event_id` is derived
+newer canonical initial start to select a replacement stream. Each source subscription
+has one immutable initial `membership_started` identity; a conflicting second start fails
+closed, while later lifecycle changes use renewal/reactivation/restoration. Cross-stream
+selection compares initial-start `(occurred_at,event_id)` keys rather than applied,
+observed, admission, or terminal clocks. Each durable `event_id` is derived
 from length-prefixed segments, so arbitrary nonempty source identifiers cannot collide
 through `:` concatenation. A `membership_restored` event is retained as append-only
 audit evidence, but is stale after the stream is retired and does not correct terminal
@@ -183,12 +187,14 @@ is replaced, its late events remain audit evidence and cannot update current sta
 access. Replacement permanently retires admitted bindings; terminal evidence also
 retires its own binding. An unadmitted pending selection is provisional: displacement
 does not retire it, and later confirmation may compete against current authority. Its
-inherited predecessor barrier persists on the subscription binding across displacement.
-Without a predecessor, pending creates no authoritative barrier against a confirmed
-start. Terminal evidence that is older than the reducer's current ordering is still
-stale for reducer state, but it keeps terminal authority over the current stream's
-projection: an immediate terminal revokes access, and a delayed period-end cancellation
-clamps access at its durable cutoff. A `membership_canceled` event with
+inherited predecessor selection key persists on the subscription binding across
+displacement; this key is the predecessor's canonical initial start, not a later terminal
+event. Without a predecessor, pending creates no authoritative barrier against a
+confirmed start. Terminal evidence remains scoped to its source stream even when it is
+older than the reducer's current ordering: an immediate terminal revokes that stream's
+access, and a delayed period-end cancellation clamps that stream's access at its durable
+cutoff. A distinct later-started confirmed stream may still replace the terminal stream.
+A `membership_canceled` event with
 `cancel_at_period_end = true` records an irreversible terminal cutoff at the effective
 `current_period_end`: an already admitted projection remains `active` and usable before
 that instant, but the same stream cannot start, renew, reactivate, restore, or become
