@@ -3,10 +3,9 @@
  * Function. The client may transport this snapshot, but it never defines it:
  * the server compares every field to this module before persisting anything.
  */
-import type { Locale } from '../i18n/locales.ts'
 import type { ResolvedJurisdiction } from '../lib/payments/contract.ts'
 import { LEGAL_DOCUMENTS } from './documents.ts'
-import type { LegalDocument, LegalSection } from './model.ts'
+import type { LegalContentLocale, LegalDocument, LegalSection } from './model.ts'
 
 const TW_WITHDRAWAL_NOTICE_SECTION_ID = 'tw-withdrawal-notice'
 const TW_IMMEDIATE_DELIVERY_CONSENT_SECTION_ID = 'tw-immediate-delivery-consent'
@@ -21,7 +20,7 @@ function requireLegalDocumentBySlug(slug: string): LegalDocument {
 
 function requireEvidenceSection(
   document: LegalDocument,
-  locale: Locale,
+  locale: LegalContentLocale,
   sectionId: string,
   evidenceName: string,
 ): LegalSection {
@@ -77,7 +76,7 @@ export const JP_CONSENT_VERSION_ID = `jp-refunds-consent-${JP_CONSENT_DOCUMENT.v
 export interface CanonicalCheckoutEvidence {
   jurisdiction: ResolvedJurisdiction
   /** Locale of the exact legal copy below, not the surrounding site chrome. */
-  locale: Locale
+  locale: LegalContentLocale
   noticeVersion: string
   consentVersion: string
   noticeHeading: string

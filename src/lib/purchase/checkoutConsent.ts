@@ -109,6 +109,15 @@ export interface BuildConsentSubmissionInput {
   jurisdiction: ResolvedJurisdiction;
 }
 
+/** Current accepted locale set for historical checkout communication snapshots. */
+type CheckoutCommunicationLocale = 'ja' | 'en' | 'zh-TW';
+
+function checkoutCommunicationLocale(locale: Locale): CheckoutCommunicationLocale {
+  // UI locale support can grow independently; only pass the current accepted
+  // customer-communication locale set to the historical checkout contract.
+  return locale === 'zh-CN' ? 'zh-TW' : locale;
+}
+
 /**
  * Build the `ConsentSubmission` the executor submits to checkout. The declared
  * jurisdiction is the only jurisdiction source (locale is presentation-only).
@@ -123,7 +132,7 @@ export function buildConsentSubmission(input: BuildConsentSubmissionInput): Cons
   return {
     jurisdiction,
     locale: evidence.locale,
-    presentationLocale: input.locale,
+    presentationLocale: checkoutCommunicationLocale(input.locale),
     noticeVersion: evidence.noticeVersion,
     consentVersion: evidence.consentVersion,
     consentGranted: input.consentGranted,

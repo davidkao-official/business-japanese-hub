@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SUPPORTED_LOCALES } from '../i18n/strings'
+import { LEGAL_CONTENT_LOCALES } from './model'
 import {
   getLegalDocumentBySlug,
   listLegalDocuments,
@@ -19,6 +19,10 @@ describe('legal content', () => {
     ])
   })
 
+  it('keeps legal document locales separate from UI locales', () => {
+    expect(LEGAL_CONTENT_LOCALES).toEqual(['ja', 'zh-TW', 'en'])
+  })
+
   it('uses unique ids and slugs', () => {
     const ids = listLegalDocuments().map((doc) => doc.id)
     const slugs = listLegalDocuments().map((doc) => doc.slug)
@@ -28,7 +32,7 @@ describe('legal content', () => {
 
   it('provides non-empty titles and structured bodies for every supported locale', () => {
     for (const doc of listLegalDocuments()) {
-      for (const locale of SUPPORTED_LOCALES) {
+      for (const locale of LEGAL_CONTENT_LOCALES) {
         expect(doc.titles[locale].trim()).not.toBe('')
         expect(doc.bodies[locale].length).toBeGreaterThanOrEqual(2)
         for (const section of doc.bodies[locale]) {
@@ -44,7 +48,7 @@ describe('legal content', () => {
 
   it('keeps defined legal-section ids unique within each document locale', () => {
     for (const doc of listLegalDocuments()) {
-      for (const locale of SUPPORTED_LOCALES) {
+      for (const locale of LEGAL_CONTENT_LOCALES) {
         const ids = doc.bodies[locale]
           .map((section) => section.id)
           .filter((id): id is string => id !== undefined)
@@ -63,7 +67,7 @@ describe('legal content', () => {
 
   it('ends every body with a localized draft-status note', () => {
     for (const doc of listLegalDocuments()) {
-      for (const locale of SUPPORTED_LOCALES) {
+      for (const locale of LEGAL_CONTENT_LOCALES) {
         const last = doc.bodies[locale][doc.bodies[locale].length - 1]
         const keyword = locale === 'ja' ? 'ドラフト' : locale === 'en' ? 'draft' : '草稿'
         expect(last.heading.toLowerCase()).toContain(keyword.toLowerCase())
@@ -94,7 +98,7 @@ describe('legal content', () => {
 
   it('renders the canonical seller disclosure in every Tokushoho locale', () => {
     const document = requireLegalDocumentBySlug('tokushoho')
-    for (const locale of SUPPORTED_LOCALES) {
+    for (const locale of LEGAL_CONTENT_LOCALES) {
       const sellerSection = document.bodies[locale].find(
         (section) => section.id === 'jp-tokushoho-seller-disclosure',
       )
@@ -133,7 +137,7 @@ describe('legal content', () => {
     const reviewedDocuments = liveDocuments.map((document) => ({
       ...document,
       bodies: Object.fromEntries(
-        SUPPORTED_LOCALES.map((locale) => [
+        LEGAL_CONTENT_LOCALES.map((locale) => [
           locale,
           document.bodies[locale]
             .filter((section) => section.id !== 'legal-review-pending')

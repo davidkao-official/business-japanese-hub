@@ -6,13 +6,16 @@
  */
 
 export { SELLER_DISCLOSURE } from './model.ts'
+export { LEGAL_CONTENT_LOCALES } from './model.ts'
 export type {
+  LegalContentLocale,
   LegalDocument,
   LegalDocumentStatus,
   LegalSection,
   SellerDisclosure,
 } from './model.ts'
 export { LEGAL_DOCUMENTS } from './documents.ts'
+export { hasLegalLocaleFallback, legalContentLocaleFor } from './locale.ts'
 export {
   canonicalCheckoutEvidence,
   JP_CONSENT_VERSION_ID,

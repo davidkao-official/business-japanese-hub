@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_LOCALE,
   SUPPORTED_LOCALES,
@@ -46,8 +46,8 @@ describe('i18n', () => {
     expect(DEFAULT_LOCALE).toBe('ja')
   })
 
-  it('supports the zh-TW locale', () => {
-    expect(SUPPORTED_LOCALES).toContain('zh-TW')
+  it('supports exactly the four released UI locales', () => {
+    expect(SUPPORTED_LOCALES).toEqual(['ja', 'zh-TW', 'zh-CN', 'en'])
   })
 
   it('maps supported browser language tags without inventing jurisdiction', () => {
@@ -55,6 +55,9 @@ describe('i18n', () => {
     expect(localeFromLanguageTag('en-US')).toBe('en')
     expect(localeFromLanguageTag('zh-TW')).toBe('zh-TW')
     expect(localeFromLanguageTag('zh-Hant-HK')).toBe('zh-TW')
+    expect(localeFromLanguageTag('zh-CN')).toBe('zh-CN')
+    expect(localeFromLanguageTag('zh-Hans-SG')).toBe('zh-CN')
+    expect(localeFromLanguageTag('zh-SG')).toBe('zh-CN')
     expect(localeFromLanguageTag('fr-FR')).toBeNull()
   })
 
@@ -64,6 +67,19 @@ describe('i18n', () => {
     expect(getActiveLocale()).toBe('zh-TW')
     setLocalePreference(null)
     expect(getActiveLocale()).toBe('ja')
+  })
+
+  it('keeps a same-tab locale override when localStorage writes fail', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('storage denied')
+    })
+
+    expect(getActiveLocale()).toBe('ja')
+    act(() => setLocalePreference('zh-CN'))
+    expect(getActiveLocale()).toBe('zh-CN')
+
+    vi.restoreAllMocks()
+    setLocalePreference(null)
   })
 
   it('reactively switches useLocale/useStrings in the same tab', () => {
@@ -76,6 +92,11 @@ describe('i18n', () => {
 
     expect(result.current.locale).toBe('zh-TW')
     expect(result.current.strings.legal.title).toBe('法律資訊')
+
+    act(() => setLocalePreference('zh-CN'))
+    expect(result.current.locale).toBe('zh-CN')
+    expect(result.current.strings.home.title).toBe('商务日语中心')
+    expect(result.current.strings.legal.legalLanguageFallback).toContain('繁體中文')
   })
 
   it('every locale implements every AppStrings key', () => {
@@ -91,6 +112,10 @@ describe('i18n', () => {
         expect(leaf.trim()).not.toBe('')
       }
     }
+  })
+
+  it('uses the Simplified Chinese product name in the footer note', () => {
+    expect(getStrings('zh-CN').footer.note).toBe('© 商务日语中心')
   })
 
   it('implements the legal section fully in every locale', () => {
