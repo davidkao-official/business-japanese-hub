@@ -122,6 +122,13 @@ const accessWindowSql = readFileSync(
   ),
   'utf8',
 );
+const reconciliationSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260923030000_plus_membership_stream_reconciliation.sql',
+  ),
+  'utf8',
+);
 const lifecyclePgTapFiles = readdirSync(join(process.cwd(), 'supabase/tests'))
   .filter((file) => /^plus_membership_(?:lifecycle(?:_[a-z_]+)?|access_effective_start)\.test\.sql$/.test(file))
   .sort()
@@ -143,7 +150,7 @@ function expectLifecycleTapPlans() {
     expect(assertions!.length, file).toBe(Number(declaredPlan![1]));
     total += Number(declaredPlan![1]);
   }
-  expect(total).toBe(1584);
+  expect(total).toBe(1695);
 }
 
 describe('#165 membership stream selection authority migration', () => {
@@ -173,6 +180,46 @@ describe('#165 membership access effective-start migration', () => {
       .not.toMatch(/\b(update|insert)\s+public\.plus_membership_access\b/i);
     expect(accessWindowSql).not.toMatch(/update public\.plus_membership_access[\s\S]*set current_period_start\s*=\s*coalesce/i);
     expect(accessWindowSql).not.toContain('update public.plus_membership_access\nset current_period_start');
+  });
+});
+
+describe('#165 per-stream reconciliation successor', () => {
+  it('uses append-only receipt facts and a per-stream materialized fold as projection authority', () => {
+    expect(reconciliationSql).toContain('create table public.plus_membership_stream_summary');
+    expect(reconciliationSql).toContain('reducer_version integer not null default 1');
+    expect(reconciliationSql).toContain('add column reducer_version integer;');
+    expect(reconciliationSql).toContain('and reducer_version = 1');
+    expect(reconciliationSql).toContain('activation_eligible_when_observed, reducer_version');
+    expect(reconciliationSql).toContain('NULL legacy events are not qualified as initial starts');
+    expect(reconciliationSql).toContain('create or replace function public.recompute_plus_membership_stream');
+    expect(reconciliationSql).toContain('create or replace function public.project_plus_membership_user');
+    expect(reconciliationSql).toContain('plan_active_when_observed is true');
+    expect(reconciliationSql).toContain('v_event.plan_active_when_observed is not true');
+    expect(reconciliationSql).toContain("return 'conflict'");
+    expect(reconciliationSql).toContain('v_projection_changed');
+    expect(reconciliationSql).toContain('current_period_start');
+    expect(reconciliationSql).toContain('access_period_end');
+    expect(reconciliationSql).toContain('revoke all on function public.recompute_plus_membership_stream');
+    expect(reconciliationSql).toContain('revoke all on function public.project_plus_membership_user');
+    expect(reconciliationSql).toContain('grant execute on function public.record_plus_membership_event');
+    expect(reconciliationSql.slice(0, reconciliationSql.indexOf('create or replace function')))
+      .not.toMatch(/\b(update|insert)\s+public\.plus_membership_(?:state|access|stream_summary)\b/i);
+    const writer = reconciliationSql.slice(
+      reconciliationSql.indexOf('create or replace function public.record_plus_membership_event'),
+    );
+    expect(writer).not.toMatch(/\b(?:admitted_at|admitted_plan_code|retired_at|retired_event_id|predecessor_barrier)\b/);
+    expect(writer).not.toContain('raise exception \'conflicting initial membership start');
+  });
+
+  it('adds both-order stream reconciliation pgTAP coverage and exact plan count', () => {
+    for (const user of ['300', '301', '302', '303', '304', '305', '306', '307', '308', '309', '310', '311', '312', '313', '314', '315', '316', '317', '318', '319']) {
+      expect(lifecyclePgTapSql).toContain(`50000000-0000-0000-0000-000000000${user}`);
+    }
+    expect(lifecyclePgTapSql).toContain('C start t15 outranks B t10 despite B failure t30');
+    expect(lifecyclePgTapSql).toContain('C start t15 outranks B start t10');
+    expect(lifecyclePgTapSql).toContain('302 terminal-only B has no selection authority');
+    expect(lifecyclePgTapSql).toContain('second trusted start records conflict without rollback');
+    expectLifecycleTapPlans();
   });
 });
 

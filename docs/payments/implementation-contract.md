@@ -34,38 +34,40 @@ binding and reject a claimed-user mismatch before writing lifecycle evidence,
 state, or the `plus_membership_access` projection. Browser roles cannot bind or
 rebind streams.
 
-`plus_membership_event` remains append-only audit evidence. Effective cancellation,
-expiry, revocation, refund, reversal, and dispute retire a stream permanently.
-Replacement permanently retires only an admitted stream. Each source subscription has
-one immutable canonical initial `membership_started` identity; a different second start
-fails closed, and later lifecycle changes use renewal/reactivation/restoration.
-Cross-stream confirmed-start selection compares `(occurred_at,event_id)` from those
-initial starts, never applied, observed, admitted, or terminal clocks. Immediate and
-scheduled terminal evidence retires or clamps only its own stream. An unadmitted pending
-selection is provisional: displacement preserves its binding and inherits the current
-predecessor's initial-start selection authority, not its terminal event time. It cannot
-mint access, and replacement of an admitted stream remains final. `membership_pending`
-is an explicit no-access state projected to the existing #139 non-member seam. A valid
-same-stream `membership_started` confirmation outranks pending regardless of timestamp,
-subject to exact-plan admission and predecessor authority. Recorded authoritative
-evidence is reconciled in event order even below the observed pending watermark; a
-confirmation never resurrects terminal access. The observed `last_event_*` watermark
-remains monotonic, while the separate `applied_event_*` key orders actual projection
-changes. Ignored pending cannot suppress a renewal or payment failure. Follow-up events
-before an admitted start remain pending and cannot grant access. Pending updates preserve
-the predecessor selection key until confirmation. Immutable `plan_active_when_observed` records the server
-catalog at first receipt under a plan-row lock. The separate immutable
-`activation_eligible_when_observed` records whether active catalog, exact-plan
-admission, or earlier eligible same-stream/plan evidence on an unadmitted stream permits
-the event. This preserves eligible buffered transitions and later same-plan receipts
-after catalog closure; eligible follow-up evidence alone never grants first admission.
-Historical unknown provenance cannot establish or change an admission; admitted
-same-plan lifecycle continues. Scheduled cancellation records a cutoff but cannot
-activate an unadmitted exact stream/plan; a valid pre-cutoff start may establish
-admission and then retain access only to that cutoff. Stale or otherwise rejected
-lifecycle evidence is not `unavailable`: the reducer preserves the current projection,
-or terminal authority revokes/clamps access. `unavailable` is reserved for a #139
-delivery/lookup failure.
+`plus_membership_event` remains append-only audit evidence. The writer snapshots
+primitive `plan_active_when_observed` under a plan-row lock; derived admission or
+retirement markers never decide whether a delivery can be audited or selected.
+`plus_membership_stream_summary` is a server-only, per-subscription materialized fold
+rebuilt from that stream's own events. Existing rows are not backfilled into this cache;
+legacy histories without explicit reducer proof remain unqualified.
+
+A stream qualifies only with one `membership_started` event whose plan was active at
+receipt and whose paid interval extends past `greatest(occurred_at, period_start)`.
+A second distinct trusted start is retained as immutable evidence, conflicts the stream,
+removes its candidate from selection, and returns `conflict`; an inactive-plan audited
+start is not a candidate and does not conflict with a later trusted start. Exact source
+event replay returns `replayed`; conflicting immutable facts for the same event fail
+atomically. Renewal, reactivation, and restoration can extend a qualified stream only
+through same-plan continuation or a changed plan active at that event's receipt. A
+catalog-false changed-plan event cannot establish a new plan.
+
+Cross-stream selection compares each qualified stream's initial
+`(occurred_at,event_id)` key. Terminal events establish cutoffs only for their own
+stream. The earliest effective own cutoff is folded before admission: a cutoff at or
+before the effective paid start disqualifies that stream, while a later cutoff keeps its
+start-selection authority and clamps its own access horizon. Pending evidence has no
+selection authority. A terminal-only binding therefore cannot block a later confirmed
+start, and a displaced but intrinsically valid start remains a candidate for
+reconciliation. With no qualified candidate, derived per-user state and access rows are
+removed; no historical audit row is interpreted as a grant.
+
+`applied` means the selected per-user reducer state or access projection changed;
+observation-only watermark movement and audit-only evidence return `stale`. The state
+keeps accepted raw period bounds, while access uses a separate server-derived
+`[current_period_start,current_period_end)` window. A future start denies access until
+the one sampled server time reaches it. Terminal clamping can produce an empty access
+interval without fabricating coverage. `unavailable` remains reserved for a #139
+delivery or lookup failure.
 
 The finance API returns bounded row samples for investigation, but its
 reconciliation/actionable totals come from the exact server-only
