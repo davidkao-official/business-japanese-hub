@@ -15,7 +15,7 @@ insert into auth.users (id, aud, role) values
 
 -- A remains paid until B's effective start. Read selection is based on the
 -- initial-start key effective by the one DB timestamp passed to the helper.
-select is(public.record_plus_membership_event('windows','c701','a701','a701-start','50000000-0000-0000-0000-000000000701','plus_early_access_monthly','membership_started','2026-09-01','2026-09-01','2026-09-20'),'applied','701 stream A starts');
+select is(public.record_plus_membership_event('windows','c701','a701','a701-start','50000000-0000-0000-0000-000000000701','plus_early_access_monthly','membership_started','2026-09-01','2026-09-01','2026-10-01'),'applied','701 stream A stays paid across B future start');
 select is(public.record_plus_membership_event('windows','c701','b701','b701-start','50000000-0000-0000-0000-000000000701','plus_early_access_monthly','membership_started','2026-09-25','2026-09-25','2026-10-10'),'applied','701 future stream B starts');
 select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000701','2026-09-15'),' {"access_status":"active"}'::jsonb,'701 A covers before B effective start');
 select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000701','2026-09-24'),' {"access_status":"active"}'::jsonb,'701 A remains selected immediately before B start');
