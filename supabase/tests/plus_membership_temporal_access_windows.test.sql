@@ -171,16 +171,19 @@ select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000
 select lives_ok($$select public.record_plus_membership_event('windows','c719','s719','m-start---719','50000000-0000-0000-0000-000000000719','plus_early_access_monthly','membership_started','2026-09-01','2026-09-01','2026-09-05')$$,'719 A initial period arrives first');
 select lives_ok($$select public.record_plus_membership_event('windows','c719','s719','b-renew---719','50000000-0000-0000-0000-000000000719','plus_standard_monthly','membership_renewed','2026-09-06','2026-09-06','2026-10-20')$$,'719 same-time B renewal arrives first');
 select lives_ok($$select public.record_plus_membership_event('windows','c719','s719','z-renew---719','50000000-0000-0000-0000-000000000719','plus_early_access_monthly','membership_renewed','2026-09-06','2026-09-06','2026-09-12')$$,'719 same-time A renewal switches the stream back');
-select lives_ok($$select public.record_plus_membership_event('windows','c719','s719','a-failure--719','50000000-0000-0000-0000-000000000719','plus_standard_monthly','membership_payment_failed','2026-09-10','2026-09-06','2026-10-20')$$,'719 later B failure arrives after switching back to A');
-select ok((select b.event_id < a.event_id from public.plus_membership_event as b
-  join public.plus_membership_event as a on a.source_subscription_id=b.source_subscription_id
-  where b.source_event_id='b-renew---719' and a.source_event_id='z-renew---719'),'719 B renewal ID sorts before same-time A renewal');
-select is((select membership_status from public.plus_membership_stream_summary where source_subscription_id='s719'),'active','719 off-current B failure preserves active A status');
+select lives_ok($$select public.record_plus_membership_event('windows','c719','s719','a-fail----719','50000000-0000-0000-0000-000000000719','plus_standard_monthly','membership_payment_failed','2026-09-06','2026-09-06','2026-10-20')$$,'719 same-time B failure arrives after switching back to A');
+select ok((select failure.event_id < b.event_id and b.event_id < a.event_id
+  from public.plus_membership_event as failure
+  join public.plus_membership_event as b on b.source_subscription_id=failure.source_subscription_id
+  join public.plus_membership_event as a on a.source_subscription_id=failure.source_subscription_id
+  where failure.source_event_id='a-fail----719' and b.source_event_id='b-renew---719'
+    and a.source_event_id='z-renew---719'),'719 failure ID sorts before B renewal and final A renewal');
+select is((select membership_status from public.plus_membership_stream_summary where source_subscription_id='s719'),'active','719 same-time off-current B failure preserves active A status');
 select is((select plan_code from public.plus_membership_stream_summary where source_subscription_id='s719'),'plus_early_access_monthly','719 stream remains on A after B failure');
 select ok(
-  exists(select 1 from public.plus_membership_access_window as w join public.plus_membership_event as e on e.event_id=w.grant_event_id where w.source_subscription_id='s719' and e.source_event_id='b-renew---719' and w.window_end='2026-09-10')
+  not exists(select 1 from public.plus_membership_access_window as w join public.plus_membership_event as e on e.event_id=w.grant_event_id where w.source_subscription_id='s719' and e.source_event_id='b-renew---719')
   and exists(select 1 from public.plus_membership_access_window as w join public.plus_membership_event as e on e.event_id=w.grant_event_id where w.source_subscription_id='s719' and e.source_event_id='z-renew---719' and w.window_end='2026-09-12'),
-  '719 B window is clipped while the A window keeps its paid end');
+  '719 same-time B window is removed while the A window keeps its paid end');
 select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000719','2026-09-11'),' {"access_status":"active"}'::jsonb,'719 A access remains active before its paid end');
 select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000719','2026-09-12'),' {"access_status":"non-member"}'::jsonb,'719 A access closes at its exact paid end');
 
