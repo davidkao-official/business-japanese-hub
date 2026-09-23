@@ -407,7 +407,7 @@ const ja: AppStrings = {
     title: 'ビジネス日本語ハブ',
     lead: '日本求職から日本職場での成長まで、仕事で使える日本語能力を学び続けるためのサービスです。',
     concept: {
-      badge: 'N1の先にある、日本語を学ぶ',
+      badge: '試験の先へ、仕事で使う日本語',
       headline: {
         opening: '「', examJapanese: '試験の日本語', afterExam: '」', beforeWorkplace: 'から「',
         workplaceJapanese: ['日本の', 'ビジネス社会で使う', '日本語'], ending: '」へ。',
@@ -770,7 +770,7 @@ const en: AppStrings = {
     title: 'Business Japanese Hub',
     lead: 'A learning service for Japanese job hunting, business reading, and growth in the workplace.',
     concept: {
-      badge: 'Japanese learning beyond JLPT N1',
+      badge: 'Japanese for work beyond the exam',
       headline: {
         opening: 'Move beyond ', examJapanese: 'Japanese for JLPT exams', afterExam: ' and', beforeWorkplace: ' into ',
         workplaceJapanese: ['the language of ', 'Japan’s business world'], ending: '.',
@@ -1133,7 +1133,7 @@ const zhTW: AppStrings = {
     title: '商務日語中心',
     lead: '從日本求職、商務閱讀到職場成長，持續學習工作中真正需要的日語能力。',
     concept: {
-      badge: 'JLPT N1 之後，日文從這裡開始',
+      badge: '從日文檢定，走向日本職場',
       headline: {
         opening: '從「', examJapanese: '日文檢定的日文', afterExam: '」，', beforeWorkplace: '成長為「',
         workplaceJapanese: ['日本商業社會', '的日文'], ending: '」。',
@@ -1477,7 +1477,7 @@ const zhCN: AppStrings = {
     title: '商务日语中心',
     lead: '从日本求职、商务阅读到职场成长，持续学习工作中真正需要的日语能力。',
     concept: {
-      badge: 'JLPT N1 之后，日语从这里开始',
+      badge: '从日语考试，走向日本职场',
       headline: {
         opening: '从「', examJapanese: '日语考试中的日语', afterExam: '」，', beforeWorkplace: '成长为「',
         workplaceJapanese: ['日本商业社会', '中的日语'], ending: '」。',
