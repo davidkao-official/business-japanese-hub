@@ -541,6 +541,8 @@ begin
 
   select * into v_after_state from public.plus_membership_state where user_id = v_user_id;
   select * into v_after_access from public.plus_membership_access where user_id = v_user_id;
+  -- This result describes selected state/access snapshots, not temporal authorization.
+  -- A stale result can still accompany a committed change to paid access windows.
   v_projection_changed :=
     (v_before_state.user_id is null) is distinct from (v_after_state.user_id is null)
     or row(v_before_state.plan_code, v_before_state.membership_status,
