@@ -10,7 +10,8 @@ import {
 } from './validate'
 
 function releasedLesson(): WorkplaceLearnAuthoringItem {
-  const { sampleLabel: _sampleLabel, ...lesson } = sampleWorkplaceLearnItem
+  const lesson = { ...sampleWorkplaceLearnItem }
+  delete lesson.sampleLabel
   return {
     ...lesson,
     access: 'plus',
@@ -91,7 +92,8 @@ describe('Workplace Learn authoring and runtime contract', () => {
       kind: 'learn', label: sampleWorkplaceLearnItem.title, targetId: sampleWorkplaceLearnItem.id,
     })
 
-    const { sampleLabel: _sampleLabel, ...sampleBody } = sampleWorkplaceLearnItem
+    const sampleBody = { ...sampleWorkplaceLearnItem }
+    delete sampleBody.sampleLabel
     const plus = { ...sampleBody, access: 'plus' as const }
     const reference = { contentId: plus.id, revision: 'a'.repeat(64) }
     expect(toWorkplaceLearnCatalogEntry(plus, reference)).toMatchObject({ access: 'plus', releaseReference: reference })

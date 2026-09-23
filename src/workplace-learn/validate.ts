@@ -246,7 +246,10 @@ export function validateWorkplaceLearnRuntimeItem(raw: unknown, options: {
 export function projectWorkplaceLearnRuntimeItem(item: WorkplaceLearnAuthoringItem): WorkplaceLearnRuntimeItem {
   const validated = validateWorkplaceLearnItem(item, { requireReleased: true })
   if (!validated.ok) throw new Error(`Workplace Learn item is not releasable: ${validated.issues[0]?.path ?? 'unknown field'}`)
-  const { publication, reviewer: _reviewer, rights: _rights, ...body } = item
+  const { publication, reviewer, rights, ...body } = item
+  if (publication.status !== 'released' || reviewer === undefined || rights.status !== 'cleared') {
+    throw new Error('Workplace Learn item is not releasable')
+  }
   return {
     ...body,
     tags: [...item.tags],

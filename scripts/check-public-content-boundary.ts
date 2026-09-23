@@ -7,6 +7,7 @@ import {
   privatePracticeArtifactReason,
 } from './lib/private-practice-artifact'
 import { privateReadingArtifactReason } from './lib/private-reading-artifact'
+import { privateWorkplaceArtifactReason } from './lib/private-workplace-artifact'
 
 interface LegacyBooksFile {
   schemaVersion?: unknown
@@ -120,6 +121,12 @@ if (!legacySlugs || !legacyFiles) {
     const readingReason = privateReadingArtifactReason(path, text)
     if (readingReason) {
       console.error(`ERR  private Reading ${readingReason} found in public repository: ${path}`)
+      process.exitCode = 1
+      continue
+    }
+    const workplaceReason = privateWorkplaceArtifactReason(path, text)
+    if (workplaceReason) {
+      console.error(`ERR  private Workplace Learn ${workplaceReason} found in public repository: ${path}`)
       process.exitCode = 1
       continue
     }
