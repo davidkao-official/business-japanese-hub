@@ -73,6 +73,21 @@ Free production article 不能用 `access: free` 旗標繞過 member-only delive
 
 目前 `reading-saves` Edge Function 以部署時 bundled 的 body-free Reading catalog 驗證新 save；My Learning 也只將 saved revision 精確對上目前 frontend catalog 才提供 return link。這個 #171 界線只涵蓋未變更的原創 Free 教學範例。**在 #122 發布第一篇 Plus Reading 或變更／退休正式 revision 前**，必須定義並驗證 frontend、Edge、cached client 與 frontend rollback 的 publication compatibility：哪些 revision 仍可儲存、哪些已退休，以及舊版 UI 如何安全返回。Immutable `private_content_release` 的存在本身不代表仍已發布；不得因 frontend/Edge 版本不一致就接受所有已匯入 release 或由 client 宣告 publication 狀態。
 
+## #126 Workplace Learn and vocabulary source
+
+Workplace Learn 的 lesson 與 vocabulary 使用自己的 bounded schema、strict validator 與 body-free discovery catalog；它們不進入 Book、Reader、Career Game 或 universal content model。公開 repository 中的 Free lesson／vocabulary 是明確標示的原創、架空、non-proprietary 教學範例，不能冒充正式 Plus corpus。正式 workplace 日文、繁體中文解說、editorial review、權利紀錄及 private release history 留在 canonical private source。
+
+Adapter 對每個 private source directory 只讀取 canonical `workplace-item.json`。它必須是 `released`、有 reviewer、rights cleared 的 Plus item，且只能使用 text-only runtime fields；sample、draft、Free 與 asset references 均拒絕匯入。`--source` 必須是公開 checkout 之外的絕對路徑，symlink 的實際路徑也會檢查。先在 private checkout 執行只讀驗證；受控匯入需要 server-only `SUPABASE_URL` 與 `SUPABASE_SERVICE_ROLE_KEY`，且不屬於 public CI 或 frontend build：
+
+```text
+pnpm workflow:validate-private-workplace --source=/absolute/private/workplace-item --content-id=<stable-workplace-id>
+pnpm workflow:import-private-workplace --source=/absolute/private/workplace-item --content-id=<stable-workplace-id>
+```
+
+Adapter 去除 publication、reviewer 與 rights 欄位，驗證 bounded runtime，對 `{ workplaceLearn: runtime }` 計算 immutable SHA-256 revision，並以 `workplace-lesson` 或 `workplace-vocabulary`、`access_scope=member` 寫入既有 `private_content_release`。Import 本身不發佈 catalog entry；公開 Plus metadata 必須只指向相同 content id 與 revision，browser 只能在 verified active membership 後透過 `content-delivery` 讀取並重新驗證 payload。缺少 catalog reference、access、release 或合法 payload 時，UI 必須顯示 unavailable，不可回退到 private body 的公開 bundle copy。
+
+`check:public-content-boundary` 拒絕公開 checkout 內的 canonical filename、改名後的完整 private authoring JSON、完整 Plus runtime JSON 及其 delivery wrapper。這是 public-Git guard；private artifact isolation 仍以 clean GitHub／Cloudflare hosted checkout 和 owner 確認的 build environment 為準。首次正式 Plus corpus publication、revision 變更與 rollback 必須先確認 frontend、Edge、cached client 對 catalog／release 的相容性；不要把 immutable release 的存在當成當前可發佈狀態。Free production publication 也需要另外的公開來源與權利審查決策，不能靠 `access: free` 繞過 member delivery。
+
 ## #114 Practice / Web Test private authoring path
 
 `PracticeQuestionBank` 是 Practice runtime 自己的 schema，不是 `Book`、Career Game 或 learning evidence 的替代 schema。第一個 test family 可標記為 `spi`，但 `testFamily`、`deliveryProfile` 與 `practiceProfile` 都是可延展的內容欄位；不得把「外國人」或中文 support 寫成 core identity。日文題幹／解答是 core，`zh-Hant` support overlay 則以 question ID、question version 與 overlay version 個別釘選。
