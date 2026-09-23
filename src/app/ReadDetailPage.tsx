@@ -178,13 +178,13 @@ function ReadingArticle({ item }: { item: ReadingRuntimeItem }) {
 
       <section className="reading-material" aria-labelledby="reading-material-title">
         <h2 id="reading-material-title">{strings.reading.japaneseMaterial}</h2>
-        <p lang="ja">{item.japaneseMaterial.text}</p>
+        <ReadingParagraphs text={item.japaneseMaterial.text} lang="ja" />
       </section>
 
       <div className="reading-article__body">
         <section aria-labelledby="reading-explanation-title">
           <h2 id="reading-explanation-title">{strings.reading.explanation}</h2>
-          <p lang="zh-TW">{item.explanationZhTW}</p>
+          <ReadingParagraphs text={item.explanationZhTW} lang="zh-TW" />
         </section>
         {item.vocabulary.length > 0 && <section aria-labelledby="reading-vocabulary-title">
           <h2 id="reading-vocabulary-title">{strings.reading.vocabulary}</h2>
@@ -211,12 +211,12 @@ function ReadingArticle({ item }: { item: ReadingRuntimeItem }) {
         </section>}
         <section className="reading-context" aria-labelledby="reading-context-title">
           <h2 id="reading-context-title">{strings.reading.businessContext}</h2>
-          <p lang="zh-TW">{item.businessContextZhTW}</p>
+          <ReadingParagraphs text={item.businessContextZhTW} lang="zh-TW" />
         </section>
         {item.davidCommentary && (
           <section className="reading-commentary" aria-labelledby="reading-commentary-title">
             <h2 id="reading-commentary-title">{strings.reading.davidCommentary}</h2>
-            <p lang="zh-TW">{item.davidCommentary}</p>
+            <ReadingParagraphs text={item.davidCommentary} lang="zh-TW" />
           </section>
         )}
       </div>
@@ -224,6 +224,11 @@ function ReadingArticle({ item }: { item: ReadingRuntimeItem }) {
       <RelatedReading links={item.relatedLinks} />
     </article>
   )
+}
+
+function ReadingParagraphs({ text, lang }: { text: string; lang: 'ja' | 'zh-TW' }) {
+  return text.replace(/\r\n/g, '\n').split(/\n[ \t]*\n+/).filter((paragraph) => paragraph.trim().length > 0)
+    .map((paragraph, index) => <p key={index} lang={lang}>{paragraph}</p>)
 }
 
 function RelatedReading({ links }: { links: readonly ReadingRelatedLink[] }) {

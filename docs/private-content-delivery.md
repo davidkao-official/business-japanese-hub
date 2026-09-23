@@ -58,7 +58,7 @@ Frontend artifact isolation 的 authority 是 clean hosted checkout：GitHub exa
 
 `/read` 現在有一個明確標示為原創、架空、non-proprietary 的 Free 教學範例。它只證明 data-driven Read renderer 與下一步 Learn route；公開 catalog 目前沒有已發布的 Plus Reading 文章，也不能據此宣稱有 production editorial cadence。`src/reading/catalog.ts` 只放可公開的 body-free discovery metadata。正式文章的日文材料、繁體中文教學分析、研究與權利審查紀錄、review notes 和 private release history 均留在上述 private canonical source。
 
-Reading 的 bounded authoring artifact 是 private checkout 內的 `reading-item.json`；public-content guard 會拒絕公開 checkout 中任何同名檔。它包含 draft/released 狀態、reviewer、release notes、rights basis 與 attestation。`released` 且 rights cleared 的 Plus item 才能用下列命令準備或匯入；`--source` 必須是 public checkout 之外的絕對路徑，symlink 的實際路徑也會檢查。命令不屬於 public CI 或 frontend build：
+Reading 的 bounded authoring artifact 是 private checkout 內的 `reading-item.json`；public-content guard 會拒絕公開 checkout 中任何同名檔或具完整 Reading authoring 欄位的改名 JSON。它包含 draft/released 狀態、reviewer、release notes、rights basis 與 attestation。`released` 且 rights cleared 的 Plus item 才能用下列命令準備或匯入；`--source` 必須是 public checkout 之外的絕對路徑，symlink 的實際路徑也會檢查。命令不屬於 public CI 或 frontend build：
 
 ```text
 pnpm workflow:validate-private-reading --source=/absolute/private/reading-item --content-id=<stable-reading-id>
@@ -66,6 +66,8 @@ pnpm workflow:import-private-reading --source=/absolute/private/reading-item --c
 ```
 
 Import 另需 server-only `SUPABASE_URL` 與 `SUPABASE_SERVICE_ROLE_KEY`。Validator 將 private authoring fields 去除，只投影 text-only Reading runtime payload，計算 immutable revision 並寫入既有 `private_content_release` 的 `access_scope=member`。目前不接受 private image/cover/asset 欄位；需要資產時先建立有授權的 server delivery path。公開 catalog 的 Plus metadata 要與該 release 的 content ID、revision、title、source、日期等欄位一致；browser 只在 verified active membership 後呼叫 `content-delivery`，並重新驗證 kind、identity、revision 和 runtime 欄位。若 reference 尚未進公開 catalog，匯入本身不會使文章在 `/read` 顯示。
+
+Runtime text 保留 authoring 內的空行作為段落界線、單行換行作為行內斷行；不用 HTML/Markdown 注入文章結構。這使長篇日文材料與繁體中文分析可以維持可讀性，同時維持純文字輸出。
 
 Free production article 不能用 `access: free` 旗標繞過 member-only delivery；除已明確可公開的 non-proprietary fixture 外，Free publication 需要另外核准的 public delivery contract。Reading save/resume、review evidence 與 recurring editorial return loop 仍屬 #122；這個 renderer 不會把開啟文章偽裝成已儲存進度。
 

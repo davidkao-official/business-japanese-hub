@@ -314,6 +314,11 @@
   line-height: 2.05;
 }
 
+.reading-material p + p,
+.reading-article__body p + p {
+  margin-block-start: var(--space-3);
+}
+
 .reading-article__body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.65fr);
@@ -331,6 +336,12 @@
 
 .reading-article__body p {
   margin: 0;
+}
+
+.reading-material p,
+.reading-article__body p,
+.reading-logic blockquote {
+  white-space: pre-line;
 }
 
 .reading-vocabulary {

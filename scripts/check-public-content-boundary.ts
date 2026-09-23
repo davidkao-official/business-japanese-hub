@@ -6,6 +6,7 @@ import { contentDistRoot, repoRoot } from './lib/books'
 import {
   privatePracticeArtifactReason,
 } from './lib/private-practice-artifact'
+import { privateReadingArtifactReason } from './lib/private-reading-artifact'
 
 interface LegacyBooksFile {
   schemaVersion?: unknown
@@ -115,12 +116,14 @@ if (!legacySlugs || !legacyFiles) {
   const publicFiles: Record<string, string> = {}
   collectFiles(root, root, publicFiles)
   for (const path of Object.keys(publicFiles)) {
-    if (basename(path) === 'reading-item.json') {
-      console.error(`ERR  private Reading authoring artifact found in public repository: ${path}`)
+    const text = readFileSync(join(root, path), 'utf8')
+    const readingReason = privateReadingArtifactReason(path, text)
+    if (readingReason) {
+      console.error(`ERR  private Reading ${readingReason} found in public repository: ${path}`)
       process.exitCode = 1
       continue
     }
-    const reason = privatePracticeArtifactReason(path, readFileSync(join(root, path), 'utf8'))
+    const reason = privatePracticeArtifactReason(path, text)
     if (reason === 'canonical filename') {
       console.error(`ERR  private Practice authoring artifact found in public repository: ${path}`)
       process.exitCode = 1

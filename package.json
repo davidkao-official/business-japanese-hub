@@ -26,7 +26,7 @@
     "typecheck:library": "tsc -p tsconfig.app.json",
     "typecheck:career-game": "tsc -p tsconfig.career-game.json",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run && tsx --test scripts/private-content/reading-source.test.ts",
     "workflow:validate": "tsx scripts/validate.ts",
     "workflow:validate-private-book": "tsx scripts/private-content/validate-book.ts",
     "workflow:import-private-book": "tsx scripts/private-content/import-book.ts",

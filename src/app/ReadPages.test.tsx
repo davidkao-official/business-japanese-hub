@@ -27,11 +27,15 @@ const membership = (access: 'active' | 'non-member' | 'unavailable'): PlusMember
   getAccess: vi.fn(async () => access),
 })
 
-function routeSet(entries: readonly ReadingCatalogEntry[] = readingCatalog, loadPayload?: (entry: ReadingCatalogEntry, getToken: () => Promise<string | null>, userId: string, signal?: AbortSignal) => Promise<ReadingFetchResult>) {
+function routeSet(
+  entries: readonly ReadingCatalogEntry[] = readingCatalog,
+  loadPayload?: (entry: ReadingCatalogEntry, getToken: () => Promise<string | null>, userId: string, signal?: AbortSignal) => Promise<ReadingFetchResult>,
+  publicItems?: readonly ReadingRuntimeItem[],
+) {
   return (
     <Routes>
       <Route path="/read" element={<ReadLandingPage />} />
-      <Route path="/read/:slug" element={<ReadDetailPage catalogEntries={entries} loadPayload={loadPayload} />} />
+      <Route path="/read/:slug" element={<ReadDetailPage catalogEntries={entries} loadPayload={loadPayload} publicItems={publicItems} />} />
       <Route path="/learn/:slug" element={<p>Actual Learn route</p>} />
       <Route path="/books/:slug" element={<p>Book detail route</p>} />
       <Route path="*" element={<p>404 fallback</p>} />
@@ -62,6 +66,30 @@ describe('Business Reading surfaces', () => {
     expect(screen.getByText(sampleReadingItem.explanationZhTW)).toHaveAttribute('lang', 'zh-TW')
     expect(screen.getByText('公開日なし')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /論點如何在會議中承接與轉換/ })).toHaveAttribute('href', '/learn/meeting-japanese-course-correction')
+  })
+
+  it('keeps authored Japanese and Chinese paragraphs distinct', () => {
+    const multilineItem: ReadingRuntimeItem = {
+      ...sampleReadingItem,
+      id: 'reading-sample-paragraphs',
+      slug: 'sample-paragraphs',
+      japaneseMaterial: { kind: 'original', text: '第一段。\n\n第二段。\n文中の改行。' },
+      explanationZhTW: '第一段說明。\n\n第二段說明。',
+      businessContextZhTW: '第一段背景。\n\n第二段背景。',
+      davidCommentary: '第一段觀點。\n\n第二段觀點。',
+    }
+    const { container } = renderWithAppProviders(
+      routeSet([toReadingCatalogEntry(multilineItem)], undefined, [multilineItem]),
+      { initialEntries: ['/read/sample-paragraphs'] },
+    )
+    expect([...container.querySelectorAll('.reading-material p')].map((node) => node.textContent))
+      .toEqual(['第一段。', '第二段。\n文中の改行。'])
+    expect([...container.querySelectorAll('[aria-labelledby="reading-explanation-title"] p')].map((node) => node.textContent))
+      .toEqual(['第一段說明。', '第二段說明。'])
+    expect([...container.querySelectorAll('.reading-context p')].map((node) => node.textContent))
+      .toEqual(['第一段背景。', '第二段背景。'])
+    expect([...container.querySelectorAll('.reading-commentary p')].map((node) => node.textContent))
+      .toEqual(['第一段觀點。', '第二段觀點。'])
   })
 
   it('uses the shared 404 presentation for an unknown article slug', () => {
