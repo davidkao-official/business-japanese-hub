@@ -81,7 +81,10 @@ payment failure clips unpaid/future coverage, a later valid recovery contributes
 window, and the stream's earliest own terminal cutoff clips its windows. No historical
 snapshot or legacy event is backfilled into a paid window. `plus_membership_state` and
 `plus_membership_access` remain useful lifecycle snapshots but are not temporal
-authorization sources. Edge Functions call the service-role-only
+authorization sources. A matching-plan payment failure dominates any same-time grant
+(initial start, renewal, reactivation, or restoration) regardless of event ID; recovery
+requires a strictly later `occurred_at` to reopen access.
+Edge Functions call the service-role-only
 `resolve_plus_membership_access` RPC, which samples database time once, chooses the
 greatest qualified initial-start key effective then, and checks coverage only on that
 stream. An expired or failed newer selected stream does not fall back to older coverage.

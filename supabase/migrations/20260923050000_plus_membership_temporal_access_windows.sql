@@ -94,8 +94,15 @@ begin
     where source_system = p_source_system
       and source_customer_id = p_source_customer_id
       and source_subscription_id = p_source_subscription_id
-      and (occurred_at, event_id) > (v_start.occurred_at, v_start.event_id)
-    order by occurred_at, event_id
+      and (
+        (occurred_at, event_id) > (v_start.occurred_at, v_start.event_id)
+        or (occurred_at = v_start.occurred_at
+            and event_type = 'membership_payment_failed'
+            and plan_code = v_start.plan_code)
+      )
+    order by occurred_at,
+             case when event_type = 'membership_payment_failed' then 1 else 0 end,
+             event_id
   loop
     -- Match the stream reducer: pre-effective facts cannot grant coverage,
     -- but failure and its subsequent valid recovery govern future time.

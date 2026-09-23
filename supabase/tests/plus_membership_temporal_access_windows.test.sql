@@ -1,6 +1,6 @@
 begin;
 
-select plan(90);
+select plan(108);
 
 update public.plus_membership_plan set active = true
 where plan_code = 'plus_early_access_monthly';
@@ -11,7 +11,9 @@ insert into auth.users (id, aud, role) values
  ('50000000-0000-0000-0000-000000000703','authenticated','authenticated'),
  ('50000000-0000-0000-0000-000000000704','authenticated','authenticated'),
  ('50000000-0000-0000-0000-000000000705','authenticated','authenticated'),
- ('50000000-0000-0000-0000-000000000706','authenticated','authenticated');
+ ('50000000-0000-0000-0000-000000000706','authenticated','authenticated'),
+ ('50000000-0000-0000-0000-000000000715','authenticated','authenticated'),
+ ('50000000-0000-0000-0000-000000000716','authenticated','authenticated');
 
 -- A remains paid until B's effective start. Read selection is based on the
 -- initial-start key effective by the one DB timestamp passed to the helper.
@@ -92,6 +94,40 @@ select is((select window_start from public.plus_membership_access_window where s
 select is((select window_end from public.plus_membership_access_window where source_subscription_id='s714'),'2026-10-07'::timestamptz,'714 recovery keeps its own paid period end');
 select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000714','2026-09-09'),' {"access_status":"non-member"}'::jsonb,'714 recovery cannot open access before trusted paid start');
 select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000714','2026-09-10'),' {"access_status":"active"}'::jsonb,'714 recovered coverage opens at the trusted paid start');
+
+-- A matching-plan failure at the initial start time dominates regardless of
+-- event ID or delivery order; only a strictly later recovery can reopen access.
+select is(public.record_plus_membership_event('windows','c715','s715','z-start--715','50000000-0000-0000-0000-000000000715','plus_early_access_monthly','membership_started','2026-09-01','2026-09-10','2026-10-10'),'applied','715 future paid period starts');
+select is(public.record_plus_membership_event('windows','c715','s715','a-failed-715','50000000-0000-0000-0000-000000000715','plus_early_access_monthly','membership_payment_failed','2026-09-01','2026-09-10','2026-10-10'),'applied','715 same-time failure is delivered after its start');
+select ok((select failure.event_id < start.event_id
+  from public.plus_membership_event as failure
+  join public.plus_membership_event as start on start.source_subscription_id=failure.source_subscription_id
+  where failure.source_event_id='a-failed-715' and start.source_event_id='z-start--715'),'715 failure ID sorts before start ID');
+select is((select membership_status from public.plus_membership_stream_summary where source_subscription_id='s715'),'past_due','715 same-time failure leaves the stream past due');
+select is((select count(*) from public.plus_membership_access_window where source_subscription_id='s715'),0::bigint,'715 same-time failure removes future paid coverage');
+select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000715','2026-09-11'),' {"access_status":"non-member"}'::jsonb,'715 same-time failure denies the future paid period');
+
+select lives_ok($$select public.record_plus_membership_event('windows','c716','s716','a-failure-716','50000000-0000-0000-0000-000000000716','plus_early_access_monthly','membership_payment_failed','2026-09-01','2026-09-01','2026-10-01')$$,'716 failure arrives before its start');
+select lives_ok($$select public.record_plus_membership_event('windows','c716','s716','z-recover-716','50000000-0000-0000-0000-000000000716','plus_early_access_monthly','membership_reactivated','2026-09-01','2026-09-01','2026-10-01')$$,'716 same-time recovery arrives before its start');
+select lives_ok($$select public.record_plus_membership_event('windows','c716','s716','zz-renew--716','50000000-0000-0000-0000-000000000716','plus_early_access_monthly','membership_renewed','2026-09-01','2026-09-01','2026-10-01')$$,'716 same-time renewal arrives before its start');
+select is(public.record_plus_membership_event('windows','c716','s716','m-start---716','50000000-0000-0000-0000-000000000716','plus_early_access_monthly','membership_started','2026-09-01','2026-09-01','2026-10-01'),'applied','716 start arrives after its same-time follow-ups');
+select ok((select failure.event_id < start.event_id and start.event_id < recovery.event_id
+  and recovery.event_id < renewal.event_id
+  from public.plus_membership_event as failure
+  join public.plus_membership_event as start on start.source_subscription_id=failure.source_subscription_id
+  join public.plus_membership_event as recovery on recovery.source_subscription_id=failure.source_subscription_id
+  join public.plus_membership_event as renewal on renewal.source_subscription_id=failure.source_subscription_id
+  where failure.source_event_id='a-failure-716'
+    and start.source_event_id='m-start---716'
+    and recovery.source_event_id='z-recover-716'
+    and renewal.source_event_id='zz-renew--716'),'716 same-time event IDs order failure, start, recovery, renewal');
+select is((select membership_status from public.plus_membership_stream_summary where source_subscription_id='s716'),'past_due','716 same-time failure dominates the recovery by timestamp');
+select is((select count(*) from public.plus_membership_access_window where source_subscription_id='s716'),0::bigint,'716 same-time recovery and renewal cannot reopen the paid window');
+select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000716','2026-09-02'),' {"access_status":"non-member"}'::jsonb,'716 same-time recovery leaves access closed');
+select is(public.record_plus_membership_event('windows','c716','s716','later-recovery-716','50000000-0000-0000-0000-000000000716','plus_early_access_monthly','membership_reactivated','2026-09-02','2026-09-02','2026-10-02'),'applied','716 strictly later recovery reopens access');
+select is((select membership_status from public.plus_membership_stream_summary where source_subscription_id='s716'),'active','716 later recovery returns the stream to active');
+select is((select count(*) from public.plus_membership_access_window where source_subscription_id='s716'),1::bigint,'716 later recovery alone adds coverage');
+select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000716','2026-09-03'),' {"access_status":"active"}'::jsonb,'716 later recovery grants access');
 
 -- A failure removes a buffered future renewal as well as clipping elapsed coverage.
 insert into auth.users (id, aud, role) values ('50000000-0000-0000-0000-000000000708','authenticated','authenticated');

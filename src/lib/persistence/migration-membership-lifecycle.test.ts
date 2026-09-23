@@ -143,6 +143,10 @@ const temporalAccessWindowsSql = readFileSync(
   ),
   'utf8',
 );
+const membershipImplementationContract = readFileSync(
+  join(process.cwd(), 'docs/payments/implementation-contract.md'),
+  'utf8',
+);
 const lifecyclePgTapFiles = readdirSync(join(process.cwd(), 'supabase/tests'))
   .filter((file) => /^plus_membership_(?:lifecycle(?:_[a-z_]+)?|access_effective_start|temporal_access_windows)\.test\.sql$/.test(file))
   .sort()
@@ -164,7 +168,7 @@ function expectLifecycleTapPlans() {
     expect(assertions!.length, file).toBe(Number(declaredPlan![1]));
     total += Number(declaredPlan![1]);
   }
-  expect(total).toBe(749);
+  expect(total).toBe(767);
 }
 
 describe('#165 membership stream selection authority migration', () => {
@@ -266,6 +270,14 @@ describe('#165 temporal access windows successor', () => {
     expect(temporalAccessWindowsSql).toContain('greatest(v_start.occurred_at, v_start.period_start)');
     expect(temporalAccessWindowsSql).toContain('v_event.plan_active_when_observed is not true');
     expect(temporalAccessWindowsSql).toContain('v_event.plan_code is distinct from v_plan_code');
+    expect(temporalAccessWindowsSql).toContain("event_type = 'membership_payment_failed'");
+    expect(temporalAccessWindowsSql).toContain("case when event_type = 'membership_payment_failed' then 1 else 0 end");
+    expect(legacyStartGuardSql).toContain(
+      "(occurred_at = v_start.occurred_at\n                and event_type = 'membership_payment_failed'\n                and plan_code = v_start.plan_code)",
+    );
+    expect(legacyStartGuardSql).toContain(
+      "case when event_type = 'membership_payment_failed' then 1 else 0 end",
+    );
     expect(temporalAccessWindowsSql).toContain("v_event.event_type <> 'membership_payment_failed'");
     expect(temporalAccessWindowsSql).toContain("v_status = 'past_due'");
     expect(temporalAccessWindowsSql).toContain('v_summary.effective_start, v_event.occurred_at, v_event.period_start');
@@ -293,6 +305,11 @@ describe('#165 temporal access windows successor', () => {
       '714 recovered window is clamped to initial effective start',
       '714 recovery cannot open access before trusted paid start',
       '714 recovered coverage opens at the trusted paid start',
+      '715 failure ID sorts before start ID',
+      '715 same-time failure removes future paid coverage',
+      '716 same-time event IDs order failure, start, recovery, renewal',
+      '716 same-time failure dominates the recovery by timestamp',
+      '716 strictly later recovery reopens access',
       '708 later failure clips and removes unpaid future coverage',
       '709 immediate terminal clips the paid window',
       '710 scheduled cutoff is exclusive',
@@ -304,6 +321,9 @@ describe('#165 temporal access windows successor', () => {
     ]) {
       expect(lifecyclePgTapSql).toContain(caseLabel);
     }
+    expect(membershipImplementationContract).toContain(
+      'A matching-plan payment failure dominates any same-time grant',
+    );
     expectLifecycleTapPlans();
   });
 });
