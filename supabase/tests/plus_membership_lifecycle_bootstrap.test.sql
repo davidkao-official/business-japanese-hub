@@ -33,11 +33,13 @@ insert into public.plus_membership_event (
 insert into public.plus_membership_state (
   user_id, plan_code, membership_status, period_start, period_end,
   source_system, source_customer_id, source_subscription_id,
-  cancel_at_period_end, last_event_occurred_at, last_event_id, updated_at
+  cancel_at_period_end, last_event_occurred_at, last_event_id,
+  applied_event_occurred_at, applied_event_id, updated_at
 ) values (
   '50000000-0000-0000-0000-000000000322','plus_early_access_monthly','active',
   '2026-09-01','2026-10-01','legacy-source','legacy-customer-322',
-  'legacy-subscription-322',false,'2026-09-01','legacy-event-322',now()
+  'legacy-subscription-322',false,'2026-09-01','legacy-event-322',
+  '2026-09-01','legacy-event-322',now()
 );
 
 select throws_ok(

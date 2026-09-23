@@ -37,7 +37,7 @@ update public.plus_membership_plan set active = true where plan_code='plus_stand
 select is(public.record_plus_membership_event('source-a','c308','s308','valid308','50000000-0000-0000-0000-000000000308','plus_standard_monthly','membership_started','2026-09-02','2026-09-02','2026-10-02'),'applied','308 first trusted start is eligible');
 select is((select conflicted from public.plus_membership_stream_summary where source_subscription_id='s308'),false,'308 untrusted audit start does not poison trusted candidate');
 select is(public.record_plus_membership_event('source-a','c308','s308','second308','50000000-0000-0000-0000-000000000308','plus_standard_monthly','membership_started','2026-09-03','2026-09-03','2026-10-03'),'conflict','308 second trusted start records conflict without rollback');
-select is((select count(*) from public.plus_membership_event where source_subscription_id='s308' and event_type='membership_started'),2::bigint,'308 distinct trusted start conflict keeps evidence');
+select is((select count(*) from public.plus_membership_event where source_subscription_id='s308' and event_type='membership_started'),3::bigint,'308 keeps the inactive audit plus both distinct trusted starts');
 select is((select count(*) from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000308'),0::bigint,'308 conflicted stream fails closed');
 
 -- Equal-time stream starts use event_id as deterministic tie-breaker in both arrival orders.
