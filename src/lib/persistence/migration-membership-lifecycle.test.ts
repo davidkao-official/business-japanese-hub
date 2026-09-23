@@ -294,6 +294,20 @@ describe('#165 temporal access windows successor', () => {
 });
 
 describe('#164 membership lifecycle migration', () => {
+  it('rejects a populated or busy projection before changing schema or privileges', () => {
+    const lockAt = sql.indexOf('lock table public.plus_membership_access');
+    const emptyCheckAt = sql.indexOf('if v_has_rows then');
+    const firstSchemaChangeAt = sql.indexOf('create table public.plus_membership_plan');
+    const revokeAt = sql.indexOf('revoke insert, update, delete on public.plus_membership_access');
+
+    expect(lockAt).toBeGreaterThan(0);
+    expect(sql).toContain('in share row exclusive mode nowait');
+    expect(sql).toContain("'plus_membership_access'");
+    expect(emptyCheckAt).toBeGreaterThan(lockAt);
+    expect(firstSchemaChangeAt).toBeGreaterThan(emptyCheckAt);
+    expect(revokeAt).toBeGreaterThan(firstSchemaChangeAt);
+  });
+
   it('seeds the approved monthly plans without date-based repricing', () => {
     expect(sql).toContain("'plus_early_access_monthly', 'TWD', 29900, 'month', true");
     expect(sql).toContain("'plus_standard_monthly', 'TWD', 39900, 'month', false");

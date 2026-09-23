@@ -4,6 +4,40 @@
 -- does not model a provider, checkout, webhook, dunning, reconciliation, or
 -- annual billing. #139's plus_membership_access row remains the read seam.
 
+-- Fail before changing schema or revoking #139 writes if any membership state
+-- already exists. The migration runner applies this file in one transaction;
+-- NOWAIT rejects an in-flight writer and keeps the lock until that transaction
+-- commits. The later lifecycle guard repeats this check for defense in depth.
+set transaction isolation level read committed;
+
+lock table public.plus_membership_access
+  in share row exclusive mode nowait;
+
+do $membership_bootstrap$
+declare
+  v_table text;
+  v_has_rows boolean;
+begin
+  foreach v_table in array array[
+    'plus_membership_event',
+    'plus_membership_subscription',
+    'plus_membership_state',
+    'plus_membership_access'
+  ] loop
+    if to_regclass(format('public.%I', v_table)) is not null then
+      execute format('lock table public.%I in share row exclusive mode nowait', v_table);
+      execute format('select exists (select 1 from public.%I)', v_table)
+        into v_has_rows;
+      if v_has_rows then
+        raise exception using
+          errcode = 'P0001',
+          message = format('Plus membership bootstrap requires empty public.%I', v_table);
+      end if;
+    end if;
+  end loop;
+end;
+$membership_bootstrap$;
+
 create table public.plus_membership_plan (
   plan_code text primary key,
   currency text not null check (currency = 'TWD'),

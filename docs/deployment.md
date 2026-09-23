@@ -289,12 +289,12 @@ inside `db push`.
 
 ### 2.5 Plus membership lifecycle bootstrap preflight
 
-Before applying any #164/#165 lifecycle migration to a production target, run
-this read-only preflight against the intended project. Run it before the first
-migration in the chain; the final migration check cannot roll back earlier
-migrations that already committed. Any nonzero row count stops the rollout for
-separate review. This query is documentation only and must not be run against
-production as part of this PR.
+Before applying any #164/#165 lifecycle migration to a production target,
+quiesce every existing membership projection writer and keep lifecycle writers
+quiesced until the entire migration chain completes. Then run this read-only
+preflight against the intended project before the first migration. Any nonzero
+row count stops the rollout for separate review. This query is documentation
+only and must not be run against production as part of this PR.
 
 ```sql
 do $membership_preflight$
@@ -320,8 +320,11 @@ end;
 $membership_preflight$;
 ```
 
-The append-only successor migration repeats this empty-table check before
-installing its final reducer changes. It preserves all rows on failure. The plan
+The first #164 migration acquires a writer-conflicting lock without waiting and
+checks these tables before changing schema or privileges. It aborts if a writer
+is active or any table is populated. A later migration repeats the empty-table
+check as defense in depth; it cannot roll back earlier migrations that already
+committed. Do not activate the new lifecycle RPC between migrations. The plan
 catalog is excluded because it is configuration, not lifecycle evidence.
 
 ### 2.6 Apply migrations and deploy Edge Functions

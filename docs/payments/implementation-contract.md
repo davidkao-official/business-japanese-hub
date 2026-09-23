@@ -24,7 +24,7 @@
 | `platform_tax_config` | 0003 | Japan consumption-tax status boundary (#25). Seeded `('japan_consumption_tax_status','unresolved')` — fail-closed: never apply 10% tax / claim tax-inclusive pricing until explicitly `taxable` or `exempt`. | Server-only (clients must not override). |
 | `order_email_outbox` | 20260820100000 | Durable order-confirmation delivery. First fulfillment enqueues one `order-confirmation-v1` row; the worker owns `pending → processing → sent/retry/dead`. | Server-only; no client policy or privilege. |
 | `scheduled_job_health` | 20260822171000 | Run-token-fenced repair/reconcile/email heartbeat state used by paid-launch readiness. | Server-only. |
-| `plus_membership_subscription` | 20260922110000 | Canonical provider-neutral source-stream binding (`source_system + customer + subscription → user_id`) and permanent terminal retirement evidence for recurring Plus lifecycle. | Server-only; bind-once and lifecycle writes occur only through the service-role reducer. |
+| `plus_membership_subscription` | 20260922110000 | Canonical provider-neutral source-stream binding (`source_system + customer + subscription → user_id`). Current terminal authority is folded from immutable events into `plus_membership_stream_summary`; historical binding retirement columns are not authorization evidence. | Server-only; bind-once and lifecycle writes occur only through the service-role reducer. |
 
 ## Plus membership lifecycle repair (#164)
 
@@ -40,9 +40,11 @@ retirement markers never decide whether a delivery can be audited or selected.
 `plus_membership_stream_summary` is a server-only, per-subscription materialized fold
 rebuilt from that stream's own events. Existing rows are not backfilled into this cache;
 legacy histories without explicit reducer proof remain unqualified.
-The append-only lifecycle bootstrap guard requires event, subscription-binding,
-state, and access tables to be empty before the current reducer migrations proceed;
-the production read-only preflight must run before the first migration in that chain.
+The first lifecycle migration checks that event, subscription-binding, state,
+and access tables are empty under a writer-conflicting lock before changing
+schema or privileges. A later guard repeats the check. The production read-only
+preflight must run before the first migration, with membership writers quiesced
+throughout the chain.
 
 A stream qualifies only with one `membership_started` event whose plan was active at
 receipt and whose paid interval extends past `greatest(occurred_at, period_start)`.
