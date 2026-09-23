@@ -136,7 +136,7 @@ function expectLifecycleTapPlans() {
     expect(assertions!.length, file).toBe(Number(declaredPlan![1]));
     total += Number(declaredPlan![1]);
   }
-  expect(total).toBe(1570);
+  expect(total).toBe(1576);
 }
 
 describe('#165 membership stream selection authority migration', () => {
