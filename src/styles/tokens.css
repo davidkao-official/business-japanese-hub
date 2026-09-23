@@ -124,6 +124,31 @@
   --lp-offer-cover-max-width: 16rem;
   --lp-menu-title-size: clamp(var(--text-2xl), 7vw, var(--text-3xl));
 
+  /* Concept C homepage only — warm learning-service palette */
+  --home-bg: #fffaf6;
+  --home-surface: #ffffff;
+  --home-surface-soft: #fff2e9;
+  --home-text: #211e1b;
+  --home-text-secondary: #625d59;
+  --home-text-muted: #716b66;
+  --home-accent: #c84b12;
+  --home-accent-hover: #a63c0d;
+  --home-accent-contrast: #ffffff;
+  --home-accent-soft: #ffede2;
+  --home-border: #eadfd7;
+  --home-border-strong: #d8c9be;
+  --home-purple: #7454aa;
+  --home-green: #397454;
+  --home-blue: #3d638f;
+  --home-radius-sm: 0.75rem;
+  --home-radius-md: 1rem;
+  --home-radius-lg: 1.25rem;
+  --home-radius-xl: 1.75rem;
+  --home-radius-pill: 999px;
+  --home-shadow-panel: 0 16px 40px rgb(59 37 22 / 10%);
+  --home-shadow-card: 0 8px 24px rgb(59 37 22 / 6%);
+  --home-font-sans: Inter, 'Noto Sans TC', 'Noto Sans JP', system-ui, sans-serif;
+
   /* ---------------------------------------------------------------
    * Typography — Japanese-first font stacks
    * Noto Sans JP / Hiragino / Yu Gothic are the preferred Japanese faces;
@@ -335,6 +360,24 @@
   --color-warning-text: #d0a165;
   --color-danger: #e08585;
   --color-info: #8ab4e8;
+
+  --home-bg: #191715;
+  --home-surface: #211e1b;
+  --home-surface-soft: #2d241e;
+  --home-text: #f2ece6;
+  --home-text-secondary: #c5bab1;
+  --home-text-muted: #b2a79e;
+  --home-accent: #ff9a68;
+  --home-accent-hover: #ffb28e;
+  --home-accent-contrast: #211e1b;
+  --home-accent-soft: #40291f;
+  --home-border: #403730;
+  --home-border-strong: #59493d;
+  --home-purple: #c0a6ee;
+  --home-green: #8fc9a5;
+  --home-blue: #9bb9e4;
+  --home-shadow-panel: 0 16px 40px rgb(0 0 0 / 32%);
+  --home-shadow-card: 0 8px 24px rgb(0 0 0 / 24%);
 
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.28);
   --shadow-md: 0 8px 24px rgb(0 0 0 / 0.32);

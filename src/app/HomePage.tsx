@@ -45,7 +45,6 @@ function renderHomeHeading(
  * points; editorial samples remain a real, content-driven Read projection.
  */
 export function HomePage() {
-  const locale = useLocale()
   const strings = useStrings()
   const entries = listCatalogEntries()
   const editorialFeatures = listEditorialFeatures(entries)
@@ -55,15 +54,12 @@ export function HomePage() {
 
   return (
     <section
-      className="page storefront-page learning-service-home"
+      className="page storefront-page learning-service-home concept-c-home"
       aria-labelledby="home-title"
     >
-      <div className="storefront-masthead">
-        <h1 className="page__title" id="home-title" aria-label={strings.home.title}>
-          {renderHomeHeading(strings.home.title, locale, JAPANESE_HOME_HEADING_PHRASES.title)}
-        </h1>
-        <p className="page__lead">{strings.home.lead}</p>
-      </div>
+      <ConceptHero />
+      <LearningPillars />
+      <HomeValue />
 
       <LearningModes />
 
@@ -72,6 +68,111 @@ export function HomePage() {
       <EditorialSelections selections={editorialSelections} />
 
       <PublicProfiles />
+    </section>
+  )
+}
+
+function ConceptHero() {
+  const locale = useLocale()
+  const strings = useStrings()
+  const { concept } = strings.home
+  const headline = [
+    concept.headline.opening,
+    concept.headline.examJapanese,
+    concept.headline.transition,
+    ...concept.headline.workplaceJapanese,
+    concept.headline.ending,
+  ].join('')
+
+  return (
+    <header className="concept-home-hero">
+      <div className="concept-home-hero__copy">
+        <p className="concept-home-hero__badge">{concept.badge}</p>
+        <h1 className="concept-home-hero__title" id="home-title" lang={locale} aria-label={headline}>
+          <span className="phrase">{concept.headline.opening}</span>
+          <span className="phrase">{concept.headline.examJapanese}</span>
+          <span className="phrase">{concept.headline.transition}</span>
+          {concept.headline.workplaceJapanese.map((phrase) => (
+            <span className="phrase concept-home-hero__accent" key={phrase}>{phrase}</span>
+          ))}
+          <span className="phrase">{concept.headline.ending}</span>
+        </h1>
+        <p className="concept-home-hero__support">{concept.support}</p>
+        <div className="concept-home-hero__actions">
+          <Link className="concept-home-hero__action concept-home-hero__action--primary" to="/learn">
+            {concept.startLearning}<span aria-hidden="true">↗</span>
+          </Link>
+          <Link className="concept-home-hero__action concept-home-hero__action--secondary" to="/about">
+            {concept.aboutPlatform}
+          </Link>
+        </div>
+      </div>
+      <div className="concept-home-hero__visual">
+        <div className="concept-home-visual__header" aria-hidden="true">
+          <span className="concept-home-visual__mark" aria-hidden="true">文</span>
+          <span className="concept-home-visual__label">{concept.visualLabel}</span>
+          <span className="concept-home-visual__rule" aria-hidden="true" />
+        </div>
+        <div className="concept-home-visual__paper" aria-hidden="true">
+          <span className="concept-home-visual__paper-kicker">BUSINESS / CONTEXT / LANGUAGE</span>
+          <span className="concept-home-visual__paper-title">{concept.visualTitle}</span>
+          <span className="concept-home-visual__paper-rule" />
+          <span className="concept-home-visual__paper-copy">{concept.visualBody}</span>
+          <span className="concept-home-visual__paper-annotation">01 — 04</span>
+        </div>
+        <LearningJourney />
+      </div>
+    </header>
+  )
+}
+
+function LearningJourney() {
+  const { concept } = useStrings().home
+
+  return (
+    <section className="concept-journey" aria-labelledby="concept-journey-title">
+      <h2 className="concept-journey__title" id="concept-journey-title">{concept.journeyTitle}</h2>
+      <ol className="concept-journey__steps">
+        {concept.journeySteps.map((step, index) => (
+          <li className="concept-journey__step" key={step.title}>
+            <span className="concept-journey__number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+            <span className="concept-journey__copy">
+              <span className="concept-journey__step-title">{step.title}</span>
+              <span className="concept-journey__detail">{step.detail}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
+function LearningPillars() {
+  const { concept } = useStrings().home
+
+  return (
+    <section className="concept-pillars" aria-labelledby="concept-pillars-title">
+      <h2 className="concept-pillars__title" id="concept-pillars-title">{concept.pillarsTitle}</h2>
+      <ul className="concept-pillars__list">
+        {concept.pillars.map((pillar, index) => (
+          <li className={`concept-pillar concept-pillar--${index + 1}`} key={pillar.title}>
+            <span className="concept-pillar__index" aria-hidden="true">0{index + 1}</span>
+            <h3>{pillar.title}</h3>
+            <p>{pillar.body}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+function HomeValue() {
+  const { concept } = useStrings().home
+
+  return (
+    <section className="concept-home-value" aria-labelledby="concept-home-value-title">
+      <h2 id="concept-home-value-title">{concept.valueTitle}</h2>
+      <p>{concept.valueBody}</p>
     </section>
   )
 }
