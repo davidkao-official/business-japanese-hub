@@ -17,6 +17,7 @@ describe('learning-service home', () => {
     renderWithAppProviders(<HomePage />)
 
     const title = screen.getByRole('heading', { level: 1, name: 'ビジネス日本語ハブ' })
+    expect(title).toHaveAttribute('aria-label', 'ビジネス日本語ハブ')
     expect(title).toHaveTextContent('ビジネス日本語ハブ')
     expect(Array.from(title.querySelectorAll('.phrase'), (phrase) => phrase.textContent)).toEqual([
       'ビジネス',
@@ -28,12 +29,22 @@ describe('learning-service home', () => {
       level: 2,
       name: '実務で使う言葉を、文脈の中で読む',
     })
+    expect(featureTitle).toHaveAttribute('aria-label', '実務で使う言葉を、文脈の中で読む')
     expect(Array.from(featureTitle.querySelectorAll('.phrase'), (phrase) => phrase.textContent)).toEqual([
       '実務で使う',
       '言葉を、',
       '文脈の中で',
       '読む',
     ])
+
+    for (const [id, name] of [
+      ['learning-modes-title', '次に役立つ学び方を選ぶ'],
+      ['storefront-samples-title', '実際の文章と会話から学ぶ'],
+      ['storefront-selections-title', '公開中の書籍から、読む場所を選ぶ'],
+    ]) {
+      expect(document.getElementById(id)).toHaveAttribute('aria-label', name)
+      expect(screen.getByRole('heading', { name })).toHaveTextContent(name)
+    }
   })
 
   it('leaves translated homepage headings and accessible names as their original strings', () => {

@@ -59,7 +59,7 @@ export function HomePage() {
       aria-labelledby="home-title"
     >
       <div className="storefront-masthead">
-        <h1 className="page__title" id="home-title">
+        <h1 className="page__title" id="home-title" aria-label={strings.home.title}>
           {renderHomeHeading(strings.home.title, locale, JAPANESE_HOME_HEADING_PHRASES.title)}
         </h1>
         <p className="page__lead">{strings.home.lead}</p>
@@ -84,7 +84,7 @@ function LearningModes() {
     <section className="learning-modes" aria-labelledby="learning-modes-title">
       <div className="learning-modes__intro">
         <p className="learning-modes__label">{strings.learningModes.serviceLabel}</p>
-        <h2 className="learning-modes__title" id="learning-modes-title">
+        <h2 className="learning-modes__title" id="learning-modes-title" aria-label={strings.learningModes.serviceTitle}>
           {renderHomeHeading(strings.learningModes.serviceTitle, locale, JAPANESE_HOME_HEADING_PHRASES.serviceTitle)}
         </h2>
       </div>
@@ -115,7 +115,7 @@ function EditorialFeatures({ features }: { features: EditorialFeature[] }) {
     <section className="storefront-features" aria-labelledby="storefront-features-title">
       <div className="storefront-section-heading">
         <p className="storefront-section-heading__label">{strings.home.featureLabel}</p>
-        <h2 id="storefront-features-title">
+        <h2 id="storefront-features-title" aria-label={strings.home.featureTitle}>
           {renderHomeHeading(strings.home.featureTitle, locale, JAPANESE_HOME_HEADING_PHRASES.featureTitle)}
         </h2>
       </div>
@@ -150,7 +150,7 @@ function EditorialSamples({ samples }: { samples: HomeContentSample[] }) {
     <section className="storefront-samples" aria-labelledby="storefront-samples-title">
       <div className="storefront-section-heading">
         <p className="storefront-section-heading__label">{strings.home.samplesLabel}</p>
-        <h2 id="storefront-samples-title">
+        <h2 id="storefront-samples-title" aria-label={strings.home.samplesTitle}>
           {renderHomeHeading(strings.home.samplesTitle, locale, JAPANESE_HOME_HEADING_PHRASES.samplesTitle)}
         </h2>
       </div>
@@ -211,7 +211,7 @@ function EditorialSelections({ selections }: { selections: EditorialSelection[] 
     <section className="storefront-selections" aria-labelledby="storefront-selections-title">
       <div className="storefront-section-heading">
         <p className="storefront-section-heading__label">{strings.home.selectionsLabel}</p>
-        <h2 id="storefront-selections-title">
+        <h2 id="storefront-selections-title" aria-label={strings.home.selectionsTitle}>
           {renderHomeHeading(strings.home.selectionsTitle, locale, JAPANESE_HOME_HEADING_PHRASES.selectionsTitle)}
         </h2>
       </div>

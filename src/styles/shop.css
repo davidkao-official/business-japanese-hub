@@ -176,6 +176,21 @@
   margin-top: var(--space-2);
 }
 
+@media (max-width: 35.99rem) {
+  .auth-panel__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .auth-panel__actions .btn {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    padding-inline: 0;
+    font-size: var(--text-sm);
+  }
+}
+
 /* ---------------------------------------------------------------
  * Book cover (canonical: original ratio, never cropped)
  * --------------------------------------------------------------- */
