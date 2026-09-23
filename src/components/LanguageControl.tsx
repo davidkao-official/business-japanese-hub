@@ -7,14 +7,29 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
   const locale = useLocale()
   const strings = useStrings()
   const [open, setOpen] = useState(false)
+  const [activeOptionIndex, setActiveOptionIndex] = useState(() => SUPPORTED_LOCALES.indexOf(locale))
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const optionsRef = useRef<Array<HTMLButtonElement | null>>([])
 
   useEffect(() => {
     if (!open || variant !== 'desktop') return
-    optionsRef.current[SUPPORTED_LOCALES.indexOf(locale)]?.focus()
-  }, [locale, open, variant])
+    optionsRef.current[activeOptionIndex]?.focus()
+  }, [activeOptionIndex, open, variant])
+
+  useEffect(() => {
+    if (variant !== 'desktop' || typeof window.matchMedia !== 'function') return
+    const desktopQuery = window.matchMedia('(min-width: 80rem)')
+    const onBreakpointChange = (event: MediaQueryListEvent) => {
+      if (!event.matches) setOpen(false)
+    }
+    if (typeof desktopQuery.addEventListener === 'function') {
+      desktopQuery.addEventListener('change', onBreakpointChange)
+      return () => desktopQuery.removeEventListener('change', onBreakpointChange)
+    }
+    desktopQuery.addListener(onBreakpointChange)
+    return () => desktopQuery.removeListener(onBreakpointChange)
+  }, [variant])
 
   useEffect(() => {
     if (!open || variant !== 'desktop') return
@@ -62,7 +77,14 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
         aria-label={`${strings.language.label}: ${strings.language.options[locale]}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => {
+          if (open) {
+            setOpen(false)
+          } else {
+            setActiveOptionIndex(SUPPORTED_LOCALES.indexOf(locale))
+            setOpen(true)
+          }
+        }}
         onKeyDown={(event) => {
           if (event.key === 'Escape' && open) {
             event.preventDefault()
@@ -72,6 +94,7 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
           }
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault()
+            setActiveOptionIndex(SUPPORTED_LOCALES.indexOf(locale))
             setOpen(true)
             requestAnimationFrame(() => optionsRef.current[SUPPORTED_LOCALES.indexOf(locale)]?.focus())
           }
@@ -110,6 +133,7 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
               : event.key === 'End'
                 ? SUPPORTED_LOCALES.length - 1
                 : (currentIndex + (event.key === 'ArrowDown' ? 1 : -1) + SUPPORTED_LOCALES.length) % SUPPORTED_LOCALES.length
+            setActiveOptionIndex(nextIndex)
             optionsRef.current[nextIndex]?.focus()
           }}
         >
@@ -121,6 +145,7 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
               type="button"
               role="menuitemradio"
               aria-checked={locale === option}
+              tabIndex={activeOptionIndex === index ? 0 : -1}
               lang={option}
               onClick={() => select(option)}
             >

@@ -1411,6 +1411,9 @@ const stringsByLocale: Record<Locale, AppStrings> = {
 
 export const LOCALE_STORAGE_KEY = 'business-japanese-hub.locale'
 const LOCALE_CHANGE_EVENT = 'business-japanese-hub:locale-change'
+// If browser storage is unavailable, retain the user's choice for this tab.
+// `undefined` means there is no volatile override; `null` means clear it.
+let volatileLocaleOverride: Locale | null | undefined
 
 function isLocale(value: string | null): value is Locale {
   return value !== null && (SUPPORTED_LOCALES as readonly string[]).includes(value)
@@ -1471,7 +1474,9 @@ function readBrowserLocale(): Locale {
  * consumer jurisdiction, tax treatment, payment provider, or entitlement.
  */
 export function getActiveLocale(): Locale {
-  return readPersistedLocale() ?? readBrowserLocale()
+  return volatileLocaleOverride !== undefined
+    ? volatileLocaleOverride ?? readBrowserLocale()
+    : readPersistedLocale() ?? readBrowserLocale()
 }
 
 /**
@@ -1481,6 +1486,7 @@ export function getActiveLocale(): Locale {
  */
 export function setLocalePreference(locale: Locale | null): void {
   if (typeof window === 'undefined') return
+  let persisted = true
   try {
     if (locale === null) {
       window.localStorage.removeItem(LOCALE_STORAGE_KEY)
@@ -1488,16 +1494,20 @@ export function setLocalePreference(locale: Locale | null): void {
       window.localStorage.setItem(LOCALE_STORAGE_KEY, locale)
     }
   } catch {
-    // Storage can be unavailable (privacy mode / restricted contexts). The
-    // presentation fallback remains the browser locale; never fail the app.
+    persisted = false
   }
+  volatileLocaleOverride = persisted ? undefined : locale
   window.dispatchEvent(new Event(LOCALE_CHANGE_EVENT))
 }
 
 function subscribeLocale(onStoreChange: () => void): () => void {
   if (typeof window === 'undefined') return () => {}
   const onStorage = (event: StorageEvent) => {
-    if (event.key === LOCALE_STORAGE_KEY || event.key === null) onStoreChange()
+    if (event.key === LOCALE_STORAGE_KEY || event.key === null) {
+      // A cross-tab storage update supersedes any same-tab fallback choice.
+      volatileLocaleOverride = undefined
+      onStoreChange()
+    }
   }
   window.addEventListener('storage', onStorage)
   window.addEventListener('languagechange', onStoreChange)

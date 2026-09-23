@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { renderWithAppProviders } from '../test/appProviders'
 import { Header } from './Header'
+import { setLocalePreference } from '../i18n/strings'
 
 function BackButton() {
   const navigate = useNavigate()
@@ -121,6 +122,45 @@ describe('Header mobile navigation', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
     expect(trigger).toHaveFocus()
+  })
+
+  it('closes the desktop language menu below the desktop breakpoint and keeps it closed on return', () => {
+    const media = installHeaderMediaQueryHarness()
+    renderWithAppProviders(<Header />)
+    fireEvent.click(screen.getByRole('button', { name: /表示言語/ }))
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+
+    media.emitHeaderBreakpoint(false)
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    media.emitHeaderBreakpoint(true)
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    media.restore()
+  })
+
+  it('lets Tab and Shift+Tab leave the menu from a non-first selected locale', async () => {
+    const user = userEvent.setup()
+    setLocalePreference('zh-CN')
+    renderWithAppProviders(<Header />)
+    const trigger = screen.getByRole('button', { name: /显示语言/ })
+
+    fireEvent.click(trigger)
+    const selectedOption = screen.getByRole('menuitemradio', { name: '简体中文' })
+    expect(selectedOption).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(trigger).toHaveFocus()
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+
+    fireEvent.click(trigger)
+    const menu = screen.getByRole('menu')
+    const selectedAgain = within(menu).getByRole('menuitemradio', { name: '简体中文' })
+    const traditionalOption = screen.getByRole('menuitemradio', { name: '繁體中文' })
+    fireEvent.keyDown(selectedAgain, { key: 'ArrowUp' })
+    expect(traditionalOption).toHaveFocus()
+    expect(traditionalOption).toHaveAttribute('tabindex', '0')
+    expect(traditionalOption).toHaveAttribute('aria-checked', 'false')
+    await user.tab()
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(document.activeElement).not.toBe(menu)
   })
 
   it('offers touch-sized native language choices inside the existing mobile dialog', () => {

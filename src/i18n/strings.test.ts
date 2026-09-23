@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_LOCALE,
   SUPPORTED_LOCALES,
@@ -67,6 +67,19 @@ describe('i18n', () => {
     expect(getActiveLocale()).toBe('zh-TW')
     setLocalePreference(null)
     expect(getActiveLocale()).toBe('ja')
+  })
+
+  it('keeps a same-tab locale override when localStorage writes fail', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('storage denied')
+    })
+
+    expect(getActiveLocale()).toBe('ja')
+    act(() => setLocalePreference('zh-CN'))
+    expect(getActiveLocale()).toBe('zh-CN')
+
+    vi.restoreAllMocks()
+    setLocalePreference(null)
   })
 
   it('reactively switches useLocale/useStrings in the same tab', () => {
