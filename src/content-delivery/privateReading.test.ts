@@ -25,6 +25,7 @@ describe('private Reading release preparation', () => {
     expect(result.value.payload.reading).not.toHaveProperty('publication')
     expect(result.value.payload.reading).not.toHaveProperty('reviewer')
     expect(result.value.payload.reading).not.toHaveProperty('rights')
+    expect(result.value.payload.reading.releasedAt).toBe('2026-09-20')
     const changed = preparePrivateReadingRelease(source.id, { ...source, explanationZhTW: '更新後的原創說明。' })
     expect(changed.ok).toBe(true)
     if (changed.ok) expect(changed.value.revision).not.toBe(result.value.revision)

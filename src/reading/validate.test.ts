@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { sampleReadingItem } from './fixtures/sample-reading'
-import { toReadingCatalogEntry, validateReadingItem } from './validate'
+import { toReadingCatalogEntry, validateReadingItem, validateReadingRuntimeItem } from './validate'
 
 function releasedPlusItem() {
   const base = { ...sampleReadingItem }
@@ -44,6 +44,7 @@ describe('Reading authoring contract', () => {
     expect(catalog).not.toHaveProperty('explanationZhTW')
     expect(catalog).not.toHaveProperty('vocabulary')
     expect(catalog).not.toHaveProperty('releaseReference')
+    expect(catalog).not.toHaveProperty('releasedAt')
     expect(sampleReadingItem.relatedLinks).toContainEqual({
       kind: 'learn', label: '論點如何在會議中承接與轉換', targetId: 'meeting-japanese-course-correction',
     })
@@ -55,5 +56,17 @@ describe('Reading authoring contract', () => {
     expect(toReadingCatalogEntry(plus, releaseReference)).toMatchObject({ releaseReference })
     expect(() => toReadingCatalogEntry(sampleReadingItem, releaseReference)).toThrow('Reading release reference is invalid for this catalog entry')
     expect(() => toReadingCatalogEntry(plus, { ...releaseReference, revision: 'stale' })).toThrow('Reading release reference is invalid for this catalog entry')
+  })
+
+  it('validates runtime responses without accepting authoring records or malformed nested data', () => {
+    const validRuntime = { ...sampleReadingItem, releasedAt: '2026-09-20' }
+    expect(validateReadingRuntimeItem(validRuntime)).toMatchObject({ ok: true })
+    expect(validateReadingRuntimeItem({ reading: validRuntime }).ok).toBe(false)
+    expect(validateReadingRuntimeItem({ ...validRuntime, reviewer: { id: 'editor-1' } }).ok).toBe(false)
+    expect(validateReadingRuntimeItem({ ...validRuntime, rights: { basis: 'original' } }).ok).toBe(false)
+    expect(validateReadingRuntimeItem({ ...validRuntime, source: { ...validRuntime.source, url: 'https://user:secret@example.com' } }).ok).toBe(false)
+    expect(validateReadingRuntimeItem({ ...validRuntime, explanationZhTW: '[外部連結](https://example.com)' }).ok).toBe(false)
+    expect(validateReadingRuntimeItem({ ...validRuntime, japaneseMaterial: { kind: 'original', text: 12 } }).ok).toBe(false)
+    expect(validateReadingRuntimeItem({ ...validRuntime, releasedAt: '2026-99-99' }).ok).toBe(false)
   })
 })

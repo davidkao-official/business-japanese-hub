@@ -46,6 +46,7 @@ export type ReadingRuntimeItem = {
   slug: string
   title: string
   summary: string
+  releasedAt?: string
   category: ReadingCategory
   tags: string[]
   access: ReadingAccess
@@ -65,7 +66,7 @@ export type ReadingRuntimeItem = {
 }
 
 export type ReadingCatalogEntry = Pick<ReadingRuntimeItem,
-  'id' | 'slug' | 'title' | 'summary' | 'category' | 'tags' | 'access' | 'source' | 'seo' | 'sampleLabel'
+  'id' | 'slug' | 'title' | 'summary' | 'releasedAt' | 'category' | 'tags' | 'access' | 'source' | 'seo' | 'sampleLabel'
 > & { releaseReference?: ReadingReleaseReference }
 
 export type ReadingReleaseReference = { contentId: string; revision: string }
@@ -73,7 +74,7 @@ export type ReadingReleaseReference = { contentId: string; revision: string }
 export type ReadingRightsBasis = 'original' | 'public-domain' | 'permission' | 'license' | 'quotation'
 
 /** Private authoring envelope. These fields are validated but never projected to the runtime. */
-export type ReadingAuthoringItem = ReadingRuntimeItem & {
+export type ReadingAuthoringItem = Omit<ReadingRuntimeItem, 'releasedAt'> & {
   publication: {
     status: 'draft' | 'released'
     releasedAt?: string
@@ -91,4 +92,8 @@ export type ReadingAuthoringItem = ReadingRuntimeItem & {
 export type ReadingValidationIssue = { path: string; message: string }
 export type ReadingValidationResult =
   | { ok: true; value: ReadingAuthoringItem }
+  | { ok: false; issues: ReadingValidationIssue[] }
+
+export type ReadingRuntimeValidationResult =
+  | { ok: true; value: ReadingRuntimeItem }
   | { ok: false; issues: ReadingValidationIssue[] }

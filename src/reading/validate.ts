@@ -2,8 +2,9 @@ import {
   READING_CATEGORIES,
   type ReadingAuthoringItem,
   type ReadingCatalogEntry,
-  type ReadingRuntimeItem,
   type ReadingReleaseReference,
+  type ReadingRuntimeItem,
+  type ReadingRuntimeValidationResult,
   type ReadingValidationIssue,
   type ReadingValidationResult,
 } from './types'
@@ -61,17 +62,18 @@ function safeHttpsUrl(value: unknown, path: string, issues: ReadingValidationIss
   }
 }
 
-function validateRuntime(value: Record<string, unknown>, issues: ReadingValidationIssue[]): void {
+function validateRuntime(value: Record<string, unknown>, issues: ReadingValidationIssue[], mode: 'authoring' | 'runtime'): void {
   onlyKeys(value, [
-    'schemaVersion', 'id', 'slug', 'title', 'summary', 'category', 'tags', 'access', 'source',
+    'schemaVersion', 'id', 'slug', 'title', 'summary', ...(mode === 'runtime' ? ['releasedAt'] : []), 'category', 'tags', 'access', 'source',
     'japaneseMaterial', 'explanationZhTW', 'vocabulary', 'logicAnalysis', 'businessContextZhTW',
-    'davidCommentary', 'relatedLinks', 'seo', 'sampleLabel', 'publication', 'reviewer', 'rights',
+    'davidCommentary', 'relatedLinks', 'seo', 'sampleLabel', ...(mode === 'authoring' ? ['publication', 'reviewer', 'rights'] : []),
   ], '$', issues)
   if (value.schemaVersion !== 1) issues.push({ path: '$.schemaVersion', message: 'must equal 1' })
   if (typeof value.id !== 'string' || !ID.test(value.id)) issues.push({ path: '$.id', message: 'must be a stable lowercase content id' })
   if (typeof value.slug !== 'string' || !SLUG.test(value.slug)) issues.push({ path: '$.slug', message: 'must be a stable lowercase hyphenated slug' })
   plainText(value.title, '$.title', issues, 1, 180)
   plainText(value.summary, '$.summary', issues, 1, 420)
+  if (mode === 'runtime' && value.releasedAt !== undefined) isoDate(value.releasedAt, '$.releasedAt', issues)
   if (!(READING_CATEGORIES as readonly unknown[]).includes(value.category)) issues.push({ path: '$.category', message: 'is not a supported Reading category' })
   if (value.access !== 'free' && value.access !== 'plus') issues.push({ path: '$.access', message: 'must be free or plus' })
 
@@ -152,7 +154,7 @@ function validateRuntime(value: Record<string, unknown>, issues: ReadingValidati
 export function validateReadingItem(raw: unknown, options: { requireReleased?: boolean } = {}): ReadingValidationResult {
   const issues: ReadingValidationIssue[] = []
   if (!record(raw)) return { ok: false, issues: [{ path: '$', message: 'must be an object' }] }
-  validateRuntime(raw, issues)
+  validateRuntime(raw, issues, 'authoring')
   if (!record(raw.publication)) issues.push({ path: '$.publication', message: 'must declare draft or released status' })
   else {
     onlyKeys(raw.publication, ['status', 'releasedAt', 'releaseNotes'], '$.publication', issues)
@@ -204,6 +206,20 @@ export function validateReadingItem(raw: unknown, options: { requireReleased?: b
   return { ok: true, value: raw as ReadingAuthoringItem }
 }
 
+/** Strict browser-side validation for data returned by the Reading delivery seam. */
+export function validateReadingRuntimeItem(raw: unknown): ReadingRuntimeValidationResult {
+  const issues: ReadingValidationIssue[] = []
+  if (!record(raw)) return { ok: false, issues: [{ path: '$', message: 'must be an object' }] }
+  validateRuntime(raw, issues, 'runtime')
+  if (raw.sampleLabel === 'non-proprietary-teaching-sample'
+    && (raw.access !== 'free' || !record(raw.source) || raw.source.type !== 'original'
+      || !record(raw.japaneseMaterial) || raw.japaneseMaterial.kind !== 'original')) {
+    issues.push({ path: '$.sampleLabel', message: 'requires free, original teaching material' })
+  }
+  if (issues.length) return { ok: false, issues }
+  return { ok: true, value: raw as ReadingRuntimeItem }
+}
+
 /** Stable body-free card projection for a Read catalog or list. */
 export function toReadingCatalogEntry(item: ReadingRuntimeItem, releaseReference?: ReadingReleaseReference): ReadingCatalogEntry {
   if (releaseReference !== undefined) {
@@ -216,6 +232,7 @@ export function toReadingCatalogEntry(item: ReadingRuntimeItem, releaseReference
     slug: item.slug,
     title: item.title,
     summary: item.summary,
+    ...(item.releasedAt === undefined ? {} : { releasedAt: item.releasedAt }),
     category: item.category,
     tags: [...item.tags],
     access: item.access,
@@ -234,6 +251,9 @@ export function projectReadingRuntimeItem(item: ReadingAuthoringItem): ReadingRu
     slug: item.slug,
     title: item.title,
     summary: item.summary,
+    ...(item.publication.status === 'released' && item.publication.releasedAt !== undefined
+      ? { releasedAt: item.publication.releasedAt }
+      : {}),
     category: item.category,
     tags: [...item.tags],
     access: item.access,
