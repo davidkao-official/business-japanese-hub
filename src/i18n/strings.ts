@@ -41,6 +41,7 @@ export interface AppStrings {
     booksBody: string
     browseBooks: string
     openReader: string
+    openArticle: string
     free: string
     plus: string
     sampleLabel: string
@@ -407,7 +408,7 @@ const ja: AppStrings = {
     explanation: '読み解き', vocabulary: '語彙', logic: '論点の流れ', businessContext: 'ビジネスの背景',
     davidCommentary: 'David の視点', booksTitle: '書籍と長文を読む',
     booksBody: '長いテーマを順に読み進めたい方は、書籍と Reader をご利用ください。',
-    browseBooks: '書籍一覧を見る', openReader: 'Reader で読む', free: 'Free', plus: 'Plus',
+    browseBooks: '書籍一覧を見る', openReader: 'Reader で読む', openArticle: '記事を読む', free: 'Free', plus: 'Plus',
     sampleLabel: '著作権上問題のないオリジナル教材サンプル', notDated: '公開日なし',
     backToRead: 'Reading 一覧へ戻る', unavailable: '記事を読み込めませんでした。時間をおいて再度お試しください。',
   },
@@ -785,7 +786,7 @@ const en: AppStrings = {
     explanation: 'How to read it', vocabulary: 'Vocabulary', logic: 'Argument structure', businessContext: 'Business context',
     davidCommentary: 'David’s perspective', booksTitle: 'Books and long-form reading',
     booksBody: 'For longer topics, continue with the book catalog and Reader.',
-    browseBooks: 'Browse books', openReader: 'Read in Reader', free: 'Free', plus: 'Plus',
+    browseBooks: 'Browse books', openReader: 'Read in Reader', openArticle: 'Read article', free: 'Free', plus: 'Plus',
     sampleLabel: 'Original teaching sample, created for this service', notDated: 'No publication date',
     backToRead: 'Back to Reading', unavailable: 'The article could not be loaded. Please try again later.',
   },
@@ -1163,7 +1164,7 @@ const zhTW: AppStrings = {
     explanation: '讀解說明', vocabulary: '詞彙', logic: '論點脈絡', businessContext: '商務背景',
     davidCommentary: 'David 觀點', booksTitle: '書籍與長篇閱讀',
     booksBody: '想循序閱讀較長的主題，可前往書籍目錄與 Reader。',
-    browseBooks: '瀏覽書籍', openReader: '在 Reader 閱讀', free: 'Free', plus: 'Plus',
+    browseBooks: '瀏覽書籍', openReader: '在 Reader 閱讀', openArticle: '閱讀文章', free: 'Free', plus: 'Plus',
     sampleLabel: '原創教學範例，內容不涉及第三方著作', notDated: '未標示發布日期',
     backToRead: '返回 Read 文章列表', unavailable: '目前無法載入文章，請稍後再試。',
   },
@@ -1542,7 +1543,7 @@ const zhCN: AppStrings = {
     related: '继续学习', source: '来源', sourceDate: '来源资料日期', publishedOn: '文章发布日期', japaneseMaterial: '日文原文',
     explanation: '阅读说明', vocabulary: '词汇', logic: '论点脉络', businessContext: '商务背景',
     davidCommentary: 'David 观点', booksTitle: '书籍与长篇阅读', booksBody: '想循序阅读较长的主题，可前往书籍目录与 Reader。',
-    browseBooks: '浏览书籍', openReader: '在 Reader 阅读', sampleLabel: '原创教学示例，不涉及第三方作品', notDated: '未标注发布日期',
+    browseBooks: '浏览书籍', openReader: '在 Reader 阅读', openArticle: '阅读文章', sampleLabel: '原创教学示例，不涉及第三方作品', notDated: '未标注发布日期',
     backToRead: '返回 Read 文章列表', unavailable: '目前无法加载文章，请稍后再试。',
   },
   app: { name: '商务日语中心', tagline: '学习商务日语的平台' },

@@ -115,6 +115,11 @@ if (!legacySlugs || !legacyFiles) {
   const publicFiles: Record<string, string> = {}
   collectFiles(root, root, publicFiles)
   for (const path of Object.keys(publicFiles)) {
+    if (basename(path) === 'reading-item.json') {
+      console.error(`ERR  private Reading authoring artifact found in public repository: ${path}`)
+      process.exitCode = 1
+      continue
+    }
     const reason = privatePracticeArtifactReason(path, readFileSync(join(root, path), 'utf8'))
     if (reason === 'canonical filename') {
       console.error(`ERR  private Practice authoring artifact found in public repository: ${path}`)

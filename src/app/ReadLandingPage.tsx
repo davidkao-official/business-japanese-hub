@@ -15,15 +15,16 @@ export function ReadLandingPage() {
     [category],
   )
   const books = listCatalogEntries()
+  const hasPublishedPlusReading = listReadingCatalogEntries().some((entry) => entry.access === 'plus')
   useDocumentTitle(`${copy.title} — ${strings.app.name}`)
 
   return (
     <section className="page reading-page" aria-labelledby="reading-title">
-      <header className="reading-masthead">
+      <div className="reading-masthead">
         <p className="reading-eyebrow" lang="en">{copy.eyebrow}</p>
         <h1 className="reading-title" id="reading-title">{copy.title}</h1>
         <p className="reading-lead">{copy.lead}</p>
-      </header>
+      </div>
 
       <section className="reading-discovery" aria-labelledby="reading-discovery-title">
         <div className="reading-section-heading">
@@ -66,7 +67,7 @@ export function ReadLandingPage() {
                   <h3 lang="zh-TW"><Link to={`/read/${entry.slug}`}>{entry.title}</Link></h3>
                   <p lang="zh-TW">{entry.summary}</p>
                   <Link className="reading-card__action" to={`/read/${entry.slug}`}>
-                    {strings.storefront.viewDetails}<span aria-hidden="true"> ↗</span>
+                    {copy.openArticle}<span aria-hidden="true"> ↗</span>
                   </Link>
                 </article>
               </li>
@@ -77,14 +78,14 @@ export function ReadLandingPage() {
         )}
       </section>
 
-      <section className="reading-plus-note" aria-labelledby="reading-plus-title">
+      {!hasPublishedPlusReading && <section className="reading-plus-note" aria-labelledby="reading-plus-title">
         <div>
           <p className="reading-kicker">Plus</p>
           <h2 id="reading-plus-title">{copy.plusUnavailableTitle}</h2>
           <p>{copy.plusUnavailableBody}</p>
         </div>
         <span className="reading-access reading-access--plus">{copy.plus}</span>
-      </section>
+      </section>}
 
       <section className="reading-books" aria-labelledby="reading-books-title">
         <div>

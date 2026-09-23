@@ -65,7 +65,6 @@ function requestCancellation(controller: AbortController, signal?: AbortSignal):
   promise: Promise<never>
   cancel: () => void
 } {
-  let timer: ReturnType<typeof globalThis.setTimeout>
   let rejectCancellation: (error: Error) => void = () => undefined
   const promise = new Promise<never>((_, reject) => { rejectCancellation = reject })
   const cancel = () => rejectCancellation(new Error('Reading request cancelled'))
@@ -76,7 +75,7 @@ function requestCancellation(controller: AbortController, signal?: AbortSignal):
   controller.signal.addEventListener('abort', cancel, { once: true })
   signal?.addEventListener('abort', onExternalAbort, { once: true })
   if (signal?.aborted) onExternalAbort()
-  timer = globalThis.setTimeout(() => {
+  const timer = globalThis.setTimeout(() => {
     controller.abort()
     cancel()
   }, READING_REQUEST_TIMEOUT_MS)

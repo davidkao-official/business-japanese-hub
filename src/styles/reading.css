@@ -435,6 +435,21 @@
 }
 
 @media (max-width: 38rem) {
+  .reading-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reading-card h3,
+  .reading-card > p,
+  .reading-card__action {
+    grid-column: 1;
+  }
+
+  .reading-card__action {
+    grid-row: auto;
+    justify-self: start;
+  }
+
   .reading-plus-note,
   .reading-books {
     flex-direction: column;
