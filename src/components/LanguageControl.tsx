@@ -11,6 +11,7 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const optionsRef = useRef<Array<HTMLButtonElement | null>>([])
+  const openAtPointerDownRef = useRef<boolean | null>(null)
 
   useEffect(() => {
     if (!open || variant !== 'desktop') return
@@ -77,8 +78,15 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
         aria-label={`${strings.language.label}: ${strings.language.options[locale]}`}
         aria-haspopup="menu"
         aria-expanded={open}
+        onPointerDown={() => { openAtPointerDownRef.current = open }}
+        onPointerCancel={() => { openAtPointerDownRef.current = null }}
         onClick={() => {
-          if (open) {
+          // Focusing the trigger from an open menu blurs the current option,
+          // whose blur handler closes it before this click runs. Use the
+          // pointerdown snapshot so that click still toggles the menu closed.
+          const wasOpen = openAtPointerDownRef.current ?? open
+          openAtPointerDownRef.current = null
+          if (wasOpen) {
             setOpen(false)
           } else {
             setActiveOptionIndex(SUPPORTED_LOCALES.indexOf(locale))

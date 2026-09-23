@@ -124,6 +124,20 @@ describe('Header mobile navigation', () => {
     expect(trigger).toHaveFocus()
   })
 
+  it('closes when clicking the trigger while the selected menu option has focus', async () => {
+    const user = userEvent.setup()
+    renderWithAppProviders(<Header />)
+    const trigger = screen.getByRole('button', { name: /表示言語/ })
+
+    fireEvent.click(trigger)
+    expect(screen.getByRole('menuitemradio', { name: '日本語' })).toHaveFocus()
+    await user.click(trigger)
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).toHaveFocus()
+  })
+
   it('closes the desktop language menu below the desktop breakpoint and keeps it closed on return', () => {
     const media = installHeaderMediaQueryHarness()
     renderWithAppProviders(<Header />)
