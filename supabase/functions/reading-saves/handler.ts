@@ -99,7 +99,12 @@ async function requireMember(
   req: HandlerRequest,
   deps: ReadingSavesDeps,
 ): Promise<{ userId: string } | { result: HandlerResult }> {
-  const userId = await authenticateBearer(deps.db, headerValue(req.headers, 'authorization'))
+  let userId: string | null
+  try {
+    userId = await authenticateBearer(deps.db, headerValue(req.headers, 'authorization'))
+  } catch {
+    return { result: noStore(jsonResult(503, { error: 'authentication unavailable' })) }
+  }
   if (!userId) return { result: noStore(unauthorized()) }
   let access: ReadingMembershipAccess
   try {
@@ -112,14 +117,34 @@ async function requireMember(
   return { userId }
 }
 
-async function listSaves(userId: string, deps: ReadingSavesDeps): Promise<HandlerResult> {
+function itemIdQuery(req: HandlerRequest): { itemId?: string; invalid: boolean } {
+  let url: URL
   try {
-    const result = await deps.db.from('reading_saves')
+    url = new URL(req.url)
+  } catch {
+    return { invalid: true }
+  }
+  const entries = [...url.searchParams.entries()]
+  if (entries.length === 0) return { invalid: false }
+  if (entries.length !== 1 || entries[0]?.[0] !== 'itemId' || !validItemId(entries[0]?.[1])) {
+    return { invalid: true }
+  }
+  return { itemId: entries[0][1], invalid: false }
+}
+
+async function listSaves(userId: string, deps: ReadingSavesDeps, itemId?: string): Promise<HandlerResult> {
+  try {
+    let query = deps.db.from('reading_saves')
       .select('item_id,revision,saved_at')
       .eq('user_id', userId)
-      .order('saved_at', { ascending: false })
-      .order('item_id', { ascending: true })
-      .limit(MAX_LIST)
+    if (itemId === undefined) {
+      query = query.order('saved_at', { ascending: false })
+        .order('item_id', { ascending: true })
+        .limit(MAX_LIST)
+    } else {
+      query = query.eq('item_id', itemId).limit(1)
+    }
+    const result = await query
     if (result.error || !Array.isArray(result.data)) return noStore(jsonResult(503, { error: 'Reading saves unavailable' }))
     const rows = result.data.map(mapRow)
     if (rows.some((row) => row === null)) return noStore(jsonResult(503, { error: 'Reading saves unavailable' }))
@@ -197,7 +222,11 @@ export async function handleReadingSaves(req: HandlerRequest, deps: ReadingSaves
   }
   const member = await requireMember(req, deps)
   if ('result' in member) return member.result
-  if (req.method === 'GET') return listSaves(member.userId, deps)
+  if (req.method === 'GET') {
+    const query = itemIdQuery(req)
+    if (query.invalid) return noStore(badRequest('invalid Reading saves query'))
+    return listSaves(member.userId, deps, query.itemId)
+  }
 
   const body = parseBody(req.bodyText)
   if (!body) return noStore(badRequest('invalid Reading save request'))

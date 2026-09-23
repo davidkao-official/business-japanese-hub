@@ -16,10 +16,10 @@ const plusEntry = toReadingCatalogEntry({
   sampleLabel: undefined,
 }, { contentId: 'reading-plus-quarterly-report', revision })
 
-function request(method: string, body?: unknown, authorization = 'verified-token') {
+function request(method: string, body?: unknown, authorization = 'verified-token', query = '') {
   return handlerRequest(
     method,
-    'https://example.test/reading-saves',
+    `https://example.test/reading-saves${query}`,
     body === undefined ? '' : JSON.stringify(body),
     authorization ? bearerHeaders(authorization) : {},
   )
@@ -56,6 +56,16 @@ describe('reading-saves handler', () => {
     expect(database.callsFor('reading_saves')).toEqual([])
   })
 
+  it('returns unavailable when bearer verification throws', async () => {
+    const database = createMockDb()
+    database.db.auth.getUser = vi.fn().mockRejectedValue(new Error('auth server unavailable'))
+    const membership = deps(database)
+    const result = await handleReadingSaves(request('GET'), membership)
+    expect(result.status).toBe(503)
+    expect(membership.membershipAccessFor).not.toHaveBeenCalled()
+    expect(database.callsFor('reading_saves')).toEqual([])
+  })
+
   it.each([
     ['non-member', 403],
     ['unavailable', 503],
@@ -86,6 +96,44 @@ describe('reading-saves handler', () => {
     expect(database.callsFor('reading_saves', 'eq')).toContainEqual({ table: 'reading_saves', method: 'eq', args: ['user_id', userId] })
     expect(database.callsFor('reading_saves', 'limit')).toContainEqual({ table: 'reading_saves', method: 'limit', args: [50] })
     expect(database.callsFor('reading_saves', 'select')[0]?.args).toEqual(['item_id,revision,saved_at'])
+  })
+
+  it('looks up an older saved item by owner and bounded item ID outside the 50-row list window', async () => {
+    const savedAt = '2026-09-01T09:00:00.000Z'
+    const database = createMockDb({
+      'auth:getUser': { data: { id: userId } },
+      reading_saves: { data: [{ item_id: 'reading-older-saved-item', revision, saved_at: savedAt }] },
+    })
+    const result = await handleReadingSaves(request('GET', undefined, 'verified-token', '?itemId=reading-older-saved-item'), deps(database))
+    expect(result.status).toBe(200)
+    expect(JSON.parse(result.body)).toEqual({ items: [{ itemId: 'reading-older-saved-item', revision, savedAt }] })
+    expect(database.callsFor('reading_saves', 'eq')).toContainEqual({ table: 'reading_saves', method: 'eq', args: ['user_id', userId] })
+    expect(database.callsFor('reading_saves', 'eq')).toContainEqual({ table: 'reading_saves', method: 'eq', args: ['item_id', 'reading-older-saved-item'] })
+    expect(database.callsFor('reading_saves', 'limit')).toEqual([{ table: 'reading_saves', method: 'limit', args: [1] }])
+    expect(database.callsFor('reading_saves', 'order')).toEqual([])
+  })
+
+  it('returns an empty item list when the owner has not saved that ID', async () => {
+    const database = createMockDb({
+      'auth:getUser': { data: { id: userId } },
+      reading_saves: { data: [] },
+    })
+    const result = await handleReadingSaves(request('GET', undefined, 'verified-token', '?itemId=unknown-reading-item'), deps(database))
+    expect(result.status).toBe(200)
+    expect(JSON.parse(result.body)).toEqual({ items: [] })
+    expect(database.callsFor('reading_saves', 'eq')).toContainEqual({ table: 'reading_saves', method: 'eq', args: ['item_id', 'unknown-reading-item'] })
+  })
+
+  it.each([
+    '?itemId=bad%20id',
+    '?itemId=valid-reading-id&itemId=other-reading-id',
+    '?itemId=valid-reading-id&unexpected=1',
+    '?unexpected=1',
+  ])('rejects malformed or extraneous GET query %s', async (query) => {
+    const database = createMockDb({ 'auth:getUser': { data: { id: userId } } })
+    const result = await handleReadingSaves(request('GET', undefined, 'verified-token', query), deps(database))
+    expect(result.status).toBe(400)
+    expect(database.callsFor('reading_saves')).toEqual([])
   })
 
   it('saves the current original Free sample with a null release revision', async () => {
