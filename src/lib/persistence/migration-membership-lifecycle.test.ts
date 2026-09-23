@@ -164,7 +164,7 @@ function expectLifecycleTapPlans() {
     expect(assertions!.length, file).toBe(Number(declaredPlan![1]));
     total += Number(declaredPlan![1]);
   }
-  expect(total).toBe(726);
+  expect(total).toBe(749);
 }
 
 describe('#165 membership stream selection authority migration', () => {
@@ -242,6 +242,9 @@ describe('#165 legacy initial-start ambiguity guard', () => {
     expect(legacyStartGuardSql).toContain('v_legacy_start_exists boolean');
     expect(legacyStartGuardSql).toContain('and reducer_version is null');
     expect(legacyStartGuardSql).toContain('not v_legacy_start_exists');
+    expect(legacyStartGuardSql).toContain("v_event.event_type <> 'membership_payment_failed'");
+    expect(legacyStartGuardSql).toContain("v_status = 'past_due'");
+    expect(legacyStartGuardSql).toContain('greatest(v_effective_start, v_event.occurred_at, v_event.period_start)');
     expect(legacyStartGuardSql).toContain('create or replace function public.assert_plus_membership_lifecycle_bootstrap_empty');
     expect(legacyStartGuardSql).toContain('Plus membership lifecycle bootstrap requires empty lifecycle tables');
     expect(legacyStartGuardSql).toContain('revoke all on function public.recompute_plus_membership_stream');
@@ -263,6 +266,9 @@ describe('#165 temporal access windows successor', () => {
     expect(temporalAccessWindowsSql).toContain('greatest(v_start.occurred_at, v_start.period_start)');
     expect(temporalAccessWindowsSql).toContain('v_event.plan_active_when_observed is not true');
     expect(temporalAccessWindowsSql).toContain('v_event.plan_code is distinct from v_plan_code');
+    expect(temporalAccessWindowsSql).toContain("v_event.event_type <> 'membership_payment_failed'");
+    expect(temporalAccessWindowsSql).toContain("v_status = 'past_due'");
+    expect(temporalAccessWindowsSql).toContain('v_summary.effective_start, v_event.occurred_at, v_event.period_start');
     expect(temporalAccessWindowsSql).toContain('window_start >= v_event.occurred_at');
     expect(temporalAccessWindowsSql).toContain('v_cutoff := v_summary.terminal_at');
     expect(temporalAccessWindowsSql).toContain('create or replace function public._resolve_plus_membership_access_at');
@@ -278,6 +284,15 @@ describe('#165 temporal access windows successor', () => {
       '703 failed B prevents fallback to still-covered A',
       '704 original paid period stays active before renewal gap',
       '705 recovery window grants access',
+      '713 pre-effective failure applies to the admitted stream',
+      '713 pre-effective failure removes the future initial grant',
+      '713 only the recovery event grants coverage',
+      '713 recovered interval grants access',
+      '714 pre-effective recovery applies after failure',
+      '714 recovery event alone grants coverage',
+      '714 recovered window is clamped to initial effective start',
+      '714 recovery cannot open access before trusted paid start',
+      '714 recovered coverage opens at the trusted paid start',
       '708 later failure clips and removes unpaid future coverage',
       '709 immediate terminal clips the paid window',
       '710 scheduled cutoff is exclusive',

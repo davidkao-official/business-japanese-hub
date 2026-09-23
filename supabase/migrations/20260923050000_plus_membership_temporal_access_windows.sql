@@ -97,9 +97,16 @@ begin
       and (occurred_at, event_id) > (v_start.occurred_at, v_start.event_id)
     order by occurred_at, event_id
   loop
-    -- Match the stream reducer: pre-effective facts and facts at/after the
-    -- stream's own terminal cutoff cannot change paid coverage.
-    if v_event.occurred_at < v_summary.effective_start then
+    -- Match the stream reducer: pre-effective facts cannot grant coverage,
+    -- but failure and its subsequent valid recovery govern future time.
+    if v_event.occurred_at < v_summary.effective_start
+       and v_event.event_type <> 'membership_payment_failed'
+       and not (
+         v_status = 'past_due'
+         and v_event.event_type in (
+           'membership_renewed', 'membership_reactivated', 'membership_restored'
+         )
+       ) then
       continue;
     end if;
     if v_cutoff is not null and v_event.occurred_at >= v_cutoff then
@@ -146,7 +153,9 @@ begin
       end if;
       v_status := 'active';
       v_plan_code := v_event.plan_code;
-      v_start_at := greatest(v_event.occurred_at, v_event.period_start);
+      v_start_at := greatest(
+        v_summary.effective_start, v_event.occurred_at, v_event.period_start
+      );
       v_end_at := least(v_event.period_end, coalesce(v_cutoff, v_event.period_end));
       if v_start_at < v_end_at then
         insert into public.plus_membership_access_window (

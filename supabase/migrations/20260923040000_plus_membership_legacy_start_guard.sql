@@ -145,9 +145,16 @@ begin
           v_last_at := v_event.occurred_at;
           v_last_id := v_event.event_id;
         end if;
-        -- Facts that happened before the paid interval cannot seed admission
-        -- or move the state of the confirmed membership.
-        if v_event.occurred_at < v_effective_start then
+        -- Pre-effective follow-ups cannot seed admission or grant access, but
+        -- failure and its subsequent valid recovery still govern future time.
+        if v_event.occurred_at < v_effective_start
+           and v_event.event_type <> 'membership_payment_failed'
+           and not (
+             v_status = 'past_due'
+             and v_event.event_type in (
+               'membership_renewed', 'membership_reactivated', 'membership_restored'
+             )
+           ) then
           continue;
         end if;
         if v_event.event_type in (
@@ -206,7 +213,7 @@ begin
           v_access_start := case
             when v_status = 'active' and v_period_end >= greatest(v_event.occurred_at, v_event.period_start)
               then v_access_start
-            else greatest(v_event.occurred_at, v_event.period_start)
+            else greatest(v_effective_start, v_event.occurred_at, v_event.period_start)
           end;
           v_status := 'active';
           v_plan_code := v_event.plan_code;
