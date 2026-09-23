@@ -17,6 +17,37 @@ import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from './locales'
 export { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from './locales'
 
 export interface AppStrings {
+  reading: {
+    eyebrow: string
+    title: string
+    lead: string
+    categoryLabel: string
+    allCategories: string
+    categories: Record<'business-news' | 'company-ir' | 'industry-report' | 'government-report' | 'business-document', string>
+    emptyCategory: string
+    plusUnavailableTitle: string
+    plusUnavailableBody: string
+    related: string
+    source: string
+    sourceDate: string
+    publishedOn: string
+    japaneseMaterial: string
+    explanation: string
+    vocabulary: string
+    logic: string
+    businessContext: string
+    davidCommentary: string
+    booksTitle: string
+    booksBody: string
+    browseBooks: string
+    openReader: string
+    free: string
+    plus: string
+    sampleLabel: string
+    notDated: string
+    backToRead: string
+    unavailable: string
+  }
   app: {
     name: string
     tagline: string
@@ -365,6 +396,21 @@ export interface AppStrings {
 }
 
 const ja: AppStrings = {
+  reading: {
+    eyebrow: 'BUSINESS READING', title: '日本のビジネス資料を、文脈とともに読む',
+    lead: '日本語の資料を起点に、語彙・論点・仕事の背景を読み解きます。',
+    categoryLabel: '資料の種類', allCategories: 'すべて',
+    categories: { 'business-news': 'ビジネスニュース', 'company-ir': '企業・IR', 'industry-report': '業界レポート', 'government-report': '政府資料', 'business-document': 'ビジネス文書' },
+    emptyCategory: 'この分類の記事はまだ公開されていません。',
+    plusUnavailableTitle: 'Plus の Reading 記事', plusUnavailableBody: 'Plus の記事は現在公開されていません。公開後、会員状態をサーバーで確認して配信します。',
+    related: '次に学ぶ', source: '出典', sourceDate: '出典資料の日付', publishedOn: '記事公開日', japaneseMaterial: '日本語資料',
+    explanation: '読み解き', vocabulary: '語彙', logic: '論点の流れ', businessContext: 'ビジネスの背景',
+    davidCommentary: 'David の視点', booksTitle: '書籍と長文を読む',
+    booksBody: '長いテーマを順に読み進めたい方は、書籍と Reader をご利用ください。',
+    browseBooks: '書籍一覧を見る', openReader: 'Reader で読む', free: 'Free', plus: 'Plus',
+    sampleLabel: '著作権上問題のないオリジナル教材サンプル', notDated: '公開日なし',
+    backToRead: 'Reading 一覧へ戻る', unavailable: '記事を読み込めませんでした。時間をおいて再度お試しください。',
+  },
   app: {
     name: 'ビジネス日本語ハブ',
     tagline: 'ビジネス日本語を学ぶためのプラットフォーム',
@@ -728,6 +774,21 @@ const ja: AppStrings = {
 }
 
 const en: AppStrings = {
+  reading: {
+    eyebrow: 'BUSINESS READING', title: 'Read Japanese business material in context',
+    lead: 'Start with Japanese source material, then examine its vocabulary, argument, and workplace context.',
+    categoryLabel: 'Material type', allCategories: 'All',
+    categories: { 'business-news': 'Business news', 'company-ir': 'Company and IR', 'industry-report': 'Industry reports', 'government-report': 'Government material', 'business-document': 'Business documents' },
+    emptyCategory: 'There are no published articles in this category yet.',
+    plusUnavailableTitle: 'Plus Reading', plusUnavailableBody: 'No Plus articles are currently published. Released content will be delivered only after the server confirms membership.',
+    related: 'Continue learning', source: 'Source', sourceDate: 'Source date', publishedOn: 'Article publication date', japaneseMaterial: 'Japanese material',
+    explanation: 'How to read it', vocabulary: 'Vocabulary', logic: 'Argument structure', businessContext: 'Business context',
+    davidCommentary: 'David’s perspective', booksTitle: 'Books and long-form reading',
+    booksBody: 'For longer topics, continue with the book catalog and Reader.',
+    browseBooks: 'Browse books', openReader: 'Read in Reader', free: 'Free', plus: 'Plus',
+    sampleLabel: 'Original teaching sample, created for this service', notDated: 'No publication date',
+    backToRead: 'Back to Reading', unavailable: 'The article could not be loaded. Please try again later.',
+  },
   app: {
     name: 'Business Japanese Hub',
     tagline: 'A platform for learning business Japanese',
@@ -1091,6 +1152,21 @@ const en: AppStrings = {
 }
 
 const zhTW: AppStrings = {
+  reading: {
+    eyebrow: 'BUSINESS READING', title: '在脈絡中閱讀日本商業資料',
+    lead: '從日文原文出發，理解詞彙、論點安排與職場背景。',
+    categoryLabel: '資料分類', allCategories: '全部',
+    categories: { 'business-news': '商業新聞', 'company-ir': '企業與 IR', 'industry-report': '產業報告', 'government-report': '政府資料', 'business-document': '商務文件' },
+    emptyCategory: '這個分類目前沒有已公開的文章。',
+    plusUnavailableTitle: 'Plus Reading 文章', plusUnavailableBody: '目前沒有已公開的 Plus 文章。內容發布後，會由伺服器確認會員狀態再提供。',
+    related: '接續學習', source: '來源', sourceDate: '來源資料日期', publishedOn: '文章發布日期', japaneseMaterial: '日文原文',
+    explanation: '讀解說明', vocabulary: '詞彙', logic: '論點脈絡', businessContext: '商務背景',
+    davidCommentary: 'David 觀點', booksTitle: '書籍與長篇閱讀',
+    booksBody: '想循序閱讀較長的主題，可前往書籍目錄與 Reader。',
+    browseBooks: '瀏覽書籍', openReader: '在 Reader 閱讀', free: 'Free', plus: 'Plus',
+    sampleLabel: '原創教學範例，內容不涉及第三方著作', notDated: '未標示發布日期',
+    backToRead: '返回 Read 文章列表', unavailable: '目前無法載入文章，請稍後再試。',
+  },
   app: {
     name: '商務日語中心',
     tagline: '學習商務日語的平台',
@@ -1456,6 +1532,19 @@ const zhTW: AppStrings = {
 // a deterministic zh-TW fallback; legal documents use their own defined set.
 const zhCN: AppStrings = {
   ...zhTW,
+  reading: {
+    ...zhTW.reading,
+    title: '在语境中阅读日本商业资料', lead: '从日文原文出发，理解词汇、论点安排与职场背景。',
+    categoryLabel: '资料分类', allCategories: '全部',
+    categories: { 'business-news': '商业新闻', 'company-ir': '企业与 IR', 'industry-report': '行业报告', 'government-report': '政府资料', 'business-document': '商务文件' },
+    emptyCategory: '这个分类目前没有已发布的文章。',
+    plusUnavailableTitle: 'Plus Reading 文章', plusUnavailableBody: '目前没有已发布的 Plus 文章。内容发布后，服务器确认会员状态后才会提供。',
+    related: '继续学习', source: '来源', sourceDate: '来源资料日期', publishedOn: '文章发布日期', japaneseMaterial: '日文原文',
+    explanation: '阅读说明', vocabulary: '词汇', logic: '论点脉络', businessContext: '商务背景',
+    davidCommentary: 'David 观点', booksTitle: '书籍与长篇阅读', booksBody: '想循序阅读较长的主题，可前往书籍目录与 Reader。',
+    browseBooks: '浏览书籍', openReader: '在 Reader 阅读', sampleLabel: '原创教学示例，不涉及第三方作品', notDated: '未标注发布日期',
+    backToRead: '返回 Read 文章列表', unavailable: '目前无法加载文章，请稍后再试。',
+  },
   app: { name: '商务日语中心', tagline: '学习商务日语的平台' },
   nav: {
     main: '主导航', home: '首页', library: '我的书库', plus: 'Plus',

@@ -1,4 +1,5 @@
 export * from './types'
 export * from './validate'
 export * from './client'
+export * from './catalog'
 export { sampleReadingItem } from './fixtures/sample-reading'

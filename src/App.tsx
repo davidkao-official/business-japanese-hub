@@ -10,6 +10,8 @@ import { AboutPage } from './app/AboutPage'
 import { SpiExplainerPage } from './app/SpiExplainerPage'
 import { HomePage } from './app/HomePage'
 import { LibraryPage } from './app/LibraryPage'
+import { ReadLandingPage } from './app/ReadLandingPage'
+import { ReadDetailPage } from './app/ReadDetailPage'
 import { LibraryLinkPage } from './app/LibraryLinkPage'
 import { NotFoundPage } from './app/NotFoundPage'
 import { ProductModePage } from './app/ProductModePage'
@@ -112,7 +114,8 @@ export default function App() {
                       <Route path="plus" element={<PlusPage />} />
                       <Route path="learn" element={<ProductModePage mode="learn" />} />
                       <Route path="learn/:slug" element={<LearnUnitPage />} />
-                      <Route path="read" element={<ProductModePage mode="read" />} />
+                      <Route path="read" element={<ReadLandingPage />} />
+                      <Route path="read/:slug" element={<ReadDetailPage />} />
                       <Route path="practice" element={<ProductModePage mode="practice" />} />
                       <Route path="practice/web-test" element={<WebTestHubPage />} />
                       <Route path="practice/web-test/about-spi" element={<SpiExplainerPage />} />
