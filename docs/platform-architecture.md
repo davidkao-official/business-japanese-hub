@@ -219,6 +219,19 @@ atomically. `unavailable` remains only a #139 delivery/lookup failure, not a lif
 state. This does not implement a provider, checkout, webhook, dunning, reconciliation,
 annual billing, legal activation, or Book commerce.
 
+The #165 temporal-window successor makes `plus_membership_access_window` the paid-time
+authorization evidence. Each summary upsert rebuilds only that stream's derived
+half-open windows from its immutable event fold. A future same-stream renewal can leave
+a real gap; a failure clips unpaid future coverage, later recovery adds new coverage,
+and an own terminal cutoff clips only its stream. Other streams' windows remain intact.
+The service-role-only `resolve_plus_membership_access` RPC samples database time once,
+selects the greatest qualified initial-start key effective at that instant, then checks
+coverage only on that selected stream. It does not fall back to an older stream when the
+newer selected stream has a gap or failed payment. The old `plus_membership_state` and
+`plus_membership_access` tables remain snapshots for lifecycle consumers; they are not
+the temporal authorization source. The resolver returns `active`, `non-member`, or
+`unavailable` without exposing provider or payment details to clients.
+
 ## 11. Delivery boundary
 
 Current delivery priority 是 **Plus Early Access preparation**：
@@ -234,7 +247,7 @@ Current delivery priority 是 **Plus Early Access preparation**：
 
 ### 11.1 Proprietary production content delivery
 
-Public repository 的 `books/ → content-dist/ → Vite` 是 disclosed legacy Reader workflow；它保留以維持 Reader 與 historical Book commerce/audit，不是 future Plus/member body/assets 的 delivery architecture。Future proprietary source lives in the private canonical authoring workflow, validates against public bounded-domain tooling, and imports through server-only storage/delivery. #139 provides the narrow server-only `plus_membership_access` projection: delivery requires an active row with a known `current_period_start <= server_now < current_period_end`; missing, future-dated, malformed, or otherwise non-qualifying windows fail closed. The resolver samples the server clock once. Projection start is effective no earlier than the trusted event occurrence and period start; it carries forward only for continuous active coverage on the same stream. Unknown historical start times are not backfilled. #107 remains the authority for recurring membership lifecycle, commercial decisions, and production activation. This is a delivery primitive, not a new universal content schema or backend; see [`private-content-delivery.md`](private-content-delivery.md).
+Public repository 的 `books/ → content-dist/ → Vite` 是 disclosed legacy Reader workflow；它保留以維持 Reader 與 historical Book commerce/audit，不是 future Plus/member body/assets 的 delivery architecture。Future proprietary source lives in the private canonical authoring workflow, validates against public bounded-domain tooling, and imports through server-only storage/delivery. Delivery calls the service-role-only temporal membership resolver, which samples database time once and checks the selected stream's exact paid windows; it fails closed on a gap, future start, terminal cutoff, malformed result, or RPC error. The existing `plus_membership_access` projection is a lifecycle snapshot and is not authorization authority. Unknown legacy histories are not backfilled into paid windows. #107 remains the authority for recurring membership lifecycle, commercial decisions, and production activation. This is a delivery primitive, not a new universal content schema or backend; see [`private-content-delivery.md`](private-content-delivery.md).
 
 ## 12. Architecture non-goals
 

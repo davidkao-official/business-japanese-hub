@@ -136,8 +136,15 @@ const legacyStartGuardSql = readFileSync(
   ),
   'utf8',
 );
+const temporalAccessWindowsSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260923050000_plus_membership_temporal_access_windows.sql',
+  ),
+  'utf8',
+);
 const lifecyclePgTapFiles = readdirSync(join(process.cwd(), 'supabase/tests'))
-  .filter((file) => /^plus_membership_(?:lifecycle(?:_[a-z_]+)?|access_effective_start)\.test\.sql$/.test(file))
+  .filter((file) => /^plus_membership_(?:lifecycle(?:_[a-z_]+)?|access_effective_start|temporal_access_windows)\.test\.sql$/.test(file))
   .sort()
   .map((file) => ({
     file,
@@ -157,7 +164,7 @@ function expectLifecycleTapPlans() {
     expect(assertions!.length, file).toBe(Number(declaredPlan![1]));
     total += Number(declaredPlan![1]);
   }
-  expect(total).toBe(659);
+  expect(total).toBe(726);
 }
 
 describe('#165 membership stream selection authority migration', () => {
@@ -242,6 +249,46 @@ describe('#165 legacy initial-start ambiguity guard', () => {
     expect(lifecyclePgTapSql).toContain('legacy ambiguity is not misreported as a two-new-start conflict');
     expect(lifecyclePgTapSql).toContain('legacy event, binding, and state fail the bootstrap preflight');
     expect(lifecyclePgTapSql).toContain('projection-only data also fails the bootstrap preflight');
+    expectLifecycleTapPlans();
+  });
+});
+
+describe('#165 temporal access windows successor', () => {
+  it('rebuilds only qualified stream windows transactionally and authorizes through one temporal RPC', () => {
+    expect(temporalAccessWindowsSql).toContain('create table public.plus_membership_access_window');
+    expect(temporalAccessWindowsSql).toContain('check (window_start < window_end)');
+    expect(temporalAccessWindowsSql).toContain('create trigger plus_membership_stream_summary_rebuild_access_windows');
+    expect(temporalAccessWindowsSql).toContain('after insert or update on public.plus_membership_stream_summary');
+    expect(temporalAccessWindowsSql).toContain('if not found or not v_summary.qualified or v_summary.conflicted');
+    expect(temporalAccessWindowsSql).toContain('greatest(v_start.occurred_at, v_start.period_start)');
+    expect(temporalAccessWindowsSql).toContain('v_event.plan_active_when_observed is not true');
+    expect(temporalAccessWindowsSql).toContain('v_event.plan_code is distinct from v_plan_code');
+    expect(temporalAccessWindowsSql).toContain('window_start >= v_event.occurred_at');
+    expect(temporalAccessWindowsSql).toContain('v_cutoff := v_summary.terminal_at');
+    expect(temporalAccessWindowsSql).toContain('create or replace function public._resolve_plus_membership_access_at');
+    expect(temporalAccessWindowsSql).toContain('order by start_occurred_at desc, start_event_id desc');
+    expect(temporalAccessWindowsSql).toContain('p_now < paid_window.window_end');
+    expect(temporalAccessWindowsSql).toContain('create or replace function public.resolve_plus_membership_access');
+    expect(temporalAccessWindowsSql.match(/clock_timestamp\(\)/g)).toHaveLength(1);
+    expect(temporalAccessWindowsSql).toContain('grant execute on function public.resolve_plus_membership_access(uuid) to service_role');
+    expect(temporalAccessWindowsSql).toContain('revoke all on function public._resolve_plus_membership_access_at(uuid, timestamptz)');
+    for (const caseLabel of [
+      '701 B is selected at its inclusive effective start',
+      '702 unpaid A-to-B gap remains closed',
+      '703 failed B prevents fallback to still-covered A',
+      '704 original paid period stays active before renewal gap',
+      '705 recovery window grants access',
+      '708 later failure clips and removes unpaid future coverage',
+      '709 immediate terminal clips the paid window',
+      '710 scheduled cutoff is exclusive',
+      '711 legacy ambiguity prevents a new initial grant',
+      '712 public RPC authorizes current A while B is future',
+      '704 changed replay facts fail atomically',
+      'browser cannot delete paid windows',
+      'service role cannot directly delete paid windows',
+    ]) {
+      expect(lifecyclePgTapSql).toContain(caseLabel);
+    }
     expectLifecycleTapPlans();
   });
 });

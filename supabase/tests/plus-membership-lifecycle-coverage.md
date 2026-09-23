@@ -15,6 +15,7 @@ authority.
 | `plus_membership_lifecycle_terminal_confirmation.test.sql` | Six immediate terminal kinds × all six start/pending/terminal delivery permutations; active access is never restored, terminal summary survives, replay adds no event. |
 | `plus_membership_lifecycle_terminal_ties.test.sql` | Equal-time start/cutoff in both event-identity and delivery orders; summary retains cutoff and remains unqualified. |
 | `plus_membership_lifecycle_bootstrap.test.sql`; `plus_membership_lifecycle_legacy_start_guard.test.sql` | Empty bootstrap acceptance; existing-row preservation on rejection; legacy-start ambiguity remains unqualified without relabeling a new v1 receipt; Early Access TWD 29,900 is active and Standard TWD 39,900 is inactive. |
+| `plus_membership_temporal_access_windows.test.sql` | Active A/future B and exact selection boundary; unpaid gaps; same-stream future renewal; failure clipping/removal and recovery; newer failed B without A fallback; immediate/scheduled terminal clipping; invalidated B reselection; replay and legacy ambiguity; service RPC and table/helper privilege boundaries. |
 
 | Retired source suites | Ported invariant |
 | --- | --- |
@@ -27,9 +28,9 @@ The terminal source suites `terminal_confirmation` and `terminal_ties` are
 retained with current-summary assertions. `plus_membership_lifecycle_scheduled_terminal.test.sql`
 also remains unchanged as a passing cutoff-delivery boundary test. Related
 passing suites remain the boundary checks: `plus_membership_access_effective_start.test.sql` covers the
-database effective start, continuous same-stream renewal, and stream replacement;
-`supabase/functions/content-delivery/membership.test.ts` covers active,
-future, expired, empty, and malformed access windows. The retained
+snapshot effective start, continuous same-stream renewal, and stream replacement;
+`supabase/functions/content-delivery/membership.test.ts` verifies strict RPC result
+mapping, active/non-member/unavailable handling, and no direct snapshot-table lookup. The retained
 `plus_membership_access_projection.test.sql` verifies browser-role isolation
 and that Book entitlement writes stay separate. `entitlement_rls.test.sql`
 asserts active/refunded Book visibility, and `payment_atomicity.test.sql`

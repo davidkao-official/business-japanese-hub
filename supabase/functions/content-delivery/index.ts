@@ -1,9 +1,10 @@
 /**
  * Authenticated proprietary-content delivery entry.
  *
- * The server-only Plus membership projection authorizes delivery only for an
- * active, unexpired row. This narrow access primitive does not imply that
- * #107's recurring lifecycle or production activation is complete.
+ * The server-only temporal Plus membership RPC authorizes delivery only when
+ * the selected stream has a paid window at database time. This narrow access
+ * primitive does not imply that #107's recurring lifecycle or production
+ * activation is complete.
  */
 import { createClient } from 'npm:@supabase/supabase-js@^2.112.3'
 import { browserCors, withCorsHeaders } from '../_shared/cors.ts'

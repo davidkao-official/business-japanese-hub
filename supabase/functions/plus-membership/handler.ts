@@ -1,4 +1,4 @@
-/** Read-only, provider-neutral Plus membership projection. */
+/** Read-only, provider-neutral Plus temporal access decision. */
 import { authenticateBearer } from '../_shared/auth.ts'
 import {
   headerValue,
@@ -28,7 +28,7 @@ function noStore(result: HandlerResult): HandlerResult {
 /**
  * Returns only the product-level access state. The browser never submits or
  * mutates membership evidence; the verified bearer subject selects the
- * server-owned projection row.
+ * server-owned temporal resolver.
  */
 export async function handlePlusMembership(
   req: HandlerRequest,

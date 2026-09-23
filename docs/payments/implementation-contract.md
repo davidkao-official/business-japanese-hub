@@ -72,6 +72,19 @@ the one sampled server time reaches it. Terminal clamping can produce an empty a
 interval without fabricating coverage. `unavailable` remains reserved for a #139
 delivery or lookup failure.
 
+The #165 temporal successor adds server-only `plus_membership_access_window` rows,
+rebuilt transactionally whenever one stream summary is recomputed. Each accepted
+active grant contributes its own half-open paid interval; same-stream gaps remain gaps,
+payment failure clips unpaid/future coverage, a later valid recovery contributes a new
+window, and the stream's earliest own terminal cutoff clips its windows. No historical
+snapshot or legacy event is backfilled into a paid window. `plus_membership_state` and
+`plus_membership_access` remain useful lifecycle snapshots but are not temporal
+authorization sources. Edge Functions call the service-role-only
+`resolve_plus_membership_access` RPC, which samples database time once, chooses the
+greatest qualified initial-start key effective then, and checks coverage only on that
+stream. An expired or failed newer selected stream does not fall back to older coverage.
+The fixed-time helper exists only for DB tests and is not executable by API roles.
+
 The finance API returns bounded row samples for investigation, but its
 reconciliation/actionable totals come from the exact server-only
 `finance_status_counts()` aggregate (`20260822175000`). The function scans the
