@@ -161,6 +161,80 @@ Architecture 必須保留：
 
 Recurring lifecycle / membership state / access projection 由 #107 定義。舊 one-time Book payment implementation 可以 reuse，但不能推導「每種 learning content 都需要自己的 purchase/entitlement product」。
 
+Issue #164 and its append-only successor migrations define the provider-neutral server
+lifecycle substrate without changing #139's consumer seam. `plus_membership_plan` is
+the authoritative monthly plan catalog (Early Access is TWD 29900 minor units and
+active; Standard is TWD 39900 minor units and intentionally inactive).
+`plus_membership_event` is an append-only normalized audit log whose stream identity is
+the explicit tuple `source_system + source_customer_id + source_subscription_id`.
+The service-role-only `record_plus_membership_event` writer deduplicates source event
+IDs, verifies the complete binding, and serializes each user before locking a source
+stream. Durable event IDs use length-prefixed identity segments. Receipt-time
+`plan_active_when_observed` is stored under the plan-row lock. A nullable, server-owned
+reducer proof version distinguishes new receipts validated under the current admission
+contract from legacy audit rows; legacy rows are not backfilled into candidate evidence.
+If a stream already contains a legacy `membership_started` row, its new start receipts
+keep their immutable proof markers but the fold leaves the stream unqualified; unknown
+initial-start history cannot be erased by a new receipt.
+The lifecycle bootstrap successor also requires `plus_membership_event`,
+`plus_membership_subscription`, `plus_membership_state`, and
+`plus_membership_access` to be empty, preserving any existing rows and failing closed.
+Production must run the read-only preflight in [`deployment.md`](deployment.md) before
+the first lifecycle migration, because a later guard cannot undo earlier committed
+migrations.
+
+The current reducer recomputes only the touched subscription from its own immutable
+events into the server-only `plus_membership_stream_summary`. It then selects the
+greatest qualified initial-start `(occurred_at,event_id)` key across that user's stream
+summaries and copies the selected state and access into the existing per-user
+projections. No qualified candidate means those derived rows are removed. This makes
+selection independent of delivery order and avoids treating the current projection,
+observed watermark, receipt time, or terminal time as cross-stream authority. A candidate
+requires exactly one trusted `membership_started` with an active plan snapshot, a valid
+paid interval extending past `greatest(occurred_at, period_start)`, and no own terminal
+cutoff at or before that effective start. A second distinct trusted start is retained
+as immutable evidence, marks its stream conflicted, removes that stream from selection,
+and returns `conflict`; it does not roll back the conflict record. An inactive-plan
+audited start is not a candidate and does not poison a later trusted start.
+
+Within a qualified stream, later events fold in `(occurred_at,event_id)` order.
+Same-plan continuation or a changed plan active at that event's receipt can establish a
+renewal, reactivation, or restoration; payment failure cannot switch the admitted plan.
+Pending events remain audit-only and do not create access or selection authority.
+Terminal evidence is scoped to its stream: the earliest effective own cutoff is folded
+before candidate qualification, disqualifies a start when it is at or before the paid
+start, and otherwise clamps that stream's access without changing its selection key.
+Thus a terminal-only stream cannot block another confirmed start, and a confirmed start
+previously displaced by a stream that is later disqualified is reconsidered from durable
+evidence. Scheduled cancellation preserves a non-active state while clamping the access
+horizon; no generic grace period is invented.
+
+The selected state retains accepted raw period bounds. The access projection stores a
+separate server-derived `[current_period_start,current_period_end)` window; future starts
+deny access until effective time, and terminal clamping may produce an empty interval
+without fabricated coverage. `applied` means the selected state or #139 access
+projection changed. `stale` means only that those selected legacy snapshots did not
+change; it does not mean accepted evidence was audit-only or temporal access windows
+were unchanged. After recording accepted lifecycle evidence, provider adapters must
+re-read `resolve_plus_membership_access` and use that RPC as the access authority. Exact
+event replay returns `replayed`; immutable fact mismatch for the same source event fails
+atomically. `unavailable` remains only a #139 delivery/lookup failure, not a lifecycle
+state. This does not implement a provider, checkout, webhook, dunning, reconciliation,
+annual billing, legal activation, or Book commerce.
+
+The #165 temporal-window successor makes `plus_membership_access_window` the paid-time
+authorization evidence. Each summary upsert rebuilds only that stream's derived
+half-open windows from its immutable event fold. A future same-stream renewal can leave
+a real gap; a failure clips unpaid future coverage, later recovery adds new coverage,
+and an own terminal cutoff clips only its stream. Other streams' windows remain intact.
+The service-role-only `resolve_plus_membership_access` RPC samples database time once,
+selects the greatest qualified initial-start key effective at that instant, then checks
+coverage only on that selected stream. It does not fall back to an older stream when the
+newer selected stream has a gap or failed payment. The old `plus_membership_state` and
+`plus_membership_access` tables remain snapshots for lifecycle consumers; they are not
+the temporal authorization source. The resolver returns `active`, `non-member`, or
+`unavailable` without exposing provider or payment details to clients.
+
 ## 11. Delivery boundary
 
 Current delivery priority 是 **Plus Early Access preparation**：
@@ -176,7 +250,7 @@ Current delivery priority 是 **Plus Early Access preparation**：
 
 ### 11.1 Proprietary production content delivery
 
-Public repository 的 `books/ → content-dist/ → Vite` 是 disclosed legacy Reader workflow；它保留以維持 Reader 與 historical Book commerce/audit，不是 future Plus/member body/assets 的 delivery architecture。Future proprietary source lives in the private canonical authoring workflow, validates against public bounded-domain tooling, and imports through server-only storage/delivery. #139 provides the narrow server-only `plus_membership_access` projection: delivery is active only for an unexpired active row and fails closed for missing/non-qualifying rows or lookup failure. #107 remains the authority for recurring membership lifecycle, commercial decisions, and production activation. This is a delivery primitive, not a new universal content schema or backend; see [`private-content-delivery.md`](private-content-delivery.md).
+Public repository 的 `books/ → content-dist/ → Vite` 是 disclosed legacy Reader workflow；它保留以維持 Reader 與 historical Book commerce/audit，不是 future Plus/member body/assets 的 delivery architecture。Future proprietary source lives in the private canonical authoring workflow, validates against public bounded-domain tooling, and imports through server-only storage/delivery. Delivery calls the service-role-only temporal membership resolver, which samples database time once and checks the selected stream's exact paid windows; it fails closed on a gap, future start, terminal cutoff, malformed result, or RPC error. The existing `plus_membership_access` projection is a lifecycle snapshot and is not authorization authority. Unknown legacy histories are not backfilled into paid windows. #107 remains the authority for recurring membership lifecycle, commercial decisions, and production activation. This is a delivery primitive, not a new universal content schema or backend; see [`private-content-delivery.md`](private-content-delivery.md).
 
 ## 12. Architecture non-goals
 

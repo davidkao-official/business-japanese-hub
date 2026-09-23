@@ -24,6 +24,78 @@
 | `platform_tax_config` | 0003 | Japan consumption-tax status boundary (#25). Seeded `('japan_consumption_tax_status','unresolved')` — fail-closed: never apply 10% tax / claim tax-inclusive pricing until explicitly `taxable` or `exempt`. | Server-only (clients must not override). |
 | `order_email_outbox` | 20260820100000 | Durable order-confirmation delivery. First fulfillment enqueues one `order-confirmation-v1` row; the worker owns `pending → processing → sent/retry/dead`. | Server-only; no client policy or privilege. |
 | `scheduled_job_health` | 20260822171000 | Run-token-fenced repair/reconcile/email heartbeat state used by paid-launch readiness. | Server-only. |
+| `plus_membership_subscription` | 20260922110000 | Canonical provider-neutral source-stream binding (`source_system + customer + subscription → user_id`). Current terminal authority is folded from immutable events into `plus_membership_stream_summary`; historical binding retirement columns are not authorization evidence. | Server-only; bind-once and lifecycle writes occur only through the service-role reducer. |
+
+## Plus membership lifecycle repair (#164)
+
+`plus_membership_subscription` is the durable authority for source identity. The
+first accepted event binds a stream to its user; later calls resolve that stored
+binding and reject a claimed-user mismatch before writing lifecycle evidence,
+state, or the `plus_membership_access` projection. Browser roles cannot bind or
+rebind streams.
+
+`plus_membership_event` remains append-only audit evidence. The writer snapshots
+primitive `plan_active_when_observed` under a plan-row lock; derived admission or
+retirement markers never decide whether a delivery can be audited or selected.
+`plus_membership_stream_summary` is a server-only, per-subscription materialized fold
+rebuilt from that stream's own events. Existing rows are not backfilled into this cache;
+legacy histories without explicit reducer proof remain unqualified.
+The first lifecycle migration checks that event, subscription-binding, state,
+and access tables are empty under a writer-conflicting lock before changing
+schema or privileges. A later guard repeats the check. The production read-only
+preflight must run before the first migration, with membership writers quiesced
+throughout the chain.
+
+A stream qualifies only with one `membership_started` event whose plan was active at
+receipt and whose paid interval extends past `greatest(occurred_at, period_start)`.
+A second distinct trusted start is retained as immutable evidence, conflicts the stream,
+removes its candidate from selection, and returns `conflict`; an inactive-plan audited
+start is not a candidate and does not conflict with a later trusted start. Exact source
+event replay returns `replayed`; conflicting immutable facts for the same event fail
+atomically. Renewal, reactivation, and restoration can extend a qualified stream only
+through same-plan continuation or a changed plan active at that event's receipt. A
+catalog-false changed-plan event cannot establish a new plan.
+
+Cross-stream selection compares each qualified stream's initial
+`(occurred_at,event_id)` key. Terminal events establish cutoffs only for their own
+stream. The earliest effective own cutoff is folded before admission: a cutoff at or
+before the effective paid start disqualifies that stream, while a later cutoff keeps its
+start-selection authority and clamps its own access horizon. Pending evidence has no
+selection authority. A terminal-only binding therefore cannot block a later confirmed
+start, and a displaced but intrinsically valid start remains a candidate for
+reconciliation. With no qualified candidate, derived per-user state and access rows are
+removed; no historical audit row is interpreted as a grant.
+
+`applied` means the selected per-user reducer state or #139 access projection changed.
+`stale` means only that those selected legacy snapshots did not change; it does not
+mean accepted evidence was audit-only or that temporal access windows were unchanged.
+After recording accepted lifecycle evidence, provider adapters must re-read
+`resolve_plus_membership_access` and use that RPC as the access authority. The state
+keeps accepted raw period bounds, while access uses a separate server-derived
+`[current_period_start,current_period_end)` window. A future start denies access until
+the one sampled server time reaches it. Terminal clamping can produce an empty access
+interval without fabricating coverage. `unavailable` remains reserved for a #139
+delivery or lookup failure.
+
+The #165 temporal successor adds server-only `plus_membership_access_window` rows,
+rebuilt transactionally whenever one stream summary is recomputed. Each accepted
+active grant contributes its own half-open paid interval; same-stream gaps remain gaps,
+payment failure clips unpaid/future coverage, a later valid recovery contributes a new
+window, and the stream's earliest own terminal cutoff clips its windows. No historical
+snapshot or legacy event is backfilled into a paid window. `plus_membership_state` and
+`plus_membership_access` remain useful lifecycle snapshots but are not temporal
+authorization sources. A summary rebuild can change non-selected stream windows even
+when the writer returns `stale`, since that result tracks only the selected legacy
+snapshots. A payment failure matching the plan after same-time grants are
+folded dominates those grants (initial start, renewal, reactivation, or restoration)
+regardless of event ID; recovery requires a strictly later `occurred_at` to reopen access.
+An off-current-plan failure clips or removes only windows whose grant event used that
+plan; it preserves independently paid windows and lifecycle status for the current plan.
+Edge Functions call the service-role-only
+`resolve_plus_membership_access` RPC, which samples database time once, chooses the
+greatest qualified initial-start key effective then, and checks coverage only on that
+stream. An expired or failed newer selected stream does not fall back to older coverage.
+The fixed-time helper exists only for DB tests and is not executable by API roles.
 
 The finance API returns bounded row samples for investigation, but its
 reconciliation/actionable totals come from the exact server-only

@@ -1,6 +1,6 @@
 begin;
 
-select plan(10);
+select plan(13);
 
 select has_table(
   'public', 'plus_membership_access',
@@ -16,9 +16,20 @@ select ok(
   'Browser roles cannot read or mutate the authoritative projection'
 );
 select ok(
-  has_table_privilege('service_role', 'public.plus_membership_access', 'select,insert,update')
-  and not has_table_privilege('service_role', 'public.plus_membership_access', 'delete'),
-  'Service role has controlled projection read/write without delete'
+  has_table_privilege('service_role', 'public.plus_membership_access', 'select'),
+  'Service role can read the projection'
+);
+select ok(
+  not has_table_privilege('service_role', 'public.plus_membership_access', 'insert'),
+  'Service role cannot insert into the projection directly'
+);
+select ok(
+  not has_table_privilege('service_role', 'public.plus_membership_access', 'update'),
+  'Service role cannot update the projection directly'
+);
+select ok(
+  not has_table_privilege('service_role', 'public.plus_membership_access', 'delete'),
+  'Service role cannot delete the projection directly'
 );
 select throws_ok(
   $$ insert into public.plus_membership_access (user_id, membership_status, current_period_end)

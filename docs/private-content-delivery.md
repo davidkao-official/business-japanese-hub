@@ -23,7 +23,7 @@ public Book validator + preview-boundary validator
         ↓ pnpm workflow:import-private-book --source=/absolute/private/book
 service-role-only private_content_release
         ↓ content-delivery Edge Function
-verified #107 membership projection
+service-role temporal membership resolver
         ↓
 bounded renderer (future integration)
 ```
@@ -32,7 +32,7 @@ bounded renderer (future integration)
 
 `private_content_release` 是 immutable、service-role-only 的 **delivery envelope**：它只管理 bounded runtime 已驗證 payload 的 identity/revision/access，而不定義 question、lesson、article、vocabulary 或 game 的 universal schema。新的 runtime 在 import 前必須帶自己的 validator；#114 的 question-bank contract、#125 的 Read contract、#126 的 Learn/vocabulary contract 不得被此 table 取代。
 
-`content-delivery` 讀取獨立的 server-only `plus_membership_access` projection；只有 verified user 且 projection 為 active、未過期時才會查詢/回傳 payload。缺少、過期、撤銷或其他 non-qualifying 狀態回傳 `403 active membership required`；projection query 失敗回傳 truthful `503 membership access unavailable`。browser request、local storage 或 client flag 永遠不能取得 payload。
+`content-delivery` 在 verified user 身分後呼叫 service-role-only `resolve_plus_membership_access` RPC。RPC 只取一次 database clock，依有效 initial-start selection key 選 stream，再檢查該 stream 的 server-owned paid windows；缺少 coverage、付款失敗 gap、future start 或 terminal cutoff 都回傳 `403 active membership required`，RPC failure 或 invalid payload 回傳 truthful `503 membership access unavailable`。`plus_membership_state` 和 `plus_membership_access` 是 lifecycle snapshots，不能授權 delivery。browser request、local storage 或 client flag 永遠不能取得 payload。
 
 私有資產目前沒有 server-delivery adapter；proprietary assets 不得暫時改走 `content-dist/assets` 或 Vite。private Book importer 會 fail closed，拒絕含 `cover` 或 `image` block 的 payload；擁有私有資產的 bounded runtime 必須先提供同等 server-authoritative asset authorization、immutable revision coverage 與 tests。
 
@@ -67,7 +67,7 @@ private source: practice-question-bank.json
         ↓ pnpm workflow:validate-private-practice-question-bank --source=/absolute/private --content-id=practice-web-test-spi-v1
         ↓ pnpm workflow:import-private-practice-question-bank --source=/absolute/private --content-id=practice-web-test-spi-v1
 service-role-only private_content_release
-        ↓ content-delivery Edge Function + verified server-only Plus projection
+        ↓ content-delivery Edge Function + verified server-only temporal Plus resolver
 future bounded Practice renderer
 ```
 
@@ -80,7 +80,7 @@ monotonic `questionBank.version` 拒絕回退；browser 沒有 availability tabl
 
 CSV 是為 spreadsheet/editorial workflow 準備的 deterministic adapter；rich `answer`、`coreExplanation`、`itemAnalysis`、`provenance` 欄位以 JSON cell 保存，避免為不同 question input type 發明另一套 UI schema。`practice-question-bank-base.json` 保留 bank version 與 vocabulary catalog；converter 將 CSV rows 放入 question bank，之後 validator 才會檢查所有 cross-reference。
 
-受控 import 僅接受 status 為 `released` 的題目，並要求 reviewer、release notes、originality attestation、Japanese prompt/explanation、deterministic answer contract、正確的 category/subcategory、support-overlay vocabulary refs 與禁止 source/recalled/leaked/official-test fields。`targetSeconds` 是 internal practice target；schema 沒有 official-time metadata，帶有這類 field 的 artifact 必須 fail closed。`content-delivery` 使用 server-only `plus_membership_access` projection：只有 active 且未過期才查詢／回傳 payload；missing、expired、revoked 或其他 non-qualifying 狀態回傳 `403` 且不查詢 payload；projection lookup failure 回傳 `503` 且不查詢 payload。browser flag 永遠不能 authorize。這是 delivery primitive；#107 的 recurring lifecycle/commercial/production activation 仍維持其既有邊界。
+受控 import 僅接受 status 為 `released` 的題目，並要求 reviewer、release notes、originality attestation、Japanese prompt/explanation、deterministic answer contract、正確的 category/subcategory、support-overlay vocabulary refs 與禁止 source/recalled/leaked/official-test fields。`targetSeconds` 是 internal practice target；schema 沒有 official-time metadata，帶有這類 field 的 artifact 必須 fail closed。`content-delivery` 透過 service-role-only temporal membership resolver：只有所選 stream 在 database clock 時刻具有 paid-window coverage 才查詢／回傳 payload；gap、future start、failure 或 terminal cutoff 回傳 `403` 且不查詢 payload；resolver failure 回傳 `503` 且不查詢 payload。browser flag 永遠不能 authorize。這是 delivery primitive；#107 的 recurring lifecycle/commercial/production activation 仍維持其既有邊界。
 
 ### #115 public discovery catalog and #116 runner handoff
 

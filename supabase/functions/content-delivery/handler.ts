@@ -52,8 +52,8 @@ function requestReference(url: string): { contentId: string; revision: string } 
 }
 
 /**
- * The browser can choose a reference, never access. #107 replaces only the
- * injected membership projection; direct table access remains impossible.
+ * The browser can choose a reference, never access. The injected membership
+ * decision comes from the temporal server RPC; direct table access is impossible.
  */
 export async function handleContentDelivery(
   req: HandlerRequest,
