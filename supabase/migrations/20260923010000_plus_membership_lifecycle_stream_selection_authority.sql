@@ -9,9 +9,8 @@ alter table public.plus_membership_subscription
     (initial_start_occurred_at is null) = (initial_start_event_id is null)
   );
 
--- Recover selection authority only where existing durable admission proves the
--- stream was admitted and audit contains exactly one start identity. Ambiguous
--- legacy histories remain unknown and fail closed.
+-- Recover only a unique audited start identity. This records selection metadata,
+-- never access/admission; ambiguous legacy histories remain unknown and fail closed.
 with unambiguous_start as (
   select source_system, source_customer_id, source_subscription_id,
          min(occurred_at) as initial_start_occurred_at,
@@ -27,8 +26,7 @@ set initial_start_occurred_at = start.initial_start_occurred_at,
 from unambiguous_start start
 where subscription.source_system = start.source_system
   and subscription.source_customer_id = start.source_customer_id
-  and subscription.source_subscription_id = start.source_subscription_id
-  and subscription.admitted_at is not null;
+  and subscription.source_subscription_id = start.source_subscription_id;
 
 comment on column public.plus_membership_subscription.initial_start_occurred_at is
   'Immutable first membership_started source fact used only for cross-stream selection; never a projection or admission grant.';

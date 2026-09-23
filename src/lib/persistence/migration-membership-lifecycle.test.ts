@@ -108,6 +108,13 @@ const bufferedStreamEvidenceSql = readFileSync(
   ),
   'utf8',
 );
+const selectionAuthoritySql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260923010000_plus_membership_lifecycle_stream_selection_authority.sql',
+  ),
+  'utf8',
+);
 const lifecyclePgTapFiles = readdirSync(join(process.cwd(), 'supabase/tests'))
   .filter((file) => /^plus_membership_lifecycle(?:_[a-z_]+)?\.test\.sql$/.test(file))
   .sort()
@@ -129,8 +136,22 @@ function expectLifecycleTapPlans() {
     expect(assertions!.length, file).toBe(Number(declaredPlan![1]));
     total += Number(declaredPlan![1]);
   }
-  expect(total).toBe(1473);
+  expect(total).toBe(1570);
 }
+
+describe('#165 membership stream selection authority migration', () => {
+  it('stores one initial-start key and uses it for cross-stream selection', () => {
+    expect(selectionAuthoritySql).toContain('initial_start_occurred_at timestamptz');
+    expect(selectionAuthoritySql).toContain('initial_start_event_id text');
+    expect(selectionAuthoritySql).toContain('conflicting initial membership start for source subscription');
+    expect(selectionAuthoritySql).toContain('current_stream.initial_start_occurred_at');
+    expect(selectionAuthoritySql).toContain('current_stream.initial_start_event_id');
+    expect(selectionAuthoritySql).toContain('A provisional stream inherits predecessor selection authority');
+    expect(selectionAuthoritySql).not.toContain('v_ordering_barrier_occurred_at := v_state.applied_event_occurred_at');
+    expect(selectionAuthoritySql).not.toContain('v_ordering_barrier_occurred_at := v_current_stream_terminal_at');
+    expect(selectionAuthoritySql).toContain('Terminal evidence retires/clamps only its own source stream');
+  });
+});
 
 describe('#164 membership lifecycle migration', () => {
   it('seeds the approved monthly plans without date-based repricing', () => {
