@@ -772,8 +772,8 @@ const en: AppStrings = {
     concept: {
       badge: 'Japanese learning beyond JLPT N1',
       headline: {
-        opening: 'Move from ', examJapanese: 'Japanese for JLPT exams', afterExam: '', beforeWorkplace: ' to ',
-        workplaceJapanese: ['Japanese for ', 'Japan’s business world'], ending: '.',
+        opening: 'Move beyond ', examJapanese: 'Japanese for JLPT exams', afterExam: ' and', beforeWorkplace: ' into ',
+        workplaceJapanese: ['the language of ', 'Japan’s business world'], ending: '.',
       },
       support: 'Build on the Japanese you know for job hunting, business reading, and communication at work in Japan.',
       startLearning: 'Start learning',

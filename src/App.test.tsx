@@ -75,7 +75,7 @@ describe('application shell', () => {
     render(<App />)
 
     const heading = screen.getByRole('heading', { level: 1 })
-    expect(heading).toHaveTextContent('ビジネス日本語ハブ')
+    expect(heading).toHaveTextContent('「試験の日本語」から「日本のビジネス社会で使う日本語」へ。')
   })
 
   it('sets the Library SPA root language to the selected shell locale', async () => {
@@ -205,7 +205,7 @@ describe('application shell', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'go back' }))
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: 'ビジネス日本語ハブ' })).toBeInTheDocument(),
+      expect(screen.getByRole('heading', { name: '「試験の日本語」から「日本のビジネス社会で使う日本語」へ。' })).toBeInTheDocument(),
     )
     expect(scrollToSpy).not.toHaveBeenCalledWith(0, 0)
   })

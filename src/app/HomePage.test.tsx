@@ -82,7 +82,7 @@ describe('learning-service home', () => {
 
     expect(screen.getByRole('heading', {
       level: 1,
-      name: 'Move from Japanese for JLPT exams to Japanese for Japan’s business world.',
+      name: 'Move beyond Japanese for JLPT exams and into the language of Japan’s business world.',
     })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Start learning' })).toHaveAttribute('href', '/learn')
     expect(document.querySelectorAll('.concept-journey__step')).toHaveLength(4)

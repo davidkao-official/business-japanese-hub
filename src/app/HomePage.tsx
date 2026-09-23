@@ -86,7 +86,7 @@ function ConceptHero() {
   ].join('')
 
   return (
-    <header className="concept-home-hero">
+    <div className="concept-home-hero">
       <div className="concept-home-hero__copy">
         <p className="concept-home-hero__badge">{concept.badge}</p>
         <h1 className="concept-home-hero__title" id="home-title" lang={locale} aria-label={headline}>
@@ -126,7 +126,7 @@ function ConceptHero() {
         </div>
         <LearningJourney />
       </div>
-    </header>
+    </div>
   )
 }
 
@@ -161,7 +161,7 @@ function LearningPillars() {
         {concept.pillars.map((pillar, index) => (
           <li className={`concept-pillar concept-pillar--${index + 1}`} key={pillar.title}>
             <span className="concept-pillar__index" aria-hidden="true">0{index + 1}</span>
-            <h3>{pillar.title}</h3>
+            <h3 lang="en">{pillar.title}</h3>
             <p>{pillar.body}</p>
           </li>
         ))}
