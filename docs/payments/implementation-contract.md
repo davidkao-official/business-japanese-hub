@@ -66,8 +66,11 @@ start, and a displaced but intrinsically valid start remains a candidate for
 reconciliation. With no qualified candidate, derived per-user state and access rows are
 removed; no historical audit row is interpreted as a grant.
 
-`applied` means the selected per-user reducer state or access projection changed;
-observation-only watermark movement and audit-only evidence return `stale`. The state
+`applied` means the selected per-user reducer state or #139 access projection changed.
+`stale` means only that those selected legacy snapshots did not change; it does not
+mean accepted evidence was audit-only or that temporal access windows were unchanged.
+After recording accepted lifecycle evidence, provider adapters must re-read
+`resolve_plus_membership_access` and use that RPC as the access authority. The state
 keeps accepted raw period bounds, while access uses a separate server-derived
 `[current_period_start,current_period_end)` window. A future start denies access until
 the one sampled server time reaches it. Terminal clamping can produce an empty access
@@ -81,7 +84,9 @@ payment failure clips unpaid/future coverage, a later valid recovery contributes
 window, and the stream's earliest own terminal cutoff clips its windows. No historical
 snapshot or legacy event is backfilled into a paid window. `plus_membership_state` and
 `plus_membership_access` remain useful lifecycle snapshots but are not temporal
-authorization sources. A payment failure matching the plan after same-time grants are
+authorization sources. A summary rebuild can change non-selected stream windows even
+when the writer returns `stale`, since that result tracks only the selected legacy
+snapshots. A payment failure matching the plan after same-time grants are
 folded dominates those grants (initial start, renewal, reactivation, or restoration)
 regardless of event ID; recovery requires a strictly later `occurred_at` to reopen access.
 An off-current-plan failure clips or removes only windows whose grant event used that

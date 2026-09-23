@@ -212,9 +212,12 @@ horizon; no generic grace period is invented.
 The selected state retains accepted raw period bounds. The access projection stores a
 separate server-derived `[current_period_start,current_period_end)` window; future starts
 deny access until effective time, and terminal clamping may produce an empty interval
-without fabricated coverage. `applied` means the selected state or access projection
-changed; audit-only evidence and watermark-only movement return `stale`. Exact event
-replay returns `replayed`; immutable fact mismatch for the same source event fails
+without fabricated coverage. `applied` means the selected state or #139 access
+projection changed. `stale` means only that those selected legacy snapshots did not
+change; it does not mean accepted evidence was audit-only or temporal access windows
+were unchanged. After recording accepted lifecycle evidence, provider adapters must
+re-read `resolve_plus_membership_access` and use that RPC as the access authority. Exact
+event replay returns `replayed`; immutable fact mismatch for the same source event fails
 atomically. `unavailable` remains only a #139 delivery/lookup failure, not a lifecycle
 state. This does not implement a provider, checkout, webhook, dunning, reconciliation,
 annual billing, legal activation, or Book commerce.

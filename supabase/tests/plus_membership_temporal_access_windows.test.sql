@@ -171,7 +171,7 @@ select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000
 select lives_ok($$select public.record_plus_membership_event('windows','c719','s719','m-start---719','50000000-0000-0000-0000-000000000719','plus_early_access_monthly','membership_started','2026-09-01','2026-09-01','2026-09-05')$$,'719 A initial period arrives first');
 select lives_ok($$select public.record_plus_membership_event('windows','c719','s719','b-renew---719','50000000-0000-0000-0000-000000000719','plus_standard_monthly','membership_renewed','2026-09-06','2026-09-06','2026-10-20')$$,'719 same-time B renewal arrives first');
 select lives_ok($$select public.record_plus_membership_event('windows','c719','s719','z-renew---719','50000000-0000-0000-0000-000000000719','plus_early_access_monthly','membership_renewed','2026-09-06','2026-09-06','2026-09-12')$$,'719 same-time A renewal switches the stream back');
-select lives_ok($$select public.record_plus_membership_event('windows','c719','s719','a-fail----719','50000000-0000-0000-0000-000000000719','plus_standard_monthly','membership_payment_failed','2026-09-06','2026-09-06','2026-10-20')$$,'719 same-time B failure arrives after switching back to A');
+select is(public.record_plus_membership_event('windows','c719','s719','a-fail----719','50000000-0000-0000-0000-000000000719','plus_standard_monthly','membership_payment_failed','2026-09-06','2026-09-06','2026-10-20'),'stale','719 same-time B failure leaves selected A snapshots unchanged');
 select ok((select failure.event_id < b.event_id and b.event_id < a.event_id
   from public.plus_membership_event as failure
   join public.plus_membership_event as b on b.source_subscription_id=failure.source_subscription_id
