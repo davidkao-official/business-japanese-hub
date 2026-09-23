@@ -44,7 +44,7 @@
   font-weight: var(--font-weight-medium);
   line-height: var(--editorial-feature-title-leading);
   letter-spacing: var(--editorial-display-tracking);
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 
 .spi-explainer__dek {
@@ -117,7 +117,7 @@
   font-weight: var(--font-weight-medium);
   line-height: var(--leading-tight);
   letter-spacing: var(--editorial-feature-tracking);
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
 }
 
 .spi-explainer__table-wrap {
@@ -191,10 +191,12 @@
 }
 
 .spi-explainer__chips li {
+  flex-shrink: 0;
   padding: var(--space-2) var(--space-3);
   border: var(--stroke-thin) solid var(--color-border);
   color: var(--color-text-muted);
   font-size: var(--text-sm);
+  white-space: nowrap;
 }
 
 .spi-explainer__skills li {

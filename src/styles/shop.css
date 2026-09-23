@@ -32,6 +32,7 @@
 
 .btn {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   min-height: var(--control-min-h);
@@ -39,6 +40,7 @@
   border-radius: var(--radius-sm);
   border: var(--stroke-thin) solid transparent;
   font-weight: var(--font-weight-medium);
+  white-space: nowrap;
   text-decoration: none;
   transition:
     background-color var(--duration-fast) var(--ease-out),
@@ -205,6 +207,7 @@
   color: var(--color-text-muted);
   font-size: var(--text-sm);
   letter-spacing: var(--tracking-wide);
+  white-space: nowrap;
 }
 
 /* ---------------------------------------------------------------
