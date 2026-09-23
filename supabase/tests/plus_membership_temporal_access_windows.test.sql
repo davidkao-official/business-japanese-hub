@@ -1,9 +1,9 @@
 begin;
 
-select plan(108);
+select plan(127);
 
 update public.plus_membership_plan set active = true
-where plan_code = 'plus_early_access_monthly';
+where plan_code in ('plus_early_access_monthly', 'plus_standard_monthly');
 
 insert into auth.users (id, aud, role) values
  ('50000000-0000-0000-0000-000000000701','authenticated','authenticated'),
@@ -13,7 +13,9 @@ insert into auth.users (id, aud, role) values
  ('50000000-0000-0000-0000-000000000705','authenticated','authenticated'),
  ('50000000-0000-0000-0000-000000000706','authenticated','authenticated'),
  ('50000000-0000-0000-0000-000000000715','authenticated','authenticated'),
- ('50000000-0000-0000-0000-000000000716','authenticated','authenticated');
+ ('50000000-0000-0000-0000-000000000716','authenticated','authenticated'),
+ ('50000000-0000-0000-0000-000000000717','authenticated','authenticated'),
+ ('50000000-0000-0000-0000-000000000718','authenticated','authenticated');
 
 -- A remains paid until B's effective start. Read selection is based on the
 -- initial-start key effective by the one DB timestamp passed to the helper.
@@ -128,6 +130,39 @@ select is(public.record_plus_membership_event('windows','c716','s716','later-rec
 select is((select membership_status from public.plus_membership_stream_summary where source_subscription_id='s716'),'active','716 later recovery returns the stream to active');
 select is((select count(*) from public.plus_membership_access_window where source_subscription_id='s716'),1::bigint,'716 later recovery alone adds coverage');
 select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000716','2026-09-03'),' {"access_status":"active"}'::jsonb,'716 later recovery grants access');
+
+-- A same-time plan switch makes the matching plan for failure the folded B plan,
+-- even when B's failure ID sorts before the original A start.
+select is(public.record_plus_membership_event('windows','c717','s717','mstart---717','50000000-0000-0000-0000-000000000717','plus_early_access_monthly','membership_started','2026-09-01','2026-09-01','2026-10-01'),'applied','717 A starts');
+select is(public.record_plus_membership_event('windows','c717','s717','zrenew---717','50000000-0000-0000-0000-000000000717','plus_standard_monthly','membership_renewed','2026-09-01','2026-09-01','2026-10-15'),'applied','717 same-time renewal switches the folded plan to B');
+select is(public.record_plus_membership_event('windows','c717','s717','afail----717','50000000-0000-0000-0000-000000000717','plus_standard_monthly','membership_payment_failed','2026-09-01','2026-09-01','2026-10-15'),'applied','717 same-time B failure arrives after the plan switch');
+select ok((select failure.event_id < start.event_id and start.event_id < renewal.event_id
+  from public.plus_membership_event as failure
+  join public.plus_membership_event as start on start.source_subscription_id=failure.source_subscription_id
+  join public.plus_membership_event as renewal on renewal.source_subscription_id=failure.source_subscription_id
+  where failure.source_event_id='afail----717' and start.source_event_id='mstart---717'
+    and renewal.source_event_id='zrenew---717'),'717 failure ID sorts before A start and B renewal');
+select is((select membership_status from public.plus_membership_stream_summary where source_subscription_id='s717'),'past_due','717 B failure is applied after the same-time plan switch');
+select is((select plan_code from public.plus_membership_stream_summary where source_subscription_id='s717'),'plus_standard_monthly','717 folded plan is B when failure is applied');
+select is((select count(*) from public.plus_membership_access_window where source_subscription_id='s717'),0::bigint,'717 B failure removes A and B same-time windows');
+select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000717','2026-09-02'),' {"access_status":"non-member"}'::jsonb,'717 same-time B failure denies access');
+select is(public.record_plus_membership_event('windows','c717','s717','later-recovery-717','50000000-0000-0000-0000-000000000717','plus_standard_monthly','membership_reactivated','2026-09-02','2026-09-02','2026-10-02'),'applied','717 strictly later B recovery reopens access');
+select is((select membership_status from public.plus_membership_stream_summary where source_subscription_id='s717'),'active','717 later B recovery makes the stream active');
+select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000717','2026-09-03'),' {"access_status":"active"}'::jsonb,'717 later B recovery grants access');
+
+select lives_ok($$select public.record_plus_membership_event('windows','c718','s718','afail----718','50000000-0000-0000-0000-000000000718','plus_standard_monthly','membership_payment_failed','2026-09-01','2026-09-01','2026-10-15')$$,'718 B failure arrives before A start');
+select is(public.record_plus_membership_event('windows','c718','s718','mstart---718','50000000-0000-0000-0000-000000000718','plus_early_access_monthly','membership_started','2026-09-01','2026-09-01','2026-10-01'),'applied','718 A start follows the buffered B failure');
+select lives_ok($$select public.record_plus_membership_event('windows','c718','s718','zrenew---718','50000000-0000-0000-0000-000000000718','plus_standard_monthly','membership_renewed','2026-09-01','2026-09-01','2026-10-15')$$,'718 B same-time renewal arrives after A start');
+select ok((select failure.event_id < start.event_id and start.event_id < renewal.event_id
+  from public.plus_membership_event as failure
+  join public.plus_membership_event as start on start.source_subscription_id=failure.source_subscription_id
+  join public.plus_membership_event as renewal on renewal.source_subscription_id=failure.source_subscription_id
+  where failure.source_event_id='afail----718' and start.source_event_id='mstart---718'
+    and renewal.source_event_id='zrenew---718'),'718 failure ID sorts before A start and B renewal');
+select is((select membership_status from public.plus_membership_stream_summary where source_subscription_id='s718'),'past_due','718 buffered B failure dominates the later same-time renewal');
+select is((select plan_code from public.plus_membership_stream_summary where source_subscription_id='s718'),'plus_standard_monthly','718 fold applies failure against switched plan B');
+select is((select count(*) from public.plus_membership_access_window where source_subscription_id='s718'),0::bigint,'718 same-time B failure removes same-time windows');
+select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000718','2026-09-02'),' {"access_status":"non-member"}'::jsonb,'718 buffered B failure denies access');
 
 -- A failure removes a buffered future renewal as well as clipping elapsed coverage.
 insert into auth.users (id, aud, role) values ('50000000-0000-0000-0000-000000000708','authenticated','authenticated');

@@ -168,7 +168,7 @@ function expectLifecycleTapPlans() {
     expect(assertions!.length, file).toBe(Number(declaredPlan![1]));
     total += Number(declaredPlan![1]);
   }
-  expect(total).toBe(767);
+  expect(total).toBe(786);
 }
 
 describe('#165 membership stream selection authority migration', () => {
@@ -273,7 +273,7 @@ describe('#165 temporal access windows successor', () => {
     expect(temporalAccessWindowsSql).toContain("event_type = 'membership_payment_failed'");
     expect(temporalAccessWindowsSql).toContain("case when event_type = 'membership_payment_failed' then 1 else 0 end");
     expect(legacyStartGuardSql).toContain(
-      "(occurred_at = v_start.occurred_at\n                and event_type = 'membership_payment_failed'\n                and plan_code = v_start.plan_code)",
+      "(occurred_at = v_start.occurred_at\n                and event_type = 'membership_payment_failed')",
     );
     expect(legacyStartGuardSql).toContain(
       "case when event_type = 'membership_payment_failed' then 1 else 0 end",
@@ -310,6 +310,13 @@ describe('#165 temporal access windows successor', () => {
       '716 same-time event IDs order failure, start, recovery, renewal',
       '716 same-time failure dominates the recovery by timestamp',
       '716 strictly later recovery reopens access',
+      '717 failure ID sorts before A start and B renewal',
+      '717 folded plan is B when failure is applied',
+      '717 same-time B failure denies access',
+      '717 strictly later B recovery reopens access',
+      '718 failure ID sorts before A start and B renewal',
+      '718 fold applies failure against switched plan B',
+      '718 buffered B failure denies access',
       '708 later failure clips and removes unpaid future coverage',
       '709 immediate terminal clips the paid window',
       '710 scheduled cutoff is exclusive',
@@ -322,7 +329,7 @@ describe('#165 temporal access windows successor', () => {
       expect(lifecyclePgTapSql).toContain(caseLabel);
     }
     expect(membershipImplementationContract).toContain(
-      'A matching-plan payment failure dominates any same-time grant',
+      'A payment failure matching the plan after same-time grants are',
     );
     expectLifecycleTapPlans();
   });
