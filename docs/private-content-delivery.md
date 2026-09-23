@@ -69,7 +69,7 @@ Import 另需 server-only `SUPABASE_URL` 與 `SUPABASE_SERVICE_ROLE_KEY`。Valid
 
 Runtime text 保留 authoring 內的空行作為段落界線、單行換行作為行內斷行；不用 HTML/Markdown 注入文章結構。這使長篇日文材料與繁體中文分析可以維持可讀性，同時維持純文字輸出。
 
-Free production article 不能用 `access: free` 旗標繞過 member-only delivery；除已明確可公開的 non-proprietary fixture 外，Free publication 需要另外核准的 public delivery contract。Reading save/resume、review evidence 與 recurring editorial return loop 仍屬 #122；這個 renderer 不會把開啟文章偽裝成已儲存進度。
+Free production article 不能用 `access: free` 旗標繞過 member-only delivery；除已明確可公開的 non-proprietary fixture 外，Free publication 需要另外核准的 public delivery contract。#171 只為 active Plus member 增加 Reading item 的 server-owned save/remove preference 與 My Learning return seam；它不保存文章 body，也不表示已讀、完成或理解。逐段 resume、comprehension/review evidence、合法可持續的正式 editorial corpus 與 recurring return loop 仍屬 #122；renderer 不會把開啟文章或按下收藏偽裝成學習進度。
 
 ## #114 Practice / Web Test private authoring path
 
