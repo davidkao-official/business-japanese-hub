@@ -209,15 +209,32 @@ previously displaced by a stream that is later disqualified is reconsidered from
 evidence. Scheduled cancellation preserves a non-active state while clamping the access
 horizon; no generic grace period is invented.
 
-The selected state retains accepted raw period bounds. The access projection stores a
-separate server-derived `[current_period_start,current_period_end)` window; future starts
-deny access until effective time, and terminal clamping may produce an empty interval
-without fabricated coverage. `applied` means the selected state or access projection
-changed; audit-only evidence and watermark-only movement return `stale`. Exact event
-replay returns `replayed`; immutable fact mismatch for the same source event fails
-atomically. `unavailable` remains only a #139 delivery/lookup failure, not a lifecycle
-state. This does not implement a provider, checkout, webhook, dunning, reconciliation,
-annual billing, legal activation, or Book commerce.
+The selected state retains accepted raw period bounds, and the historical single-row
+`plus_membership_access` projection remains a useful operational snapshot. It is **not**
+the temporal authorization authority once future lifecycle facts can coexist with current
+coverage. The temporal successor materializes server-only
+`plus_membership_access_window` rows from each qualified stream's immutable v1 evidence.
+Each accepted active grant contributes its own
+`[greatest(occurred_at,period_start), period_end)` interval, clipped by the stream's own
+terminal cutoff. Overlap is allowed, gaps remain gaps, payment failure clips established
+coverage at its event time, and a later valid recovery creates a new window instead of
+rewriting history.
+
+The service-role-only `resolve_plus_membership_access(uuid)` RPC samples database time
+once. It selects the greatest qualified initial-start key whose `effective_start` is
+already effective at that sampled time; a future successor therefore cannot erase a
+currently paid predecessor. Once a newer qualified stream is effective, only that stream
+is considered: if it has no window covering sampled time, access is `non-member` rather
+than falling back to an older stream. This prevents resurrection after failure/expiry and
+avoids schedulers or read-time mutation. Browser roles cannot read the derived windows or
+invoke internal rebuild helpers. The shared Edge resolver maps RPC/query failure or an
+invalid result to `unavailable`.
+
+`applied` still means the selected state or snapshot projection changed; audit-only
+evidence and watermark-only movement return `stale`. Exact event replay returns
+`replayed`; immutable fact mismatch for the same source event fails atomically. This
+does not implement a provider, checkout, webhook, dunning, reconciliation, annual billing,
+legal activation, or Book commerce.
 
 ## 11. Delivery boundary
 
@@ -234,7 +251,7 @@ Current delivery priority 是 **Plus Early Access preparation**：
 
 ### 11.1 Proprietary production content delivery
 
-Public repository 的 `books/ → content-dist/ → Vite` 是 disclosed legacy Reader workflow；它保留以維持 Reader 與 historical Book commerce/audit，不是 future Plus/member body/assets 的 delivery architecture。Future proprietary source lives in the private canonical authoring workflow, validates against public bounded-domain tooling, and imports through server-only storage/delivery. #139 provides the narrow server-only `plus_membership_access` projection: delivery requires an active row with a known `current_period_start <= server_now < current_period_end`; missing, future-dated, malformed, or otherwise non-qualifying windows fail closed. The resolver samples the server clock once. Projection start is effective no earlier than the trusted event occurrence and period start; it carries forward only for continuous active coverage on the same stream. Unknown historical start times are not backfilled. #107 remains the authority for recurring membership lifecycle, commercial decisions, and production activation. This is a delivery primitive, not a new universal content schema or backend; see [`private-content-delivery.md`](private-content-delivery.md).
+Public repository 的 `books/ → content-dist/ → Vite` 是 disclosed legacy Reader workflow；它保留以維持 Reader 與 historical Book commerce/audit，不是 future Plus/member body/assets 的 delivery architecture。Future proprietary source lives in the private canonical authoring workflow, validates against public bounded-domain tooling, and imports through server-only storage/delivery. #139 still provides the narrow product-level `active | non-member | unavailable` seam, but temporal delivery authority is resolved server-side from qualified stream summaries plus derived paid windows. The service-only resolver samples database time once; future starts do not activate early, unpaid gaps remain non-member, and a newer already-effective stream with no current paid window does not resurrect an older subscription. The legacy single-row access projection remains a snapshot, not the temporal source of truth. Unknown historical start times are not backfilled. #107 remains the authority for recurring membership lifecycle, commercial decisions, and production activation. This is a delivery primitive, not a new universal content schema or backend; see [`private-content-delivery.md`](private-content-delivery.md).
 
 ## 12. Architecture non-goals
 
