@@ -168,7 +168,7 @@ function expectLifecycleTapPlans() {
     expect(assertions!.length, file).toBe(Number(declaredPlan![1]));
     total += Number(declaredPlan![1]);
   }
-  expect(total).toBe(786);
+  expect(total).toBe(805);
 }
 
 describe('#165 membership stream selection authority migration', () => {
@@ -270,6 +270,8 @@ describe('#165 temporal access windows successor', () => {
     expect(temporalAccessWindowsSql).toContain('greatest(v_start.occurred_at, v_start.period_start)');
     expect(temporalAccessWindowsSql).toContain('v_event.plan_active_when_observed is not true');
     expect(temporalAccessWindowsSql).toContain('v_event.plan_code is distinct from v_plan_code');
+    expect(temporalAccessWindowsSql).toContain('if v_event.plan_code = v_plan_code then');
+    expect(temporalAccessWindowsSql).toContain('grant_event.plan_code = v_event.plan_code');
     expect(temporalAccessWindowsSql).toContain("event_type = 'membership_payment_failed'");
     expect(temporalAccessWindowsSql).toContain("case when event_type = 'membership_payment_failed' then 1 else 0 end");
     expect(legacyStartGuardSql).toContain(
@@ -317,6 +319,12 @@ describe('#165 temporal access windows successor', () => {
       '718 failure ID sorts before A start and B renewal',
       '718 fold applies failure against switched plan B',
       '718 buffered B failure denies access',
+      '719 off-current B failure preserves active A status',
+      '719 B window is clipped while the A window keeps its paid end',
+      '719 A access closes at its exact paid end',
+      '720 off-current B failure preserves active A status',
+      '720 chronological B-to-A fold removes future B while preserving A',
+      '720 A access closes at its exact paid end',
       '708 later failure clips and removes unpaid future coverage',
       '709 immediate terminal clips the paid window',
       '710 scheduled cutoff is exclusive',
@@ -330,6 +338,9 @@ describe('#165 temporal access windows successor', () => {
     }
     expect(membershipImplementationContract).toContain(
       'A payment failure matching the plan after same-time grants are',
+    );
+    expect(membershipImplementationContract).toContain(
+      'An off-current-plan failure clips or removes only windows whose grant event used that',
     );
     expectLifecycleTapPlans();
   });

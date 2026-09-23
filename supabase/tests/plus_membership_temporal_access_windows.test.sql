@@ -1,6 +1,6 @@
 begin;
 
-select plan(127);
+select plan(146);
 
 update public.plus_membership_plan set active = true
 where plan_code in ('plus_early_access_monthly', 'plus_standard_monthly');
@@ -15,7 +15,9 @@ insert into auth.users (id, aud, role) values
  ('50000000-0000-0000-0000-000000000715','authenticated','authenticated'),
  ('50000000-0000-0000-0000-000000000716','authenticated','authenticated'),
  ('50000000-0000-0000-0000-000000000717','authenticated','authenticated'),
- ('50000000-0000-0000-0000-000000000718','authenticated','authenticated');
+ ('50000000-0000-0000-0000-000000000718','authenticated','authenticated'),
+ ('50000000-0000-0000-0000-000000000719','authenticated','authenticated'),
+ ('50000000-0000-0000-0000-000000000720','authenticated','authenticated');
 
 -- A remains paid until B's effective start. Read selection is based on the
 -- initial-start key effective by the one DB timestamp passed to the helper.
@@ -163,6 +165,39 @@ select is((select membership_status from public.plus_membership_stream_summary w
 select is((select plan_code from public.plus_membership_stream_summary where source_subscription_id='s718'),'plus_standard_monthly','718 fold applies failure against switched plan B');
 select is((select count(*) from public.plus_membership_access_window where source_subscription_id='s718'),0::bigint,'718 same-time B failure removes same-time windows');
 select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000718','2026-09-02'),' {"access_status":"non-member"}'::jsonb,'718 buffered B failure denies access');
+
+-- An off-current B failure clips only B-granted windows after the stream has
+-- switched B then back to A. These fixtures vary both delivery and ID order.
+select lives_ok($$select public.record_plus_membership_event('windows','c719','s719','m-start---719','50000000-0000-0000-0000-000000000719','plus_early_access_monthly','membership_started','2026-09-01','2026-09-01','2026-09-05')$$,'719 A initial period arrives first');
+select lives_ok($$select public.record_plus_membership_event('windows','c719','s719','b-renew---719','50000000-0000-0000-0000-000000000719','plus_standard_monthly','membership_renewed','2026-09-06','2026-09-06','2026-10-20')$$,'719 same-time B renewal arrives first');
+select lives_ok($$select public.record_plus_membership_event('windows','c719','s719','z-renew---719','50000000-0000-0000-0000-000000000719','plus_early_access_monthly','membership_renewed','2026-09-06','2026-09-06','2026-09-12')$$,'719 same-time A renewal switches the stream back');
+select lives_ok($$select public.record_plus_membership_event('windows','c719','s719','a-failure--719','50000000-0000-0000-0000-000000000719','plus_standard_monthly','membership_payment_failed','2026-09-10','2026-09-06','2026-10-20')$$,'719 later B failure arrives after switching back to A');
+select ok((select b.event_id < a.event_id from public.plus_membership_event as b
+  join public.plus_membership_event as a on a.source_subscription_id=b.source_subscription_id
+  where b.source_event_id='b-renew---719' and a.source_event_id='z-renew---719'),'719 B renewal ID sorts before same-time A renewal');
+select is((select membership_status from public.plus_membership_stream_summary where source_subscription_id='s719'),'active','719 off-current B failure preserves active A status');
+select is((select plan_code from public.plus_membership_stream_summary where source_subscription_id='s719'),'plus_early_access_monthly','719 stream remains on A after B failure');
+select ok(
+  exists(select 1 from public.plus_membership_access_window as w join public.plus_membership_event as e on e.event_id=w.grant_event_id where w.source_subscription_id='s719' and e.source_event_id='b-renew---719' and w.window_end='2026-09-10')
+  and exists(select 1 from public.plus_membership_access_window as w join public.plus_membership_event as e on e.event_id=w.grant_event_id where w.source_subscription_id='s719' and e.source_event_id='z-renew---719' and w.window_end='2026-09-12'),
+  '719 B window is clipped while the A window keeps its paid end');
+select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000719','2026-09-11'),' {"access_status":"active"}'::jsonb,'719 A access remains active before its paid end');
+select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000719','2026-09-12'),' {"access_status":"non-member"}'::jsonb,'719 A access closes at its exact paid end');
+
+select lives_ok($$select public.record_plus_membership_event('windows','c720','s720','f-fail---720','50000000-0000-0000-0000-000000000720','plus_standard_monthly','membership_payment_failed','2026-09-10','2026-09-05','2026-10-20')$$,'720 B failure is delivered first');
+select lives_ok($$select public.record_plus_membership_event('windows','c720','s720','a-renew----720','50000000-0000-0000-0000-000000000720','plus_early_access_monthly','membership_renewed','2026-09-07','2026-09-07','2026-09-12')$$,'720 later A renewal arrives before earlier B renewal');
+select lives_ok($$select public.record_plus_membership_event('windows','c720','s720','z-renew----720','50000000-0000-0000-0000-000000000720','plus_standard_monthly','membership_renewed','2026-09-05','2026-09-15','2026-10-20')$$,'720 earlier B renewal arrives after A renewal');
+select lives_ok($$select public.record_plus_membership_event('windows','c720','s720','m-start---720','50000000-0000-0000-0000-000000000720','plus_early_access_monthly','membership_started','2026-09-01','2026-09-01','2026-09-05')$$,'720 A start arrives after buffered follow-ups');
+select ok((select a.event_id < b.event_id from public.plus_membership_event as a
+  join public.plus_membership_event as b on b.source_subscription_id=a.source_subscription_id
+  where a.source_event_id='a-renew----720' and b.source_event_id='z-renew----720'),'720 A renewal ID sorts before earlier B renewal');
+select is((select membership_status from public.plus_membership_stream_summary where source_subscription_id='s720'),'active','720 off-current B failure preserves active A status');
+select ok(
+  not exists(select 1 from public.plus_membership_access_window as w join public.plus_membership_event as e on e.event_id=w.grant_event_id where w.source_subscription_id='s720' and e.source_event_id='z-renew----720')
+  and exists(select 1 from public.plus_membership_access_window as w join public.plus_membership_event as e on e.event_id=w.grant_event_id where w.source_subscription_id='s720' and e.source_event_id='a-renew----720' and w.window_end='2026-09-12'),
+  '720 chronological B-to-A fold removes future B while preserving A');
+select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000720','2026-09-11'),' {"access_status":"active"}'::jsonb,'720 A access remains active before its paid end');
+select is(public._resolve_plus_membership_access_at('50000000-0000-0000-0000-000000000720','2026-09-12'),' {"access_status":"non-member"}'::jsonb,'720 A access closes at its exact paid end');
 
 -- A failure removes a buffered future renewal as well as clipping elapsed coverage.
 insert into auth.users (id, aud, role) values ('50000000-0000-0000-0000-000000000708','authenticated','authenticated');

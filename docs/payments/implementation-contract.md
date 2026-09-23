@@ -84,6 +84,8 @@ snapshot or legacy event is backfilled into a paid window. `plus_membership_stat
 authorization sources. A payment failure matching the plan after same-time grants are
 folded dominates those grants (initial start, renewal, reactivation, or restoration)
 regardless of event ID; recovery requires a strictly later `occurred_at` to reopen access.
+An off-current-plan failure clips or removes only windows whose grant event used that
+plan; it preserves independently paid windows and lifecycle status for the current plan.
 Edge Functions call the service-role-only
 `resolve_plus_membership_access` RPC, which samples database time once, chooses the
 greatest qualified initial-start key effective then, and checks coverage only on that

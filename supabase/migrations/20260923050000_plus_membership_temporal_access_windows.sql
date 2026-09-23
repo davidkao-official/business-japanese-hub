@@ -132,24 +132,48 @@ begin
       -- Its scheduled period_end is the cutoff, not this receipt's occurred_at.
       continue;
     elsif v_event.event_type = 'membership_payment_failed' then
-      if v_event.plan_code is distinct from v_plan_code then
-        continue;
+      if v_event.plan_code = v_plan_code then
+        v_status := 'past_due';
+        -- A current-plan failure removes unearned future coverage and clips
+        -- any stream window covering its event time.
+        delete from public.plus_membership_access_window
+        where source_system = p_source_system
+          and source_customer_id = p_source_customer_id
+          and source_subscription_id = p_source_subscription_id
+          and window_start >= v_event.occurred_at;
+        update public.plus_membership_access_window
+        set window_end = v_event.occurred_at
+        where source_system = p_source_system
+          and source_customer_id = p_source_customer_id
+          and source_subscription_id = p_source_subscription_id
+          and window_start < v_event.occurred_at
+          and window_end > v_event.occurred_at;
+      else
+        -- An off-current-plan failure only invalidates windows granted by that
+        -- plan; independently paid windows for the folded current plan remain.
+        delete from public.plus_membership_access_window as paid_window
+        where paid_window.source_system = p_source_system
+          and paid_window.source_customer_id = p_source_customer_id
+          and paid_window.source_subscription_id = p_source_subscription_id
+          and paid_window.window_start >= v_event.occurred_at
+          and exists (
+            select 1 from public.plus_membership_event as grant_event
+            where grant_event.event_id = paid_window.grant_event_id
+              and grant_event.plan_code = v_event.plan_code
+          );
+        update public.plus_membership_access_window as paid_window
+        set window_end = v_event.occurred_at
+        where paid_window.source_system = p_source_system
+          and paid_window.source_customer_id = p_source_customer_id
+          and paid_window.source_subscription_id = p_source_subscription_id
+          and paid_window.window_start < v_event.occurred_at
+          and paid_window.window_end > v_event.occurred_at
+          and exists (
+            select 1 from public.plus_membership_event as grant_event
+            where grant_event.event_id = paid_window.grant_event_id
+              and grant_event.plan_code = v_event.plan_code
+          );
       end if;
-      v_status := 'past_due';
-      -- A failure removes unearned future coverage and clips any window which
-      -- was already covering its event time. Earlier paid windows remain.
-      delete from public.plus_membership_access_window
-      where source_system = p_source_system
-        and source_customer_id = p_source_customer_id
-        and source_subscription_id = p_source_subscription_id
-        and window_start >= v_event.occurred_at;
-      update public.plus_membership_access_window
-      set window_end = v_event.occurred_at
-      where source_system = p_source_system
-        and source_customer_id = p_source_customer_id
-        and source_subscription_id = p_source_subscription_id
-        and window_start < v_event.occurred_at
-        and window_end > v_event.occurred_at;
     elsif v_event.event_type in (
       'membership_renewed', 'membership_reactivated', 'membership_restored'
     ) then
