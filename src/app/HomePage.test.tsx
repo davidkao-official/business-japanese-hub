@@ -13,6 +13,49 @@ afterEach(() => {
 })
 
 describe('learning-service home', () => {
+  it('keeps Japanese homepage headings readable as intact phrase units', () => {
+    renderWithAppProviders(<HomePage />)
+
+    const title = screen.getByRole('heading', { level: 1, name: 'ビジネス日本語ハブ' })
+    expect(title).toHaveAttribute('aria-label', 'ビジネス日本語ハブ')
+    expect(title).toHaveTextContent('ビジネス日本語ハブ')
+    expect(Array.from(title.querySelectorAll('.phrase'), (phrase) => phrase.textContent)).toEqual([
+      'ビジネス',
+      '日本語',
+      'ハブ',
+    ])
+
+    const featureTitle = screen.getByRole('heading', {
+      level: 2,
+      name: '実務で使う言葉を、文脈の中で読む',
+    })
+    expect(featureTitle).toHaveAttribute('aria-label', '実務で使う言葉を、文脈の中で読む')
+    expect(Array.from(featureTitle.querySelectorAll('.phrase'), (phrase) => phrase.textContent)).toEqual([
+      '実務で使う',
+      '言葉を、',
+      '文脈の中で',
+      '読む',
+    ])
+
+    for (const [id, name] of [
+      ['learning-modes-title', '次に役立つ学び方を選ぶ'],
+      ['storefront-samples-title', '実際の文章と会話から学ぶ'],
+      ['storefront-selections-title', '公開中の書籍から、読む場所を選ぶ'],
+    ]) {
+      expect(document.getElementById(id)).toHaveAttribute('aria-label', name)
+      expect(screen.getByRole('heading', { name })).toHaveTextContent(name)
+    }
+  })
+
+  it('leaves translated homepage headings and accessible names as their original strings', () => {
+    setLocalePreference('zh-CN')
+    renderWithAppProviders(<HomePage />)
+
+    const title = screen.getByRole('heading', { level: 1, name: '商务日语中心' })
+    expect(title).toHaveTextContent('商务日语中心')
+    expect(title.querySelector('.phrase')).toBeNull()
+  })
+
   it('makes the five learning modes primary without rendering a one-time Book sales shell', () => {
     renderWithAppProviders(<HomePage />)
 

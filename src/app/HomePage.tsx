@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { listCatalogEntries } from '../reader/catalog'
-import { useStrings } from '../i18n/strings'
+import { useLocale, useStrings, type Locale } from '../i18n/strings'
 import { BookCover } from '../components/BookCover'
 import {
   COFOUNDER_PROFILE,
@@ -19,11 +19,33 @@ import {
 } from './homeEditorial'
 import { PRODUCT_MODES } from './productModes'
 
+const JAPANESE_HOME_HEADING_PHRASES = {
+  title: ['ビジネス', '日本語', 'ハブ'],
+  serviceTitle: ['次に役立つ', '学び方を選ぶ'],
+  featureTitle: ['実務で使う', '言葉を、', '文脈の中で', '読む'],
+  samplesTitle: ['実際の', '文章と', '会話から', '学ぶ'],
+  selectionsTitle: ['公開中の', '書籍から、', '読む場所を', '選ぶ'],
+} as const
+
+function renderHomeHeading(
+  text: string,
+  locale: Locale,
+  phrases: readonly string[],
+) {
+  if (locale !== 'ja' || phrases.join('') !== text) return text
+  return phrases.map((phrase, index) => (
+    <span className="phrase" key={`${index}-${phrase}`}>
+      {phrase}
+    </span>
+  ))
+}
+
 /**
  * Public learning-service home. The five modes are the primary product entry
  * points; editorial samples remain a real, content-driven Read projection.
  */
 export function HomePage() {
+  const locale = useLocale()
   const strings = useStrings()
   const entries = listCatalogEntries()
   const editorialFeatures = listEditorialFeatures(entries)
@@ -37,8 +59,8 @@ export function HomePage() {
       aria-labelledby="home-title"
     >
       <div className="storefront-masthead">
-        <h1 className="page__title" id="home-title">
-          {strings.home.title}
+        <h1 className="page__title" id="home-title" aria-label={strings.home.title}>
+          {renderHomeHeading(strings.home.title, locale, JAPANESE_HOME_HEADING_PHRASES.title)}
         </h1>
         <p className="page__lead">{strings.home.lead}</p>
       </div>
@@ -55,14 +77,15 @@ export function HomePage() {
 }
 
 function LearningModes() {
+  const locale = useLocale()
   const strings = useStrings()
 
   return (
     <section className="learning-modes" aria-labelledby="learning-modes-title">
       <div className="learning-modes__intro">
         <p className="learning-modes__label">{strings.learningModes.serviceLabel}</p>
-        <h2 className="learning-modes__title" id="learning-modes-title">
-          {strings.learningModes.serviceTitle}
+        <h2 className="learning-modes__title" id="learning-modes-title" aria-label={strings.learningModes.serviceTitle}>
+          {renderHomeHeading(strings.learningModes.serviceTitle, locale, JAPANESE_HOME_HEADING_PHRASES.serviceTitle)}
         </h2>
       </div>
       <ul className="learning-modes__list">
@@ -84,6 +107,7 @@ function LearningModes() {
 }
 
 function EditorialFeatures({ features }: { features: EditorialFeature[] }) {
+  const locale = useLocale()
   const strings = useStrings()
   if (features.length === 0) return null
 
@@ -91,7 +115,9 @@ function EditorialFeatures({ features }: { features: EditorialFeature[] }) {
     <section className="storefront-features" aria-labelledby="storefront-features-title">
       <div className="storefront-section-heading">
         <p className="storefront-section-heading__label">{strings.home.featureLabel}</p>
-        <h2 id="storefront-features-title">{strings.home.featureTitle}</h2>
+        <h2 id="storefront-features-title" aria-label={strings.home.featureTitle}>
+          {renderHomeHeading(strings.home.featureTitle, locale, JAPANESE_HOME_HEADING_PHRASES.featureTitle)}
+        </h2>
       </div>
       <ol className="storefront-features__list">
         {features.map((feature, index) => (
@@ -116,6 +142,7 @@ function EditorialFeatures({ features }: { features: EditorialFeature[] }) {
 }
 
 function EditorialSamples({ samples }: { samples: HomeContentSample[] }) {
+  const locale = useLocale()
   const strings = useStrings()
   if (samples.length === 0) return null
 
@@ -123,7 +150,9 @@ function EditorialSamples({ samples }: { samples: HomeContentSample[] }) {
     <section className="storefront-samples" aria-labelledby="storefront-samples-title">
       <div className="storefront-section-heading">
         <p className="storefront-section-heading__label">{strings.home.samplesLabel}</p>
-        <h2 id="storefront-samples-title">{strings.home.samplesTitle}</h2>
+        <h2 id="storefront-samples-title" aria-label={strings.home.samplesTitle}>
+          {renderHomeHeading(strings.home.samplesTitle, locale, JAPANESE_HOME_HEADING_PHRASES.samplesTitle)}
+        </h2>
       </div>
       <div
         className="storefront-samples__viewport"
@@ -174,6 +203,7 @@ function EditorialSamples({ samples }: { samples: HomeContentSample[] }) {
 }
 
 function EditorialSelections({ selections }: { selections: EditorialSelection[] }) {
+  const locale = useLocale()
   const strings = useStrings()
   if (selections.length === 0) return null
 
@@ -181,7 +211,9 @@ function EditorialSelections({ selections }: { selections: EditorialSelection[] 
     <section className="storefront-selections" aria-labelledby="storefront-selections-title">
       <div className="storefront-section-heading">
         <p className="storefront-section-heading__label">{strings.home.selectionsLabel}</p>
-        <h2 id="storefront-selections-title">{strings.home.selectionsTitle}</h2>
+        <h2 id="storefront-selections-title" aria-label={strings.home.selectionsTitle}>
+          {renderHomeHeading(strings.home.selectionsTitle, locale, JAPANESE_HOME_HEADING_PHRASES.selectionsTitle)}
+        </h2>
       </div>
       <div className="storefront-selections__list">
         {selections.map((selection) => (
