@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { renderWithAppProviders } from '../test/appProviders'
 import { SELLER_DISCLOSURE } from '../legal-content'
+import userEvent from '@testing-library/user-event'
 import { Footer } from './Footer'
 
 describe('footer', () => {
@@ -31,5 +32,16 @@ describe('footer', () => {
     // existing footer note is preserved
     expect(screen.getByText('© ビジネス日本語ハブ')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'ビジネス日本語ハブ' })).toHaveAttribute('href', '/')
+  })
+
+  it('provides the single accessible appearance control in the footer', async () => {
+    const user = userEvent.setup()
+    renderWithAppProviders(<Footer />)
+
+    const appearance = screen.getByRole('radiogroup', { name: '外観' })
+    expect(within(appearance).getByRole('radio', { name: 'システム' })).toBeChecked()
+    expect(within(appearance).getByRole('radio', { name: 'ライト' })).toBeInTheDocument()
+    await user.click(within(appearance).getByRole('radio', { name: 'ダーク' }))
+    expect(within(appearance).getByRole('radio', { name: 'ダーク' })).toBeChecked()
   })
 })

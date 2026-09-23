@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useStrings } from '../i18n/strings'
-import { AppearanceControl } from './AppearanceControl'
 import { LanguageControl } from './LanguageControl'
 import { AccountControl } from './AccountControl'
 import { Navigation } from './Navigation'
@@ -242,7 +241,6 @@ export function Header() {
             <>
               <Navigation />
               <AccountControl open={desktopAccountOpen} onOpenChange={setDesktopAccountOpen} />
-              <AppearanceControl />
               <LanguageControl />
             </>
           )}
@@ -293,7 +291,6 @@ export function Header() {
             <div className="mobile-menu__controls">
               <LanguageControl variant="mobile" />
               <AccountControl />
-              <AppearanceControl />
             </div>
           </div>
         </div>
