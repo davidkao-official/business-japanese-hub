@@ -1,7 +1,7 @@
 -- Focused pgTAP scenarios for cross-stream selection and terminal scope.
 begin;
 
-select plan(52);
+select plan(70);
 
 insert into auth.users (id, aud, role) values
  ('50000000-0000-0000-0000-000000000300','authenticated','authenticated'),
@@ -91,6 +91,28 @@ select is((select qualified from public.plus_membership_stream_summary where sou
 select is(public.record_plus_membership_event('source-a','c307','s307-b','revoke307','50000000-0000-0000-0000-000000000307','plus_early_access_monthly','membership_revoked','2026-09-05','2026-09-01','2026-10-01'),'stale','307 terminal-only stream returns stale');
 select is((select count(*) from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000307'),0::bigint,'307 terminal-only stream creates no state');
 select is(public.record_plus_membership_event('source-a','c307','s307-c','start307c','50000000-0000-0000-0000-000000000307','plus_early_access_monthly','membership_started','2026-09-10','2026-09-10','2026-10-10'),'applied','307 later unrelated confirmed start selects');
+
+-- Superseded stream events cannot regain selection authority from later event clocks.
+select is(public.record_plus_membership_event('source-a','c308','s308-a','start308a','50000000-0000-0000-0000-000000000308','plus_early_access_monthly','membership_started','2026-09-10','2026-09-10','2026-10-10'),'applied','308 A start applies');
+select is(public.record_plus_membership_event('source-a','c308','s308-b','start308b','50000000-0000-0000-0000-000000000308','plus_early_access_monthly','membership_started','2026-09-20','2026-09-20','2026-10-20'),'applied','308 newer B start replaces A');
+select is(public.record_plus_membership_event('source-a','c308','s308-a','renew308a','50000000-0000-0000-0000-000000000308','plus_early_access_monthly','membership_renewed','2026-09-25','2026-09-25','2026-10-25'),'stale','308 late A renewal cannot outrank B initial start');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000308'),'s308-b','308 selected stream remains B');
+select is(public.record_plus_membership_event('source-a','c309','s309-b','start309b','50000000-0000-0000-0000-000000000309','plus_early_access_monthly','membership_started','2026-09-20','2026-09-20','2026-10-20'),'applied','309 B start arrives first');
+select is(public.record_plus_membership_event('source-a','c309','s309-a','start309a','50000000-0000-0000-0000-000000000309','plus_early_access_monthly','membership_started','2026-09-10','2026-09-10','2026-10-10'),'stale','309 older A start stays nonselected');
+select is(public.record_plus_membership_event('source-a','c309','s309-a','renew309a','50000000-0000-0000-0000-000000000309','plus_early_access_monthly','membership_renewed','2026-09-25','2026-09-25','2026-10-25'),'stale','309 later A renewal cannot outrank B initial start');
+select is((select source_subscription_id from public.plus_membership_state where user_id='50000000-0000-0000-0000-000000000309'),'s309-b','309 reverse delivery also selects B');
+
+-- Own immediate terminal evidence dominates later active facts in either delivery order.
+select is(public.record_plus_membership_event('source-a','c310','s310','start310','50000000-0000-0000-0000-000000000310','plus_early_access_monthly','membership_started','2026-09-10','2026-09-10','2026-10-10'),'applied','310 confirmed start applies');
+select is(public.record_plus_membership_event('source-a','c310','s310','revoke310','50000000-0000-0000-0000-000000000310','plus_early_access_monthly','membership_revoked','2026-09-15','2026-09-10','2026-10-10'),'applied','310 own terminal applies');
+select is(public.record_plus_membership_event('source-a','c310','s310','renew310','50000000-0000-0000-0000-000000000310','plus_early_access_monthly','membership_renewed','2026-09-20','2026-09-20','2026-10-20'),'stale','310 later renewal cannot restore terminal stream');
+select is((select membership_status from public.plus_membership_stream_summary where source_subscription_id='s310'),'revoked','310 folded summary keeps terminal state');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000310'),'revoked','310 access projection remains terminal');
+select is(public.record_plus_membership_event('source-a','c311','s311','renew311','50000000-0000-0000-0000-000000000311','plus_early_access_monthly','membership_renewed','2026-09-20','2026-09-20','2026-10-20'),'stale','311 buffered renewal has no start authority');
+select is(public.record_plus_membership_event('source-a','c311','s311','revoke311','50000000-0000-0000-0000-000000000311','plus_early_access_monthly','membership_revoked','2026-09-15','2026-09-10','2026-10-10'),'stale','311 terminal-only stream has no selected authority');
+select is(public.record_plus_membership_event('source-a','c311','s311','start311','50000000-0000-0000-0000-000000000311','plus_early_access_monthly','membership_started','2026-09-10','2026-09-10','2026-10-10'),'applied','311 delayed start folds terminal before buffered renewal');
+select is((select membership_status from public.plus_membership_stream_summary where source_subscription_id='s311'),'revoked','311 reverse delivery converges on terminal summary');
+select is((select membership_status from public.plus_membership_access where user_id='50000000-0000-0000-0000-000000000311'),'revoked','311 reverse delivery keeps access terminal');
 
 select * from finish();
 rollback;

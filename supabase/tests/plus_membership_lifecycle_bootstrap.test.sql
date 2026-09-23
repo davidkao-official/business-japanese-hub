@@ -3,7 +3,18 @@
 -- before the full migration chain; this fixture exercises the read-only guard.
 begin;
 
-select plan(10);
+select plan(12);
+
+select is(
+  (select currency || ':' || amount_minor::text || ':' || active::text from public.plus_membership_plan where plan_code='plus_early_access_monthly'),
+  'TWD:29900:true',
+  'Early Access remains TWD 299 per month and active'
+);
+select is(
+  (select currency || ':' || amount_minor::text || ':' || active::text from public.plus_membership_plan where plan_code='plus_standard_monthly'),
+  'TWD:39900:false',
+  'Standard remains TWD 399 per month and inactive until approved'
+);
 
 select lives_ok(
   $$select public.assert_plus_membership_lifecycle_bootstrap_empty()$$,

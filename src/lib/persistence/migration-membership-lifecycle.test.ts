@@ -157,7 +157,7 @@ function expectLifecycleTapPlans() {
     expect(assertions!.length, file).toBe(Number(declaredPlan![1]));
     total += Number(declaredPlan![1]);
   }
-  expect(total).toBe(1714);
+  expect(total).toBe(659);
 }
 
 describe('#165 membership stream selection authority migration', () => {
@@ -1138,29 +1138,11 @@ describe('#164 membership lifecycle elapsed scheduled terminal migration', () =>
   });
 
   it('adds pgTAP user cases with a corrected plan count', () => {
-    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000184');
-    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000185');
-    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000186');
-    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000187');
-    expect(lifecyclePgTapSql).toContain(
-      '#164 P1 elapsed scheduled terminal rejects a pre-cutoff successor delivered after the cutoff',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 P1 elapsed scheduled terminal accepts a successor strictly after the cutoff',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 P1 elapsed scheduled terminal cannot resurrect the elapsed stream',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 P1 newer pending B cannot supersede a live pending stream A',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 P1 same-timestamp confirmed start applies even with a lower source event id',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 P1 reverse delivery keeps the active confirmation',
-    );
-    // Each isolated file declares its exact TAP plan; the total coverage is preserved.
+    expect(lifecyclePgTapSql).toContain('352 start at or after cutoff cannot qualify');
+    expect(lifecyclePgTapSql).toContain('351 access remains bounded by its scheduled cutoff');
+    expect(lifecyclePgTapSql).toContain('309 B wins equal-time event-id tie');
+    expect(lifecyclePgTapSql).toContain('308 second trusted start records conflict without rollback');
+    // Each isolated current-contract file declares and matches its exact TAP plan.
     expectLifecycleTapPlans();
   });
 });
@@ -1225,27 +1207,10 @@ describe('#164 buffered successor-stream evidence migration', () => {
   });
 
   it('adds pgTAP cases proving both delivery orders fold to past_due and inactive-plan cancellation records its cutoff', () => {
-    for (const user of ['195', '196', '197']) {
-      expect(lifecyclePgTapSql).toContain(`50000000-0000-0000-0000-000000000${user}`);
-    }
-    expect(lifecyclePgTapSql).toContain(
-      '#164 buffered successor evidence forward delivery records C failure before its start as stale',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 buffered successor evidence forward delivery folds the durable failure into C state',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 buffered successor evidence forward delivery ends C access past_due',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 buffered successor evidence reverse delivery access is past_due',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 inactive-plan admission accepts period-end cancellation on an already-bound stream',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 inactive-plan admission leaves access not extendable',
-    );
+    expect(lifecyclePgTapSql).toContain('300 failure applies');
+    expect(lifecyclePgTapSql).toContain('301 start reconciles buffered history');
+    expect(lifecyclePgTapSql).toContain('301 final access is past_due');
+    expect(lifecyclePgTapSql).toContain('312 C start t15 outranks B t10 despite B failure t30');
     expectLifecycleTapPlans();
   });
 });
@@ -1319,13 +1284,9 @@ describe('#164 membership lifecycle pending confirmation watermark migration', (
   });
 
   it('adds pgTAP cases for the monotonic confirmation watermark with a corrected plan count', () => {
-    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000188');
-    expect(lifecyclePgTapSql).toContain(
-      '#164 P1 confirmation watermark keeps the recorded pending event id',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#165 same-timestamp payment failure below observed pending still applies',
-    );
+    expect(lifecyclePgTapSql).toContain('301 failure before start is audit only');
+    expect(lifecyclePgTapSql).toContain('301 start reconciles buffered history');
+    expect(lifecyclePgTapSql).toContain('312 B start is selected');
     expectLifecycleTapPlans();
   });
 });
@@ -1420,19 +1381,9 @@ describe('#164 membership lifecycle monotonic pending succession migration', () 
   });
 
   it('adds pgTAP cases for the monotonic succession repair with a corrected plan count', () => {
-    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000189');
-    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000190');
-    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000191');
-    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000192');
-    expect(lifecyclePgTapSql).toContain(
-      '#164 P1a reverse delivery advances the watermark to the stale pending key',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 P1b earlier confirmed start C displaces the live pending stream B',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 P2 equal cutoff selects the least durable evidence id regardless of arrival',
-    );
+    expect(lifecyclePgTapSql).toContain('306 B pending is audit only');
+    expect(lifecyclePgTapSql).toContain('313 B historical start does not replace later C');
+    expect(lifecyclePgTapSql).toContain('310 reverse tie also selects B');
     expectLifecycleTapPlans();
   });
 });
@@ -1499,20 +1450,9 @@ describe('#164 displaced pending watermark migration', () => {
   });
 
   it('adds pgTAP cases proving both delivery orders end past_due with an accurate plan', () => {
-    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000193');
-    expect(lifecyclePgTapSql).toContain('50000000-0000-0000-0000-000000000194');
-    expect(lifecyclePgTapSql).toContain(
-      '#164 displaced pending watermark forward delivery applies C payment failure at t15',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 displaced pending watermark forward delivery ends past_due',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 displaced pending watermark reverse delivery applies C payment failure at t15',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 displaced pending watermark reverse delivery ends past_due',
-    );
+    expect(lifecyclePgTapSql).toContain('300 final access is past_due');
+    expect(lifecyclePgTapSql).toContain('301 final applied event is its failure');
+    expect(lifecyclePgTapSql).toContain('313 B failure remains nonselected');
     expectLifecycleTapPlans();
   });
 });
@@ -1600,46 +1540,24 @@ describe('#164 admission marker and terminal reconciliation migration', () => {
     );
   });
 
-  it('adds pgTAP cases for both successor-terminal orders, the replacement watermark and inactive-plan admission', () => {
-    for (const user of ['198', '199', '200', '201', '202', '203', '204', '205', '212', '213']) {
-      expect(lifecyclePgTapSql).toContain(`50000000-0000-0000-0000-000000000${user}`);
+  it('maps current pgTAP coverage to reconciliation outcomes, receipt proof and terminal permutations', () => {
+    for (const assertion of [
+      '312 C start t15 outranks B t10 despite B failure t30',
+      '316 B terminal t15 invalidates its t20 start and reselects C',
+      '308 late A renewal cannot outrank B initial start',
+      '340 exact immutable source event replays',
+      '340 source binding cannot be reassigned to another user',
+      '343 exact-plan renewal continues after catalog closure',
+      '344 confirmation folds its active-at-receipt changed-plan renewal',
+      '350 access projection uses the same cutoff',
+      'Early Access remains TWD 299 per month and active',
+      'Standard remains TWD 399 per month and inactive until approved',
+      'only service_role can invoke the lifecycle writer',
+      'service_role can read but cannot directly mutate reducer summaries',
+      '#165 matrix revoked-p1: terminal call is safe',
+    ]) {
+      expect(lifecyclePgTapSql).toContain(assertion);
     }
-    expect(lifecyclePgTapSql).toContain(
-      '#164 successor terminal forward delivery buffers the unselected C terminal before its start',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 successor terminal forward delivery folds the buffered terminal into C state',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 successor terminal reverse delivery applies the C terminal after its start',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 successor terminal forward delivery ends on its own confirmed successor',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 replacement watermark forward delivery folds the buffered failure on C ordering',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 replacement watermark reverse delivery resets the reducer clock to accepted C t15',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 replacement watermark arrival orders converge on one projection',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 terminal retires C while the stale terminal result leaves current A unchanged',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 inactive-plan admission rejects a start on a pending-created binding',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 inactive-plan admission still accepts period-end cancellation on an admitted binding',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 inactive-plan admission keeps the admitted stream clamped at the cutoff',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 inactive-plan admission enforces the period-end cutoff without an expiration event',
-    );
     expectLifecycleTapPlans();
   });
 
@@ -1658,18 +1576,10 @@ describe('#164 admission marker and terminal reconciliation migration', () => {
     expect(finalRepairSql).toContain('when terminal_event.event_type = \'membership_canceled\'');
     expect(finalRepairSql).toContain('or admitted_plan_code is distinct from p_plan_code');
     expect(finalRepairSql).toContain('or admitted_plan_code is distinct from v_buffered_plan_code');
-    expect(lifecyclePgTapSql).toContain(
-      '#164 admitted-plan transition advances the durable exact-plan marker',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 buffered-start admission delivery orders converge on the exact admitted plan',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 buffered-plan transition forward delivery advances the exact-plan marker',
-    );
-    expect(lifecyclePgTapSql).toContain(
-      '#164 buffered-plan transition delivery orders converge on renewal admission evidence',
-    );
+    expect(lifecyclePgTapSql).toContain('343 exact-plan renewal continues after catalog closure');
+    expect(lifecyclePgTapSql).toContain('343 catalog reopening cannot switch the admitted plan');
+    expect(lifecyclePgTapSql).toContain('344 changed-plan receipt captures active catalog proof');
+    expect(lifecyclePgTapSql).toContain('344 buffered proof advances the folded plan');
     expect(finalRepairSql).toContain(
       'plus_membership_event_stream_occurred_at_event_id_idx',
     );

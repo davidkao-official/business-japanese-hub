@@ -1,7 +1,7 @@
 -- Focused pgTAP scenarios for reducer and audit fold.
 begin;
 
-select plan(17);
+select plan(19);
 
 insert into auth.users (id, aud, role) values
  ('50000000-0000-0000-0000-000000000300','authenticated','authenticated'),
@@ -33,6 +33,19 @@ select isnt(has_table_privilege('anon','public.plus_membership_stream_summary','
 select isnt(has_table_privilege('authenticated','public.plus_membership_stream_summary','select'),true,'authenticated cannot read stream summaries');
 select isnt(has_function_privilege('service_role','public.recompute_plus_membership_stream(text,text,text)','execute'),true,'service_role cannot call the internal stream fold directly');
 select isnt(has_function_privilege('service_role','public.project_plus_membership_user(uuid)','execute'),true,'service_role cannot call the internal projection helper directly');
+select ok(
+  has_function_privilege('service_role','public.record_plus_membership_event(text,text,text,text,uuid,text,text,timestamp with time zone,timestamp with time zone,timestamp with time zone,boolean,jsonb)','execute')
+  and not has_function_privilege('anon','public.record_plus_membership_event(text,text,text,text,uuid,text,text,timestamp with time zone,timestamp with time zone,timestamp with time zone,boolean,jsonb)','execute')
+  and not has_function_privilege('authenticated','public.record_plus_membership_event(text,text,text,text,uuid,text,text,timestamp with time zone,timestamp with time zone,timestamp with time zone,boolean,jsonb)','execute'),
+  'only service_role can invoke the lifecycle writer'
+);
+select ok(
+  has_table_privilege('service_role','public.plus_membership_stream_summary','select')
+  and not has_table_privilege('service_role','public.plus_membership_stream_summary','insert')
+  and not has_table_privilege('service_role','public.plus_membership_stream_summary','update')
+  and not has_table_privilege('service_role','public.plus_membership_stream_summary','delete'),
+  'service_role can read but cannot directly mutate reducer summaries'
+);
 
 -- Renewal and payment failure fold identically when delivered in either order.
 select is(public.record_plus_membership_event('source-a','c300','s300','start300','50000000-0000-0000-0000-000000000300','plus_early_access_monthly','membership_started','2026-09-01','2026-09-01','2026-10-01'),'applied','300 start changes selected projection');
