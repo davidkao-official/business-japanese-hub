@@ -259,7 +259,7 @@ describe('My Learning page', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'My Learning 是 Plus 會員學習紀錄' })).toBeInTheDocument())
     expect(screen.getByRole('link', { name: '了解 Plus' })).toHaveAttribute('href', '/plus')
-    expect(screen.queryByRole('heading', { name: '學習紀錄暫時無法取得' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Practice 作答暫時無法取得' })).not.toBeInTheDocument()
   })
 
   it('shows the endpoint signed-out state when auth still has a cached user', async () => {
@@ -271,7 +271,7 @@ describe('My Learning page', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { name: '登入後查看你的學習紀錄' })).toBeInTheDocument())
     expect(screen.getByRole('link', { name: '前往 Web Test 練習入口' })).toHaveAttribute('href', '/practice/web-test')
-    expect(screen.queryByRole('heading', { name: '學習紀錄暫時無法取得' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Practice 作答暫時無法取得' })).not.toBeInTheDocument()
   })
 
   it('renders membership and endpoint failures as truthful recovery states', async () => {
@@ -290,7 +290,7 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
     await waitFor(() => expect(fetchSnapshot).toHaveBeenCalled())
-    await waitFor(() => expect(screen.getByRole('heading', { name: '學習紀錄暫時無法取得' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Practice 作答暫時無法取得' })).toBeInTheDocument())
     expect(fetchSnapshot).toHaveBeenCalled()
   })
 
@@ -327,7 +327,7 @@ describe('My Learning page', () => {
       session: { id: 'member-1', email: 'member@example.com' },
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
-    expect(await screen.findByRole('heading', { name: '學習紀錄暫時無法取得' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Practice 作答暫時無法取得' })).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: sampleReadingItem.title })).toHaveAttribute('href', `/read/${sampleReadingItem.slug}`)
   })
 
