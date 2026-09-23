@@ -157,10 +157,12 @@ function ReadingSavesSection({
     try {
       const result = await deleteSave(itemId, getAccessToken, ownerId, controller.signal)
       if (controller.signal.aborted) return
-      if (result.kind === 'ok') setState((current) => current.kind === 'ready'
-        ? { kind: 'ready', items: current.items.filter((item) => item.itemId !== itemId) }
-        : current)
-      else setState({ kind: 'unavailable', result })
+      if (result.kind === 'ok') {
+        setState({ kind: 'loading' })
+        const refreshed = await fetchSaves(getAccessToken, ownerId, controller.signal)
+        if (controller.signal.aborted) return
+        setState(refreshed.kind === 'ok' ? { kind: 'ready', items: refreshed.items } : { kind: 'unavailable', result: refreshed })
+      } else setState({ kind: 'unavailable', result })
     } catch {
       if (!controller.signal.aborted) setState({ kind: 'unavailable' })
     } finally {

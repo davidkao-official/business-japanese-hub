@@ -300,7 +300,9 @@ describe('My Learning page', () => {
       { itemId: sampleReadingItem.id, revision: null, savedAt: '2026-09-19T10:00:00.000Z' },
       { itemId: staleId, revision: 'a'.repeat(64), savedAt: '2026-09-18T10:00:00.000Z' },
     ]
-    const fetchSaves = vi.fn(async () => ({ kind: 'ok' as const, items }))
+    const fetchSaves = vi.fn()
+      .mockResolvedValueOnce({ kind: 'ok' as const, items })
+      .mockResolvedValueOnce({ kind: 'ok' as const, items: items.slice(0, 1) })
     const deleteSave = vi.fn(async () => ({ kind: 'ok' as const }))
     renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'ok', snapshot: snapshot() })} fetchSaves={fetchSaves} deleteSave={deleteSave} />, {
       session: { id: 'member-1', email: 'member@example.com' },
@@ -315,6 +317,31 @@ describe('My Learning page', () => {
     fireEvent.click(removeButtons[1]!)
     await waitFor(() => expect(deleteSave).toHaveBeenCalledWith(staleId, expect.any(Function), 'member-1', expect.any(AbortSignal)))
     await waitFor(() => expect(screen.queryByText('目前無法安全開啟這筆已儲存項目。')).not.toBeInTheDocument())
+  })
+
+  it('refetches the capped list after removal so the next older save appears', async () => {
+    const firstPage = Array.from({ length: 50 }, (_, index) => ({
+      itemId: `retired-reading-${index}`,
+      revision: 'c'.repeat(64),
+      savedAt: '2026-09-20T10:00:00.000Z',
+    }))
+    const nextPage = [
+      ...firstPage.slice(1),
+      { itemId: sampleReadingItem.id, revision: null, savedAt: '2026-08-01T10:00:00.000Z' },
+    ]
+    const fetchSaves = vi.fn()
+      .mockResolvedValueOnce({ kind: 'ok' as const, items: firstPage })
+      .mockResolvedValueOnce({ kind: 'ok' as const, items: nextPage })
+    const deleteSave = vi.fn().mockResolvedValue({ kind: 'ok' as const })
+    renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'ok', snapshot: snapshot() })} fetchSaves={fetchSaves} deleteSave={deleteSave} />, {
+      session: { id: 'member-1', email: 'member@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+    expect(await screen.findAllByText('目前無法安全開啟這筆已儲存項目。')).toHaveLength(50)
+    fireEvent.click(screen.getAllByRole('button', { name: '移除' })[0]!)
+    expect(await screen.findByRole('link', { name: sampleReadingItem.title })).toHaveAttribute('href', `/read/${sampleReadingItem.slug}`)
+    expect(fetchSaves).toHaveBeenCalledTimes(2)
+    expect(deleteSave).toHaveBeenCalledWith('retired-reading-0', expect.any(Function), 'member-1', expect.any(AbortSignal))
   })
 
   it('keeps Reading saves visible when the Practice evidence request fails', async () => {

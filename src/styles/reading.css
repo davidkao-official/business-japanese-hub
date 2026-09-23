@@ -27,7 +27,7 @@
 .reading-save p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); }
 .reading-save__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .reading-save__button {
-  min-height: 2.5rem;
+  min-height: var(--control-min-h);
   padding: 0.5rem 0.85rem;
   border: 1px solid var(--color-accent);
   border-radius: 999px;
