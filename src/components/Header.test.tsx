@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { renderWithAppProviders } from '../test/appProviders'
@@ -100,6 +101,26 @@ describe('Header mobile navigation', () => {
     const selectedOption = screen.getByRole('menuitemradio', { name: '日本語' })
     fireEvent.blur(selectedOption, { relatedTarget: screen.getByRole('button', { name: 'Outside header' }) })
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
+  it('closes on Shift+Tab back to the trigger and handles Escape from the trigger', async () => {
+    const user = userEvent.setup()
+    renderWithAppProviders(<Header />)
+    const trigger = screen.getByRole('button', { name: /表示言語/ })
+
+    fireEvent.click(trigger)
+    expect(screen.getByRole('menuitemradio', { name: '日本語' })).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(trigger).toHaveFocus()
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(trigger)
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    fireEvent.keyDown(trigger, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    expect(trigger).toHaveFocus()
   })
 
   it('offers touch-sized native language choices inside the existing mobile dialog', () => {

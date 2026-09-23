@@ -1370,6 +1370,7 @@ const zhCN: AppStrings = {
     samplesLabel: '表达示例', samplesTitle: '从真实句子与对话开始学习',
     selectionsLabel: '精选书籍', selectionsTitle: '从已发布的书籍中找到阅读起点',
   },
+  footer: { note: '© 商务日语中心' },
   learningModes: {
     ...zhTW.learningModes,
     navigationLabel: '学习模式', serviceLabel: '学习服务', serviceTitle: '选择下一步适合的学习模式',

@@ -101,6 +101,10 @@ describe('i18n', () => {
     }
   })
 
+  it('uses the Simplified Chinese product name in the footer note', () => {
+    expect(getStrings('zh-CN').footer.note).toBe('© 商务日语中心')
+  })
+
   it('implements the legal section fully in every locale', () => {
     for (const locale of SUPPORTED_LOCALES) {
       const legalLeaves = collectStringLeaves(getStrings(locale).legal)

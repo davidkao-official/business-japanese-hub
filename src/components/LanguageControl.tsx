@@ -64,6 +64,12 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
         onKeyDown={(event) => {
+          if (event.key === 'Escape' && open) {
+            event.preventDefault()
+            setOpen(false)
+            triggerRef.current?.focus()
+            return
+          }
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault()
             setOpen(true)
@@ -81,7 +87,13 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
           aria-label={strings.language.label}
           tabIndex={-1}
           onBlur={(event) => {
-            if (!rootRef.current?.contains(event.relatedTarget as Node | null)) setOpen(false)
+            const nextTarget = event.relatedTarget
+            if (
+              nextTarget === triggerRef.current ||
+              !(nextTarget instanceof Node && rootRef.current?.contains(nextTarget))
+            ) {
+              setOpen(false)
+            }
           }}
           onKeyDown={(event) => {
             if (event.key === 'Escape') {
