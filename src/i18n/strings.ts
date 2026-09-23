@@ -48,6 +48,20 @@ export interface AppStrings {
     notDated: string
     backToRead: string
     unavailable: string
+    saveLabel: string
+    saveSignIn: string
+    savePlusRequired: string
+    saveCheckingMembership: string
+    saveLoading: string
+    saveReady: string
+    saveSaved: string
+    saveStale: string
+    saveUnavailable: string
+    saveRetry: string
+    saveAction: string
+    removeSave: string
+    saveCurrentVersion: string
+    saveWorking: string
   }
   app: {
     name: string
@@ -411,6 +425,10 @@ const ja: AppStrings = {
     browseBooks: '書籍一覧を見る', openReader: 'Reader で読む', openArticle: '記事を読む', free: 'Free', plus: 'Plus',
     sampleLabel: '著作権上問題のないオリジナル教材サンプル', notDated: '公開日なし',
     backToRead: 'Reading 一覧へ戻る', unavailable: '記事を読み込めませんでした。時間をおいて再度お試しください。',
+    saveLabel: '保存した記事', saveSignIn: '保存するにはログインしてください。', savePlusRequired: '記事の保存は Plus 会員向けです。',
+    saveCheckingMembership: '会員状態を確認しています。', saveLoading: '保存状態を確認しています。', saveReady: 'この記事を保存できます。',
+    saveSaved: 'この記事を保存しました。', saveStale: '保存した版は現在公開されていません。', saveUnavailable: '保存状態を確認できません。',
+    saveRetry: '再試行', saveAction: 'この記事を保存', removeSave: '保存を解除', saveCurrentVersion: '現在の版を保存', saveWorking: '処理中…',
   },
   app: {
     name: 'ビジネス日本語ハブ',
@@ -789,6 +807,10 @@ const en: AppStrings = {
     browseBooks: 'Browse books', openReader: 'Read in Reader', openArticle: 'Read article', free: 'Free', plus: 'Plus',
     sampleLabel: 'Original teaching sample, created for this service', notDated: 'No publication date',
     backToRead: 'Back to Reading', unavailable: 'The article could not be loaded. Please try again later.',
+    saveLabel: 'Saved article', saveSignIn: 'Sign in to save this article.', savePlusRequired: 'Saving articles is available to Plus members.',
+    saveCheckingMembership: 'Checking membership status.', saveLoading: 'Checking saved status.', saveReady: 'You can save this article.',
+    saveSaved: 'This article is saved.', saveStale: 'The saved version is no longer published.', saveUnavailable: 'Saved status is unavailable.',
+    saveRetry: 'Try again', saveAction: 'Save article', removeSave: 'Remove saved article', saveCurrentVersion: 'Save current version', saveWorking: 'Working…',
   },
   app: {
     name: 'Business Japanese Hub',
@@ -1167,6 +1189,10 @@ const zhTW: AppStrings = {
     browseBooks: '瀏覽書籍', openReader: '在 Reader 閱讀', openArticle: '閱讀文章', free: 'Free', plus: 'Plus',
     sampleLabel: '原創教學範例，內容不涉及第三方著作', notDated: '未標示發布日期',
     backToRead: '返回 Read 文章列表', unavailable: '目前無法載入文章，請稍後再試。',
+    saveLabel: '已儲存的文章', saveSignIn: '登入後即可儲存文章。', savePlusRequired: '儲存文章提供給 Plus 會員使用。',
+    saveCheckingMembership: '正在確認會員狀態。', saveLoading: '正在確認儲存狀態。', saveReady: '可以儲存這篇文章。',
+    saveSaved: '已儲存這篇文章。', saveStale: '先前儲存的版本已不再公開。', saveUnavailable: '目前無法確認儲存狀態。',
+    saveRetry: '再試一次', saveAction: '儲存文章', removeSave: '取消儲存', saveCurrentVersion: '儲存目前版本', saveWorking: '處理中…',
   },
   app: {
     name: '商務日語中心',
@@ -1545,6 +1571,10 @@ const zhCN: AppStrings = {
     davidCommentary: 'David 观点', booksTitle: '书籍与长篇阅读', booksBody: '想循序阅读较长的主题，可前往书籍目录与 Reader。',
     browseBooks: '浏览书籍', openReader: '在 Reader 阅读', openArticle: '阅读文章', sampleLabel: '原创教学示例，不涉及第三方作品', notDated: '未标注发布日期',
     backToRead: '返回 Read 文章列表', unavailable: '目前无法加载文章，请稍后再试。',
+    saveLabel: '已保存的文章', saveSignIn: '登录后即可保存文章。', savePlusRequired: '保存文章提供给 Plus 会员使用。',
+    saveCheckingMembership: '正在确认会员状态。', saveLoading: '正在确认保存状态。', saveReady: '可以保存这篇文章。',
+    saveSaved: '已保存这篇文章。', saveStale: '先前保存的版本已不再公开。', saveUnavailable: '目前无法确认保存状态。',
+    saveRetry: '再试一次', saveAction: '保存文章', removeSave: '取消保存', saveCurrentVersion: '保存当前版本', saveWorking: '处理中…',
   },
   app: { name: '商务日语中心', tagline: '学习商务日语的平台' },
   nav: {

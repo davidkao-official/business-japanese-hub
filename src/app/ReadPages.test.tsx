@@ -3,6 +3,7 @@ import { Link, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import type { PlusMembershipAccessRepository } from '../lib/membership/access'
 import type { ReadingFetchResult } from '../reading/client'
+import type { ReadingSaveResult, ReadingSaveMutationResult } from '../reading/savesClient'
 import { readingCatalog } from '../reading/catalog'
 import { sampleReadingItem } from '../reading/fixtures/sample-reading'
 import { toReadingCatalogEntry } from '../reading/validate'
@@ -31,11 +32,14 @@ function routeSet(
   entries: readonly ReadingCatalogEntry[] = readingCatalog,
   loadPayload?: (entry: ReadingCatalogEntry, getToken: () => Promise<string | null>, userId: string, signal?: AbortSignal) => Promise<ReadingFetchResult>,
   publicItems?: readonly ReadingRuntimeItem[],
+  saveLoad?: (itemId: string, getToken: () => Promise<string | null>, userId: string, signal?: AbortSignal) => Promise<ReadingSaveResult>,
+  saveWrite?: (itemId: string, revision: string | null, getToken: () => Promise<string | null>, userId: string, signal?: AbortSignal) => Promise<ReadingSaveMutationResult>,
+  saveDelete?: (itemId: string, getToken: () => Promise<string | null>, userId: string, signal?: AbortSignal) => Promise<ReadingSaveMutationResult>,
 ) {
   return (
     <Routes>
       <Route path="/read" element={<ReadLandingPage />} />
-      <Route path="/read/:slug" element={<ReadDetailPage catalogEntries={entries} loadPayload={loadPayload} publicItems={publicItems} />} />
+      <Route path="/read/:slug" element={<ReadDetailPage catalogEntries={entries} loadPayload={loadPayload} publicItems={publicItems} loadSave={saveLoad} writeSave={saveWrite} deleteSave={saveDelete} />} />
       <Route path="/learn/:slug" element={<p>Actual Learn route</p>} />
       <Route path="/books/:slug" element={<p>Book detail route</p>} />
       <Route path="*" element={<p>404 fallback</p>} />
@@ -228,5 +232,83 @@ describe('Business Reading surfaces', () => {
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2))
     expect(screen.getByRole('heading', { name: plusItem.title })).toBeInTheDocument()
     expect(screen.queryByText(plusItem.japaneseMaterial.text)).not.toBeInTheDocument()
+  })
+
+  it('saves, reports saved, and removes the original free sample for an active member', async () => {
+    let stored: { itemId: string; revision: string | null; savedAt: string } | null = null
+    const loadSave = vi.fn(async () => ({ kind: 'ok' as const, save: stored }))
+    const writeSave = vi.fn(async (savedItemId: string, savedRevision: string | null) => {
+      stored = { itemId: savedItemId, revision: savedRevision, savedAt: '2026-09-20T12:00:00.000Z' }
+      return { kind: 'ok' as const }
+    })
+    const deleteSave = vi.fn(async () => { stored = null; return { kind: 'ok' as const } })
+    renderWithAppProviders(routeSet(readingCatalog, undefined, undefined, loadSave, writeSave, deleteSave), {
+      session: { id: 'member-save', email: 'reader@example.com' },
+      membershipAccessRepository: membership('active'),
+      initialEntries: ['/read/sample-internal-proposal'],
+    })
+    expect(await screen.findByRole('button', { name: 'この記事を保存' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'この記事を保存' }))
+    expect(await screen.findByText('この記事を保存しました。')).toBeInTheDocument()
+    expect(writeSave).toHaveBeenCalledWith(sampleReadingItem.id, null, expect.any(Function), 'member-save')
+    fireEvent.click(screen.getByRole('button', { name: '保存を解除' }))
+    await waitFor(() => expect(loadSave).toHaveBeenCalledTimes(3))
+    expect(screen.getByText('この記事を保存できます。')).toBeInTheDocument()
+    expect(deleteSave).toHaveBeenCalledWith(sampleReadingItem.id, expect.any(Function), 'member-save')
+  })
+
+  it('keeps a stale saved Plus revision discoverable and removable without offering it as current', async () => {
+    const staleSave = { itemId: plusItem.id, revision: 'a'.repeat(64), savedAt: '2026-09-01T00:00:00.000Z' }
+    const loadSave = vi.fn(async () => ({ kind: 'ok' as const, save: staleSave }))
+    const writeSave = vi.fn(async () => ({ kind: 'ok' as const }))
+    const deleteSave = vi.fn(async () => ({ kind: 'ok' as const }))
+    const retiredEntry = { ...plusEntry, releaseReference: undefined }
+    renderWithAppProviders(routeSet([retiredEntry], async () => ({ kind: 'unavailable' }), undefined, loadSave, writeSave, deleteSave), {
+      session: { id: 'member-stale', email: 'reader@example.com' },
+      membershipAccessRepository: membership('active'),
+      initialEntries: ['/read/synthetic-plus'],
+    })
+    expect(await screen.findByText('保存した版は現在公開されていません。')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'この記事を保存' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '保存を解除' }))
+    await waitFor(() => expect(deleteSave).toHaveBeenCalledTimes(1))
+    expect(writeSave).not.toHaveBeenCalled()
+  })
+
+  it('does not carry save state across accounts and reloads on same-user reentry', async () => {
+    const loadSave = vi.fn(async (_itemId: string, _token: () => Promise<string | null>, userId: string) => ({
+      kind: 'ok' as const,
+      save: userId === 'member-one' ? { itemId: sampleReadingItem.id, revision: null, savedAt: '2026-09-01T00:00:00.000Z' } : null,
+    }))
+    const rendered = renderWithAppProviders(routeSet(readingCatalog, undefined, undefined, loadSave), {
+      session: { id: 'member-one', email: 'reader@example.com' },
+      membershipAccessRepository: membership('active'),
+      initialEntries: ['/read/sample-internal-proposal'],
+    })
+    expect(await screen.findByText('この記事を保存しました。')).toBeInTheDocument()
+    rendered.authClient.emitAuthStateChange({ id: 'member-two', email: 'reader@example.com' })
+    expect(await screen.findByText('この記事を保存できます。')).toBeInTheDocument()
+    rendered.authClient.emitAuthStateChange(null)
+    expect(await screen.findByText('保存するにはログインしてください。')).toBeInTheDocument()
+    rendered.authClient.emitAuthStateChange({ id: 'member-one', email: 'reader@example.com' })
+    await waitFor(() => expect(loadSave).toHaveBeenCalledTimes(3))
+    expect(await screen.findByText('この記事を保存しました。')).toBeInTheDocument()
+  })
+
+  it('shows lookup failure and retries the exact item lookup', async () => {
+    const loadSave = vi.fn()
+      .mockResolvedValueOnce({ kind: 'unavailable' as const })
+      .mockResolvedValueOnce({ kind: 'ok' as const, save: null })
+    renderWithAppProviders(routeSet(readingCatalog, undefined, undefined, loadSave), {
+      session: { id: 'member-retry', email: 'reader@example.com' },
+      membershipAccessRepository: membership('active'),
+      initialEntries: ['/read/sample-internal-proposal'],
+    })
+    expect(await screen.findByText('保存状態を確認できません。')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '再試行' }))
+    expect(await screen.findByText('この記事を保存できます。')).toBeInTheDocument()
+    expect(loadSave).toHaveBeenCalledTimes(2)
+    expect(loadSave.mock.calls[0]?.[0]).toBe(sampleReadingItem.id)
+    expect(loadSave.mock.calls[1]?.[0]).toBe(sampleReadingItem.id)
   })
 })

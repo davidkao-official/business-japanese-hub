@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '@business-japanese-hub/platform-auth'
 import { PlusAccessBoundary } from '../components/PlusAccessBoundary'
@@ -6,6 +6,8 @@ import { useStrings } from '../i18n/strings'
 import { useMembershipAccess } from '../lib/membership/MembershipAccessContext'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { fetchReadingPayload } from '../reading/client'
+import { fetchReadingSave, removeReadingSave, saveReadingItem } from '../reading/savesClient'
+import type { ReadingSave, ReadingSaveError, ReadingSaveMutationResult, ReadingSaveResult } from '../reading/savesClient'
 import { readingCatalog } from '../reading/catalog'
 import { sampleReadingItem } from '../reading/fixtures/sample-reading'
 import type { ReadingCatalogEntry, ReadingRelatedLink, ReadingRuntimeItem } from '../reading/types'
@@ -13,16 +15,25 @@ import { getLearningUnitByLearnSlug, getLearningUnitByPracticeSlug } from './lea
 import { NotFoundPage } from './NotFoundPage'
 
 type ReadingLoader = typeof fetchReadingPayload
+type SaveLoader = typeof fetchReadingSave
+type SaveWriter = typeof saveReadingItem
+type SaveRemover = typeof removeReadingSave
 type DetailState = { kind: 'unavailable' } | { kind: 'ready'; item: ReadingRuntimeItem }
 
 export function ReadDetailPage({
   catalogEntries = readingCatalog,
   publicItems = [sampleReadingItem],
   loadPayload = fetchReadingPayload,
+  loadSave = fetchReadingSave,
+  writeSave = saveReadingItem,
+  deleteSave = removeReadingSave,
 }: {
   catalogEntries?: readonly ReadingCatalogEntry[]
   publicItems?: readonly ReadingRuntimeItem[]
   loadPayload?: ReadingLoader
+  loadSave?: SaveLoader
+  writeSave?: SaveWriter
+  deleteSave?: SaveRemover
 } = {}) {
   const { slug = '' } = useParams()
   const strings = useStrings()
@@ -54,7 +65,7 @@ export function ReadDetailPage({
       {entry.access === 'plus' ? (
         <PlusAccessBoundary
           access="plus"
-          preview={<ReadingMetadata entry={entry} />}
+          preview={<><ReadingMetadata entry={entry} /><ReadingSaveControl key={`${userId}:${membershipState.kind}:${entry.id}:${entry.releaseReference?.revision ?? 'missing'}`} entry={entry} itemId={entry.id} revision={entry.releaseReference?.revision ?? null} userId={userId} membershipKind={membershipState.kind} getAccessToken={getAccessToken} loadSave={loadSave} writeSave={writeSave} deleteSave={deleteSave} canSave={Boolean(entry.releaseReference && entry.releaseReference.contentId === entry.id)} /></>}
         >
           {userId && membershipState.kind === 'active-member' && entry.releaseReference ? (
             <ActivePlusReading
@@ -63,16 +74,18 @@ export function ReadDetailPage({
               userId={userId}
               getAccessToken={getAccessToken}
               loadPayload={loadPayload}
+              saveControl={<ReadingSaveControl key={`${userId}:${membershipState.kind}:${entry.id}:${entry.releaseReference.revision}`} entry={entry} itemId={entry.id} revision={entry.releaseReference.revision} userId={userId} membershipKind={membershipState.kind} getAccessToken={getAccessToken} loadSave={loadSave} writeSave={writeSave} deleteSave={deleteSave} canSave={entry.releaseReference.contentId === entry.id} />}
             />
           ) : (
             <>
               <ReadingMetadata entry={entry} />
+              <ReadingSaveControl key={`${userId}:${membershipState.kind}:${entry.id}:${entry.releaseReference?.revision ?? 'missing'}`} entry={entry} itemId={entry.id} revision={entry.releaseReference?.revision ?? null} userId={userId} membershipKind={membershipState.kind} getAccessToken={getAccessToken} loadSave={loadSave} writeSave={writeSave} deleteSave={deleteSave} canSave={Boolean(entry.releaseReference && entry.releaseReference.contentId === entry.id)} />
               <p className="reading-loading" role="status">{strings.reading.unavailable}</p>
             </>
           )}
         </PlusAccessBoundary>
       ) : item ? (
-        <ReadingArticle item={item} />
+        <ReadingArticle item={item} saveControl={<ReadingSaveControl key={`${userId}:${membershipState.kind}:${entry.id}:free`} entry={entry} itemId={item.id} revision={null} userId={userId} membershipKind={membershipState.kind} getAccessToken={getAccessToken} loadSave={loadSave} writeSave={writeSave} deleteSave={deleteSave} canSave={item.japaneseMaterial.kind === 'original' && item.sampleLabel === 'non-proprietary-teaching-sample'} />} />
       ) : (
         <p className="reading-loading" role="status">{strings.reading.unavailable}</p>
       )}
@@ -86,11 +99,13 @@ function ActivePlusReading({
   userId,
   getAccessToken,
   loadPayload,
+  saveControl,
 }: {
   entry: ReadingCatalogEntry
   userId: string
   getAccessToken: () => Promise<string | null>
   loadPayload: ReadingLoader
+  saveControl: ReactNode
 }) {
   const strings = useStrings()
   const [detailState, setDetailState] = useState<DetailState | null>(null)
@@ -112,10 +127,11 @@ function ActivePlusReading({
     }
   }, [entry, getAccessToken, loadPayload, userId])
 
-  if (detailState?.kind === 'ready') return <ReadingArticle item={detailState.item} />
+  if (detailState?.kind === 'ready') return <ReadingArticle item={detailState.item} saveControl={saveControl} />
   return (
     <>
       <ReadingMetadata entry={entry} />
+      {saveControl}
       <p className="reading-loading" role="status">
         {detailState?.kind === 'unavailable' ? strings.reading.unavailable : strings.plus.states.checkingBody}
       </p>
@@ -139,7 +155,7 @@ function ReadingMetadata({ entry }: { entry: ReadingCatalogEntry }) {
   )
 }
 
-function ReadingArticle({ item }: { item: ReadingRuntimeItem }) {
+function ReadingArticle({ item, saveControl }: { item: ReadingRuntimeItem; saveControl?: ReactNode }) {
   const strings = useStrings()
   return (
     <article className="reading-article">
@@ -175,6 +191,8 @@ function ReadingArticle({ item }: { item: ReadingRuntimeItem }) {
           )}
         </dl>
       </header>
+
+      {saveControl}
 
       <section className="reading-material" aria-labelledby="reading-material-title">
         <h2 id="reading-material-title">{strings.reading.japaneseMaterial}</h2>
@@ -223,6 +241,101 @@ function ReadingArticle({ item }: { item: ReadingRuntimeItem }) {
 
       <RelatedReading links={item.relatedLinks} />
     </article>
+  )
+}
+
+type SaveViewState = { kind: 'loading' } | { kind: 'empty' } | { kind: 'saved'; save: ReadingSave } |
+  { kind: 'error'; error: ReadingSaveError }
+
+function ReadingSaveControl({
+  entry, itemId, revision, userId, membershipKind, getAccessToken, loadSave, writeSave, deleteSave, canSave,
+}: {
+  entry: ReadingCatalogEntry
+  itemId: string
+  revision: string | null
+  userId: string | null
+  membershipKind: string
+  getAccessToken: () => Promise<string | null>
+  loadSave: SaveLoader
+  writeSave: SaveWriter
+  deleteSave: SaveRemover
+  canSave: boolean
+}) {
+  const strings = useStrings()
+  const { retry } = useMembershipAccess()
+  const [state, setState] = useState<SaveViewState>({ kind: 'loading' })
+  const [busy, setBusy] = useState(false)
+  const eligibleMember = Boolean(userId && membershipKind === 'active-member')
+
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    if (!userId) return
+    setState({ kind: 'loading' })
+    const result: ReadingSaveResult = await loadSave(itemId, getAccessToken, userId, signal)
+    if (signal?.aborted) return
+    setState(result.kind === 'ok'
+      ? result.save ? { kind: 'saved', save: result.save } : { kind: 'empty' }
+      : { kind: 'error', error: result })
+  }, [getAccessToken, itemId, loadSave, userId])
+
+  useEffect(() => {
+    if (!eligibleMember || !userId) return
+    const controller = new AbortController()
+    void loadSave(itemId, getAccessToken, userId, controller.signal).then((result) => {
+      if (controller.signal.aborted) return
+      setState(result.kind === 'ok'
+        ? result.save ? { kind: 'saved', save: result.save } : { kind: 'empty' }
+        : { kind: 'error', error: result })
+    }).catch(() => {
+      if (!controller.signal.aborted) setState({ kind: 'error', error: { kind: 'unavailable' } })
+    })
+    return () => controller.abort()
+  }, [eligibleMember, entry.slug, itemId, revision, userId, getAccessToken, loadSave])
+
+  const act = async (remove: boolean) => {
+    if (!userId || busy) return
+    setBusy(true)
+    try {
+      const result: ReadingSaveMutationResult = remove
+        ? await deleteSave(itemId, getAccessToken, userId)
+        : canSave ? await writeSave(itemId, revision, getAccessToken, userId) : { kind: 'stale' }
+      if (result.kind === 'ok') await refresh()
+      else setState({ kind: 'error', error: result })
+    } catch {
+      setState({ kind: 'error', error: { kind: 'unavailable' } })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const stateText = () => {
+    if (membershipKind === 'checking') return strings.reading.saveCheckingMembership
+    if (membershipKind === 'signed-out' || !userId) return strings.reading.saveSignIn
+    if (membershipKind === 'non-member') return strings.reading.savePlusRequired
+    if (membershipKind === 'unavailable') return strings.reading.saveUnavailable
+    if (state.kind === 'loading') return strings.reading.saveLoading
+    if (state.kind === 'error') {
+      if (state.error.kind === 'forbidden') return strings.reading.savePlusRequired
+      if (state.error.kind === 'signed-out') return strings.reading.saveSignIn
+      if (state.error.kind === 'stale') return strings.reading.saveStale
+      return strings.reading.saveUnavailable
+    }
+    if (state.kind === 'saved' && state.save.revision !== revision) return strings.reading.saveStale
+    return state.kind === 'saved' ? strings.reading.saveSaved : strings.reading.saveReady
+  }
+  const stale = state.kind === 'saved' && state.save.revision !== revision
+  const active = eligibleMember && state.kind !== 'loading' && state.kind !== 'error'
+
+  return (
+    <aside className="reading-save" aria-label={strings.reading.saveLabel}>
+      <p role="status">{stateText()}</p>
+      {eligibleMember && state.kind === 'error' && <button type="button" className="reading-save__button" onClick={() => { void refresh().catch(() => setState({ kind: 'error', error: { kind: 'unavailable' } })) }}>{strings.reading.saveRetry}</button>}
+      {membershipKind === 'unavailable' && <button type="button" className="reading-save__button" onClick={retry}>{strings.reading.saveRetry}</button>}
+      {active && state.kind === 'empty' && canSave && <button type="button" className="reading-save__button" disabled={busy} onClick={() => void act(false)}>{busy ? strings.reading.saveWorking : strings.reading.saveAction}</button>}
+      {active && state.kind === 'saved' && <div className="reading-save__actions">
+        {stale && canSave && <button type="button" className="reading-save__button" disabled={busy} onClick={() => void act(false)}>{strings.reading.saveCurrentVersion}</button>}
+        <button type="button" className="reading-save__button reading-save__button--quiet" disabled={busy} onClick={() => void act(true)}>{busy ? strings.reading.saveWorking : strings.reading.removeSave}</button>
+      </div>}
+    </aside>
   )
 }
 
