@@ -9,6 +9,7 @@ const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:
 export type ReadingSave = { itemId: string; revision: string | null; savedAt: string }
 export type ReadingSaveError = { kind: 'signed-out' | 'forbidden' | 'stale' | 'unavailable' }
 export type ReadingSaveResult = { kind: 'ok'; save: ReadingSave | null } | ReadingSaveError
+export type ReadingSavesResult = { kind: 'ok'; items: ReadingSave[] } | ReadingSaveError
 export type ReadingSaveMutationResult = { kind: 'ok' } | ReadingSaveError
 
 function functionsBaseUrl(): string | null {
@@ -29,7 +30,7 @@ function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): 
 
 function validSave(value: unknown, expectedItemId: string): ReadingSave | null {
   if (!record(value) || !hasExactKeys(value, ['itemId', 'revision', 'savedAt']) ||
-    value.itemId !== expectedItemId ||
+    !ITEM_ID.test(expectedItemId) || value.itemId !== expectedItemId ||
     !(value.revision === null || (typeof value.revision === 'string' && REVISION.test(value.revision))) ||
     typeof value.savedAt !== 'string' || !TIMESTAMP.test(value.savedAt) || !Number.isFinite(Date.parse(value.savedAt))) return null
   return { itemId: value.itemId, revision: value.revision, savedAt: value.savedAt }
@@ -68,14 +69,14 @@ type ApiResponse =
   | { kind: 'status'; status: 401 | 403 | 409 | 'unavailable' }
 
 async function send(
-  itemId: string,
+  itemId: string | null,
   method: 'GET' | 'PUT' | 'DELETE',
   getAccessToken: () => Promise<string | null>,
   expectedUserId: string,
   signal?: AbortSignal,
   revision?: string | null,
 ): Promise<ApiResponse> {
-  if (!ITEM_ID.test(itemId) || !expectedUserId || signal?.aborted) return { kind: 'status', status: 'unavailable' }
+  if ((itemId !== null && !ITEM_ID.test(itemId)) || (method !== 'GET' && itemId === null) || !expectedUserId || signal?.aborted) return { kind: 'status', status: 'unavailable' }
   const base = functionsBaseUrl()
   if (!base) return { kind: 'status', status: 'unavailable' }
   const controller = new AbortController()
@@ -90,7 +91,7 @@ async function send(
       timeout.cancel()
       return { kind: 'status', status: 'unavailable' }
     }
-    const url = `${base}/reading-saves${method === 'GET' ? `?itemId=${encodeURIComponent(itemId)}` : ''}`
+    const url = `${base}/reading-saves${method === 'GET' && itemId !== null ? `?itemId=${encodeURIComponent(itemId)}` : ''}`
     const body = method === 'PUT'
       ? JSON.stringify({ itemId, revision })
       : method === 'DELETE'
@@ -144,6 +145,34 @@ export async function fetchReadingSave(
     if (raw.items.length === 0) return { kind: 'ok', save: null }
     const save = validSave(raw.items[0], itemId)
     return save ? { kind: 'ok', save } : { kind: 'unavailable' }
+  } catch {
+    return { kind: 'unavailable' }
+  } finally {
+    sent.finish()
+  }
+}
+
+/** Reads the server-bounded recent list for My Learning. */
+export async function fetchReadingSaves(
+  getAccessToken: () => Promise<string | null>,
+  expectedUserId: string,
+  signal?: AbortSignal,
+): Promise<ReadingSavesResult> {
+  const sent = await send(null, 'GET', getAccessToken, expectedUserId, signal)
+  if (sent.kind === 'status') return resultForStatus(sent.status)
+  try {
+    const raw: unknown = await Promise.race([sent.response.json() as Promise<unknown>, sent.timeout])
+    if (!record(raw) || !hasExactKeys(raw, ['items']) || !Array.isArray(raw.items) || raw.items.length > 50) return { kind: 'unavailable' }
+    const items: ReadingSave[] = []
+    const seen = new Set<string>()
+    for (const value of raw.items) {
+      if (!record(value) || typeof value.itemId !== 'string') return { kind: 'unavailable' }
+      const save = validSave(value, value.itemId)
+      if (!save || seen.has(save.itemId)) return { kind: 'unavailable' }
+      seen.add(save.itemId)
+      items.push(save)
+    }
+    return { kind: 'ok', items }
   } catch {
     return { kind: 'unavailable' }
   } finally {

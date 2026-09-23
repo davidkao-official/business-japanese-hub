@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { fetchReadingSave, removeReadingSave, saveReadingItem } from './savesClient'
+import { fetchReadingSave, fetchReadingSaves, removeReadingSave, saveReadingItem } from './savesClient'
 
 const userId = 'reader-1'
 const itemId = 'reading:one'
@@ -65,5 +65,23 @@ describe('reading saves browser client', () => {
     expect(await fetchReadingSave(itemId, getToken, userId)).toEqual({ kind: 'signed-out' })
     expect(await saveReadingItem(itemId, revision, getToken, userId)).toEqual({ kind: 'forbidden' })
     expect(await saveReadingItem(itemId, revision, getToken, userId)).toEqual({ kind: 'stale' })
+  })
+
+  it('loads the owner-bound recent list without a query and enforces its 50-row bound', async () => {
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.example/functions/v1')
+    const items = Array.from({ length: 50 }, (_, index) => ({ itemId: `reading-${index}`, revision: null, savedAt }))
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response({ items }))
+      .mockResolvedValueOnce(response({ items: [...items, { itemId: 'reading-extra', revision: null, savedAt }] }))
+      .mockResolvedValueOnce(response({ items: [{ itemId: 'invalid/id', revision: null, savedAt }] }))
+    vi.stubGlobal('fetch', fetchMock)
+    const getToken = async () => token()
+
+    const result = await fetchReadingSaves(getToken, userId)
+    expect(result).toEqual({ kind: 'ok', items })
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('https://edge.example/functions/v1/reading-saves')
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).cache).toBe('no-store')
+    expect(await fetchReadingSaves(getToken, userId)).toEqual({ kind: 'unavailable' })
+    expect(await fetchReadingSaves(getToken, userId)).toEqual({ kind: 'unavailable' })
   })
 })
