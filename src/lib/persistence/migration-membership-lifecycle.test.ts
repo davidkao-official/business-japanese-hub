@@ -129,6 +129,13 @@ const reconciliationSql = readFileSync(
   ),
   'utf8',
 );
+const legacyStartGuardSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260923040000_plus_membership_legacy_start_guard.sql',
+  ),
+  'utf8',
+);
 const lifecyclePgTapFiles = readdirSync(join(process.cwd(), 'supabase/tests'))
   .filter((file) => /^plus_membership_(?:lifecycle(?:_[a-z_]+)?|access_effective_start)\.test\.sql$/.test(file))
   .sort()
@@ -150,7 +157,7 @@ function expectLifecycleTapPlans() {
     expect(assertions!.length, file).toBe(Number(declaredPlan![1]));
     total += Number(declaredPlan![1]);
   }
-  expect(total).toBe(1695);
+  expect(total).toBe(1714);
 }
 
 describe('#165 membership stream selection authority migration', () => {
@@ -219,6 +226,22 @@ describe('#165 per-stream reconciliation successor', () => {
     expect(lifecyclePgTapSql).toContain('C start t15 outranks B start t10');
     expect(lifecyclePgTapSql).toContain('302 terminal-only B has no selection authority');
     expect(lifecyclePgTapSql).toContain('second trusted start records conflict without rollback');
+    expectLifecycleTapPlans();
+  });
+});
+
+describe('#165 legacy initial-start ambiguity guard', () => {
+  it('withholds candidate proof when unknown historical starts exist', () => {
+    expect(legacyStartGuardSql).toContain('v_legacy_start_exists boolean');
+    expect(legacyStartGuardSql).toContain('and reducer_version is null');
+    expect(legacyStartGuardSql).toContain('not v_legacy_start_exists');
+    expect(legacyStartGuardSql).toContain('create or replace function public.assert_plus_membership_lifecycle_bootstrap_empty');
+    expect(legacyStartGuardSql).toContain('Plus membership lifecycle bootstrap requires empty lifecycle tables');
+    expect(legacyStartGuardSql).toContain('revoke all on function public.recompute_plus_membership_stream');
+    expect(lifecyclePgTapSql).toContain('new start cannot qualify an ambiguous legacy stream');
+    expect(lifecyclePgTapSql).toContain('legacy ambiguity is not misreported as a two-new-start conflict');
+    expect(lifecyclePgTapSql).toContain('legacy event, binding, and state fail the bootstrap preflight');
+    expect(lifecyclePgTapSql).toContain('projection-only data also fails the bootstrap preflight');
     expectLifecycleTapPlans();
   });
 });

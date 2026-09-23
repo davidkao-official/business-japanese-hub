@@ -40,6 +40,9 @@ retirement markers never decide whether a delivery can be audited or selected.
 `plus_membership_stream_summary` is a server-only, per-subscription materialized fold
 rebuilt from that stream's own events. Existing rows are not backfilled into this cache;
 legacy histories without explicit reducer proof remain unqualified.
+The append-only lifecycle bootstrap guard requires event, subscription-binding,
+state, and access tables to be empty before the current reducer migrations proceed;
+the production read-only preflight must run before the first migration in that chain.
 
 A stream qualifies only with one `membership_started` event whose plan was active at
 receipt and whose paid interval extends past `greatest(occurred_at, period_start)`.

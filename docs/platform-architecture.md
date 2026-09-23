@@ -161,76 +161,63 @@ Architecture 必須保留：
 
 Recurring lifecycle / membership state / access projection 由 #107 定義。舊 one-time Book payment implementation 可以 reuse，但不能推導「每種 learning content 都需要自己的 purchase/entitlement product」。
 
-Issue #164 adds the provider-neutral server lifecycle substrate without changing
-#139's consumer seam. `plus_membership_plan` is the authoritative monthly plan
-catalog (Early Access is TWD 29900 minor units and active; Standard is TWD
-39900 minor units and intentionally inactive). `plus_membership_event` is an
-append-only normalized audit log whose stream identity is the explicit tuple
-`source_system + source_customer_id + source_subscription_id`; it is not an
-arbitrary provider/source bucket. `plus_membership_state` is the deterministic
-current-stream reducer state per user. The service-role-only
-`record_plus_membership_event` writer deduplicates source event IDs and verifies the
-full stream identity, serializes each user (acquiring the per-user advisory lock before
-the per-stream lock and any subscription row lock, so a replacement stream retiring the
-outgoing current stream cannot deadlock against a concurrent event on that outgoing
-stream), orders events within a stream by `(occurred_at, event_id)`, and permits only a
-newer canonical initial start to select a replacement stream. Each source subscription
-has one immutable initial `membership_started` identity; a conflicting second start fails
-closed, while later lifecycle changes use renewal/reactivation/restoration. Cross-stream
-selection compares initial-start `(occurred_at,event_id)` keys rather than applied,
-observed, admission, or terminal clocks. Each durable `event_id` is derived
-from length-prefixed segments, so arbitrary nonempty source identifiers cannot collide
-through `:` concatenation. A `membership_restored` event is retained as append-only
-audit evidence, but is stale after the stream is retired and does not correct terminal
-refund/reversal/dispute evidence; a distinct stream is required. Once an admitted stream
-is replaced, its late events remain audit evidence and cannot update current state or
-access. Replacement permanently retires admitted bindings; terminal evidence also
-retires its own binding. An unadmitted pending selection is provisional: displacement
-does not retire it, and later confirmation may compete against current authority. Its
-inherited predecessor selection key persists on the subscription binding across
-displacement; this key is the predecessor's canonical initial start, not a later terminal
-event. Without a predecessor, pending creates no authoritative barrier against a
-confirmed start. Terminal evidence remains scoped to its source stream even when it is
-older than the reducer's current ordering: an immediate terminal revokes that stream's
-access, and a delayed period-end cancellation clamps that stream's access at its durable
-cutoff. A distinct later-started confirmed stream may still replace the terminal stream.
-A `membership_canceled` event with
-`cancel_at_period_end = true` records an irreversible terminal cutoff at the effective
-`current_period_end`: an already admitted projection remains `active` and usable before
-that instant, but the same stream cannot start, renew, reactivate, restore, or become
-`pending` at or after it. No separate `membership_expired` event is required to enforce
-the cutoff, and no generic grace period is invented. `membership_pending` is an explicit
-no-access state projected through #139 as non-member. A same-stream `membership_started`
-confirmation outranks pending regardless of delivery order or timestamp, but must still
-be newer than any recorded predecessor succession barrier and respect terminal/plan
-gates. Both orders retain the maximum observed current-stream watermark (`last_event_*`)
-without letting later pending regress active access. The separate `applied_event_*` key
-orders actual reducer transitions: ignored pending evidence cannot suppress an
-intervening renewal or payment failure. Follow-up renewal, reactivation, restoration,
-and payment-failure evidence received before a valid start remains pending without
-access; confirmation then reconciles later facts. Pending updates preserve the
-predecessor barrier until confirmation. Direct admission refreshes its durable row
-before buffered plan changes, so the applied plan and its admission marker stay
-consistent. Scheduled cancellation supplies a cutoff, not admission: an unadmitted exact
-stream/plan stays pending with no access even when its catalog plan is active (or has
-closed). Direct and buffered cancellation follow the same rule. A valid pre-cutoff start
-may establish admission before the cutoff is applied. Confirmation folds buffered
-authoritative evidence in event order, including intermediate plan transitions before a
-later cancellation. Immediate termination dominates later active evidence, and scheduled
-cutoffs still bound the projection. `plan_active_when_observed` records trusted catalog
-activity under a plan-row lock at first receipt; replay never changes it. The separate
-immutable `activation_eligible_when_observed` records eligibility from active catalog,
-exact-plan admission, or earlier eligible same-stream/plan evidence on an unadmitted
-stream. New or changed-plan admission uses that trusted eligibility, so catalog closure
-cannot invalidate an already eligible buffered transition or later same-plan receipt.
-Receipt eligibility alone never establishes first admission without a valid start. The
-existing exact-plan admission marker still permits same-plan lifecycle updates after
-closure. Historical events keep unknown receipt provenance and cannot establish or
-change admission. The applied-key migration recovers only exact matching projection
-facts and otherwise conservatively keeps the former barrier; it never changes access or
-invents historical eligibility. `unavailable` remains only a #139 delivery/lookup
-failure, not a lifecycle state. It does not implement a provider, checkout, webhook,
-dunning, reconciliation, annual billing, legal activation, or Book commerce.
+Issue #164 and its append-only successor migrations define the provider-neutral server
+lifecycle substrate without changing #139's consumer seam. `plus_membership_plan` is
+the authoritative monthly plan catalog (Early Access is TWD 29900 minor units and
+active; Standard is TWD 39900 minor units and intentionally inactive).
+`plus_membership_event` is an append-only normalized audit log whose stream identity is
+the explicit tuple `source_system + source_customer_id + source_subscription_id`.
+The service-role-only `record_plus_membership_event` writer deduplicates source event
+IDs, verifies the complete binding, and serializes each user before locking a source
+stream. Durable event IDs use length-prefixed identity segments. Receipt-time
+`plan_active_when_observed` is stored under the plan-row lock. A nullable, server-owned
+reducer proof version distinguishes new receipts validated under the current admission
+contract from legacy audit rows; legacy rows are not backfilled into candidate evidence.
+If a stream already contains a legacy `membership_started` row, its new start receipts
+keep their immutable proof markers but the fold leaves the stream unqualified; unknown
+initial-start history cannot be erased by a new receipt.
+The lifecycle bootstrap successor also requires `plus_membership_event`,
+`plus_membership_subscription`, `plus_membership_state`, and
+`plus_membership_access` to be empty, preserving any existing rows and failing closed.
+Production must run the read-only preflight in [`deployment.md`](deployment.md) before
+the first lifecycle migration, because a later guard cannot undo earlier committed
+migrations.
+
+The current reducer recomputes only the touched subscription from its own immutable
+events into the server-only `plus_membership_stream_summary`. It then selects the
+greatest qualified initial-start `(occurred_at,event_id)` key across that user's stream
+summaries and copies the selected state and access into the existing per-user
+projections. No qualified candidate means those derived rows are removed. This makes
+selection independent of delivery order and avoids treating the current projection,
+observed watermark, receipt time, or terminal time as cross-stream authority. A candidate
+requires exactly one trusted `membership_started` with an active plan snapshot, a valid
+paid interval extending past `greatest(occurred_at, period_start)`, and no own terminal
+cutoff at or before that effective start. A second distinct trusted start is retained
+as immutable evidence, marks its stream conflicted, removes that stream from selection,
+and returns `conflict`; it does not roll back the conflict record. An inactive-plan
+audited start is not a candidate and does not poison a later trusted start.
+
+Within a qualified stream, later events fold in `(occurred_at,event_id)` order.
+Same-plan continuation or a changed plan active at that event's receipt can establish a
+renewal, reactivation, or restoration; payment failure cannot switch the admitted plan.
+Pending events remain audit-only and do not create access or selection authority.
+Terminal evidence is scoped to its stream: the earliest effective own cutoff is folded
+before candidate qualification, disqualifies a start when it is at or before the paid
+start, and otherwise clamps that stream's access without changing its selection key.
+Thus a terminal-only stream cannot block another confirmed start, and a confirmed start
+previously displaced by a stream that is later disqualified is reconsidered from durable
+evidence. Scheduled cancellation preserves a non-active state while clamping the access
+horizon; no generic grace period is invented.
+
+The selected state retains accepted raw period bounds. The access projection stores a
+separate server-derived `[current_period_start,current_period_end)` window; future starts
+deny access until effective time, and terminal clamping may produce an empty interval
+without fabricated coverage. `applied` means the selected state or access projection
+changed; audit-only evidence and watermark-only movement return `stale`. Exact event
+replay returns `replayed`; immutable fact mismatch for the same source event fails
+atomically. `unavailable` remains only a #139 delivery/lookup failure, not a lifecycle
+state. This does not implement a provider, checkout, webhook, dunning, reconciliation,
+annual billing, legal activation, or Book commerce.
 
 ## 11. Delivery boundary
 

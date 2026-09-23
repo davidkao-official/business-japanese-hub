@@ -287,7 +287,44 @@ migrations are appropriate. If a target already has sustained writes or a large
 ledger, prepare a separately reviewed online migration rather than improvising
 inside `db push`.
 
-### 2.5 Apply migrations and deploy Edge Functions
+### 2.5 Plus membership lifecycle bootstrap preflight
+
+Before applying any #164/#165 lifecycle migration to a production target, run
+this read-only preflight against the intended project. Run it before the first
+migration in the chain; the final migration check cannot roll back earlier
+migrations that already committed. Any nonzero row count stops the rollout for
+separate review. This query is documentation only and must not be run against
+production as part of this PR.
+
+```sql
+do $membership_preflight$
+declare
+  table_name text;
+  row_count bigint;
+begin
+  foreach table_name in array array[
+    'plus_membership_event',
+    'plus_membership_subscription',
+    'plus_membership_state',
+    'plus_membership_access'
+  ] loop
+    if to_regclass(format('public.%I', table_name)) is not null then
+      execute format('select count(*) from public.%I', table_name)
+        into row_count;
+      if row_count > 0 then
+        raise exception 'Stop: lifecycle table % contains % rows', table_name, row_count;
+      end if;
+    end if;
+  end loop;
+end;
+$membership_preflight$;
+```
+
+The append-only successor migration repeats this empty-table check before
+installing its final reducer changes. It preserves all rows on failure. The plan
+catalog is excluded because it is configuration, not lifecycle evidence.
+
+### 2.6 Apply migrations and deploy Edge Functions
 
 ```bash
 supabase db push --linked
