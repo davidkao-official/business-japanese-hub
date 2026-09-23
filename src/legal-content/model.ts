@@ -3,7 +3,7 @@
  *
  * Every legal document carries an id, a route slug, a version id, a review
  * status, and per-locale titles + body content. Legal copy has an explicitly
- * reviewed locale set separate from presentation locales; adding a UI locale
+ * defined locale set separate from presentation locales; adding a UI locale
  * must not imply an approved legal translation or checkout evidence variant.
  *
  * Bodies are structured as sections (heading + paragraphs) so the legal pages

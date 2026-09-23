@@ -1,7 +1,7 @@
 import type { Locale } from '../i18n/locales'
 import type { LegalContentLocale } from './model'
 
-/** Map UI presentation to an actually reviewed legal text variant. */
+/** Map UI presentation to an available legal document variant (which may be a draft). */
 export function legalContentLocaleFor(locale: Locale): LegalContentLocale {
   return locale === 'zh-CN' ? 'zh-TW' : locale
 }

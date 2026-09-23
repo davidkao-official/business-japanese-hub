@@ -60,7 +60,7 @@ describe('legal pages', () => {
     expect(screen.getByRole('heading', { name: '台灣消費者保護法與 7 日解除權' })).toBeInTheDocument()
   })
 
-  it('shows reviewed Traditional Chinese legal copy with a visible Simplified Chinese fallback notice', () => {
+  it('shows the existing Traditional Chinese legal draft with a visible Simplified Chinese fallback notice', () => {
     setLocalePreference('zh-CN')
     renderWithAppProviders(
       <Routes>
@@ -70,7 +70,7 @@ describe('legal pages', () => {
     )
 
     expect(screen.getByRole('heading', { name: '退款政策' })).toHaveAttribute('lang', 'zh-TW')
-    expect(screen.getAllByRole('note').some((note) => note.textContent?.includes('简体中文法律文本'))).toBe(true)
+    expect(screen.getAllByRole('note').some((note) => note.textContent?.includes('简体中文版本'))).toBe(true)
     expect(document.querySelector('.legal-doc__body')).toHaveAttribute('lang', 'zh-TW')
   })
 

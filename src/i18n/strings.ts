@@ -607,7 +607,7 @@ const ja: AppStrings = {
     footerLabel: '法律情報',
     sellerDisclosureLabel: '販売者：',
     sellerDisclosurePending: '登録名確認中',
-    legalLanguageFallback: '簡体字中国語の審査済み法律文書はありません。以下は繁体字中国語で表示しています。',
+    legalLanguageFallback: 'この文書には簡体字中国語版がありません。以下に繁体字中国語の文書を表示しています。',
   },
   checkout: {
     consentTitle: '事前同意（デジタルコンテンツの即時提供）',
@@ -941,7 +941,7 @@ const en: AppStrings = {
     footerLabel: 'Legal information',
     sellerDisclosureLabel: 'Seller: ',
     sellerDisclosurePending: 'registered name pending confirmation',
-    legalLanguageFallback: 'Reviewed legal documents are not available in Simplified Chinese. The following content is shown in Traditional Chinese.',
+    legalLanguageFallback: 'This document is not available in Simplified Chinese. The existing Traditional Chinese version is shown below.',
   },
   checkout: {
     consentTitle: 'Prior consent (immediate delivery of digital content)',
@@ -1275,7 +1275,7 @@ const zhTW: AppStrings = {
     footerLabel: '法律資訊',
     sellerDisclosureLabel: '販售者：',
     sellerDisclosurePending: '註冊名稱待確認',
-    legalLanguageFallback: '目前沒有經審閱的簡體中文法律文件。以下內容以繁體中文顯示。',
+    legalLanguageFallback: '本文件沒有簡體中文版本。以下顯示現有的繁體中文版本。',
   },
   checkout: {
     consentTitle: '事先同意（數位內容即時提供）',
@@ -1341,9 +1341,9 @@ const zhTW: AppStrings = {
   },
 }
 
-// Mainland Chinese is deliberately a reviewed shell overlay on the existing
+// Mainland Chinese is a localized shell overlay on the existing
 // Traditional Chinese resource. Deeper UI that has not been localized yet has
-// a deterministic zh-TW fallback; legal documents use their own reviewed set.
+// a deterministic zh-TW fallback; legal documents use their own defined set.
 const zhCN: AppStrings = {
   ...zhTW,
   app: { name: '商务日语中心', tagline: '学习商务日语的平台' },
@@ -1386,7 +1386,7 @@ const zhCN: AppStrings = {
     title: '法律信息', lead: '本平台的服务条款、隐私政策及法定披露信息。', documentsLabel: '文件列表',
     documentNotFound: '找不到指定文件。', backToIndex: '返回法律信息',
     draftNotice: '本页内容为草稿，尚未经法律专业人士审阅，内容可能变更。',
-    legalLanguageFallback: '目前没有经过审核的简体中文法律文本。以下内容以繁體中文显示。',
+    legalLanguageFallback: '本文件暂无简体中文版本，以下显示现有的繁體中文文件。',
     versionLabel: '版本', statusLabel: '状态', statusDraft: '草稿', statusReview: '审核中', statusLive: '已发布',
     revisedLabel: '修订日期', footerLabel: '法律信息', sellerDisclosureLabel: '销售方：',
     sellerDisclosurePending: '登记名称待确认',

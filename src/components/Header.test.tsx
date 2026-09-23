@@ -89,6 +89,19 @@ describe('Header mobile navigation', () => {
     expect(screen.getByRole('button', { name: /显示语言.*简体中文/ })).toHaveTextContent('简体中文')
   })
 
+  it('closes the desktop language menu when keyboard focus leaves the control', () => {
+    renderWithAppProviders(
+      <>
+        <Header />
+        <button type="button">Outside header</button>
+      </>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /表示言語/ }))
+    const selectedOption = screen.getByRole('menuitemradio', { name: '日本語' })
+    fireEvent.blur(selectedOption, { relatedTarget: screen.getByRole('button', { name: 'Outside header' }) })
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+
   it('offers touch-sized native language choices inside the existing mobile dialog', () => {
     renderWithAppProviders(<Header />)
     fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))

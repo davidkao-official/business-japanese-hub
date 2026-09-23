@@ -19,7 +19,7 @@ describe('legal content', () => {
     ])
   })
 
-  it('keeps reviewed legal languages separate from UI locales', () => {
+  it('keeps legal document locales separate from UI locales', () => {
     expect(LEGAL_CONTENT_LOCALES).toEqual(['ja', 'zh-TW', 'en'])
   })
 

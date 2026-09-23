@@ -80,6 +80,9 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
           role="menu"
           aria-label={strings.language.label}
           tabIndex={-1}
+          onBlur={(event) => {
+            if (!rootRef.current?.contains(event.relatedTarget as Node | null)) setOpen(false)
+          }}
           onKeyDown={(event) => {
             if (event.key === 'Escape') {
               event.preventDefault()

@@ -1696,23 +1696,42 @@
 
 @media (min-width: 80rem) {
   .site-header__inner {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(14rem, max-content) minmax(0, 1fr);
   }
 }
 
 @media (min-width: 80rem) {
-  /* Keep the full desktop IA on one line when the account and appearance
-   * controls share the header. The compact menu remains below this breakpoint
-   * so the navigation never collapses into an inaccessible wrapped desktop. */
+  /* Keep the full desktop IA available while letting its tool row use a second
+   * line when the brand, navigation, account, appearance, and locale controls
+   * exceed the available width. This prevents horizontal overlap and clipped
+   * account labels at the 1280px desktop breakpoint. */
   .site-header__tools {
     column-gap: var(--space-2);
+    row-gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .site-nav {
+    min-width: 0;
+    flex: 0 1 auto;
   }
 
   .site-nav__list {
-    flex-wrap: nowrap;
+    justify-content: flex-end;
+    flex-wrap: wrap;
   }
 
   .site-nav__link {
+    white-space: nowrap;
+  }
+
+  .site-header__tools > .account-control,
+  .site-header__tools > .appearance-control,
+  .site-header__tools > .language-control--desktop {
+    flex: 0 0 auto;
+  }
+
+  .site-header .account-control:not(.account-control--signed-in) > .btn {
     white-space: nowrap;
   }
 }
