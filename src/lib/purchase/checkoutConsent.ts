@@ -123,7 +123,9 @@ export function buildConsentSubmission(input: BuildConsentSubmissionInput): Cons
   return {
     jurisdiction,
     locale: evidence.locale,
-    presentationLocale: input.locale,
+    // Historical Book checkout and its customer-communication snapshot only
+    // accept ja/en/zh-TW; Simplified Chinese UI uses the existing zh-TW copy.
+    presentationLocale: input.locale === 'zh-CN' ? 'zh-TW' : input.locale,
     noticeVersion: evidence.noticeVersion,
     consentVersion: evidence.consentVersion,
     consentGranted: input.consentGranted,

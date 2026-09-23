@@ -111,6 +111,23 @@ describe('checkoutConsent — ConsentSubmission building (explicit jurisdiction)
     expect(submission.consentTextSnapshot).toBe(consentSection.paragraphs.join('\n'))
   })
 
+  it('maps zh-CN UI to the supported TW customer-communication locale without changing TW legal evidence', () => {
+    const submission = buildConsentSubmission({ consentGranted: true, locale: 'zh-CN', jurisdiction: 'TW' })
+    const noticeSection = requireSection(REFUNDS_DOCUMENT.bodies['zh-TW'], 'tw-withdrawal-notice')
+    const consentSection = requireSection(
+      REFUNDS_DOCUMENT.bodies['zh-TW'],
+      'tw-immediate-delivery-consent',
+    )
+
+    expect(submission.jurisdiction).toBe('TW')
+    expect(submission.presentationLocale).toBe('zh-TW')
+    expect(submission.locale).toBe('zh-TW')
+    expect(submission.noticeVersion).toBe(TW_NOTICE_VERSION_ID)
+    expect(submission.consentVersion).toBe(TW_CONSENT_VERSION_ID)
+    expect(submission.noticeTextSnapshot).toBe(noticeSection.paragraphs.join('\n'))
+    expect(submission.consentTextSnapshot).toBe(consentSection.paragraphs.join('\n'))
+  })
+
   it('zh-TW locale + JP declaration stays JP (does not become TW)', () => {
     const submission = buildConsentSubmission({ consentGranted: true, locale: 'zh-TW', jurisdiction: 'JP' })
     const jpConsentSection = requireSection(
@@ -123,5 +140,25 @@ describe('checkoutConsent — ConsentSubmission building (explicit jurisdiction)
     expect(submission.locale).toBe('ja')
     expect(submission.presentationLocale).toBe('zh-TW')
     expect(submission.consentTextSnapshot).toBe(jpConsentSection.paragraphs.join('\n'))
+  })
+
+  it('maps zh-CN UI to the supported TW customer-communication locale while preserving JP evidence', () => {
+    const submission = buildConsentSubmission({ consentGranted: true, locale: 'zh-CN', jurisdiction: 'JP' })
+    const noticeSection = requireSection(
+      TOKUSHOHO_DOCUMENT.bodies.ja,
+      'jp-tokushoho-seller-disclosure',
+    )
+    const consentSection = requireSection(
+      REFUNDS_DOCUMENT.bodies.ja,
+      'jp-refunds-acknowledgement',
+    )
+
+    expect(submission.jurisdiction).toBe('JP')
+    expect(submission.presentationLocale).toBe('zh-TW')
+    expect(submission.locale).toBe('ja')
+    expect(submission.noticeVersion).toBe(JP_NOTICE_VERSION_ID)
+    expect(submission.consentVersion).toBe(JP_CONSENT_VERSION_ID)
+    expect(submission.noticeTextSnapshot).toBe(noticeSection.paragraphs.join('\n'))
+    expect(submission.consentTextSnapshot).toBe(consentSection.paragraphs.join('\n'))
   })
 })
