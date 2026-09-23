@@ -116,7 +116,8 @@ describe('Business Reading surfaces', () => {
       initialEntries: ['/read/synthetic-plus'],
     })
     expect(await screen.findByText('記事を読み込めませんでした。時間をおいて再度お試しください。')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: plusItem.title })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: plusItem.title })).toBeInTheDocument()
+    expect(screen.queryByText(plusItem.japaneseMaterial.text)).not.toBeInTheDocument()
   })
 
   it('aborts and ignores a late Plus response after the route changes', async () => {
@@ -178,5 +179,26 @@ describe('Business Reading surfaces', () => {
     renderResult.authClient.emitAuthStateChange(null)
     await waitFor(() => expect(screen.queryByText(plusItem.japaneseMaterial.text)).not.toBeInTheDocument())
     expect(screen.getByText('ログインして会員状態を確認')).toBeInTheDocument()
+  })
+
+  it('does not reuse a prior Plus body when the same user signs back in', async () => {
+    const load = vi.fn(async (_entry: ReadingCatalogEntry, _token: () => Promise<string | null>, _userId: string, signal?: AbortSignal) => {
+      if (load.mock.calls.length === 1) return { kind: 'ok' as const, item: plusItem }
+      return new Promise<{ kind: 'ok'; item: ReadingRuntimeItem }>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+      })
+    })
+    const renderResult = renderWithAppProviders(routeSet(plusCatalog, load), {
+      session: { id: 'member-plus', email: 'reader@example.com' },
+      membershipAccessRepository: membership('active'),
+      initialEntries: ['/read/synthetic-plus'],
+    })
+    expect(await screen.findByText(plusItem.japaneseMaterial.text)).toBeInTheDocument()
+    renderResult.authClient.emitAuthStateChange(null)
+    expect(await screen.findByText('ログインして会員状態を確認')).toBeInTheDocument()
+    renderResult.authClient.emitAuthStateChange({ id: 'member-plus', email: 'reader@example.com' })
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2))
+    expect(screen.getByRole('heading', { name: plusItem.title })).toBeInTheDocument()
+    expect(screen.queryByText(plusItem.japaneseMaterial.text)).not.toBeInTheDocument()
   })
 })

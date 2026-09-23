@@ -13,7 +13,7 @@ import { getLearningUnitByLearnSlug, getLearningUnitByPracticeSlug } from './lea
 import { NotFoundPage } from './NotFoundPage'
 
 type ReadingLoader = typeof fetchReadingPayload
-type DetailState = { key: string; kind: 'unavailable' } | { key: string; kind: 'ready'; item: ReadingRuntimeItem }
+type DetailState = { kind: 'unavailable' } | { kind: 'ready'; item: ReadingRuntimeItem }
 
 export function ReadDetailPage({
   catalogEntries = readingCatalog,
@@ -29,12 +29,7 @@ export function ReadDetailPage({
   const { user, getAccessToken } = useAuth()
   const { state: membershipState } = useMembershipAccess()
   const entry = useMemo(() => catalogEntries.find((candidate) => candidate.slug === slug), [catalogEntries, slug])
-  const [detailState, setDetailState] = useState<DetailState | null>(null)
   const userId = user?.id ?? null
-  const releaseRevision = entry?.releaseReference?.revision ?? ''
-  const requestKey = entry?.releaseReference && userId && membershipState.kind === 'active-member'
-    ? `${userId}:${entry.slug}:${releaseRevision}:${membershipState.kind}`
-    : ''
 
   useDocumentTitle(entry?.seo.title ?? strings.notFound.title)
 
@@ -47,34 +42,11 @@ export function ReadDetailPage({
     return () => { element.content = previous }
   }, [entry?.seo.description])
 
-  useEffect(() => {
-    if (entry?.access !== 'plus' || !entry.releaseReference || !userId || membershipState.kind !== 'active-member') {
-      return
-    }
-    const key = `${userId}:${entry.slug}:${entry.releaseReference.revision}:${membershipState.kind}`
-    const controller = new AbortController()
-    let current = true
-    void loadPayload(entry, getAccessToken, userId, controller.signal).then((result) => {
-      if (!current || controller.signal.aborted) return
-      setDetailState(result.kind === 'ok'
-        ? { key, kind: 'ready', item: result.item }
-        : { key, kind: 'unavailable' })
-    }).catch(() => {
-      if (current && !controller.signal.aborted) setDetailState({ key, kind: 'unavailable' })
-    })
-    return () => {
-      current = false
-      controller.abort()
-    }
-  }, [entry, getAccessToken, loadPayload, membershipState.kind, userId])
-
   if (!entry) return <NotFoundPage />
 
   const item = entry.access === 'free'
     ? publicItems.find((candidate) => candidate.id === entry.id && candidate.slug === entry.slug && candidate.access === 'free')
-    : requestKey && detailState?.key === requestKey && detailState.kind === 'ready'
-      ? detailState.item
-      : undefined
+    : undefined
 
   return (
     <section className="page reading-detail" aria-labelledby="reading-detail-title">
@@ -84,12 +56,19 @@ export function ReadDetailPage({
           access="plus"
           preview={<ReadingMetadata entry={entry} />}
         >
-          {requestKey && detailState?.key !== requestKey ? (
-            <p className="reading-loading" role="status">{strings.plus.states.checkingBody}</p>
-          ) : item ? (
-            <ReadingArticle item={item} />
+          {userId && membershipState.kind === 'active-member' && entry.releaseReference ? (
+            <ActivePlusReading
+              key={`${userId}:${entry.slug}:${entry.releaseReference.revision}`}
+              entry={entry}
+              userId={userId}
+              getAccessToken={getAccessToken}
+              loadPayload={loadPayload}
+            />
           ) : (
-            <p className="reading-loading" role="status">{strings.reading.unavailable}</p>
+            <>
+              <ReadingMetadata entry={entry} />
+              <p className="reading-loading" role="status">{strings.reading.unavailable}</p>
+            </>
           )}
         </PlusAccessBoundary>
       ) : item ? (
@@ -101,12 +80,55 @@ export function ReadDetailPage({
   )
 }
 
+/** The body lives only inside an active membership child, which unmounts on loss of access. */
+function ActivePlusReading({
+  entry,
+  userId,
+  getAccessToken,
+  loadPayload,
+}: {
+  entry: ReadingCatalogEntry
+  userId: string
+  getAccessToken: () => Promise<string | null>
+  loadPayload: ReadingLoader
+}) {
+  const strings = useStrings()
+  const [detailState, setDetailState] = useState<DetailState | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let current = true
+    void loadPayload(entry, getAccessToken, userId, controller.signal).then((result) => {
+      if (!current || controller.signal.aborted) return
+      setDetailState(result.kind === 'ok'
+        ? { kind: 'ready', item: result.item }
+        : { kind: 'unavailable' })
+    }).catch(() => {
+      if (current && !controller.signal.aborted) setDetailState({ kind: 'unavailable' })
+    })
+    return () => {
+      current = false
+      controller.abort()
+    }
+  }, [entry, getAccessToken, loadPayload, userId])
+
+  if (detailState?.kind === 'ready') return <ReadingArticle item={detailState.item} />
+  return (
+    <>
+      <ReadingMetadata entry={entry} />
+      <p className="reading-loading" role="status">
+        {detailState?.kind === 'unavailable' ? strings.reading.unavailable : strings.plus.states.checkingBody}
+      </p>
+    </>
+  )
+}
+
 function ReadingMetadata({ entry }: { entry: ReadingCatalogEntry }) {
   const strings = useStrings()
   return (
     <div className="reading-preview-meta">
-      <h1 id="reading-detail-title">{entry.title}</h1>
-      <p>{entry.summary}</p>
+      <h1 id="reading-detail-title" lang="zh-TW">{entry.title}</h1>
+      <p lang="zh-TW">{entry.summary}</p>
       <p>{strings.reading.source}: {entry.source.url
         ? <a href={entry.source.url} target="_blank" rel="noreferrer">{entry.source.label}</a>
         : entry.source.label}</p>
@@ -215,7 +237,7 @@ function RelatedReading({ links }: { links: readonly ReadingRelatedLink[] }) {
     <nav className="reading-related" aria-label={strings.reading.related}>
       <h2>{strings.reading.related}</h2>
       <ul>
-        {destinations.map((link) => <li key={`${link.kind}-${link.targetId}`}><Link to={link.href}>{link.label} <span aria-hidden="true">↗</span></Link></li>)}
+        {destinations.map((link) => <li key={`${link.kind}-${link.targetId}`}><Link to={link.href}><span lang="zh-TW">{link.label}</span> <span aria-hidden="true">↗</span></Link></li>)}
       </ul>
     </nav>
   )
