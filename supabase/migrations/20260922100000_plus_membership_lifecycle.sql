@@ -8,16 +8,19 @@
 -- already exists. The migration runner applies this file in one transaction;
 -- NOWAIT rejects an in-flight writer and keeps the lock until that transaction
 -- commits. The later lifecycle guard repeats this check for defense in depth.
-set transaction isolation level read committed;
-
-lock table public.plus_membership_access
-  in share row exclusive mode nowait;
-
 do $membership_bootstrap$
 declare
   v_table text;
   v_has_rows boolean;
 begin
+  if current_setting('transaction_isolation') <> 'read committed' then
+    raise exception using
+      errcode = 'P0001',
+      message = 'Plus membership bootstrap requires read committed isolation';
+  end if;
+  -- The CLI executes this file as one implicit transaction batch. A top-level
+  -- LOCK requires authored BEGIN and would separate migration history from DDL.
+  execute 'lock table public.plus_membership_access in share row exclusive mode nowait';
   foreach v_table in array array[
     'plus_membership_event',
     'plus_membership_subscription',
