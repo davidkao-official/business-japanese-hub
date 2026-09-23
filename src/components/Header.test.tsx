@@ -71,6 +71,35 @@ function simulateResponsiveFocusLoss() {
 }
 
 describe('Header mobile navigation', () => {
+  it('opens a keyboard-navigable language menu with an explicit selected option and persists selection', () => {
+    renderWithAppProviders(<Header />)
+    const trigger = screen.getByRole('button', { name: /表示言語/ })
+    fireEvent.click(trigger)
+    const menu = screen.getByRole('menu', { name: '表示言語' })
+    expect(within(menu).getByRole('menuitemradio', { name: '日本語' })).toHaveAttribute('aria-checked', 'true')
+    expect(within(menu).getByRole('menuitemradio', { name: '简体中文' })).toHaveAttribute('aria-checked', 'false')
+
+    const activeOption = within(menu).getByRole('menuitemradio', { name: '日本語' })
+    expect(activeOption).toHaveFocus()
+    fireEvent.keyDown(activeOption, { key: 'ArrowDown' })
+    const traditional = within(menu).getByRole('menuitemradio', { name: '繁體中文' })
+    expect(traditional).toHaveFocus()
+    fireEvent.click(within(menu).getByRole('menuitemradio', { name: '简体中文' }))
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /显示语言.*简体中文/ })).toHaveTextContent('简体中文')
+  })
+
+  it('offers touch-sized native language choices inside the existing mobile dialog', () => {
+    renderWithAppProviders(<Header />)
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
+    const dialog = screen.getByRole('dialog', { name: 'メニュー' })
+    const group = within(dialog).getByRole('radiogroup', { name: '表示言語' })
+    expect(within(group).getAllByRole('radio')).toHaveLength(4)
+    fireEvent.click(within(group).getByRole('radio', { name: '简体中文' }))
+    expect(within(group).getByRole('radio', { name: '简体中文' })).toBeChecked()
+    expect(screen.getByRole('dialog', { name: '菜单' })).toBeInTheDocument()
+  })
+
   it('language-scopes the canonical English mode labels in desktop and mobile navigation', () => {
     const canonicalModes = ['Learn', 'Read', 'Practice', 'My Learning', 'Experience']
     renderWithAppProviders(<Header />)

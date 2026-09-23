@@ -772,6 +772,87 @@
   max-width: min(var(--account-identifier-max-width), var(--lp-header-account-max-width));
 }
 
+.language-control--desktop {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.language-control__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-min-h);
+  padding-inline: var(--space-2);
+  border: var(--stroke-thin) solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.language-control__trigger:hover,
+.language-control__trigger[aria-expanded='true'] {
+  border-color: var(--color-border);
+  background: var(--color-surface-muted);
+}
+
+.language-control__chevron {
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
+.language-control__menu {
+  position: absolute;
+  z-index: calc(var(--z-header) + 2);
+  top: calc(100% + var(--space-2));
+  right: 0;
+  display: grid;
+  width: max-content;
+  min-width: 11rem;
+  padding: var(--space-1);
+  border: var(--stroke-thin) solid var(--color-border-strong);
+  background: var(--color-bg-elevated);
+  box-shadow: var(--shadow-md);
+}
+
+.language-control__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  min-height: var(--control-min-h);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.language-control__option:hover,
+.language-control__option[aria-checked='true'] {
+  background: var(--color-surface-muted);
+}
+
+.language-control__option[aria-checked='true'] {
+  font-weight: var(--font-weight-medium);
+}
+
+.language-control__check {
+  width: 1em;
+  color: var(--color-text);
+  text-align: center;
+}
+
+.language-control__mobile {
+  display: none;
+}
+
 .site-header .account-control:not(.account-control--signed-in) > .btn {
   border-color: var(--color-text);
   background: var(--color-text);
@@ -1751,6 +1832,49 @@
     display: grid;
     justify-items: start;
     gap: var(--space-5);
+  }
+
+  .language-control--desktop {
+    display: none;
+  }
+
+  .language-control--mobile {
+    display: grid;
+    gap: var(--space-3);
+    width: 100%;
+    border: 0;
+  }
+
+  .language-control--mobile legend {
+    margin-bottom: var(--space-2);
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+  }
+
+  .language-control__choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .language-control__radio {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--control-min-h);
+    padding: var(--space-2) var(--space-3);
+    border: var(--stroke-thin) solid var(--color-border);
+    color: var(--color-text);
+    cursor: pointer;
+  }
+
+  .language-control__radio:has(input:checked) {
+    border-color: var(--color-text);
+    background: var(--color-surface-muted);
+  }
+
+  .language-control__radio input {
+    accent-color: var(--color-text);
   }
 
   .mobile-menu__controls .account-control {

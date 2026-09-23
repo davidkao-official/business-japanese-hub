@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom'
 import { useLocale, useStrings } from '../i18n/strings'
-import { listLegalDocuments, SELLER_DISCLOSURE } from '../legal-content'
+import { legalContentLocaleFor, listLegalDocuments, SELLER_DISCLOSURE } from '../legal-content'
 
 export function Footer() {
   const strings = useStrings()
   const locale = useLocale()
+  const legalLocale = legalContentLocaleFor(locale)
   const documents = listLegalDocuments()
 
   return (
@@ -21,7 +22,7 @@ export function Footer() {
               </li>
               {documents.map((doc) => (
                 <li key={doc.id}>
-                  <Link to={`/legal/${doc.slug}`}>{doc.titles[locale]}</Link>
+                  <Link lang={legalLocale} to={`/legal/${doc.slug}`}>{doc.titles[legalLocale]}</Link>
                 </li>
               ))}
             </ul>

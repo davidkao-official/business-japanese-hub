@@ -31,6 +31,11 @@ export interface AppStrings {
     openMenu: string
     closeMenu: string
     mobileMenuTitle: string
+    about: string
+  }
+  language: {
+    label: string
+    options: Record<Locale, string>
   }
   appearance: {
     label: string
@@ -270,6 +275,7 @@ export interface AppStrings {
     footerLabel: string
     sellerDisclosureLabel: string
     sellerDisclosurePending: string
+    legalLanguageFallback: string
   }
   checkout: {
     consentTitle: string
@@ -350,6 +356,11 @@ const ja: AppStrings = {
     openMenu: 'メニューを開く',
     closeMenu: 'メニューを閉じる',
     mobileMenuTitle: 'メニュー',
+    about: '概要',
+  },
+  language: {
+    label: '表示言語',
+    options: { ja: '日本語', 'zh-TW': '繁體中文', 'zh-CN': '简体中文', en: 'English' },
   },
   appearance: {
     label: '外観',
@@ -596,6 +607,7 @@ const ja: AppStrings = {
     footerLabel: '法律情報',
     sellerDisclosureLabel: '販売者：',
     sellerDisclosurePending: '登録名確認中',
+    legalLanguageFallback: '簡体字中国語の審査済み法律文書はありません。以下は繁体字中国語で表示しています。',
   },
   checkout: {
     consentTitle: '事前同意（デジタルコンテンツの即時提供）',
@@ -678,6 +690,11 @@ const en: AppStrings = {
     openMenu: 'Open menu',
     closeMenu: 'Close menu',
     mobileMenuTitle: 'Menu',
+    about: 'About',
+  },
+  language: {
+    label: 'Website language',
+    options: { ja: '日本語', 'zh-TW': '繁體中文', 'zh-CN': '简体中文', en: 'English' },
   },
   appearance: {
     label: 'Appearance',
@@ -924,6 +941,7 @@ const en: AppStrings = {
     footerLabel: 'Legal information',
     sellerDisclosureLabel: 'Seller: ',
     sellerDisclosurePending: 'registered name pending confirmation',
+    legalLanguageFallback: 'Reviewed legal documents are not available in Simplified Chinese. The following content is shown in Traditional Chinese.',
   },
   checkout: {
     consentTitle: 'Prior consent (immediate delivery of digital content)',
@@ -1006,6 +1024,11 @@ const zhTW: AppStrings = {
     openMenu: '開啟選單',
     closeMenu: '關閉選單',
     mobileMenuTitle: '選單',
+    about: '關於',
+  },
+  language: {
+    label: '顯示語言',
+    options: { ja: '日本語', 'zh-TW': '繁體中文', 'zh-CN': '简体中文', en: 'English' },
   },
   appearance: {
     label: '外觀',
@@ -1252,6 +1275,7 @@ const zhTW: AppStrings = {
     footerLabel: '法律資訊',
     sellerDisclosureLabel: '販售者：',
     sellerDisclosurePending: '註冊名稱待確認',
+    legalLanguageFallback: '目前沒有經審閱的簡體中文法律文件。以下內容以繁體中文顯示。',
   },
   checkout: {
     consentTitle: '事先同意（數位內容即時提供）',
@@ -1317,10 +1341,71 @@ const zhTW: AppStrings = {
   },
 }
 
+// Mainland Chinese is deliberately a reviewed shell overlay on the existing
+// Traditional Chinese resource. Deeper UI that has not been localized yet has
+// a deterministic zh-TW fallback; legal documents use their own reviewed set.
+const zhCN: AppStrings = {
+  ...zhTW,
+  app: { name: '商务日语中心', tagline: '学习商务日语的平台' },
+  nav: {
+    main: '主导航', home: '首页', library: '我的书库', plus: 'Plus',
+    plusName: 'Business Japanese Hub Plus', skipToContent: '跳到主要内容',
+    openMenu: '打开菜单', closeMenu: '关闭菜单', mobileMenuTitle: '菜单', about: '关于',
+  },
+  language: {
+    label: '显示语言',
+    options: { ja: '日本語', 'zh-TW': '繁體中文', 'zh-CN': '简体中文', en: 'English' },
+  },
+  appearance: { label: '外观', system: '跟随系统', light: '浅色', dark: '深色' },
+  storefront: {
+    ...zhTW.storefront,
+    catalog: '全部书籍', viewDetails: '查看详情', featured: '精选内容', free: '免费', owned: '已拥有',
+    practiceKicker: '在实践中应用', practiceTitle: '把阅读所得转化为职场判断',
+    practiceLead: '在 Career Game 的职场案例中做出判断，并了解可能带来的结果。', playCase: '开始案例',
+  },
+  home: {
+    title: '商务日语中心',
+    lead: '从日本求职、商务阅读到职场成长，持续学习工作中真正需要的日语能力。',
+    featureLabel: '内容结构', featureTitle: '在真实语境中阅读职场日语',
+    samplesLabel: '表达示例', samplesTitle: '从真实句子与对话开始学习',
+    selectionsLabel: '精选书籍', selectionsTitle: '从已发布的书籍中找到阅读起点',
+  },
+  learningModes: {
+    ...zhTW.learningModes,
+    navigationLabel: '学习模式', serviceLabel: '学习服务', serviceTitle: '选择下一步适合的学习模式',
+    continueTitle: '继续探索',
+    modes: {
+      learn: { ...zhTW.learningModes.modes.learn, summary: '从真实情境中培养可用于职场的判断力。', lead: '学习日本职场沟通背后的判断、语言与语境。' },
+      read: { ...zhTW.learningModes.modes.read, summary: '结合语境阅读日本商业信息与长篇内容。', lead: '通过现有书库与阅读器直接阅读日文商业信息和长篇内容。' },
+      practice: { ...zhTW.learningModes.modes.practice, summary: '反复练习提取与判断，把语言能力用于职场行动。', lead: '这里将逐步提供可重复使用的提取与判断练习。' },
+      'my-learning': { ...zhTW.learningModes.modes['my-learning'], summary: '回到真实进度、复习内容、已保存项目和下一步。', lead: '根据可解释的真实记录了解学习状态，不使用虚构分数。' },
+      experience: { ...zhTW.learningModes.modes.experience, summary: '在具体故事中运用职场判断，并了解不同选择的结果。', lead: '前往独立运行的 Career Game 职场模拟器，在故事中做出判断。' },
+    },
+  },
+  legal: {
+    title: '法律信息', lead: '本平台的服务条款、隐私政策及法定披露信息。', documentsLabel: '文件列表',
+    documentNotFound: '找不到指定文件。', backToIndex: '返回法律信息',
+    draftNotice: '本页内容为草稿，尚未经法律专业人士审阅，内容可能变更。',
+    legalLanguageFallback: '目前没有经过审核的简体中文法律文本。以下内容以繁體中文显示。',
+    versionLabel: '版本', statusLabel: '状态', statusDraft: '草稿', statusReview: '审核中', statusLive: '已发布',
+    revisedLabel: '修订日期', footerLabel: '法律信息', sellerDisclosureLabel: '销售方：',
+    sellerDisclosurePending: '登记名称待确认',
+  },
+  auth: {
+    ...zhTW.auth,
+    account: '账户', signIn: '登录', createAccount: '创建账户', signOut: '退出登录',
+    email: '电子邮箱', password: '密码', submitSignIn: '登录并继续', submitSignUp: '创建账户并继续',
+    cancel: '关闭', switchToSignIn: '已有账户？登录', switchToSignUp: '首次使用？创建账户',
+    failure: '身份验证失败，请检查输入信息。', confirmationSent: '确认邮件已发送。',
+    authRequired: '请登录后继续。', loading: '正在加载…',
+  },
+}
+
 const stringsByLocale: Record<Locale, AppStrings> = {
   ja,
   en,
   'zh-TW': zhTW,
+  'zh-CN': zhCN,
 }
 
 export const LOCALE_STORAGE_KEY = 'business-japanese-hub.locale'
@@ -1343,6 +1428,13 @@ export function localeFromLanguageTag(language: string | null | undefined): Loca
     normalized.startsWith('zh-hant')
   ) {
     return 'zh-TW'
+  }
+  if (
+    normalized === 'zh-cn' ||
+    normalized === 'zh-sg' ||
+    normalized.startsWith('zh-hans')
+  ) {
+    return 'zh-CN'
   }
   if (normalized === 'ja' || normalized.startsWith('ja-')) return 'ja'
   if (normalized === 'en' || normalized.startsWith('en-')) return 'en'

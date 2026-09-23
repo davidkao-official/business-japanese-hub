@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useDocumentTitle } from '../../lib/useDocumentTitle'
 import { useLocale, useStrings } from '../../i18n/strings'
-import { listLegalDocuments } from '../../legal-content'
+import { legalContentLocaleFor, listLegalDocuments } from '../../legal-content'
 
 /**
  * Legal index — platform surface listing all versioned legal documents
@@ -10,6 +10,7 @@ import { listLegalDocuments } from '../../legal-content'
 export function LegalIndexPage() {
   const strings = useStrings()
   const locale = useLocale()
+  const legalLocale = legalContentLocaleFor(locale)
   const documents = listLegalDocuments()
   useDocumentTitle(`${strings.legal.title} — ${strings.app.name}`)
 
@@ -25,7 +26,7 @@ export function LegalIndexPage() {
         {documents.map((doc) => (
           <li key={doc.id}>
             <Link className="legal-index__link" to={`/legal/${doc.slug}`}>
-              <span className="legal-index__title">{doc.titles[locale]}</span>
+              <span className="legal-index__title" lang={legalLocale}>{doc.titles[legalLocale]}</span>
               {doc.status === 'draft' && (
                 <span className="legal-index__status">（{strings.legal.statusDraft}）</span>
               )}

@@ -116,7 +116,7 @@ V1 建議 **「不首行縮排 + 0.75–1em paragraph gap」**。這不是要否
 
 ### 3.5 換行策略（Japanese-aware）
 
-- **`lang` 所有權：** reading surface 的根元素／內容容器以**正在閱讀的 Book 的 `language`（BCP-47）**設定 `lang`；非閱讀 surface（storefront、library 等 platform shell）維持根元素 `lang="ja"` 的平台 default。混合語言內容（例如例句 translation、拉丁詞彙）用 **nested `lang` override** 標示，不要依賴全域 root 語言涵蓋。
+- **`lang` 所有權：** reading surface 的根元素／內容容器以**正在閱讀的 Book 的 `language`（BCP-47）**設定 `lang`；非閱讀 surface（storefront、library 等 platform shell）以使用者選定的 UI locale 設定根元素 `lang`。混合語言內容（例如例句 translation、拉丁詞彙）及尚未審核的法律語言 fallback 用 **nested `lang` override** 標示，不要依賴全域 root 語言涵蓋。
 - Japanese body 使用 standards-aware `normal`/`strict` line breaking；**browser QA 必須同時測 `line-break: normal` 與 `line-break: strict`** 兩種結果。
 - **禁止以 `break-all` 當萬用解法。**
 - URL、超長 identifier 才使用 emergency wrapping。

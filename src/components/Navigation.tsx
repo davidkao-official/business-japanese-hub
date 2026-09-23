@@ -29,7 +29,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     getLabel: (strings) => strings.nav.plus,
     getAriaLabel: (strings) => strings.nav.plusName,
   },
-  { to: '/about', end: true, getLabel: () => 'About' },
+  { to: '/about', end: true, getLabel: (strings) => strings.nav.about },
 ]
 
 /**

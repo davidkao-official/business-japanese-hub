@@ -2,14 +2,16 @@
  * Legal-content model — typed, versioned legal documents (issue #25, B1).
  *
  * Every legal document carries an id, a route slug, a version id, a review
- * status, and per-locale titles + body content. `Locale` is imported type-only
- * from `src/i18n/strings` so the supported-locale set stays in one place.
+ * status, and per-locale titles + body content. Legal copy has an explicitly
+ * reviewed locale set separate from presentation locales; adding a UI locale
+ * must not imply an approved legal translation or checkout evidence variant.
  *
  * Bodies are structured as sections (heading + paragraphs) so the legal pages
  * can render real document structure instead of a wall of text.
  */
 
-import type { Locale } from '../i18n/locales.ts'
+export const LEGAL_CONTENT_LOCALES = ['ja', 'zh-TW', 'en'] as const
+export type LegalContentLocale = (typeof LEGAL_CONTENT_LOCALES)[number]
 
 /** Review lifecycle: draft → review → live. All documents are pre-launch drafts today. */
 export type LegalDocumentStatus = 'draft' | 'review' | 'live'
@@ -32,9 +34,9 @@ export interface LegalDocument {
   /** ISO date this version was authored. */
   revisedAt: string
   /** Per-locale document titles. */
-  titles: Record<Locale, string>
+  titles: Record<LegalContentLocale, string>
   /** Per-locale body content, structured as sections. */
-  bodies: Record<Locale, LegalSection[]>
+  bodies: Record<LegalContentLocale, LegalSection[]>
 }
 
 export interface SellerDisclosure {

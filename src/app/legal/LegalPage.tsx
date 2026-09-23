@@ -2,7 +2,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useDocumentTitle } from '../../lib/useDocumentTitle'
 import { useLocale, useStrings } from '../../i18n/strings'
 import type { AppStrings } from '../../i18n/strings'
-import { getLegalDocumentBySlug } from '../../legal-content'
+import { getLegalDocumentBySlug, hasLegalLocaleFallback, legalContentLocaleFor } from '../../legal-content'
 import type { LegalDocumentStatus } from '../../legal-content'
 
 function statusText(strings: AppStrings, status: LegalDocumentStatus): string {
@@ -26,8 +26,9 @@ export function LegalPage() {
   const { slug } = useParams<{ slug: string }>()
   const strings = useStrings()
   const locale = useLocale()
+  const legalLocale = legalContentLocaleFor(locale)
   const document = slug ? getLegalDocumentBySlug(slug) : undefined
-  const title = document ? document.titles[locale] : strings.legal.documentNotFound
+  const title = document ? document.titles[legalLocale] : strings.legal.documentNotFound
   useDocumentTitle(`${title} — ${strings.app.name}`)
 
   if (!document) {
@@ -43,12 +44,12 @@ export function LegalPage() {
     )
   }
 
-  const body = document.bodies[locale]
+  const body = document.bodies[legalLocale]
 
   return (
     <section className="page legal-doc" aria-labelledby="legal-doc-title">
-      <h1 className="page__title" id="legal-doc-title">
-        {document.titles[locale]}
+      <h1 className="page__title" id="legal-doc-title" lang={legalLocale}>
+        {document.titles[legalLocale]}
       </h1>
       <p className="legal-doc__meta">
         {strings.legal.versionLabel} {document.version}
@@ -64,7 +65,13 @@ export function LegalPage() {
         </p>
       )}
 
-      <div className="legal-doc__body">
+      {hasLegalLocaleFallback(locale) && (
+        <p className="legal-draft-banner" role="note" lang="zh-CN">
+          {strings.legal.legalLanguageFallback}
+        </p>
+      )}
+
+      <div className="legal-doc__body" lang={legalLocale}>
         {body.map((section, index) => (
           <section
             key={`${document.slug}-${index}`}

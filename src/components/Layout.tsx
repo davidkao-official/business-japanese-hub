@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Outlet, useLocation, useNavigationType } from 'react-router-dom'
-import { useStrings } from '../i18n/strings'
+import { useLocale, useStrings } from '../i18n/strings'
 import { Footer } from './Footer'
 import { Header } from './Header'
 
@@ -22,10 +22,15 @@ import { Header } from './Header'
  */
 export function Layout() {
   const strings = useStrings()
+  const locale = useLocale()
   const location = useLocation()
   const navigationType = useNavigationType()
   const mainRef = useRef<HTMLElement>(null)
   const isFirstRender = useRef(true)
+
+  useEffect(() => {
+    document.documentElement.lang = locale
+  }, [locale])
 
   useEffect(() => {
     if (isFirstRender.current) {

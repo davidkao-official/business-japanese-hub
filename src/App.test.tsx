@@ -9,6 +9,7 @@ import { NotFoundPage } from './app/NotFoundPage'
 import { ProductModePage } from './app/ProductModePage'
 import { Layout } from './components/Layout'
 import { renderWithAppProviders } from './test/appProviders'
+import { setLocalePreference } from './i18n/strings'
 
 /** Test-only page exposing raw router actions so tests can drive push / POP. */
 function RouterProbePage() {
@@ -75,6 +76,13 @@ describe('application shell', () => {
 
     const heading = screen.getByRole('heading', { level: 1 })
     expect(heading).toHaveTextContent('ビジネス日本語ハブ')
+  })
+
+  it('sets the Library SPA root language to the selected shell locale', async () => {
+    setLocalePreference('zh-CN')
+    renderShellRoutes(['/'])
+    await waitFor(() => expect(document.documentElement).toHaveAttribute('lang', 'zh-CN'))
+    setLocalePreference(null)
   })
 
   it('serves the public SPI explainer route with the required editorial structure and practice CTA', () => {
