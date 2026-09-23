@@ -45,10 +45,28 @@ describe('Plus membership projection resolver', () => {
   const now = Date.parse('2026-09-12T00:00:00.000Z')
 
   it('requires an active, unexpired server projection', async () => {
-    await expect(resolvePlusMembershipAccess(dbWith({ membership_status: 'active', current_period_end: '2026-09-13T00:00:00.000Z' }), 'user-1', () => now)).resolves.toBe('active')
-    await expect(resolvePlusMembershipAccess(dbWith({ membership_status: 'active', current_period_end: '2026-09-12T00:00:00.000Z' }), 'user-1', () => now)).resolves.toBe('non-member')
-    await expect(resolvePlusMembershipAccess(dbWith({ membership_status: 'revoked', current_period_end: '2026-09-13T00:00:00.000Z' }), 'user-1', () => now)).resolves.toBe('non-member')
+    await expect(resolvePlusMembershipAccess(dbWith({ membership_status: 'active', current_period_start: '2026-09-12T00:00:00.000Z', current_period_end: '2026-09-13T00:00:00.000Z' }), 'user-1', () => now)).resolves.toBe('active')
+    await expect(resolvePlusMembershipAccess(dbWith({ membership_status: 'active', current_period_start: '2026-09-12T00:00:00.000Z', current_period_end: '2026-09-12T00:00:00.000Z' }), 'user-1', () => now)).resolves.toBe('non-member')
+    await expect(resolvePlusMembershipAccess(dbWith({ membership_status: 'active', current_period_start: '2026-09-13T00:00:00.000Z', current_period_end: '2026-09-14T00:00:00.000Z' }), 'user-1', () => now)).resolves.toBe('non-member')
+    await expect(resolvePlusMembershipAccess(dbWith({ membership_status: 'active', current_period_start: null, current_period_end: '2026-09-13T00:00:00.000Z' }), 'user-1', () => now)).resolves.toBe('non-member')
+    await expect(resolvePlusMembershipAccess(dbWith({ membership_status: 'revoked', current_period_start: '2026-09-12T00:00:00.000Z', current_period_end: '2026-09-13T00:00:00.000Z' }), 'user-1', () => now)).resolves.toBe('non-member')
     await expect(resolvePlusMembershipAccess(dbWith(null), 'user-1', () => now)).resolves.toBe('non-member')
+  })
+
+  it('uses one finite-time sample and accepts the inclusive start boundary', async () => {
+    const clock = vi.fn(() => now)
+    const result = await resolvePlusMembershipAccess(
+      dbWith({ membership_status: 'active', current_period_start: '2026-09-12T00:00:00.000Z', current_period_end: '2026-09-13T00:00:00.000Z' }),
+      'user-1',
+      clock,
+    )
+    expect(result).toBe('active')
+    expect(clock).toHaveBeenCalledTimes(1)
+    await expect(resolvePlusMembershipAccess(
+      dbWith({ membership_status: 'active', current_period_start: 'invalid', current_period_end: '2026-09-13T00:00:00.000Z' }),
+      'user-1',
+      () => now,
+    )).resolves.toBe('non-member')
   })
 
   it('fails closed when the projection query fails', async () => {
@@ -58,7 +76,7 @@ describe('Plus membership projection resolver', () => {
   })
 
   it('authorizes handler delivery only through the verified active projection', async () => {
-    const active = deliveryDb({ membership_status: 'active', current_period_end: '2026-09-13T00:00:00.000Z' })
+    const active = deliveryDb({ membership_status: 'active', current_period_start: '2026-09-11T00:00:00.000Z', current_period_end: '2026-09-13T00:00:00.000Z' })
     const activeRelease = vi.fn().mockResolvedValue({
       kind: 'found',
       release: {
@@ -79,9 +97,11 @@ describe('Plus membership projection resolver', () => {
 
     for (const row of [
       null,
-      { membership_status: 'active', current_period_end: '2026-09-12T00:00:00.000Z' },
-      { membership_status: 'revoked', current_period_end: '2026-09-13T00:00:00.000Z' },
-      { membership_status: 'pending', current_period_end: '2026-09-13T00:00:00.000Z' },
+      { membership_status: 'active', current_period_start: '2026-09-11T00:00:00.000Z', current_period_end: '2026-09-12T00:00:00.000Z' },
+      { membership_status: 'active', current_period_start: '2026-09-13T00:00:00.000Z', current_period_end: '2026-09-14T00:00:00.000Z' },
+      { membership_status: 'active', current_period_start: null, current_period_end: '2026-09-13T00:00:00.000Z' },
+      { membership_status: 'revoked', current_period_start: '2026-09-11T00:00:00.000Z', current_period_end: '2026-09-13T00:00:00.000Z' },
+      { membership_status: 'pending', current_period_start: '2026-09-11T00:00:00.000Z', current_period_end: '2026-09-13T00:00:00.000Z' },
     ]) {
       const nonMember = deliveryDb(row)
       const getRelease = vi.fn()

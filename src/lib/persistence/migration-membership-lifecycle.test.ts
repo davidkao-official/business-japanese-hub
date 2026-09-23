@@ -115,8 +115,15 @@ const selectionAuthoritySql = readFileSync(
   ),
   'utf8',
 );
+const accessWindowSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase/migrations/20260923020000_plus_membership_access_effective_start.sql',
+  ),
+  'utf8',
+);
 const lifecyclePgTapFiles = readdirSync(join(process.cwd(), 'supabase/tests'))
-  .filter((file) => /^plus_membership_lifecycle(?:_[a-z_]+)?\.test\.sql$/.test(file))
+  .filter((file) => /^plus_membership_(?:lifecycle(?:_[a-z_]+)?|access_effective_start)\.test\.sql$/.test(file))
   .sort()
   .map((file) => ({
     file,
@@ -136,7 +143,7 @@ function expectLifecycleTapPlans() {
     expect(assertions!.length, file).toBe(Number(declaredPlan![1]));
     total += Number(declaredPlan![1]);
   }
-  expect(total).toBe(1576);
+  expect(total).toBe(1584);
 }
 
 describe('#165 membership stream selection authority migration', () => {
@@ -150,6 +157,22 @@ describe('#165 membership stream selection authority migration', () => {
     expect(selectionAuthoritySql).not.toContain('v_ordering_barrier_occurred_at := v_state.applied_event_occurred_at');
     expect(selectionAuthoritySql).not.toContain('v_ordering_barrier_occurred_at := v_current_stream_terminal_at');
     expect(selectionAuthoritySql).toContain('Terminal evidence retires/clamps only its own source stream');
+  });
+});
+
+describe('#165 membership access effective-start migration', () => {
+  it('persists server-derived starts without guessing legacy access windows', () => {
+    expect(accessWindowSql).toContain('add column current_period_start timestamptz;');
+    expect(accessWindowSql).toContain('greatest(v_event.occurred_at, v_event.period_start)');
+    expect(accessWindowSql).toContain('greatest(p_occurred_at, p_period_start)');
+    expect(accessWindowSql).toContain('greatest(v_buffered_occurred_at, v_buffered_period_start)');
+    expect(accessWindowSql).toContain('current_period_start = case');
+    expect(accessWindowSql.match(/current_period_start = case/g)).toHaveLength(2);
+    expect(accessWindowSql).toContain('current_period_start, current_period_end');
+    expect(accessWindowSql.slice(0, accessWindowSql.indexOf('create or replace function')))
+      .not.toMatch(/\b(update|insert)\s+public\.plus_membership_access\b/i);
+    expect(accessWindowSql).not.toMatch(/update public\.plus_membership_access[\s\S]*set current_period_start\s*=\s*coalesce/i);
+    expect(accessWindowSql).not.toContain('update public.plus_membership_access\nset current_period_start');
   });
 });
 

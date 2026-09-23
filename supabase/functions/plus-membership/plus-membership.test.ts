@@ -61,8 +61,9 @@ describe('Plus membership status Edge handler', () => {
   })
 
   it.each([
-    ['active', { membership_status: 'active', current_period_end: '2099-01-01T00:00:00.000Z' }],
-    ['non-member', { membership_status: 'active', current_period_end: '2000-01-01T00:00:00.000Z' }],
+    ['active', { membership_status: 'active', current_period_start: '2000-01-01T00:00:00.000Z', current_period_end: '2099-01-01T00:00:00.000Z' }],
+    ['non-member', { membership_status: 'active', current_period_start: '2099-01-01T00:00:00.000Z', current_period_end: '2100-01-01T00:00:00.000Z' }],
+    ['non-member', { membership_status: 'active', current_period_start: '2099-01-01T00:00:00.000Z', current_period_end: '2000-01-01T00:00:00.000Z' }],
     ['non-member', null],
   ])('returns %s from the verified server projection', async (access, row) => {
     const { db, calls } = dbWith(row)
