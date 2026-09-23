@@ -69,7 +69,9 @@ Import 另需 server-only `SUPABASE_URL` 與 `SUPABASE_SERVICE_ROLE_KEY`。Valid
 
 Runtime text 保留 authoring 內的空行作為段落界線、單行換行作為行內斷行；不用 HTML/Markdown 注入文章結構。這使長篇日文材料與繁體中文分析可以維持可讀性，同時維持純文字輸出。
 
-Free production article 不能用 `access: free` 旗標繞過 member-only delivery；除已明確可公開的 non-proprietary fixture 外，Free publication 需要另外核准的 public delivery contract。Reading save/resume、review evidence 與 recurring editorial return loop 仍屬 #122；這個 renderer 不會把開啟文章偽裝成已儲存進度。
+Free production article 不能用 `access: free` 旗標繞過 member-only delivery；除已明確可公開的 non-proprietary fixture 外，Free publication 需要另外核准的 public delivery contract。#171 只為 active Plus member 增加 Reading item 的 server-owned save/remove preference 與 My Learning return seam；它不保存文章 body，也不表示已讀、完成或理解。逐段 resume、comprehension/review evidence、合法可持續的正式 editorial corpus 與 recurring return loop 仍屬 #122；renderer 不會把開啟文章或按下收藏偽裝成學習進度。
+
+目前 `reading-saves` Edge Function 以部署時 bundled 的 body-free Reading catalog 驗證新 save；My Learning 也只將 saved revision 精確對上目前 frontend catalog 才提供 return link。這個 #171 界線只涵蓋未變更的原創 Free 教學範例。**在 #122 發布第一篇 Plus Reading 或變更／退休正式 revision 前**，必須定義並驗證 frontend、Edge、cached client 與 frontend rollback 的 publication compatibility：哪些 revision 仍可儲存、哪些已退休，以及舊版 UI 如何安全返回。Immutable `private_content_release` 的存在本身不代表仍已發布；不得因 frontend/Edge 版本不一致就接受所有已匯入 release 或由 client 宣告 publication 狀態。
 
 ## #114 Practice / Web Test private authoring path
 

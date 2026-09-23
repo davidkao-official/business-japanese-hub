@@ -199,7 +199,8 @@
 }
 
 .my-learning-page__review-list,
-.my-learning-page__recent-list {
+.my-learning-page__recent-list,
+.my-learning-reading-saves__list {
   display: grid;
   gap: var(--space-2);
   margin: 0;
@@ -241,6 +242,37 @@
   grid-template-columns: minmax(0, 1fr) auto auto;
 }
 
+.my-learning-reading-saves__list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding-block: var(--space-3);
+  border-block-end: var(--stroke-thin) solid var(--color-border);
+}
+
+.my-learning-reading-saves__item {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.my-learning-reading-saves__item a {
+  color: var(--color-text);
+  font-family: var(--font-serif);
+  font-size: var(--text-md);
+  text-decoration-thickness: var(--stroke-thin);
+  text-underline-offset: 0.2em;
+}
+
+.my-learning-reading-saves__item span,
+.my-learning-reading-saves__item time {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.my-learning-reading-saves__list .btn { justify-self: end; }
+
 .my-learning-page__state {
   padding-block: var(--space-6);
   border-block: var(--stroke-thin) solid var(--color-border);
@@ -252,7 +284,8 @@
 
 @media (max-width: 47.99rem) {
   .my-learning-page__review-list li,
-  .my-learning-page__recent-list li {
+  .my-learning-page__recent-list li,
+  .my-learning-reading-saves__list li {
     grid-template-columns: 1fr;
     align-items: start;
   }

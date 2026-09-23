@@ -119,6 +119,18 @@ event schema，也不聲稱跨產品 mastery。My Learning 只顯示最近 50 �
 目前仍可複習的錯題，以及在同一 category/domain 至少 5 筆且至少 2 筆答錯時才顯示的
 weak-area signal；沒有 derived evidence 時顯示 empty state，讀取失敗時 fail closed。
 
+Business Reading 的 #171 `reading_saves` 是另一個 bounded、member-owned preference：
+它只表示該 user 曾選擇保留 stable Reading item id 與當時的 release revision，
+以及 server 記錄的 `saved_at`。它不表示文章已讀完、理解內容、答對問題或具備任何
+skill；不得匯入 `learning_evidence`，也不得從 save 推導 mastery 或閱讀進度。
+`reading-saves` Edge Function 重新驗證 bearer identity 與當前 Plus membership，並只對
+目前公開 catalog 中可讀的 item/revision 接受 save。移除已 retired 或 revision 已更新的
+舊 save 仍可依 stable id 執行。Browser 不能提交可信 user、會員狀態、時間或文章 body。
+`/my-learning` 對 Practice evidence 與 Reading saves 分別讀取、分別呈現；任一讀取失敗
+不應偽造另一種紀錄，也不應讓 Practice 的不可用狀態掩蓋已成功讀取的 Reading saves。
+只有目前 catalog/revision 可安全開啟的 save 才提供 return link；舊版或已移除的項目
+顯示 unavailable 並可移除，不猜測新版本已讀過。
+
 Library 的一次 `chapter_opened` 以「當前 stable user id + 當前 Book/Chapter mount」為前端
 觸發邊界；Supabase token refresh 即使產生新 user object，也不得在章節沒有重新開啟時
 製造第二個 event；相反地，前一位 user 的 write 尚未完成時切換帳號，不得吞掉新 user
