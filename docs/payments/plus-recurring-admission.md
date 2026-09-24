@@ -31,7 +31,7 @@ credentials or sensitive account identifiers in repository files or issues.
 | Customer jurisdiction and supported legal locale | Product/launch decision, supported by qualified legal review for each launch jurisdiction (#112) | Deny unsupported or ambiguous jurisdiction |
 | Terms, privacy, recurring disclosure and refund-policy revision | Exact immutable document/revision plus qualified review and approver/date; existing #25 legal surfaces are drafts until reviewed for this offer | Deny if absent, draft, superseded, or not bound to this offer |
 | Provider product/account, merchant eligibility, environment and enabled payment method | Provider-issued account/product facts confirmed by owner; stage and production evidence kept distinct | Deny if eligibility, recurring support, or environment is unknown |
-| Billable offer and provider mapping | Server catalog revision bound to TWD 29,900, one-month interval, first-charge and renewal semantics; product owner approves any product change | Deny any amount/currency/interval mismatch; client values are ignored |
+| Billable offer and provider mapping | Exact authoritative catalog plan row (`plan_code`, `currency`, `amount_minor`, `interval`, `active`) bound to first-charge and renewal semantics, or a future explicitly versioned offer binding; Product Owner approves any product change | Deny any amount/currency/interval mismatch; client values are ignored |
 | Cancellation and paid-access policy | #107 lifecycle plus explicit product decision for request method, effective time, and access consequence; provider semantics must match | Deny if provider cannot enact or report the approved policy |
 | Failed renewal, retry/grace, terminal cutoff, refund/reversal/dispute | Explicit #107/product decisions and provider evidence; no inferred grace or automatic restoration | Deny unsupported or ambiguous outcomes |
 | Customer communication and operational handling | Approved #112 disclosure/receipt/notice revisions, tested delivery ownership and support/escalation path | Deny if required notice/receipt cannot be delivered or audited |
@@ -71,26 +71,35 @@ provider-neutral lifecycle without inventing facts. At minimum verify:
   reconciliation. Accepted evidence is immutable; exact replay is harmless,
   fact mismatch is rejected, and provider delivery order cannot decide access.
 - **Failure and recovery:** distinguish an early retry/collection warning from
-  authoritative failure and determine exactly which paid coverage remains,
-  whether any explicitly approved grace period applies, and which verified
-  event restores coverage. The lifecycle currently invents no grace: a failure
-  clips unpaid future coverage; already paid coverage remains bounded by its
-  verified period. No adapter may extend access from a retry notice.
+  authoritative effective failure. A retry warning must not map to
+  `membership_payment_failed`. For an accepted failure matching the admitted
+  plan, #165's temporal fold clips that stream's access windows at its
+  `occurred_at`, including an otherwise open current window; paid-period bounds
+  do not guarantee access after that instant. An off-plan failure only invalidates
+  that plan's windows. The fold also removes affected unpaid future coverage.
+  The lifecycle currently invents no grace. Determine whether a separately
+  approved grace policy is compatible before admitting a provider; no adapter
+  may extend access from a retry notice.
 - **Cancellation and terminal evidence:** establish provider semantics for
   request time versus effective time, immediate versus period-end cancellation,
   expiry, full refund, reversal, and dispute. Map only a verified effective
   cutoff and its authoritative occurrence time to terminal lifecycle evidence,
-  scoped to its own stream. Product policy must decide whether cancellation is
-  immediate or period-end; this contract does not choose either.
+  scoped to its own stream. The cutoff is durable: provider-side undo-cancel or
+  dispute-reversal signals cannot erase it under the current lifecycle
+  contract. Keep such semantics unresolved and checkout closed unless a future
+  explicit lifecycle decision defines and verifies an allowed restoration path.
+  Product policy must decide whether cancellation is immediate or period-end;
+  this contract does not choose either.
 - **Result and access:** lifecycle writes can return `applied`, `replayed`,
-  `stale`, `conflict`, or `unavailable`. `stale` means the selected legacy
+  `stale`, or `conflict`. `stale` means the selected legacy
   membership snapshot did not change; it does not mean the event was ignored or
   temporal access stayed the same. After accepted evidence, the server rereads
   `resolve_plus_membership_access`. That resolver selects the greatest
   qualified initial-start key effective at sampled database time, then checks
   paid coverage only on that stream. A gap or failure denies access without
-  falling back to an older stream. Client UI, email, and provider redirects are
-  never access authorities.
+  falling back to an older stream. The resolver may return `unavailable` when
+  access lookup fails; consumers fail closed and grant no access. Client UI,
+  email, and provider redirects are never access authorities.
 
 Provider selection requires current account-specific proof for seller-country
 eligibility, TWD recurring support and exact cadence/charge semantics, customer
