@@ -28,6 +28,8 @@ describe('Workplace Learn authoring and runtime contract', () => {
     expect(sampleWorkplaceLearnItem.meaningInContextZhTW).toContain('目前確認的事實')
     expect(sampleWorkplaceLearnItem.meaningInContextZhTW).not.toContain('「')
     expect(sampleWorkplaceVocabularyItem.workplaceNuanceZhTW).not.toContain('「')
+    expect(sampleWorkplaceVocabularyItem.register).toBe('禮貌、適用於一般工作進度報告；可用於對主管或同事說明。')
+    expect(sampleWorkplaceVocabularyItem.register).not.toContain('丁寧')
     expect(sampleWorkplaceLearnItem.sampleLabel).toBe('non-proprietary-teaching-sample')
   })
 

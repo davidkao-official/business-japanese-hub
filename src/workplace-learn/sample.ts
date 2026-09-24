@@ -62,7 +62,7 @@ export const sampleWorkplaceVocabularyItem: WorkplaceLearnVocabulary = {
     explanationZhTW: '這種說法表示依目前狀況預估明天才能分享，仍需視確認進度而定。',
   },
   cautionZhTW: '若結果已經確定，直接報告事實會更清楚；若使用預估，應補充何時會再次確認或更新，避免對方把可能性當成承諾。這是架空教學例句，請依實際情境調整。',
-  register: '中性、適用於一般工作進度報告；可用於對主管或同事的丁寧說明。',
+  register: '禮貌、適用於一般工作進度報告；可用於對主管或同事說明。',
   relationshipContext: '面向會受時程影響的人時，除了預估，也要說明下一次確認時間。',
   relatedTermIds: [],
   relatedLinks: [{ kind: 'learn', label: sampleWorkplaceLearnItem.title, labelLanguage: 'ja', targetId: sampleWorkplaceLearnItem.id }],
