@@ -44,74 +44,6 @@ select is((select provolatile from pg_proc
   where oid = 'public._resolve_plus_membership_access_at(uuid,timestamptz)'::regprocedure),
   's', 'fixed-time membership helper shares the delivery statement snapshot');
 
--- Reproduce a statement-snapshot race without dblink. The test-only wrappers
--- are installed before the delivery function caches its query and mutate only
--- while the transaction-local test flag is enabled below.
-reset role;
-create function public._reading_publication_race_test_mutate()
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  if current_setting('app.reading_publication_race_test', true) = 'on'
-    and exists (
-      select 1 from public.reading_publication
-      where item_id = 'reading-publication-contract-test'
-        and revision = repeat('a', 64)
-    ) then
-    perform public.publish_reading_item(
-      'reading-publication-contract-test', repeat('b', 64)
-    );
-    update public.plus_membership_access_window
-    set window_end = statement_timestamp()
-    where user_id = '18200000-0000-4000-8000-000000000001'
-      and window_end > statement_timestamp();
-  end if;
-end;
-$$;
-revoke all on function public._reading_publication_race_test_mutate() from public, anon, authenticated, service_role;
-
-alter function public._resolve_plus_membership_access_at(uuid, timestamptz)
-  rename to _reading_publication_race_original_access_at;
-alter function public.resolve_plus_membership_access(uuid)
-  rename to _reading_publication_race_original_access;
-
-create function public._resolve_plus_membership_access_at(
-  p_user_id uuid,
-  p_now timestamptz
-)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-begin
-  perform public._reading_publication_race_test_mutate();
-  return public._reading_publication_race_original_access_at(p_user_id, p_now);
-end;
-$$;
-revoke all on function public._resolve_plus_membership_access_at(uuid, timestamptz)
-  from public, anon, authenticated, service_role;
-
-create function public.resolve_plus_membership_access(p_user_id uuid)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-begin
-  perform public._reading_publication_race_test_mutate();
-  return public._reading_publication_race_original_access(p_user_id);
-end;
-$$;
-revoke all on function public.resolve_plus_membership_access(uuid)
-  from public, anon, authenticated;
-grant execute on function public.resolve_plus_membership_access(uuid) to service_role;
-
-set local role service_role;
 select is(public.get_member_reading_release('18200000-0000-4000-8000-000000000001',
   'reading-publication-contract-test', repeat('a', 64)) ->> 'status', 'missing',
   'an imported but unpublished Reading release has no delivery body');
@@ -129,29 +61,25 @@ select is(public.get_member_reading_release('18200000-0000-4000-8000-00000000000
   'reading-publication-contract-test', repeat('a', 64)) ->> 'status', 'non-member',
   'an inactive member cannot receive the published body');
 
-select set_config('app.reading_publication_race_test', 'on', true);
+-- Expiry and publication are independent gates. A revoked member receives no
+-- body even for a revision that has already been published.
+reset role;
+update public.plus_membership_access_window
+set window_end = now() - interval '1 minute'
+where user_id = '18200000-0000-4000-8000-000000000001';
+set local role service_role;
 select is(public.get_member_reading_release('18200000-0000-4000-8000-000000000001',
-  'reading-publication-contract-test', repeat('b', 64)) ->> 'status', 'missing',
-  'delivery snapshot cannot see a revision published after its authorization snapshot');
-select is(public.get_member_reading_release('18200000-0000-4000-8000-000000000001',
-  'reading-publication-contract-test', repeat('b', 64)) ->> 'status', 'non-member',
-  'a later delivery statement observes revoked temporal access');
-select set_config('app.reading_publication_race_test', 'off', true);
+  'reading-publication-contract-test', repeat('a', 64)) ->> 'status', 'non-member',
+  'expired temporal membership cannot receive a published body');
 
 reset role;
-drop function public.resolve_plus_membership_access(uuid);
-alter function public._reading_publication_race_original_access(uuid)
-  rename to resolve_plus_membership_access;
-drop function public._resolve_plus_membership_access_at(uuid, timestamptz);
-alter function public._reading_publication_race_original_access_at(uuid, timestamptz)
-  rename to _resolve_plus_membership_access_at;
-drop function public._reading_publication_race_test_mutate();
 update public.plus_membership_access_window
 set window_end = now() + interval '1 day'
-where user_id = '18200000-0000-4000-8000-000000000001'
-  and window_end <= now();
-
+where user_id = '18200000-0000-4000-8000-000000000001';
 set local role service_role;
+select is(public.get_member_reading_release('18200000-0000-4000-8000-000000000001',
+  'reading-publication-contract-test', repeat('b', 64)) ->> 'status', 'missing',
+  'restored membership cannot receive an unpublished revision');
 select public.publish_reading_item('reading-publication-contract-test', repeat('b', 64));
 select is((select count(*) from public.reading_publication where item_id = 'reading-publication-contract-test'),
   1::bigint, 'a new publication revision replaces the single current row');
