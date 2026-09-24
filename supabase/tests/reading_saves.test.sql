@@ -1,6 +1,6 @@
 begin;
 
-select plan(22);
+select plan(26);
 
 insert into auth.users (id, aud, role) values
   ('17100000-0000-4000-8000-000000000001', 'authenticated', 'authenticated'),
@@ -29,8 +29,14 @@ select ok(
   and not has_function_privilege('authenticated', 'public.remove_reading_item(uuid,text)', 'execute'),
   'browser roles cannot invoke write RPCs directly'
 );
+select is(
+  (select count(*) from public.reading_publication where item_id = 'reading-plus-contract-test'),
+  0::bigint,
+  'imported Plus releases are not automatically published'
+);
 
 set local role service_role;
+select public.publish_reading_item('reading-plus-contract-test', repeat('a', 64));
 select public.save_reading_item('17100000-0000-4000-8000-000000000001', 'reading-plus-contract-test', repeat('a', 64)) as first_save \gset
 select is((:'first_save'::jsonb ->> 'item_id'), 'reading-plus-contract-test', 'save returns only the bounded item identity');
 select is((:'first_save'::jsonb ->> 'revision'), repeat('a', 64), 'save returns the exact Plus revision');
@@ -44,13 +50,26 @@ select public.save_reading_item('17100000-0000-4000-8000-000000000001', 'reading
 select is((:'changed_save'::jsonb ->> 'revision'), repeat('b', 64), 'a changed current revision replaces the saved revision');
 select isnt(:'changed_save'::jsonb ->> 'saved_at', :'first_save'::jsonb ->> 'saved_at', 'a changed revision receives a fresh server timestamp');
 
-select throws_ok(
-  $$ select public.save_reading_item('17100000-0000-4000-8000-000000000001', 'reading-book-contract-test', repeat('c', 64)) $$,
-  '22023', 'invalid Reading save release', 'save RPC rejects a non-Reading release'
+select public.retire_reading_item('reading-plus-contract-test');
+select is(
+  public.save_reading_item('17100000-0000-4000-8000-000000000001', 'reading-plus-contract-test', repeat('b', 64)) ->> 'status',
+  'stale',
+  'retired current revision cannot be newly saved'
 );
-select throws_ok(
-  $$ select public.save_reading_item('17100000-0000-4000-8000-000000000001', 'reading-plus-contract-test', repeat('d', 64)) $$,
-  '22023', 'invalid Reading save release', 'save RPC rejects a nonexistent or stale release'
+select public.remove_reading_item('17100000-0000-4000-8000-000000000001', 'reading-plus-contract-test') as retired_remove \gset
+select is(:'retired_remove'::jsonb ->> 'revision', repeat('b', 64), 'historical save remains removable after retirement');
+select is((select count(*) from public.reading_saves where user_id = '17100000-0000-4000-8000-000000000001' and item_id = 'reading-plus-contract-test'),
+  0::bigint, 'retired save removal deletes only the owner preference');
+select public.publish_reading_item('reading-plus-contract-test', repeat('b', 64));
+select public.save_reading_item('17100000-0000-4000-8000-000000000001', 'reading-plus-contract-test', repeat('b', 64));
+
+select is(
+  public.save_reading_item('17100000-0000-4000-8000-000000000001', 'reading-book-contract-test', repeat('c', 64)) ->> 'status',
+  'stale', 'save RPC rejects a non-Reading release without publishing it'
+);
+select is(
+  public.save_reading_item('17100000-0000-4000-8000-000000000001', 'reading-plus-contract-test', repeat('d', 64)) ->> 'status',
+  'stale', 'save RPC rejects a nonexistent or stale release'
 );
 select throws_ok(
   $$ select public.save_reading_item('17100000-0000-4000-8000-000000000001', 'invalid id', null) $$,
