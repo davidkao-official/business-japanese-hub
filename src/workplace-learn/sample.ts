@@ -20,7 +20,7 @@ export const sampleWorkplaceLearnItem: WorkplaceLearnLesson = {
   whatToDo: '儘早告知相關人員目前進度，說明可能影響，提出暫定的下一步與更新時間；若影響尚未確定，要清楚標示為預估。',
   whatToSayJapanese: '確認作業に想定より時間がかかっており、本日中に予定していた資料の共有が難しい見込みです。影響範囲を確認し、15時までに改めて状況をご報告します。',
   whyItWorksZhTW: '「想定より時間がかかっており」交代原因，「難しい見込み」標示目前判斷仍是預估，最後用明確時間承諾再次更新。',
-  practiceTypes: [],
+  practiceTypes: ['rewrite'],
   transferTakeaway: '報告進度變化時，讓對方知道目前事實、可能影響，以及你何時會帶著新資訊再聯絡。',
   examples: [
     {

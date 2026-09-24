@@ -68,7 +68,7 @@ describe('Workplace Learn authoring and runtime contract', () => {
       meaningZhTW: '之後再回報狀況', workplaceNuanceZhTW: '讓對方知道你會在資訊更新後再次聯絡。',
       usageContext: '承諾下一次進度回報時使用。',
       example: { context: '補充回報時間', japanese: '15時までに改めて状況をご報告します。', explanationZhTW: '明確承諾更新時間。' },
-      cautionZhTW: '時間必須可實際遵守。', register: '丁寧；適用於工作聯絡。', relatedTermIds: [], relatedLinks: [],
+      cautionZhTW: '時間必須可實際遵守。', register: '丁寧；適用於工作聯絡。', relatedTermIds: [], relatedLinks: [], sampleLabel: 'non-proprietary-teaching-sample',
     }
     const lesson = { ...sampleWorkplaceLearnItem, relatedVocabularyIds: ['learn-term-next-update'] }
     expect(buildWorkplaceLearnCatalog([lesson, vocabulary])).toHaveLength(2)
@@ -99,8 +99,6 @@ describe('Workplace Learn authoring and runtime contract', () => {
     expect(toWorkplaceLearnCatalogEntry(plus, reference)).toMatchObject({ access: 'plus', releaseReference: reference })
     expect(() => toWorkplaceLearnCatalogEntry(sampleWorkplaceLearnItem, reference)).toThrow('release reference is invalid')
     const plusWithoutSampleLink = { ...plus, relatedVocabularyIds: [] }
-    expect(() => buildWorkplaceLearnCatalog([plusWithoutSampleLink])).toThrow('requires a release reference')
-    expect(buildWorkplaceLearnCatalog([plusWithoutSampleLink], { [plus.id]: reference })[0]).toHaveProperty('releaseReference', reference)
-    expect(() => buildWorkplaceLearnCatalog([plusWithoutSampleLink], { [plus.id]: { ...reference, revision: 'stale' } })).toThrow('Invalid Workplace Learn release reference')
+    expect(() => buildWorkplaceLearnCatalog([plusWithoutSampleLink])).toThrow('Plus Workplace Learn bodies are not accepted')
   })
 })

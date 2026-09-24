@@ -12,6 +12,9 @@ import { workplaceLearnCatalog } from './catalog'
 import { sampleWorkplaceLearnItem, sampleWorkplaceVocabularyItem } from './sample'
 import type { WorkplaceLearnCatalogEntry, WorkplaceLearnCategory, WorkplaceLearnRuntimeItem } from './types'
 import { validateWorkplaceLearnRuntimeItem } from './validate'
+import { readingCatalog } from '../reading/catalog'
+import practiceDiscoveryDocument from '../practice-web-test/released-discovery-catalog.json'
+import { practiceDiscoveryFamilyLabel, validatePracticeDiscoveryCatalog } from '../practice-web-test/discoveryCatalog'
 import './workplace-learn.css'
 
 const categoryOrder: WorkplaceLearnCategory[] = ['workplace-communication', 'thinking-problem-solving', 'documents-data', 'meetings-projects', 'workplace-vocabulary']
@@ -172,19 +175,20 @@ function ActivePlusWorkplaceItem({ entry, userId, getAccessToken, loadPayload, c
 }
 
 function DetailPreview({ entry, strings }: { entry: WorkplaceLearnCatalogEntry; strings: ReturnType<typeof useStrings> }) {
-  return <div className="workplace-learn__detail-header"><div className="workplace-learn__item-meta"><span>{strings.workplaceLearn.categories[entry.category]}</span><span className={`workplace-learn__access workplace-learn__access--${entry.access}`}>{accessLabel(entry.access, strings)}</span></div><h1 id="workplace-detail-title" lang={entry.kind === 'vocabulary' ? 'ja' : 'zh-TW'}>{entry.title}</h1><p lang="zh-TW">{entry.lead}</p></div>
+  const isKnownJapaneseFixtureTitle = entry.id === sampleWorkplaceLearnItem.id || entry.id === sampleWorkplaceVocabularyItem.id
+  return <div className="workplace-learn__detail-header"><div className="workplace-learn__item-meta"><span>{strings.workplaceLearn.categories[entry.category]}</span><span className={`workplace-learn__access workplace-learn__access--${entry.access}`}>{accessLabel(entry.access, strings)}</span></div><h1 id="workplace-detail-title" {...(isKnownJapaneseFixtureTitle ? { lang: 'ja' } : {})}>{entry.title}</h1><p {...(isKnownJapaneseFixtureTitle ? { lang: 'zh-TW' } : {})}>{entry.lead}</p></div>
 }
 
 function WorkplaceArticle({ item, catalogEntries }: { item: WorkplaceLearnRuntimeItem; catalogEntries: readonly WorkplaceLearnCatalogEntry[] }) {
   const strings = useStrings()
   const related = (id: string) => catalogEntries.find((entry) => entry.id === id)
-  const links = item.relatedLinks.map((link) => ({ link, entry: link.kind === 'learn' ? related(link.targetId) : undefined }))
+  const links = item.relatedLinks.map((link) => ({ link, href: resolveRelatedHref(link, catalogEntries) }))
   return (
     <article className="workplace-learn__article">
       <DetailPreview entry={{ schemaVersion: item.schemaVersion, kind: item.kind, id: item.id, slug: item.slug, title: item.title, lead: item.lead, category: item.category, tags: item.tags, access: item.access, ...(item.sampleLabel ? { sampleLabel: item.sampleLabel } : {}) }} strings={strings} />
       {item.sampleLabel && <p className="workplace-learn__sample-note">{strings.workplaceLearn.sampleNote}</p>}
       {item.kind === 'lesson' ? <LessonBody item={item} related={related} strings={strings} /> : <VocabularyBody item={item} strings={strings} />}
-      {links.some(({ entry }) => entry) && <nav className="workplace-learn__related" aria-label={strings.workplaceLearn.related}><h2>{strings.workplaceLearn.related}</h2>{links.filter(({ entry }) => entry).map(({ link, entry: target }) => <Link key={`${link.kind}:${link.targetId}`} to={target!.kind === 'lesson' ? `/learn/workplace/${target!.slug}` : `/learn/vocabulary/${target!.slug}`}>{link.label} <span aria-hidden="true">→</span></Link>)}</nav>}
+      {links.length > 0 && <nav className="workplace-learn__related" aria-label={strings.workplaceLearn.related}><h2>{strings.workplaceLearn.related}</h2><ul>{links.map(({ link, href }) => <li key={`${link.kind}:${link.targetId}`}>{href ? <Link to={href}>{link.label} <span aria-hidden="true">→</span></Link> : <span className="workplace-learn__related-unavailable">{link.label} · {strings.workplaceLearn.relatedUnavailable}</span>}</li>)}</ul></nav>}
     </article>
   )
 }
@@ -199,6 +203,7 @@ function LessonBody({ item, related, strings }: { item: Extract<WorkplaceLearnRu
     {item.examples.length > 0 && <section lang="zh-TW"><h2>{strings.workplaceLearn.examples}</h2>{item.examples.map((example, index) => <div className="workplace-learn__example" key={`${example.context}-${index}`}><p className="workplace-learn__example-context">{example.context}</p><blockquote lang="ja">{example.japanese}</blockquote><p>{example.explanationZhTW}</p></div>)}</section>}
     <section className="workplace-learn__caution" lang="zh-TW"><h2>{strings.workplaceLearn.caution}</h2><p>{item.cautionZhTW}</p>{item.relationshipContext && <p>{item.relationshipContext}</p>}</section>
     {item.relatedVocabularyIds.length > 0 && <section><h2>{strings.workplaceLearn.relatedVocabulary}</h2><ul>{item.relatedVocabularyIds.map((id) => { const vocab = related(id); return vocab ? <li key={id}><Link to={`/learn/vocabulary/${vocab.slug}`}>{vocab.title} →</Link></li> : null })}</ul></section>}
+    {item.practiceTypes.includes('rewrite') && <section className="workplace-learn__self-practice" lang="zh-TW"><h2>{strings.workplaceLearn.selfPracticeTitle}</h2><p>{strings.workplaceLearn.selfPracticePrompt}</p><label htmlFor={`${item.id}-rewrite`}>{strings.workplaceLearn.selfPracticeLabel}</label><textarea id={`${item.id}-rewrite`} rows={4} /><p className="workplace-learn__self-practice-note">{strings.workplaceLearn.selfPracticeNoSave}</p>{/* Persisted practice responses belong to #174. */}</section>}
     <p className="workplace-learn__takeaway">{item.transferTakeaway}</p>
   </div>
 }
@@ -216,6 +221,26 @@ function catalogMatchesRuntime(entry: WorkplaceLearnCatalogEntry, item: Workplac
     && item.schemaVersion === entry.schemaVersion && item.title === entry.title && item.lead === entry.lead
     && item.category === entry.category && item.tags.length === entry.tags.length && item.tags.every((tag, index) => tag === entry.tags[index])
     && item.sampleLabel === entry.sampleLabel
+}
+
+function resolveRelatedHref(
+  link: WorkplaceLearnRuntimeItem['relatedLinks'][number],
+  catalogEntries: readonly WorkplaceLearnCatalogEntry[],
+): string | null {
+  if (link.kind === 'learn') {
+    const entry = catalogEntries.find((candidate) => candidate.id === link.targetId)
+    if (entry) return entry.kind === 'lesson' ? `/learn/workplace/${entry.slug}` : `/learn/vocabulary/${entry.slug}`
+    const learningUnit = getLearningUnitByLearnSlug(link.targetId)
+    return learningUnit ? `/learn/${learningUnit.learnSlug}` : null
+  }
+  if (link.kind === 'read') {
+    const entry = readingCatalog.find((candidate) => candidate.id === link.targetId)
+    return entry ? `/read/${entry.slug}` : null
+  }
+  if (!validatePracticeDiscoveryCatalog(practiceDiscoveryDocument)
+    || practiceDiscoveryDocument.releaseIdentity.contentId !== link.targetId) return null
+  const family = practiceDiscoveryDocument.families.find((candidate) => practiceDiscoveryFamilyLabel(link.targetId, candidate.testFamily) !== undefined)
+  return family ? `/practice/web-test/${family.testFamily}` : null
 }
 
 function renderLearningText(segments: LearningTextBlock) {

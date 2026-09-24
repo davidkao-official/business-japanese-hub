@@ -3,13 +3,14 @@ import { Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WorkplaceLearnCatalogEntry, WorkplaceLearnRuntimeItem } from './types'
 import { workplaceLearnCatalog } from './catalog'
-import { sampleWorkplaceLearnItem } from './sample'
+import { sampleWorkplaceLearnItem, sampleWorkplaceVocabularyItem } from './sample'
 import { toWorkplaceLearnCatalogEntry } from './validate'
 import { WorkplaceLessonPage, WorkplaceVocabularyIndexPage } from './pages'
 import { renderWithAppProviders } from '../test/appProviders'
 import { setLocalePreference } from '../i18n/strings'
 import App from '../App'
 import { COURSE_CORRECTION_LEARN_SLUG, getLearningUnitByLearnSlug } from '../app/learningUnits'
+import { readingCatalog } from '../reading/catalog'
 
 afterEach(() => {
   setLocalePreference(null)
@@ -28,9 +29,10 @@ describe('Workplace Learn routes and details', () => {
     fireEvent.click(screen.getAllByRole('link', { name: /語彙列表/ })[0]!)
     expect(await screen.findByRole('heading', { level: 1, name: '日本職場語彙' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('link', { name: /見込み/ }))
-    expect(await screen.findByRole('heading', { level: 1, name: '見込み' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: '見込み' })).toHaveAttribute('lang', 'ja')
     expect(screen.getByText(/預估、預期/)).toBeInTheDocument()
     expect(screen.getByText(/不代表所有公司/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /報告時に事実と次の対応/ })).toHaveAttribute('href', '/learn/workplace/sample-status-update-with-next-step')
   })
 
   it('keeps the Book-projected Learn slug available on its original route', () => {
@@ -59,6 +61,33 @@ describe('Workplace Learn routes and details', () => {
     )
     expect(screen.queryByText(sampleWorkplaceLearnItem.whatToSayJapanese)).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('目前無法載入教材')
+  })
+
+  it('resolves related Read and Practice items through public registries and renders unknown links as unavailable', () => {
+    setLocalePreference('zh-TW')
+    const item = {
+      ...sampleWorkplaceLearnItem,
+      relatedLinks: [
+        { kind: 'learn' as const, label: '関連語彙を見る', targetId: sampleWorkplaceVocabularyItem.id },
+        { kind: 'read' as const, label: '公開中の記事を読む', targetId: readingCatalog[0]!.id },
+        { kind: 'practice' as const, label: '已發布的 SPI 練習', targetId: 'practice-web-test-spi-v1' },
+        { kind: 'read' as const, label: '未公開の記事', targetId: 'unknown-read-content' },
+        { kind: 'practice' as const, label: '未公開的練習', targetId: 'unknown-practice-content' },
+      ],
+    }
+    const entries = [toWorkplaceLearnCatalogEntry(item), ...workplaceLearnCatalog.filter((entry) => entry.kind === 'vocabulary')]
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={entries} publicItems={[item, sampleWorkplaceVocabularyItem]} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${item.slug}`] },
+    )
+
+    expect(screen.getByRole('link', { name: '公開中の記事を読む' })).toHaveAttribute('href', `/read/${readingCatalog[0]!.slug}`)
+    expect(screen.getByRole('link', { name: '已發布的 SPI 練習' })).toHaveAttribute('href', '/practice/web-test/spi')
+    expect(screen.getByText(/未公開の記事.*此教材目前無法使用/)).toBeInTheDocument()
+    expect(screen.getByText(/未公開的練習.*此教材目前無法使用/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '自己改寫看看' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '寫下自己的表達' })).toBeInTheDocument()
+    expect(screen.getByText('此處輸入的內容不會儲存或評分。')).toBeInTheDocument()
   })
 
   it('clears a loaded Plus body when the authenticated identity changes', async () => {

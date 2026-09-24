@@ -1,5 +1,5 @@
 .workplace-learn {
-  --workplace-content-width: 54rem;
+  --workplace-content-width: var(--measure-reading);
 }
 
 .workplace-learn__intro {
@@ -36,7 +36,7 @@
 .workplace-learn__browse-links a + a { margin-left: var(--space-3); }
 
 .workplace-learn__catalog {
-  max-width: 76rem;
+  max-width: var(--container-max-width);
   margin-inline: auto;
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-5);
@@ -73,11 +73,11 @@
 .workplace-learn__empty { color: var(--color-text-muted); padding-block: var(--space-4); }
 .workplace-learn__back { display: inline-block; margin-bottom: var(--space-4); color: var(--color-text-muted); text-underline-offset: .2em; }
 
-.workplace-learn__detail { max-width: 76rem; }
-.workplace-learn__detail-header { max-width: 54rem; margin: var(--space-5) auto var(--space-6); }
+.workplace-learn__detail { max-width: var(--container-max-width); }
+.workplace-learn__detail-header { max-width: var(--measure-reading); margin: var(--space-5) auto var(--space-6); }
 .workplace-learn__detail-header h1 { max-width: 24ch; margin: var(--space-3) 0; font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.25; }
 .workplace-learn__detail-header > p:last-child { color: var(--color-text-muted); font-size: var(--text-lg); max-width: 60ch; }
-.workplace-learn__article { max-width: 54rem; margin: auto; }
+.workplace-learn__article { max-width: var(--measure-reading); margin: auto; }
 .workplace-learn__article .workplace-learn__detail-header { margin-top: 0; }
 .workplace-learn__body { display: grid; gap: var(--space-5); line-height: 1.8; }
 .workplace-learn__body section { border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
@@ -95,6 +95,13 @@
 .workplace-learn__vocabulary-body dt { color: var(--color-text-muted); font-weight: 600; }
 .workplace-learn__vocabulary-body dd { margin: 0; }
 .workplace-learn__related { display: grid; justify-items: start; gap: var(--space-2); margin-top: var(--space-6); border-top: 1px solid var(--color-border); padding-top: var(--space-4); }
+.workplace-learn__related ul { display: grid; gap: var(--space-2); margin: 0; padding-left: 1.2em; }
+.workplace-learn__related-unavailable { color: var(--color-text-muted); }
+.workplace-learn__self-practice { display: grid; gap: var(--space-2); }
+.workplace-learn__self-practice label { font-weight: 600; }
+.workplace-learn__self-practice textarea { width: 100%; min-height: 7rem; border: 1px solid var(--color-border-strong); border-radius: .25rem; padding: var(--space-3); background: var(--color-surface); color: var(--color-text); font: inherit; line-height: 1.7; resize: vertical; }
+.workplace-learn__self-practice textarea:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.workplace-learn__self-practice-note { color: var(--color-text-muted); font-size: var(--text-sm); }
 .workplace-learn__status { text-align: center; color: var(--color-text-muted); padding: var(--space-4); }
 
 @media (max-width: 48rem) {
