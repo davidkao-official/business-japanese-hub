@@ -66,10 +66,20 @@ provider-neutral lifecycle without inventing facts. At minimum verify:
   start conflicts that stream; it must not silently replace its first identity
   or grant a second membership.
 - **Renewal and ordering:** each paid period has durable source-event identity,
-  provider references, occurrence time and period bounds. Demonstrate duplicate
-  replay, delayed/out-of-order delivery, missed webhook recovery, and
-  reconciliation. Accepted evidence is immutable; exact replay is harmless,
-  fact mismatch is rejected, and provider delivery order cannot decide access.
+  provider references, verified charge amount/currency, occurrence time and
+  period bounds. Demonstrate duplicate replay, delayed/out-of-order delivery,
+  missed webhook recovery, and reconciliation. `record_plus_membership_event`
+  compares the normalized lifecycle fields (identity/user, event type, plan,
+  occurrence time, period bounds, and cancellation flag) for a repeated source
+  event ID; matching fields return `replayed`, while a mismatch is rejected.
+  That comparison does not cover provider charge/refund references, verified
+  amount/currency, or `metadata`. Before every event admission, the provider
+  adapter must independently verify and durably bind those provider-specific
+  financial/reference facts, then explicitly compare them with the immutable
+  accepted provider receipt on replay. A mismatch must be rejected or held for
+  investigation before invoking/accepting the lifecycle writer result.
+  `metadata` is supplemental and cannot establish these facts. Provider
+  delivery order cannot decide access.
 - **Failure and recovery:** distinguish an early retry/collection warning from
   authoritative effective failure. A retry warning must not map to
   `membership_payment_failed`. For an accepted failure matching the admitted
