@@ -184,6 +184,7 @@ type WorkplaceSaveControlState =
   | { kind: 'unavailable' }
   | { kind: 'ready'; save: WorkplaceSave | null }
   | { kind: 'stale' }
+  | { kind: 'conflict' }
   | { kind: 'busy'; action: 'save' | 'remove' }
 
 function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCatalogEntry; contentReady: boolean }) {
@@ -204,7 +205,7 @@ function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCa
     void fetchWorkplaceSave(entry.id, getAccessToken, user.id, controller.signal).then((result) => {
       if (controller.signal.aborted) return
       if (result.kind !== 'ok') {
-        setState(result.kind === 'stale' ? { kind: 'stale' } : result.kind === 'signed-out' ? { kind: 'signed-out' } : { kind: 'unavailable' })
+        setState(result.kind === 'signed-out' ? { kind: 'signed-out' } : { kind: 'unavailable' })
         return
       }
       setState(result.save && (!result.save.current || !currentWorkplaceEntryMatches(entry, result.save))
@@ -229,7 +230,7 @@ function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCa
         ? await saveWorkplaceItem(entry.id, revision, getAccessToken, user.id, controller.signal)
         : await removeWorkplaceSave(entry.id, getAccessToken, user.id, controller.signal)
       if (controller.signal.aborted) return
-      if (result.kind === 'stale') setState({ kind: 'stale' })
+      if (result.kind === 'stale') setState(action === 'save' ? { kind: 'conflict' } : { kind: 'unavailable' })
       else if (result.kind === 'signed-out') setState({ kind: 'signed-out' })
       else if (result.kind !== 'ok') setState({ kind: 'unavailable' })
       else if (action === 'remove') setState({ kind: 'ready', save: null })
@@ -249,6 +250,7 @@ function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCa
   else if (state.kind === 'signed-out') message = strings.workplaceLearn.saveSignedOut
   else if (state.kind === 'loading') message = strings.workplaceLearn.saveLoading
   else if (state.kind === 'stale') message = strings.workplaceLearn.saveStale
+  else if (state.kind === 'conflict') message = strings.workplaceLearn.saveConflict
   else if (state.kind === 'unavailable') message = strings.workplaceLearn.saveUnavailable
   else if (state.kind === 'busy') message = strings.workplaceLearn.saveWorking
   else if (state.save) message = strings.workplaceLearn.saveSaved
@@ -265,6 +267,7 @@ function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCa
     {showSave && <button className="btn btn--secondary" type="button" disabled={busy} onClick={() => void mutate('save')}>{busy ? strings.workplaceLearn.saveWorking : strings.workplaceLearn.saveAction}</button>}
     {showRemove && <button className="btn btn--secondary" type="button" disabled={busy} onClick={() => void mutate('remove')}>{busy ? strings.workplaceLearn.saveWorking : strings.workplaceLearn.removeSave}</button>}
     {allowed && state.kind === 'unavailable' && <button className="btn btn--secondary" type="button" onClick={() => setRetryKey((key) => key + 1)}>{strings.workplaceLearn.saveRetry}</button>}
+    {allowed && state.kind === 'conflict' && <button className="btn btn--secondary" type="button" onClick={() => setRetryKey((key) => key + 1)}>{strings.workplaceLearn.saveRetry}</button>}
     {membership.kind === 'unavailable' && <button className="btn btn--secondary" type="button" onClick={retryMembership}>{strings.workplaceLearn.saveRetry}</button>}
     {membership.kind === 'non-member' && <Link className="btn btn--secondary" to="/plus">{strings.plus.plusLabel}</Link>}
   </section>

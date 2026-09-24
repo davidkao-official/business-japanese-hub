@@ -74,7 +74,7 @@ export interface AppStrings {
     example: string; related: string; relatedUnavailable: string; sampleNote: string; loading: string; unavailable: string; vocabularyEmpty: string
     selfPracticeTitle: string; selfPracticePrompt: string; selfPracticeLabel: string; selfPracticeNoSave: string
     saveLabel: string; saveSignedOut: string; saveCheckingMembership: string; saveNonMember: string; saveMembershipUnavailable: string
-    saveContentLoading: string; saveLoading: string; saveReady: string; saveSaved: string; saveStale: string; saveUnavailable: string
+    saveContentLoading: string; saveLoading: string; saveReady: string; saveSaved: string; saveStale: string; saveConflict: string; saveUnavailable: string
     saveAction: string; removeSave: string; saveWorking: string; saveRetry: string
   }
   app: {
@@ -457,7 +457,7 @@ const ja: AppStrings = {
     saveCheckingMembership: 'Plus 会員状態を確認しています。', saveNonMember: 'Workplace Learn の保存には Plus 会員資格が必要です。',
     saveMembershipUnavailable: '会員状態を確認できません。', saveContentLoading: '教材を読み込んでいます。', saveLoading: '保存状態を確認しています。',
     saveReady: 'この教材を My Learning に保存できます。', saveSaved: 'My Learning に保存しました。この保存は完了や習熟を示すものではありません。',
-    saveStale: '保存した教材の版は現在利用できません。保存を解除できます。', saveUnavailable: '保存状態を確認できません。',
+    saveStale: '保存した教材の版は現在利用できません。保存を解除できます。', saveConflict: '今回の保存は受け付けられず、新しい保存記録は確認できませんでした。版を確認して再試行してください。', saveUnavailable: '保存状態を確認できません。',
     saveAction: 'My Learning に保存', removeSave: '保存を解除', saveWorking: '処理中…', saveRetry: '再試行',
   },
   app: {
@@ -855,7 +855,7 @@ const en: AppStrings = {
     saveCheckingMembership: 'Checking Plus membership.', saveNonMember: 'Saving Workplace Learn material requires Plus membership.',
     saveMembershipUnavailable: 'Membership status is unavailable.', saveContentLoading: 'Loading material.', saveLoading: 'Checking saved status.',
     saveReady: 'You can save this material to My Learning.', saveSaved: 'Saved to My Learning. This does not indicate completion or mastery.',
-    saveStale: 'The saved version is no longer available. You can remove this save.', saveUnavailable: 'Saved status is unavailable.',
+    saveStale: 'The saved version is no longer available. You can remove this save.', saveConflict: 'This save was not accepted; no new saved item was confirmed. Check the current version and try again.', saveUnavailable: 'Saved status is unavailable.',
     saveAction: 'Save to My Learning', removeSave: 'Remove save', saveWorking: 'Working…', saveRetry: 'Try again',
   },
   app: {
@@ -1253,7 +1253,7 @@ const zhTW: AppStrings = {
     saveCheckingMembership: '正在確認 Plus 會員狀態。', saveNonMember: '儲存 Workplace Learn 教材需要 Plus 會員。',
     saveMembershipUnavailable: '目前無法確認會員狀態。', saveContentLoading: '正在載入教材。', saveLoading: '正在讀取儲存狀態。',
     saveReady: '可以將這項教材儲存到 My Learning。', saveSaved: '已儲存在 My Learning。這不代表完成或精熟。',
-    saveStale: '已儲存的教材版本目前無法使用；你可以移除這筆儲存。', saveUnavailable: '目前無法確認儲存狀態。',
+    saveStale: '已儲存的教材版本目前無法使用；你可以移除這筆儲存。', saveConflict: '這次儲存未成功；目前沒有確認到新的儲存紀錄。請重新確認版本後再試。', saveUnavailable: '目前無法確認儲存狀態。',
     saveAction: '儲存到 My Learning', removeSave: '移除儲存', saveWorking: '處理中…', saveRetry: '重試',
   },
   app: {
@@ -1635,7 +1635,7 @@ const zhCN: AppStrings = {
     saveNonMember: '保存 Workplace Learn 教材需要 Plus 会员。', saveMembershipUnavailable: '目前无法确认会员状态。',
     saveContentLoading: '正在加载教材。', saveLoading: '正在读取保存状态。', saveReady: '可以将这项教材保存到 My Learning。',
     saveSaved: '已保存在 My Learning。这不代表完成或精熟。', saveStale: '已保存的教材版本目前无法使用；你可以移除这条保存。',
-    saveUnavailable: '目前无法确认保存状态。', saveAction: '保存到 My Learning', removeSave: '移除保存', saveWorking: '处理中…', saveRetry: '重试',
+    saveUnavailable: '目前无法确认保存状态。', saveConflict: '这次保存未成功；目前没有确认到新的保存记录。请重新确认版本后再试。', saveAction: '保存到 My Learning', removeSave: '移除保存', saveWorking: '处理中…', saveRetry: '重试',
   },
   reading: {
     ...zhTW.reading,

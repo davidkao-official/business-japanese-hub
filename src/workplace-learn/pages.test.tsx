@@ -203,4 +203,63 @@ describe('Workplace Learn routes and details', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: '儲存到 My Learning' })).toBeInTheDocument())
     expect(calls.some((call) => call.init?.method === 'DELETE')).toBe(true)
   })
+
+  it('does not claim a saved preference or offer removal after a new PUT receives 409', async () => {
+    setLocalePreference('zh-TW')
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+    const privateItem: WorkplaceLearnRuntimeItem = {
+      ...sampleWorkplaceLearnItem, id: 'private-workplace-conflict-test', slug: 'private-workplace-conflict-test',
+      title: 'Conflict lesson', access: 'plus', sampleLabel: undefined, relatedVocabularyIds: [],
+    }
+    const revision = 'b'.repeat(64)
+    const plusEntry = toWorkplaceLearnCatalogEntry(privateItem, { contentId: privateItem.id, revision })
+    const calls: Array<{ method: string; body?: string }> = []
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ method: init?.method ?? 'GET', body: typeof init?.body === 'string' ? init.body : undefined })
+      if (init?.method === 'PUT') return Promise.resolve(new Response(JSON.stringify({ error: 'stale' }), { status: 409 }))
+      return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }))
+    }))
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[plusEntry]} publicItems={[]} loadPayload={vi.fn().mockResolvedValue({ kind: 'ok', item: privateItem })} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${plusEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: '儲存到 My Learning' }))
+    expect(await screen.findByText('這次儲存未成功；目前沒有確認到新的儲存紀錄。請重新確認版本後再試。')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '移除儲存' })).not.toBeInTheDocument()
+    expect(calls.map(({ method }) => method)).toEqual(['GET', 'PUT'])
+  })
+
+  it('offers removal only when GET confirms an existing stale save row', async () => {
+    setLocalePreference('zh-TW')
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+    const privateItem: WorkplaceLearnRuntimeItem = {
+      ...sampleWorkplaceLearnItem, id: 'private-workplace-retired-test', slug: 'private-workplace-retired-test',
+      title: 'Retired lesson', access: 'plus', sampleLabel: undefined, relatedVocabularyIds: [],
+    }
+    const revision = 'c'.repeat(64)
+    const plusEntry = toWorkplaceLearnCatalogEntry(privateItem, { contentId: privateItem.id, revision })
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET'
+      calls.push(method)
+      if (method === 'DELETE' && calls.filter((call) => call === 'DELETE').length === 1) return Promise.resolve(new Response(JSON.stringify({ error: 'unavailable' }), { status: 503 }))
+      if (method === 'DELETE') return Promise.resolve(new Response(JSON.stringify({ itemId: privateItem.id, kind: 'lesson', revision: 'a'.repeat(64), serverTimestamp: '2026-09-20T10:00:00.000Z' }), { status: 200 }))
+      return Promise.resolve(new Response(JSON.stringify({ items: [{ itemId: privateItem.id, kind: 'lesson', revision: 'a'.repeat(64), savedAt: '2026-09-19T10:00:00.000Z', current: false }] }), { status: 200 }))
+    }))
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[plusEntry]} publicItems={[]} loadPayload={vi.fn().mockResolvedValue({ kind: 'ok', item: privateItem })} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${plusEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+    )
+
+    expect(await screen.findByText('已儲存的教材版本目前無法使用；你可以移除這筆儲存。')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '移除儲存' }))
+    expect(await screen.findByText('目前無法確認儲存狀態。')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '移除儲存' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '重試' }))
+    expect(await screen.findByText('已儲存的教材版本目前無法使用；你可以移除這筆儲存。')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '移除儲存' }))
+    expect(await screen.findByRole('button', { name: '儲存到 My Learning' })).toBeInTheDocument()
+    expect(calls).toEqual(['GET', 'DELETE', 'GET', 'DELETE'])
+  })
 })
