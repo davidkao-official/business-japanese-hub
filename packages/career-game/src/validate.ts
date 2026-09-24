@@ -5,15 +5,15 @@ import {
   EFFECT_KINDS,
   OUTCOME_CATEGORIES,
   SCENE_KINDS,
-} from './types'
-import { applyChoice, createInitialState, getAvailableChoices } from './runtime'
+} from './types.ts'
+import { applyChoice, createInitialState, getAvailableChoices } from './runtime.ts'
 import type {
   GameState,
   Scenario,
   ScenarioIssue,
   ScenarioIssueCode,
   ScenarioValidationResult,
-} from './types'
+} from './types.ts'
 
 const ID_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 const LOCALE_PATTERN = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/

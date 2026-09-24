@@ -5,7 +5,7 @@ export {
   EFFECT_KINDS,
   OUTCOME_CATEGORIES,
   SCENE_KINDS,
-} from './types'
+} from './types.ts'
 export type {
   AdjustMeterEffect,
   ApplyChoiceInput,
@@ -37,12 +37,12 @@ export type {
   SetFlagEffect,
   StaleReason,
   TerminalScene,
-} from './types'
+} from './types.ts'
 export {
   applyChoice,
   createInitialState,
   getAvailableChoices,
   getCurrentScene,
   isGameStateValid,
-} from './runtime'
-export { validateScenario } from './validate'
+} from './runtime.ts'
+export { validateScenario } from './validate.ts'

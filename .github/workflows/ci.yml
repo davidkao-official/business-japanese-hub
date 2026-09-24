@@ -42,6 +42,9 @@ jobs:
         with:
           deno-version: v2.x
 
+      - name: Check Edge dependency graphs without package.json discovery
+        run: node scripts/check-edge-import-graphs.mjs
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -96,6 +99,9 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+
+      - name: Check Edge dependency graphs without package.json discovery
+        run: node scripts/check-edge-import-graphs.mjs
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

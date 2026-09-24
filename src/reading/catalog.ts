@@ -1,6 +1,6 @@
-import { READING_CATEGORIES, type ReadingCatalogEntry, type ReadingCategory } from './types'
-import { sampleReadingItem } from './fixtures/sample-reading'
-import { toReadingCatalogEntry } from './validate'
+import { READING_CATEGORIES, type ReadingCatalogEntry, type ReadingCategory } from './types.ts'
+import { sampleReadingItem } from './fixtures/sample-reading.ts'
+import { toReadingCatalogEntry } from './validate.ts'
 
 /** Current public inventory is the sample; any future catalog entries stay body-free. */
 export const readingCatalog: readonly ReadingCatalogEntry[] = Object.freeze([

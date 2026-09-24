@@ -5,7 +5,7 @@ import {
   type GameState,
   type Outcome,
   type Scenario,
-} from '@business-japanese-hub/career-game';
+} from '../../../packages/career-game/src/index.ts';
 import { authenticateBearer } from '../_shared/auth.ts';
 import type { DbClient } from '../_shared/db.ts';
 import {

@@ -1,9 +1,9 @@
 /** Private-source release preparation for the bounded Practice/Web Test bank. */
 import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
-import type { PracticeCheckpoint, PracticeQuestion, PrivatePracticeQuestionBankSource } from '../practice-web-test/contract'
-import { validatePracticeQuestionBankSource } from '../practice-web-test/validate'
-import { isPrivateContentId } from './references'
+import type { PracticeCheckpoint, PracticeQuestion, PrivatePracticeQuestionBankSource } from '../practice-web-test/contract.ts'
+import { validatePracticeQuestionBankSource } from '../practice-web-test/validate.ts'
+import { isPrivateContentId } from './references.ts'
 
 export const MAX_PRIVATE_PRACTICE_QUESTION_BANK_PAYLOAD_BYTES = 512 * 1024
 

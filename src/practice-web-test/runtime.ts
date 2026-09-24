@@ -1,6 +1,6 @@
-import type { PracticeRuntimeCheckpoint, PracticeRuntimePayload, PracticeRuntimeQuestion } from '../content-delivery/privatePracticeQuestionBank'
-import type { PracticeAnswer } from './contract'
-import { validatePracticeQuestionBankSource } from './validate'
+import type { PracticeRuntimeCheckpoint, PracticeRuntimePayload, PracticeRuntimeQuestion } from '../content-delivery/privatePracticeQuestionBank.ts'
+import type { PracticeAnswer } from './contract.ts'
+import { validatePracticeQuestionBankSource } from './validate.ts'
 
 export type RunnerResponse = string | string[] | number
 export type RuntimeQuestion = PracticeRuntimeQuestion

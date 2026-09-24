@@ -1,4 +1,4 @@
-import type { ReadingRuntimeItem } from '../types'
+import type { ReadingRuntimeItem } from '../types.ts'
 
 /** Original fictional teaching sample. This is not sourced from a real company or publication. */
 export const sampleReadingItem: ReadingRuntimeItem = {

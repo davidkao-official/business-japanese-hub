@@ -7,8 +7,8 @@ import type {
   PracticeQuestionSupportOverlay,
   PracticeRepresentation,
   PrivatePracticeQuestionBankSource,
-} from './contract'
-import { PRACTICE_QUESTION_BANK_SCHEMA_VERSION } from './contract'
+} from './contract.ts'
+import { PRACTICE_QUESTION_BANK_SCHEMA_VERSION } from './contract.ts'
 
 export type PracticeValidationIssue = { path: string; message: string }
 export type PracticeValidationResult<T> = { ok: true; value: T } | { ok: false; issues: PracticeValidationIssue[] }
