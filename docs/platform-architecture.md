@@ -161,6 +161,10 @@ Architecture 必須保留：
 
 Recurring lifecycle / membership state / access projection 由 #107 定義。舊 one-time Book payment implementation 可以 reuse，但不能推導「每種 learning content 都需要自己的 purchase/entitlement product」。
 
+Checkout admission, recurring disclosure evidence, and the external readiness gates
+are summarized in [`payments/plus-recurring-admission.md`](payments/plus-recurring-admission.md);
+that contract does not select a provider or enable billing.
+
 Issue #164 and its append-only successor migrations define the provider-neutral server
 lifecycle substrate without changing #139's consumer seam. `plus_membership_plan` is
 the authoritative monthly plan catalog (Early Access is TWD 29900 minor units and
