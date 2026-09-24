@@ -11,7 +11,6 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_access jsonb;
   v_release jsonb;
 begin
   if p_user_id is null or p_item_id is null or p_revision is null
@@ -20,32 +19,42 @@ begin
     return jsonb_build_object('status', 'missing');
   end if;
 
-  v_access := public.resolve_plus_membership_access(p_user_id);
-  if v_access ->> 'access_status' is distinct from 'active' then
-    return jsonb_build_object('status', 'non-member');
-  end if;
+  -- Membership and the immutable body share one statement snapshot. The
+  -- fixed-time helper is STABLE and the materialized CTE samples the clock
+  -- once, before the publication and release are checked in this statement.
+  with access as materialized (
+    select public._resolve_plus_membership_access_at(
+      p_user_id, clock_timestamp()
+    ) ->> 'access_status' as status
+  )
+  select case
+    when access.status is distinct from 'active' then
+      jsonb_build_object('status', 'non-member')
+    else coalesce((
+      select jsonb_build_object(
+        'status', 'found',
+        'content_id', r.content_id,
+        'revision', r.revision,
+        'content_kind', r.content_kind,
+        'payload', r.payload
+      )
+      from public.workplace_learn_publication p
+      join public.private_content_release r
+        on r.content_id = p.item_id and r.revision = p.revision
+      where p.item_id = p_item_id
+        and p.revision = p_revision
+        and p.access_scope = 'plus'
+        and p.available
+        and r.content_kind = case p.item_kind
+          when 'lesson' then 'workplace-lesson'
+          when 'vocabulary' then 'workplace-vocabulary'
+        end
+        and r.access_scope = 'member'
+    ), jsonb_build_object('status', 'missing'))
+  end into v_release
+  from access;
 
-  select jsonb_build_object(
-    'status', 'found',
-    'content_id', r.content_id,
-    'revision', r.revision,
-    'content_kind', r.content_kind,
-    'payload', r.payload
-  ) into v_release
-  from public.workplace_learn_publication p
-  join public.private_content_release r
-    on r.content_id = p.item_id and r.revision = p.revision
-  where p.item_id = p_item_id
-    and p.revision = p_revision
-    and p.access_scope = 'plus'
-    and p.available
-    and r.content_kind = case p.item_kind
-      when 'lesson' then 'workplace-lesson'
-      when 'vocabulary' then 'workplace-vocabulary'
-    end
-    and r.access_scope = 'member';
-
-  return coalesce(v_release, jsonb_build_object('status', 'missing'));
+  return v_release;
 end;
 $$;
 

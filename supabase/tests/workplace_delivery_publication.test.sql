@@ -1,6 +1,6 @@
 begin;
 
-select plan(14);
+select plan(16);
 
 insert into auth.users (id, aud, role) values
   ('18400000-0000-4000-8000-000000000001', 'authenticated', 'authenticated'),
@@ -24,6 +24,9 @@ select is(public.record_plus_membership_event(
   'membership_started', now() - interval '1 hour', now() - interval '2 hours',
   now() + interval '1 day'
 ), 'applied', 'first test user has canonical temporal Plus coverage');
+select is((select provolatile from pg_proc
+  where oid = 'public._resolve_plus_membership_access_at(uuid,timestamptz)'::regprocedure),
+  's', 'fixed-time membership helper shares the delivery statement snapshot');
 
 select is(public.get_member_workplace_learn_release('18400000-0000-4000-8000-000000000001',
   'workplace-delivery-lesson', repeat('a', 64)) ->> 'status', 'missing',
@@ -43,6 +46,21 @@ select is(public.get_member_workplace_learn_release('18400000-0000-4000-8000-000
 select is(public.get_member_workplace_learn_release('18400000-0000-4000-8000-000000000001',
   'workplace-delivery-vocabulary', repeat('c', 64)) ->> 'content_kind', 'workplace-vocabulary',
   'vocabulary publication maps to the immutable vocabulary release kind');
+
+reset role;
+update public.plus_membership_access_window
+set window_end = now() - interval '1 minute'
+where user_id = '18400000-0000-4000-8000-000000000001';
+set local role service_role;
+select is(public.get_member_workplace_learn_release('18400000-0000-4000-8000-000000000001',
+  'workplace-delivery-vocabulary', repeat('c', 64)) ->> 'status', 'non-member',
+  'expired temporal membership cannot receive a published Workplace body');
+reset role;
+update public.plus_membership_access_window
+set window_end = now() + interval '1 day'
+where user_id = '18400000-0000-4000-8000-000000000001';
+set local role service_role;
+
 select is(public.get_member_workplace_learn_release('18400000-0000-4000-8000-000000000002',
   'workplace-delivery-lesson', repeat('a', 64)) ->> 'status', 'non-member',
   'inactive user cannot receive an otherwise published body');
