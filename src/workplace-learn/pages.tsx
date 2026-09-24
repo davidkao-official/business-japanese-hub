@@ -27,7 +27,8 @@ function accessLabel(access: WorkplaceLearnCatalogEntry['access'], strings: Retu
 function ItemCard({ entry, strings }: { entry: WorkplaceLearnCatalogEntry; strings: ReturnType<typeof useStrings> }) {
   const href = entry.kind === 'lesson' ? `/learn/workplace/${entry.slug}` : `/learn/vocabulary/${entry.slug}`
   const isKnownJapaneseFixtureTitle = entry.id === sampleWorkplaceLearnItem.id || entry.id === sampleWorkplaceVocabularyItem.id
-  const isKnownJapaneseFixtureLead = entry.id === sampleWorkplaceLearnItem.id || entry.id === sampleWorkplaceVocabularyItem.id
+  const isKnownJapaneseFixtureLead = entry.id === sampleWorkplaceLearnItem.id
+  const isKnownTraditionalChineseFixtureLead = entry.id === sampleWorkplaceVocabularyItem.id
   return (
     <article className="workplace-learn__item">
       <div className="workplace-learn__item-meta">
@@ -35,7 +36,7 @@ function ItemCard({ entry, strings }: { entry: WorkplaceLearnCatalogEntry; strin
         <span className={`workplace-learn__access workplace-learn__access--${entry.access}`}>{accessLabel(entry.access, strings)}</span>
       </div>
       <h3><Link to={href} {...(isKnownJapaneseFixtureTitle ? { lang: 'ja' } : {})}>{entry.title}</Link></h3>
-      <p {...(isKnownJapaneseFixtureLead ? { lang: 'ja' } : {})}>{entry.lead}</p>
+      <p {...(isKnownJapaneseFixtureLead ? { lang: 'ja' } : isKnownTraditionalChineseFixtureLead ? { lang: 'zh-TW' } : {})}>{entry.lead}</p>
       <Link className="workplace-learn__read-link" to={href}>{strings.workplaceLearn.openItem} <span aria-hidden="true">→</span></Link>
     </article>
   )
@@ -178,8 +179,9 @@ function ActivePlusWorkplaceItem({ entry, userId, getAccessToken, loadPayload, c
 
 function DetailPreview({ entry, strings }: { entry: WorkplaceLearnCatalogEntry; strings: ReturnType<typeof useStrings> }) {
   const isKnownJapaneseFixtureTitle = entry.id === sampleWorkplaceLearnItem.id || entry.id === sampleWorkplaceVocabularyItem.id
-  const isKnownJapaneseFixtureLead = entry.id === sampleWorkplaceLearnItem.id || entry.id === sampleWorkplaceVocabularyItem.id
-  return <div className="workplace-learn__detail-header"><div className="workplace-learn__item-meta"><span>{strings.workplaceLearn.categories[entry.category]}</span><span className={`workplace-learn__access workplace-learn__access--${entry.access}`}>{accessLabel(entry.access, strings)}</span></div><h1 id="workplace-detail-title" {...(isKnownJapaneseFixtureTitle ? { lang: 'ja' } : {})}>{entry.title}</h1><p {...(isKnownJapaneseFixtureLead ? { lang: 'ja' } : {})}>{entry.lead}</p></div>
+  const isKnownJapaneseFixtureLead = entry.id === sampleWorkplaceLearnItem.id
+  const isKnownTraditionalChineseFixtureLead = entry.id === sampleWorkplaceVocabularyItem.id
+  return <div className="workplace-learn__detail-header"><div className="workplace-learn__item-meta"><span>{strings.workplaceLearn.categories[entry.category]}</span><span className={`workplace-learn__access workplace-learn__access--${entry.access}`}>{accessLabel(entry.access, strings)}</span></div><h1 id="workplace-detail-title" {...(isKnownJapaneseFixtureTitle ? { lang: 'ja' } : {})}>{entry.title}</h1><p {...(isKnownJapaneseFixtureLead ? { lang: 'ja' } : isKnownTraditionalChineseFixtureLead ? { lang: 'zh-TW' } : {})}>{entry.lead}</p></div>
 }
 
 function WorkplaceArticle({ item, catalogEntries }: { item: WorkplaceLearnRuntimeItem; catalogEntries: readonly WorkplaceLearnCatalogEntry[] }) {

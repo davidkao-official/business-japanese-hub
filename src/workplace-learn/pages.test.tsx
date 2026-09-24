@@ -32,6 +32,7 @@ describe('Workplace Learn routes and details', () => {
     expect(await screen.findByRole('heading', { level: 1, name: '日本職場語彙' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('link', { name: /見込み/ }))
     expect(await screen.findByRole('heading', { level: 1, name: '見込み' })).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText(sampleWorkplaceVocabularyItem.lead)).toHaveAttribute('lang', 'zh-TW')
     expect(screen.getByText(/預估、預期/)).toBeInTheDocument()
     expect(screen.getByText(/不代表所有公司/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /報告時に事実と次の対応/ })).toHaveAttribute('href', '/learn/workplace/sample-status-update-with-next-step')
