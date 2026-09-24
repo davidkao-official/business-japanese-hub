@@ -1,6 +1,6 @@
 begin;
 
-select plan(26);
+select plan(27);
 
 insert into auth.users (id, aud, role) values
   ('17100000-0000-4000-8000-000000000001', 'authenticated', 'authenticated'),
@@ -46,6 +46,12 @@ select public.save_reading_item('17100000-0000-4000-8000-000000000001', 'reading
 select is(:'same_save'::jsonb ->> 'saved_at', :'first_save'::jsonb ->> 'saved_at', 'same-revision retry preserves the original save timestamp');
 
 select pg_sleep(0.02);
+select is(
+  public.save_reading_item('17100000-0000-4000-8000-000000000001', 'reading-plus-contract-test', repeat('b', 64)) ->> 'status',
+  'stale',
+  'an imported but unpublished revision cannot replace the current save'
+);
+select public.publish_reading_item('reading-plus-contract-test', repeat('b', 64));
 select public.save_reading_item('17100000-0000-4000-8000-000000000001', 'reading-plus-contract-test', repeat('b', 64)) as changed_save \gset
 select is((:'changed_save'::jsonb ->> 'revision'), repeat('b', 64), 'a changed current revision replaces the saved revision');
 select isnt(:'changed_save'::jsonb ->> 'saved_at', :'first_save'::jsonb ->> 'saved_at', 'a changed revision receives a fresh server timestamp');
