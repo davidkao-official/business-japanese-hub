@@ -18,6 +18,7 @@ import { ProductModePage } from './app/ProductModePage'
 import { MyLearningPage } from './app/MyLearningPage'
 import { PlusPage } from './app/PlusPage'
 import { LearnUnitPage } from './app/LearnUnitPage'
+import { WorkplaceLearnLandingPage, WorkplaceLessonPage, WorkplaceVocabularyIndexPage, WorkplaceVocabularyPage } from './workplace-learn/pages'
 import { PracticeActivityPage } from './app/PracticeActivityPage'
 import {
   WebTestCategoryPage,
@@ -112,7 +113,10 @@ export default function App() {
                       <Route index element={<HomePage />} />
                       <Route path="about" element={<AboutPage />} />
                       <Route path="plus" element={<PlusPage />} />
-                      <Route path="learn" element={<ProductModePage mode="learn" />} />
+                      <Route path="learn" element={<WorkplaceLearnLandingPage />} />
+                      <Route path="learn/vocabulary" element={<WorkplaceVocabularyIndexPage />} />
+                      <Route path="learn/vocabulary/:slug" element={<WorkplaceVocabularyPage />} />
+                      <Route path="learn/workplace/:slug" element={<WorkplaceLessonPage />} />
                       <Route path="learn/:slug" element={<LearnUnitPage />} />
                       <Route path="read" element={<ReadLandingPage />} />
                       <Route path="read/:slug" element={<ReadDetailPage />} />
