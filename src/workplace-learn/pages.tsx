@@ -26,13 +26,14 @@ function accessLabel(access: WorkplaceLearnCatalogEntry['access'], strings: Retu
 
 function ItemCard({ entry, strings }: { entry: WorkplaceLearnCatalogEntry; strings: ReturnType<typeof useStrings> }) {
   const href = entry.kind === 'lesson' ? `/learn/workplace/${entry.slug}` : `/learn/vocabulary/${entry.slug}`
+  const isKnownJapaneseFixtureTitle = entry.id === sampleWorkplaceLearnItem.id || entry.id === sampleWorkplaceVocabularyItem.id
   return (
     <article className="workplace-learn__item">
       <div className="workplace-learn__item-meta">
         <span>{entry.kind === 'lesson' ? strings.workplaceLearn.lessonLabel : strings.workplaceLearn.vocabularyLabel}</span>
         <span className={`workplace-learn__access workplace-learn__access--${entry.access}`}>{accessLabel(entry.access, strings)}</span>
       </div>
-      <h3><Link to={href}>{entry.title}</Link></h3>
+      <h3><Link to={href} {...(isKnownJapaneseFixtureTitle ? { lang: 'ja' } : {})}>{entry.title}</Link></h3>
       <p>{entry.lead}</p>
       <Link className="workplace-learn__read-link" to={href}>{strings.workplaceLearn.openItem} <span aria-hidden="true">→</span></Link>
     </article>
@@ -203,7 +204,7 @@ function LessonBody({ item, related, strings }: { item: Extract<WorkplaceLearnRu
     {item.examples.length > 0 && <section lang="zh-TW"><h2>{strings.workplaceLearn.examples}</h2>{item.examples.map((example, index) => <div className="workplace-learn__example" key={`${example.context}-${index}`}><p className="workplace-learn__example-context">{example.context}</p><blockquote lang="ja">{example.japanese}</blockquote><p>{example.explanationZhTW}</p></div>)}</section>}
     <section className="workplace-learn__caution" lang="zh-TW"><h2>{strings.workplaceLearn.caution}</h2><p>{item.cautionZhTW}</p>{item.relationshipContext && <p>{item.relationshipContext}</p>}</section>
     {item.relatedVocabularyIds.length > 0 && <section><h2>{strings.workplaceLearn.relatedVocabulary}</h2><ul>{item.relatedVocabularyIds.map((id) => { const vocab = related(id); return vocab ? <li key={id}><Link to={`/learn/vocabulary/${vocab.slug}`}>{vocab.title} →</Link></li> : null })}</ul></section>}
-    {item.practiceTypes.includes('rewrite') && <section className="workplace-learn__self-practice" lang="zh-TW"><h2>{strings.workplaceLearn.selfPracticeTitle}</h2><p>{strings.workplaceLearn.selfPracticePrompt}</p><label htmlFor={`${item.id}-rewrite`}>{strings.workplaceLearn.selfPracticeLabel}</label><textarea id={`${item.id}-rewrite`} rows={4} /><p className="workplace-learn__self-practice-note">{strings.workplaceLearn.selfPracticeNoSave}</p>{/* Persisted practice responses belong to #174. */}</section>}
+    {item.practiceTypes.includes('rewrite') && <section className="workplace-learn__self-practice" lang="zh-TW"><h2>{strings.workplaceLearn.selfPracticeTitle}</h2><p>{strings.workplaceLearn.selfPracticePrompt}</p><label htmlFor={`${item.id}-rewrite`}>{strings.workplaceLearn.selfPracticeLabel}</label><textarea id={`${item.id}-rewrite`} lang="ja" rows={4} /><p className="workplace-learn__self-practice-note">{strings.workplaceLearn.selfPracticeNoSave}</p>{/* Persisted practice responses belong to #174. */}</section>}
     <p className="workplace-learn__takeaway">{item.transferTakeaway}</p>
   </div>
 }

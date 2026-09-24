@@ -26,6 +26,7 @@ describe('Workplace Learn routes and details', () => {
     expect(screen.getByRole('heading', { level: 1, name: '日本職場實戰' })).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: /語彙列表/ })[0]).toHaveAttribute('href', '/learn/vocabulary')
     expect(screen.getByText('報告時に事実と次の対応を短く伝える')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '報告時に事実と次の対応を短く伝える' })).toHaveAttribute('lang', 'ja')
     fireEvent.click(screen.getAllByRole('link', { name: /語彙列表/ })[0]!)
     expect(await screen.findByRole('heading', { level: 1, name: '日本職場語彙' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('link', { name: /見込み/ }))
@@ -86,7 +87,8 @@ describe('Workplace Learn routes and details', () => {
     expect(screen.getByText(/未公開の記事.*此教材目前無法使用/)).toBeInTheDocument()
     expect(screen.getByText(/未公開的練習.*此教材目前無法使用/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '自己改寫看看' })).toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: '寫下自己的表達' })).toBeInTheDocument()
+    expect(screen.getByText(/把例句換成自己職場中可能遇到的情境/)).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: '寫下自己的表達' })).toHaveAttribute('lang', 'ja')
     expect(screen.getByText('此處輸入的內容不會儲存或評分。')).toBeInTheDocument()
   })
 
