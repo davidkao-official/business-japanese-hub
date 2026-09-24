@@ -231,8 +231,7 @@ function resolveRelatedHref(
   if (link.kind === 'learn') {
     const entry = catalogEntries.find((candidate) => candidate.id === link.targetId)
     if (entry) return entry.kind === 'lesson' ? `/learn/workplace/${entry.slug}` : `/learn/vocabulary/${entry.slug}`
-    const learningUnit = getLearningUnitByLearnSlug(link.targetId)
-    return learningUnit ? `/learn/${learningUnit.learnSlug}` : null
+    return null
   }
   if (link.kind === 'read') {
     const entry = readingCatalog.find((candidate) => candidate.id === link.targetId)

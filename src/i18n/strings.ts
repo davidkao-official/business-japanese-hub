@@ -442,7 +442,7 @@ const ja: AppStrings = {
     saveRetry: '再試行', saveAction: 'この記事を保存', removeSave: '保存を解除', saveCurrentVersion: '現在の版を保存', saveWorking: '処理中…',
   },
   workplaceLearn: {
-    title: '日本職場實戰', lead: '日本で働く場面を手がかりに、何を伝えるか、どう表現するかを学びます。',
+    title: '日本の職場で実践する', lead: '日本で働く場面を手がかりに、何を伝えるか、どう表現するかを学びます。',
     categories: { 'workplace-communication': '職場コミュニケーション', 'thinking-problem-solving': '思考と問題解決', 'documents-data': '文書・資料作成', 'meetings-projects': '会議とプロジェクト', 'workplace-vocabulary': '日本の職場語彙' },
     categoryKicker: 'BROWSE BY CATEGORY', categoryTitle: '職場のテーマ', allCategories: 'すべて', filterLabel: 'カテゴリーで絞り込む', emptyCategory: 'このテーマの教材は準備中です。',
     lessonLabel: '職場の場面', vocabularyLabel: '職場語彙', openItem: '内容を読む', vocabularyIndexLink: '語彙一覧', vocabularyIndexTitle: '日本職場の語彙', vocabularyIndexLead: '語の意味に加えて、職場での使い方や注意点を確認します。',

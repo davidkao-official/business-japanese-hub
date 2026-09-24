@@ -7,7 +7,7 @@ import { sampleWorkplaceLearnItem, sampleWorkplaceVocabularyItem } from './sampl
 import { toWorkplaceLearnCatalogEntry } from './validate'
 import { WorkplaceLessonPage, WorkplaceVocabularyIndexPage, WorkplaceVocabularyPage } from './pages'
 import { renderWithAppProviders } from '../test/appProviders'
-import { setLocalePreference } from '../i18n/strings'
+import { getStrings, setLocalePreference } from '../i18n/strings'
 import App from '../App'
 import { COURSE_CORRECTION_LEARN_SLUG, getLearningUnitByLearnSlug } from '../app/learningUnits'
 import { readingCatalog } from '../reading/catalog'
@@ -18,6 +18,10 @@ afterEach(() => {
 })
 
 describe('Workplace Learn routes and details', () => {
+  it('uses natural Japanese for the Japanese discovery title', () => {
+    expect(getStrings('ja').workplaceLearn.title).toBe('日本の職場で実践する')
+  })
+
   it('routes the public discovery path to vocabulary and lesson details', async () => {
     setLocalePreference('zh-TW')
     window.history.replaceState(null, '', '/learn')
@@ -94,6 +98,7 @@ describe('Workplace Learn routes and details', () => {
       relatedVocabularyIds: [sampleWorkplaceVocabularyItem.id, 'missing-vocabulary-item'],
       relatedLinks: [
         { kind: 'learn' as const, label: '関連語彙を見る', labelLanguage: 'ja' as const, targetId: sampleWorkplaceVocabularyItem.id },
+        { kind: 'learn' as const, label: '既存 Learn slug への推測リンク', labelLanguage: 'ja' as const, targetId: COURSE_CORRECTION_LEARN_SLUG },
         { kind: 'read' as const, label: '公開中の記事を読む', labelLanguage: 'ja' as const, targetId: readingCatalog[0]!.id },
         { kind: 'practice' as const, label: '已發布的 SPI 練習', labelLanguage: 'zh-TW' as const, targetId: 'practice-web-test-spi-v1' },
         { kind: 'read' as const, label: '未公開の記事', labelLanguage: 'ja' as const, targetId: 'unknown-read-content' },
@@ -106,6 +111,8 @@ describe('Workplace Learn routes and details', () => {
       { initialEntries: [`/learn/workplace/${item.slug}`] },
     )
 
+    expect(screen.getByRole('link', { name: '関連語彙を見る' })).toHaveAttribute('href', '/learn/vocabulary/sample-mikomi-estimate')
+    expect(screen.getByText('既存 Learn slug への推測リンク').closest('.workplace-learn__related-unavailable')).toHaveTextContent('此教材目前無法使用。')
     expect(screen.getByRole('link', { name: '公開中の記事を読む' })).toHaveAttribute('href', `/read/${readingCatalog[0]!.slug}`)
     expect(screen.getByRole('link', { name: '公開中の記事を読む' })).toHaveAttribute('lang', 'ja')
     expect(screen.getByRole('link', { name: '已發布的 SPI 練習' })).toHaveAttribute('href', '/practice/web-test/spi')
