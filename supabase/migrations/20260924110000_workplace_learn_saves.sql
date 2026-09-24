@@ -17,7 +17,8 @@ create table public.workplace_learn_publication (
     revision is null or revision ~ '^[a-f0-9]{64}$'
   ),
   constraint workplace_learn_publication_classification check (
-    (access_scope = 'free' and revision is null and sample_classification = 'non-proprietary-teaching-sample')
+    (access_scope = 'free' and revision is null and sample_classification is not null
+      and sample_classification = 'non-proprietary-teaching-sample')
     or (access_scope = 'plus' and revision is not null and sample_classification is null)
   ),
   constraint workplace_learn_publication_release_fk foreign key (item_id, revision)
@@ -199,7 +200,7 @@ begin
     return jsonb_build_object('status', 'stale');
   end if;
   if publication.access_scope = 'free' then
-    if publication.sample_classification <> 'non-proprietary-teaching-sample' or p_revision is not null then
+    if publication.sample_classification is distinct from 'non-proprietary-teaching-sample' or p_revision is not null then
       return jsonb_build_object('status', 'stale');
     end if;
   elsif publication.access_scope = 'plus' then

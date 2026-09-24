@@ -1,5 +1,5 @@
 begin;
-select plan(25);
+select plan(27);
 
 insert into auth.users (id, aud, role) values
   ('17400000-0000-4000-8000-000000000001', 'authenticated', 'authenticated'),
@@ -25,10 +25,15 @@ select ok(not has_function_privilege('authenticated', 'public.save_workplace_lea
   and not has_function_privilege('authenticated', 'public.remove_workplace_learn_item(uuid,text)', 'execute'), 'browser roles cannot invoke save or remove RPCs');
 select is((select count(*) from public.workplace_learn_publication where access_scope = 'free'), 2::bigint, 'only the original Free lesson and vocabulary pair is seeded');
 select is((select count(*) from public.workplace_learn_publication where access_scope = 'plus'), 0::bigint, 'Plus releases are not implicitly published');
+select throws_ok($$ insert into public.workplace_learn_publication
+  (item_id, item_kind, access_scope, revision, sample_classification, available)
+  values ('workplace-null-classification-test', 'lesson', 'free', null, null, true) $$,
+  '23514', null, 'Free publication rejects a NULL sample classification');
 
 set local role service_role;
 select is(public.save_workplace_learn_item('17400000-0000-4000-8000-000000000001', 'workplace-learn-sample-status-update', 'lesson', null)->>'status', 'saved', 'Free sample can be saved with a null revision');
 select is((select revision from public.workplace_learn_saves where user_id = '17400000-0000-4000-8000-000000000001' and item_id = 'workplace-learn-sample-status-update'), null::text, 'Free save stores no invented release revision');
+select is(public.save_workplace_learn_item('17400000-0000-4000-8000-000000000001', 'workplace-learn-sample-mikomi', 'vocabulary', null)->>'status', 'saved', 'correctly classified Free vocabulary sample can be saved');
 select is(public.save_workplace_learn_item('17400000-0000-4000-8000-000000000001', 'workplace-learn-sample-mikomi', 'lesson', null)->>'status', 'stale', 'stable ID cannot be saved using a different item kind');
 select is(public.save_workplace_learn_item('17400000-0000-4000-8000-000000000001', 'workplace-learn-sample-mikomi', 'vocabulary', repeat('e', 64))->>'status', 'stale', 'Free sample rejects a non-null revision');
 
