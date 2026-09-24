@@ -1,4 +1,4 @@
-import type { WorkplaceLearnLesson, WorkplaceLearnVocabulary } from './types'
+import type { WorkplaceLearnLesson, WorkplaceLearnVocabulary } from './types.ts'
 
 /** Original hypothetical teaching fixture; not a claim about every Japanese workplace. */
 export const sampleWorkplaceLearnItem: WorkplaceLearnLesson = {

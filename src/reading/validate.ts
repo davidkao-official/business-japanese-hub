@@ -7,7 +7,7 @@ import {
   type ReadingRuntimeValidationResult,
   type ReadingValidationIssue,
   type ReadingValidationResult,
-} from './types'
+} from './types.ts'
 
 const ID = /^[a-z0-9][a-z0-9._:-]{0,127}$/
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/

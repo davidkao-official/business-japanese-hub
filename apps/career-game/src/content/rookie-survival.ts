@@ -2,7 +2,7 @@ import {
   CAREER_GAME_SCHEMA_VERSION,
   validateScenario,
   type Scenario,
-} from '@business-japanese-hub/career-game'
+} from '../../../../packages/career-game/src/index.ts'
 
 const authoredScenario = {
   schemaVersion: CAREER_GAME_SCHEMA_VERSION,

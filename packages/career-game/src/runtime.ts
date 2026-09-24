@@ -7,7 +7,7 @@ import type {
   OutcomeEffect,
   Scenario,
   Scene,
-} from './types'
+} from './types.ts'
 
 type UnknownRecord = Record<string, unknown>
 

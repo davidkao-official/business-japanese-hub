@@ -1,6 +1,6 @@
-import { WORKPLACE_LEARN_CATEGORIES, type WorkplaceLearnCatalogEntry, type WorkplaceLearnCategory, type WorkplaceLearnRuntimeItem } from './types'
-import { toWorkplaceLearnCatalogEntry, validateWorkplaceLearnRuntimeItem } from './validate'
-import { sampleWorkplaceLearnItem, sampleWorkplaceVocabularyItem } from './sample'
+import { WORKPLACE_LEARN_CATEGORIES, type WorkplaceLearnCatalogEntry, type WorkplaceLearnCategory, type WorkplaceLearnRuntimeItem } from './types.ts'
+import { toWorkplaceLearnCatalogEntry, validateWorkplaceLearnRuntimeItem } from './validate.ts'
+import { sampleWorkplaceLearnItem, sampleWorkplaceVocabularyItem } from './sample.ts'
 
 const CONTENT_ID = /^[a-z0-9][a-z0-9._:-]{0,127}$/
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/

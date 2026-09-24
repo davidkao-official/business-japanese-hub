@@ -1,4 +1,4 @@
-import type { Scenario } from '@business-japanese-hub/career-game'
+import type { Scenario } from '../../../../packages/career-game/src/types.ts'
 import { customerCommunicationScenario } from './customer-communication.ts'
 import { rookieSurvivalScenario } from './rookie-survival.ts'
 import { upwardDisagreementScenario } from './upward-disagreement.ts'

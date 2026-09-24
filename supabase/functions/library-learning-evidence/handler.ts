@@ -2,7 +2,7 @@ import { authenticateBearer } from '../_shared/auth.ts';
 import {
   LEARNING_EVIDENCE_REFERENCE_MAX_LENGTH,
   validateLearningSkillIds,
-} from '@business-japanese-hub/learning';
+} from '../../../packages/learning/src/index.ts';
 import type { DbClient } from '../_shared/db.ts';
 import {
   badRequest,
