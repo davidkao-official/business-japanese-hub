@@ -56,6 +56,9 @@ verify_jwt = true
 [functions.reading-saves]
 verify_jwt = true
 
+[functions.workplace-saves]
+verify_jwt = true
+
 [functions.product-analytics]
 verify_jwt = false
 
