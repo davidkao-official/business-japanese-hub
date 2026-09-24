@@ -1,6 +1,6 @@
 begin;
 
-select plan(19);
+select plan(22);
 
 insert into auth.users (id, aud, role) values
   ('18200000-0000-4000-8000-000000000001', 'authenticated', 'authenticated'),
@@ -40,6 +40,10 @@ select is(public.record_plus_membership_event(
   'membership_started', now() - interval '1 hour', now() - interval '2 hours',
   now() + interval '1 day'
 ), 'applied', 'test member gains canonical paid temporal coverage');
+select is((select provolatile from pg_proc
+  where oid = 'public._resolve_plus_membership_access_at(uuid,timestamptz)'::regprocedure),
+  's', 'fixed-time membership helper shares the delivery statement snapshot');
+
 select is(public.get_member_reading_release('18200000-0000-4000-8000-000000000001',
   'reading-publication-contract-test', repeat('a', 64)) ->> 'status', 'missing',
   'an imported but unpublished Reading release has no delivery body');
@@ -56,6 +60,26 @@ select is(public.get_member_reading_release('18200000-0000-4000-8000-00000000000
 select is(public.get_member_reading_release('18200000-0000-4000-8000-000000000002',
   'reading-publication-contract-test', repeat('a', 64)) ->> 'status', 'non-member',
   'an inactive member cannot receive the published body');
+
+-- Expiry and publication are independent gates. A revoked member receives no
+-- body even for a revision that has already been published.
+reset role;
+update public.plus_membership_access_window
+set window_end = now() - interval '1 minute'
+where user_id = '18200000-0000-4000-8000-000000000001';
+set local role service_role;
+select is(public.get_member_reading_release('18200000-0000-4000-8000-000000000001',
+  'reading-publication-contract-test', repeat('a', 64)) ->> 'status', 'non-member',
+  'expired temporal membership cannot receive a published body');
+
+reset role;
+update public.plus_membership_access_window
+set window_end = now() + interval '1 day'
+where user_id = '18200000-0000-4000-8000-000000000001';
+set local role service_role;
+select is(public.get_member_reading_release('18200000-0000-4000-8000-000000000001',
+  'reading-publication-contract-test', repeat('b', 64)) ->> 'status', 'missing',
+  'restored membership cannot receive an unpublished revision');
 select public.publish_reading_item('reading-publication-contract-test', repeat('b', 64));
 select is((select count(*) from public.reading_publication where item_id = 'reading-publication-contract-test'),
   1::bigint, 'a new publication revision replaces the single current row');
