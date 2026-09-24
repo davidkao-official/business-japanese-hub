@@ -39,6 +39,7 @@ const functions = (await readdir(functionsRoot, { withFileTypes: true }))
 const failures = []
 
 for (const functionName of functions) {
+  const failureCountBefore = failures.length
   const entrypoint = path.join(functionsRoot, functionName, 'index.ts')
   try {
     await readFile(entrypoint)
@@ -62,9 +63,19 @@ for (const functionName of functions) {
     continue
   }
 
-  const graphErrors = (graph.modules ?? [])
-    .filter((module) => typeof module.error === 'string')
-    .map((module) => `${module.specifier}: ${module.error}`)
+  const graphErrors = (graph.modules ?? []).flatMap((module) => {
+    const errors = []
+    if (typeof module.error === 'string') errors.push(`${module.specifier}: ${module.error}`)
+    for (const dependency of module.dependencies ?? []) {
+      for (const kind of ['code', 'type']) {
+        const error = dependency[kind]?.error
+        if (typeof error === 'string') {
+          errors.push(`${module.specifier} -> ${dependency.specifier} (${kind}): ${error}`)
+        }
+      }
+    }
+    return errors
+  })
   const workspaceSymlinks = (graph.modules ?? [])
     .map((module) => module.specifier ?? '')
     .filter((specifier) => specifier.startsWith('file:') && specifier.includes('/node_modules/@business-japanese-hub/'))
@@ -81,7 +92,7 @@ for (const functionName of functions) {
   if (workspacePackageImports.length > 0) failures.push(`${functionName}: workspace package imports remain: ${workspacePackageImports.join(', ')}`)
 
   const moduleCount = Array.isArray(graph.modules) ? graph.modules.length : 0
-  if (graphErrors.length === 0 && result.status === 0) console.log(`PASS ${functionName}: ${moduleCount} resolved modules`)
+  if (failures.length === failureCountBefore) console.log(`PASS ${functionName}: ${moduleCount} resolved modules`)
 }
 
 const packageJsonAfter = await packageJsonSnapshot()
