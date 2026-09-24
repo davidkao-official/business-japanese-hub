@@ -18,6 +18,9 @@ import { useAuth } from '@business-japanese-hub/platform-auth'
 import { readingCatalog } from '../reading/catalog'
 import { fetchReadingSaves, removeReadingSave } from '../reading/savesClient'
 import type { ReadingSave, ReadingSavesResult } from '../reading/savesClient'
+import { workplaceLearnCatalog } from '../workplace-learn/catalog'
+import { fetchWorkplaceSaves, removeWorkplaceSave } from '../workplace-learn/savesClient'
+import type { WorkplaceSave, WorkplaceSavesResult } from '../workplace-learn/savesClient'
 
 const catalog = validatePracticeDiscoveryCatalog(catalogDocument) ? catalogDocument : null
 
@@ -28,12 +31,16 @@ type PageState =
 type SnapshotFetcher = typeof fetchPracticeLearningSnapshot
 type ReadingSavesFetcher = typeof fetchReadingSaves
 type ReadingSaveRemover = typeof removeReadingSave
+type WorkplaceSavesFetcher = typeof fetchWorkplaceSaves
+type WorkplaceSaveRemover = typeof removeWorkplaceSave
 
 export function MyLearningPage({
   fetchSnapshot = fetchPracticeLearningSnapshot,
   fetchSaves = fetchReadingSaves,
   deleteSave = removeReadingSave,
-}: { fetchSnapshot?: SnapshotFetcher; fetchSaves?: ReadingSavesFetcher; deleteSave?: ReadingSaveRemover } = {}) {
+  fetchWorkplaceItems = fetchWorkplaceSaves,
+  deleteWorkplaceItem = removeWorkplaceSave,
+}: { fetchSnapshot?: SnapshotFetcher; fetchSaves?: ReadingSavesFetcher; deleteSave?: ReadingSaveRemover; fetchWorkplaceItems?: WorkplaceSavesFetcher; deleteWorkplaceItem?: WorkplaceSaveRemover } = {}) {
   useDocumentTitle('My Learning — Business Japanese Hub')
   const { user, loading: authLoading, getAccessToken } = useAuth()
   const { state: membershipState, retry: retryMembership } = useMembershipAccess()
@@ -71,22 +78,22 @@ export function MyLearningPage({
   if (membershipState.kind === 'unavailable') return <MyLearningShell><StatePanel title="目前無法確認會員狀態" body="會員權限暫時無法確認，學習紀錄在確認前不會顯示。" action={<button className="btn btn--secondary" type="button" onClick={retryMembership}>重試</button>} /></MyLearningShell>
   if (currentPageState.kind === 'signed-out') return <MyLearningShell><SignedOutState /></MyLearningShell>
   if (currentPageState.kind === 'non-member') return <MyLearningShell><NonMemberState /></MyLearningShell>
-  if (currentPageState.kind === 'unavailable') return <MyLearningShell><StatePanel title="Practice 作答暫時無法取得" body="目前無法讀取你的已儲存 Practice 作答；不會用本機資料替代。" action={<button className="btn btn--secondary" type="button" onClick={() => setRequestKey((current) => current + 1)}>重試</button>} /><ReadingSavesSection key={user.id} ownerId={user.id} getAccessToken={getAccessToken} fetchSaves={fetchSaves} deleteSave={deleteSave} /></MyLearningShell>
-  if (currentPageState.kind === 'ready') return <MyLearningShell><MyLearningContent snapshot={currentPageState.snapshot} /><ReadingSavesSection key={user.id} ownerId={user.id} getAccessToken={getAccessToken} fetchSaves={fetchSaves} deleteSave={deleteSave} /></MyLearningShell>
+  if (currentPageState.kind === 'unavailable') return <MyLearningShell><StatePanel title="Practice 作答暫時無法取得" body="目前無法讀取你的已儲存 Practice 作答；不會用本機資料替代。" action={<button className="btn btn--secondary" type="button" onClick={() => setRequestKey((current) => current + 1)}>重試</button>} /><ReadingSavesSection key={`reading:${user.id}`} ownerId={user.id} getAccessToken={getAccessToken} fetchSaves={fetchSaves} deleteSave={deleteSave} /><WorkplaceSavesSection key={`workplace:${user.id}`} ownerId={user.id} getAccessToken={getAccessToken} fetchSaves={fetchWorkplaceItems} deleteSave={deleteWorkplaceItem} /></MyLearningShell>
+  if (currentPageState.kind === 'ready') return <MyLearningShell><MyLearningContent snapshot={currentPageState.snapshot} /><ReadingSavesSection key={`reading:${user.id}`} ownerId={user.id} getAccessToken={getAccessToken} fetchSaves={fetchSaves} deleteSave={deleteSave} /><WorkplaceSavesSection key={`workplace:${user.id}`} ownerId={user.id} getAccessToken={getAccessToken} fetchSaves={fetchWorkplaceItems} deleteSave={deleteWorkplaceItem} /></MyLearningShell>
 
-  return <MyLearningShell><StatePanel title="載入你的學習紀錄" body="正在讀取已儲存的 Practice evidence。" /><ReadingSavesSection key={user.id} ownerId={user.id} getAccessToken={getAccessToken} fetchSaves={fetchSaves} deleteSave={deleteSave} /></MyLearningShell>
+  return <MyLearningShell><StatePanel title="載入你的學習紀錄" body="正在讀取已儲存的 Practice evidence。" /><ReadingSavesSection key={`reading:${user.id}`} ownerId={user.id} getAccessToken={getAccessToken} fetchSaves={fetchSaves} deleteSave={deleteSave} /><WorkplaceSavesSection key={`workplace:${user.id}`} ownerId={user.id} getAccessToken={getAccessToken} fetchSaves={fetchWorkplaceItems} deleteSave={deleteWorkplaceItem} /></MyLearningShell>
 }
 
 function MyLearningShell({ children }: { children: ReactNode }) {
-  return <section className="page my-learning-page" lang="zh-TW" aria-labelledby="my-learning-title"><div className="my-learning-page__intro"><p className="product-mode-page__eyebrow" lang="en">My Learning · Practice + Read</p><h1 className="page__title" id="my-learning-title">把下一次練習接在上一次之後</h1><p className="page__lead">這裡分別顯示 Web Test 作答 evidence 與最近儲存的 Reading；儲存文章不代表已讀完。</p></div>{children}</section>
+  return <section className="page my-learning-page" lang="zh-TW" aria-labelledby="my-learning-title"><div className="my-learning-page__intro"><p className="product-mode-page__eyebrow" lang="en">My Learning · Practice + Read + Work in Japan</p><h1 className="page__title" id="my-learning-title">把下一次練習接在上一次之後</h1><p className="page__lead">這裡分別顯示 Web Test 作答 evidence、Reading 儲存選擇與 Workplace Learn 教材儲存；保存不代表已讀完或完成學習。</p></div>{children}</section>
 }
 
 function SignedOutState() {
-  return <section className="my-learning-page__state" aria-labelledby="my-learning-sign-in-title"><h2 id="my-learning-sign-in-title">登入後查看你的學習紀錄</h2><p>登入後可查看已儲存的 Web Test 作答 evidence 與 Reading 儲存選擇；儲存文章不代表已讀完。</p><AuthPanel /><Link className="page__action" to="/practice/web-test">前往 Web Test 練習入口</Link></section>
+  return <section className="my-learning-page__state" aria-labelledby="my-learning-sign-in-title"><h2 id="my-learning-sign-in-title">登入後查看你的學習紀錄</h2><p>登入後可查看已儲存的 Web Test 作答 evidence 與 Reading、Workplace Learn 儲存選擇；儲存文章或教材不代表已完成學習。</p><AuthPanel /><Link className="page__action" to="/practice/web-test">前往 Web Test 練習入口</Link></section>
 }
 
 function NonMemberState() {
-  return <section className="my-learning-page__state" aria-labelledby="my-learning-member-title"><h2 id="my-learning-member-title">My Learning 是 Plus 會員學習紀錄</h2><p>成為 Plus 會員後，可查看已保存的 Practice 作答與 Reading 儲存選擇；Reading 儲存不代表已讀完。</p><Link className="btn btn--primary" to="/plus">了解 Plus</Link></section>
+  return <section className="my-learning-page__state" aria-labelledby="my-learning-member-title"><h2 id="my-learning-member-title">My Learning 是 Plus 會員學習紀錄</h2><p>成為 Plus 會員後，可查看已保存的 Practice 作答與 Reading、Workplace Learn 儲存選擇；保存不代表已完成學習。</p><Link className="btn btn--primary" to="/plus">了解 Plus</Link></section>
 }
 
 function MyLearningContent({ snapshot }: { snapshot: PracticeLearningSnapshot }) {
@@ -203,6 +210,94 @@ function currentSavedReadingEntry(save: ReadingSave) {
   return entry.releaseReference?.contentId === entry.id && entry.releaseReference.revision === save.revision
     ? entry
     : null
+}
+
+type WorkplaceSavesState = { kind: 'loading' } | { kind: 'ready'; items: WorkplaceSave[] } | { kind: 'unavailable'; result?: WorkplaceSavesResult }
+
+function WorkplaceSavesSection({ ownerId, getAccessToken, fetchSaves, deleteSave }: {
+  ownerId: string
+  getAccessToken: () => Promise<string | null>
+  fetchSaves: WorkplaceSavesFetcher
+  deleteSave: WorkplaceSaveRemover
+}) {
+  const [state, setState] = useState<WorkplaceSavesState>({ kind: 'loading' })
+  const [busyItemId, setBusyItemId] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
+  const activeRequestRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    activeRequestRef.current = controller
+    void fetchSaves(getAccessToken, ownerId, controller.signal).then((result) => {
+      if (controller.signal.aborted) return
+      setState(result.kind === 'ok' ? { kind: 'ready', items: result.items } : { kind: 'unavailable', result })
+    }).catch(() => {
+      if (!controller.signal.aborted) setState({ kind: 'unavailable' })
+    })
+    return () => {
+      controller.abort()
+      activeRequestRef.current?.abort()
+      activeRequestRef.current = null
+    }
+  }, [fetchSaves, getAccessToken, ownerId, retryKey])
+
+  const retry = () => {
+    activeRequestRef.current?.abort()
+    setState({ kind: 'loading' })
+    setRetryKey((key) => key + 1)
+  }
+
+  const remove = async (itemId: string) => {
+    if (busyItemId) return
+    activeRequestRef.current?.abort()
+    const controller = new AbortController()
+    activeRequestRef.current = controller
+    setBusyItemId(itemId)
+    try {
+      const result = await deleteSave(itemId, getAccessToken, ownerId, controller.signal)
+      if (controller.signal.aborted) return
+      if (result.kind !== 'ok') {
+        setState({ kind: 'unavailable', result })
+        return
+      }
+      setState({ kind: 'loading' })
+      const refreshed = await fetchSaves(getAccessToken, ownerId, controller.signal)
+      if (controller.signal.aborted) return
+      setState(refreshed.kind === 'ok' ? { kind: 'ready', items: refreshed.items } : { kind: 'unavailable', result: refreshed })
+    } catch {
+      if (!controller.signal.aborted) setState({ kind: 'unavailable' })
+    } finally {
+      if (!controller.signal.aborted) setBusyItemId(null)
+    }
+  }
+
+  return <section className="my-learning-page__section my-learning-workplace-saves" aria-labelledby="my-learning-workplace-title">
+    <p className="my-learning-page__section-label">Work in Japan</p>
+    <h2 id="my-learning-workplace-title">最近儲存的 Workplace Learn 教材（最多 50 筆）</h2>
+    <p>這些項目代表你的儲存選擇，不代表已完成、練習、理解或精熟。</p>
+    {state.kind === 'loading' && <p role="status">正在讀取已儲存的 Workplace Learn 教材。</p>}
+    {state.kind === 'unavailable' && <div role="status"><p>{state.result?.kind === 'forbidden' ? '目前無法確認 Plus 存取權。' : '已儲存的 Workplace Learn 教材暫時無法取得。'}</p><button type="button" className="btn btn--secondary" onClick={retry}>重試</button></div>}
+    {state.kind === 'ready' && state.items.length === 0 && <p>目前還沒有已儲存的 Workplace Learn 教材。</p>}
+    {state.kind === 'ready' && state.items.length > 0 && <ul className="my-learning-workplace-saves__list">{state.items.map((save) => {
+      const entry = currentSavedWorkplaceEntry(save)
+      const href = entry?.kind === 'lesson' ? `/learn/workplace/${entry.slug}` : entry ? `/learn/vocabulary/${entry.slug}` : null
+      return <li key={save.itemId}>
+        <div className="my-learning-workplace-saves__item">
+          {href && entry ? <Link to={href}>{entry.title}</Link> : <span role="status">目前無法安全開啟這筆已儲存項目。</span>}
+          <time dateTime={save.savedAt}>{new Date(save.savedAt).toLocaleDateString('zh-TW')}</time>
+        </div>
+        <button type="button" className="btn btn--secondary" disabled={busyItemId !== null} onClick={() => void remove(save.itemId)}>{busyItemId === save.itemId ? '處理中…' : '移除'}</button>
+      </li>
+    })}</ul>}
+  </section>
+}
+
+function currentSavedWorkplaceEntry(save: WorkplaceSave) {
+  if (!save.current) return null
+  const entry = workplaceLearnCatalog.find((candidate) => candidate.id === save.itemId && candidate.kind === save.kind)
+  if (!entry) return null
+  if (entry.access === 'free') return save.revision === null && entry.sampleLabel === 'non-proprietary-teaching-sample' ? entry : null
+  return entry.releaseReference?.contentId === entry.id && entry.releaseReference.revision === save.revision ? entry : null
 }
 
 const UNKNOWN_CATEGORY_LABEL = '目前分類'

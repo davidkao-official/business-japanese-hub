@@ -73,6 +73,9 @@ export interface AppStrings {
     termLabel: string; reading: string; meaningLabel: string; nuance: string; usage: string; register: string; relationship: string
     example: string; related: string; relatedUnavailable: string; sampleNote: string; loading: string; unavailable: string; vocabularyEmpty: string
     selfPracticeTitle: string; selfPracticePrompt: string; selfPracticeLabel: string; selfPracticeNoSave: string
+    saveLabel: string; saveSignedOut: string; saveCheckingMembership: string; saveNonMember: string; saveMembershipUnavailable: string
+    saveContentLoading: string; saveLoading: string; saveReady: string; saveSaved: string; saveStale: string; saveUnavailable: string
+    saveAction: string; removeSave: string; saveWorking: string; saveRetry: string
   }
   app: {
     name: string
@@ -450,6 +453,12 @@ const ja: AppStrings = {
     termLabel: '語', reading: '読み方', meaningLabel: '意味', nuance: '職場でのニュアンス', usage: '使用場面', register: '語域', relationship: '相手との関係', example: '例文', related: '関連する教材', relatedUnavailable: 'この教材は現在利用できません。', sampleNote: '架空のオリジナル教材例です。すべての会社や職場での使い方を示すものではありません。',
     loading: '教材を読み込んでいます。', unavailable: '現在、教材を読み込めません。時間をおいて再度お試しください。', vocabularyEmpty: '公開中の職場語彙はありません。',
     selfPracticeTitle: '自分で言い換える', selfPracticePrompt: '例文を自分の職場で起こりそうな場面に置き換え、伝える事実、次の行動、相手に合った語調を選んで書き直してみましょう。', selfPracticeLabel: '自分の表現を書いてみる', selfPracticeNoSave: 'ここで入力した内容は保存も採点もされません。',
+    saveLabel: 'My Learning に保存', saveSignedOut: '教材を保存するにはログインしてください。保存内容は Plus 会員のみ利用できます。',
+    saveCheckingMembership: 'Plus 会員状態を確認しています。', saveNonMember: 'Workplace Learn の保存には Plus 会員資格が必要です。',
+    saveMembershipUnavailable: '会員状態を確認できません。', saveContentLoading: '教材を読み込んでいます。', saveLoading: '保存状態を確認しています。',
+    saveReady: 'この教材を My Learning に保存できます。', saveSaved: 'My Learning に保存しました。この保存は完了や習熟を示すものではありません。',
+    saveStale: '保存した教材の版は現在利用できません。保存を解除できます。', saveUnavailable: '保存状態を確認できません。',
+    saveAction: 'My Learning に保存', removeSave: '保存を解除', saveWorking: '処理中…', saveRetry: '再試行',
   },
   app: {
     name: 'ビジネス日本語ハブ',
@@ -842,6 +851,12 @@ const en: AppStrings = {
     termLabel: 'Term', reading: 'Reading', meaningLabel: 'Meaning', nuance: 'Workplace nuance', usage: 'Usage context', register: 'Register', relationship: 'Relationship context', example: 'Example', related: 'Related materials', relatedUnavailable: 'This material is currently unavailable.', sampleNote: 'Hypothetical, original teaching example. Usage is not universal across companies or workplaces.',
     loading: 'Loading material.', unavailable: 'This material is unavailable right now. Please try again later.', vocabularyEmpty: 'No workplace vocabulary is currently published.',
     selfPracticeTitle: 'Try a rewrite', selfPracticePrompt: 'Adapt the example to a plausible situation of your own. Choose the facts to share, your next action, and a tone that fits the person you are addressing.', selfPracticeLabel: 'Write your own version', selfPracticeNoSave: 'Your response stays on this page and is not saved or scored.',
+    saveLabel: 'Save to My Learning', saveSignedOut: 'Sign in to save this material. Saving is available to Plus members.',
+    saveCheckingMembership: 'Checking Plus membership.', saveNonMember: 'Saving Workplace Learn material requires Plus membership.',
+    saveMembershipUnavailable: 'Membership status is unavailable.', saveContentLoading: 'Loading material.', saveLoading: 'Checking saved status.',
+    saveReady: 'You can save this material to My Learning.', saveSaved: 'Saved to My Learning. This does not indicate completion or mastery.',
+    saveStale: 'The saved version is no longer available. You can remove this save.', saveUnavailable: 'Saved status is unavailable.',
+    saveAction: 'Save to My Learning', removeSave: 'Remove save', saveWorking: 'Working…', saveRetry: 'Try again',
   },
   app: {
     name: 'Business Japanese Hub',
@@ -1234,6 +1249,12 @@ const zhTW: AppStrings = {
     termLabel: '詞語', reading: '讀音', meaningLabel: '詞義', nuance: '職場語感', usage: '使用情境', register: '語域', relationship: '對人關係', example: '例句', related: '相關教材', relatedUnavailable: '此教材目前無法使用。', sampleNote: '架空的原創教學範例，不代表所有公司或職場都採用相同用法。',
     loading: '正在載入教材。', unavailable: '目前無法載入教材，請稍後再試。', vocabularyEmpty: '目前沒有已公開的職場語彙。',
     selfPracticeTitle: '自己改寫看看', selfPracticePrompt: '把例句換成自己職場中可能遇到的情境，選擇要傳達的事實、下一步行動，以及適合對方的語氣，再重新寫一次。', selfPracticeLabel: '寫下自己的表達', selfPracticeNoSave: '此處輸入的內容不會儲存或評分。',
+    saveLabel: '儲存到 My Learning', saveSignedOut: '登入後可儲存教材；此功能提供 Plus 會員使用。',
+    saveCheckingMembership: '正在確認 Plus 會員狀態。', saveNonMember: '儲存 Workplace Learn 教材需要 Plus 會員。',
+    saveMembershipUnavailable: '目前無法確認會員狀態。', saveContentLoading: '正在載入教材。', saveLoading: '正在讀取儲存狀態。',
+    saveReady: '可以將這項教材儲存到 My Learning。', saveSaved: '已儲存在 My Learning。這不代表完成或精熟。',
+    saveStale: '已儲存的教材版本目前無法使用；你可以移除這筆儲存。', saveUnavailable: '目前無法確認儲存狀態。',
+    saveAction: '儲存到 My Learning', removeSave: '移除儲存', saveWorking: '處理中…', saveRetry: '重試',
   },
   app: {
     name: '商務日語中心',
@@ -1610,6 +1631,11 @@ const zhCN: AppStrings = {
     termLabel: '词语', reading: '读音', meaningLabel: '词义', nuance: '职场语感', usage: '使用情境', register: '语域', relationship: '人际关系', example: '例句', related: '相关教材', relatedUnavailable: '此教材目前无法使用。', sampleNote: '架空的原创教学示例，不代表所有公司或职场都采用相同用法。',
     loading: '正在加载教材。', unavailable: '目前无法加载教材，请稍后再试。', vocabularyEmpty: '目前没有已发布的职场词汇。',
     selfPracticeTitle: '自己改写看看', selfPracticePrompt: '把例句换成自己职场中可能遇到的情境，选择要传达的事实、下一步行动，以及适合对方的语气，再重新写一次。', selfPracticeLabel: '写下自己的表达', selfPracticeNoSave: '此处输入的内容不会保存或评分。',
+    saveSignedOut: '登录后可保存教材；此功能提供 Plus 会员使用。', saveCheckingMembership: '正在确认 Plus 会员状态。',
+    saveNonMember: '保存 Workplace Learn 教材需要 Plus 会员。', saveMembershipUnavailable: '目前无法确认会员状态。',
+    saveContentLoading: '正在加载教材。', saveLoading: '正在读取保存状态。', saveReady: '可以将这项教材保存到 My Learning。',
+    saveSaved: '已保存在 My Learning。这不代表完成或精熟。', saveStale: '已保存的教材版本目前无法使用；你可以移除这条保存。',
+    saveUnavailable: '目前无法确认保存状态。', saveAction: '保存到 My Learning', removeSave: '移除保存', saveWorking: '处理中…', saveRetry: '重试',
   },
   reading: {
     ...zhTW.reading,

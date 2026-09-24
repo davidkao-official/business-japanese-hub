@@ -13,6 +13,8 @@ import { COURSE_CORRECTION_LEARN_SLUG, getLearningUnitByLearnSlug } from '../app
 import { readingCatalog } from '../reading/catalog'
 
 afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
   setLocalePreference(null)
   window.history.replaceState(null, '', '/')
 })
@@ -165,5 +167,40 @@ describe('Workplace Learn routes and details', () => {
     act(() => view.authClient.emitAuthStateChange(null))
     await waitFor(() => expect(screen.queryByText('私有本文の識別用フレーズです。')).not.toBeInTheDocument())
     expect(screen.getByText('ログインして会員状態を確認')).toBeInTheDocument()
+  })
+
+  it('saves and removes only the stable ID and current revision for an active Plus member', async () => {
+    setLocalePreference('zh-TW')
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+    const privateItem: WorkplaceLearnRuntimeItem = {
+      ...sampleWorkplaceLearnItem,
+      id: 'private-workplace-save-test', slug: 'private-workplace-save-test', title: 'Private lesson',
+      access: 'plus', sampleLabel: undefined, relatedVocabularyIds: [],
+    }
+    const revision = 'e'.repeat(64)
+    const plusEntry = toWorkplaceLearnCatalogEntry(privateItem, { contentId: privateItem.id, revision })
+    const calls: Array<{ url: string; init?: RequestInit }> = []
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      calls.push({ url, init })
+      if (init?.method === 'PUT') return Promise.resolve(new Response(JSON.stringify({ itemId: privateItem.id, kind: 'lesson', revision, savedAt: '2026-09-20T10:00:00.000Z', current: true }), { status: 200 }))
+      if (init?.method === 'DELETE') return Promise.resolve(new Response(JSON.stringify({ itemId: privateItem.id, kind: 'lesson', revision, serverTimestamp: '2026-09-20T10:00:01.000Z' }), { status: 200 }))
+      return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }))
+    }))
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[plusEntry]} publicItems={[]} loadPayload={vi.fn().mockResolvedValue({ kind: 'ok', item: privateItem })} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${plusEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+    )
+
+    const saveButton = await screen.findByRole('button', { name: '儲存到 My Learning' })
+    fireEvent.click(saveButton)
+    const removeButton = await screen.findByRole('button', { name: '移除儲存' })
+    const put = calls.find((call) => call.init?.method === 'PUT')!
+    expect(put.url).toBe('https://functions.example.test/workplace-saves')
+    expect(JSON.parse(String(put.init?.body))).toEqual({ itemId: privateItem.id, revision })
+    expect(JSON.parse(String(put.init?.body))).not.toHaveProperty('kind')
+    fireEvent.click(removeButton)
+    await waitFor(() => expect(screen.getByRole('button', { name: '儲存到 My Learning' })).toBeInTheDocument())
+    expect(calls.some((call) => call.init?.method === 'DELETE')).toBe(true)
   })
 })

@@ -131,6 +131,17 @@ skill；不得匯入 `learning_evidence`，也不得從 save 推導 mastery 或�
 只有目前 catalog/revision 可安全開啟的 save 才提供 return link；舊版或已移除的項目
 顯示 unavailable 並可移除，不猜測新版本已讀過。
 
+Workplace Learn 的 #174 `workplace_learn_saves` 同樣是 member-owned save-only preference，
+記錄 stable lesson/vocabulary id、kind、目前 revision（原始 Free sample 為 `null`）與
+server `saved_at`。GET 的 `current` 由 server-side publication projection 判定；My Learning
+只有在 `current=true` 且本機 body-free catalog 的 id/kind/access/revision/route 全部吻合時
+才提供 detail link。舊版、retired、缺少 catalog entry 或不吻合的項目顯示 unavailable，
+仍可依 stable id 移除。保存、打開或移除都不表示完成、練習、理解或精熟；不可儲存練習
+文字、教材 body 或把此 preference 寫入 `learning_evidence`。Plus item 只有在 #124 明確
+發佈對應 workplace lesson/vocabulary release，且 publication projection 指向 exact
+revision 時才可保存／連結；新 release、rollback 與舊 save 的相容性必須一併驗證，不能由
+immutable import 或舊 Edge/catalog cache 自動發布或推定目前可用。
+
 Library 的一次 `chapter_opened` 以「當前 stable user id + 當前 Book/Chapter mount」為前端
 觸發邊界；Supabase token refresh 即使產生新 user object，也不得在章節沒有重新開啟時
 製造第二個 event；相反地，前一位 user 的 write 尚未完成時切換帳號，不得吞掉新 user

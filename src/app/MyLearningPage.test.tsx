@@ -9,6 +9,8 @@ import type {
 import type { PracticeLearningFetchResult } from '../lib/learning/practiceMyLearningClient'
 import type { ReadingSave, ReadingSavesResult } from '../reading/savesClient'
 import { sampleReadingItem } from '../reading/fixtures/sample-reading'
+import type { WorkplaceSave, WorkplaceSavesResult } from '../workplace-learn/savesClient'
+import { sampleWorkplaceLearnItem } from '../workplace-learn/sample'
 
 const revision = '62361e0be9ecc7792a55c0a670bc126621eaea4196fd8407ded2882cf342506c'
 
@@ -37,7 +39,8 @@ function snapshot(overrides: Partial<PracticeLearningSnapshot> = {}): PracticeLe
 function mockSnapshot(value: PracticeLearningSnapshot): void {
   vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
   vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
-    const body = String(input).includes('/reading-saves')
+    const url = String(input)
+    const body = url.includes('/reading-saves') || url.includes('/workplace-saves')
       ? { items: [] }
       : { source: 'practice-web-test', snapshot: value }
     return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))
@@ -247,7 +250,7 @@ describe('My Learning page', () => {
     await waitFor(() => expect(screen.getByText('目前分類')).toBeInTheDocument())
     expect(screen.getAllByText('目前分類').length).toBeGreaterThan(0)
     expect(screen.queryByText(/internal-only-category/)).not.toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent('這筆紀錄目前無法安全開啟，請從最新的 Web Test 入口選擇練習範圍。')
+    expect(screen.getAllByRole('status').some((status) => status.textContent?.includes('這筆紀錄目前無法安全開啟，請從最新的 Web Test 入口選擇練習範圍。'))).toBe(true)
   })
 
   it('shows the endpoint non-member state when membership access is cached as active', async () => {
@@ -367,7 +370,7 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
     expect(await screen.findByText('已儲存的 Reading 暫時無法取得。')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '重試' }))
+    fireEvent.click(screen.getByRole('heading', { name: '最近儲存的 Reading（最多 50 筆）' }).closest('section')!.querySelector('button')!)
     expect(await screen.findByText('目前還沒有已儲存的 Reading。')).toBeInTheDocument()
     expect(fetchSaves).toHaveBeenCalledTimes(2)
   })
@@ -421,5 +424,61 @@ describe('My Learning page', () => {
     })
     expect(await screen.findByText('目前無法確認 Plus 存取權。')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: sampleReadingItem.title })).not.toBeInTheDocument()
+  })
+
+  it('links only current catalog-matched Workplace saves and lets stale preferences be removed', async () => {
+    const active: WorkplaceSave = {
+      itemId: sampleWorkplaceLearnItem.id, kind: 'lesson', revision: null,
+      savedAt: '2026-09-20T10:00:00.000Z', current: true,
+    }
+    const stale: WorkplaceSave = {
+      itemId: 'retired-workplace-lesson', kind: 'lesson', revision: 'f'.repeat(64),
+      savedAt: '2026-09-19T10:00:00.000Z', current: false,
+    }
+    const fetchWorkplaceItems = vi.fn<(...args: Parameters<(typeof import('../workplace-learn/savesClient'))['fetchWorkplaceSaves']>) => Promise<WorkplaceSavesResult>>()
+      .mockResolvedValueOnce({ kind: 'ok', items: [active, stale] })
+      .mockResolvedValueOnce({ kind: 'ok', items: [active] })
+    const deleteWorkplaceItem = vi.fn().mockResolvedValue({ kind: 'ok' as const })
+    renderWithAppProviders(<MyLearningPage
+      fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'ok', snapshot: snapshot() })}
+      fetchWorkplaceItems={fetchWorkplaceItems}
+      deleteWorkplaceItem={deleteWorkplaceItem}
+    />, {
+      session: { id: 'member-1', email: 'member@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+
+    expect(await screen.findByRole('link', { name: sampleWorkplaceLearnItem.title })).toHaveAttribute('href', `/learn/workplace/${sampleWorkplaceLearnItem.slug}`)
+    expect(screen.getByText('目前無法安全開啟這筆已儲存項目。')).toBeInTheDocument()
+    expect(screen.getByText(/不代表已完成、練習、理解或精熟/)).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: '移除' }).at(-1)!)
+    await waitFor(() => expect(screen.queryByText('目前無法安全開啟這筆已儲存項目。')).not.toBeInTheDocument())
+    expect(deleteWorkplaceItem).toHaveBeenCalledWith(stale.itemId, expect.any(Function), 'member-1', expect.any(AbortSignal))
+  })
+
+  it('ignores a late Workplace save list after an in-place account switch', async () => {
+    let resolveA!: (result: WorkplaceSavesResult) => void
+    let signalA: AbortSignal | undefined
+    const fetchWorkplaceItems = vi.fn((_token: () => Promise<string | null>, ownerId: string, signal?: AbortSignal) => {
+      if (ownerId === 'member-a') {
+        signalA = signal
+        return new Promise<WorkplaceSavesResult>((resolve) => { resolveA = resolve })
+      }
+      return Promise.resolve({ kind: 'ok' as const, items: [] })
+    })
+    const rendered = renderWithAppProviders(<MyLearningPage
+      fetchSnapshot={vi.fn().mockImplementation(() => new Promise(() => {}))}
+      fetchWorkplaceItems={fetchWorkplaceItems}
+    />, {
+      session: { id: 'member-a', email: 'a@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+    await waitFor(() => expect(fetchWorkplaceItems).toHaveBeenCalledTimes(1))
+    act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b', email: 'b@example.com' }))
+    await waitFor(() => expect(fetchWorkplaceItems).toHaveBeenCalledTimes(2))
+    expect(signalA?.aborted).toBe(true)
+    act(() => resolveA({ kind: 'ok', items: [{ itemId: sampleWorkplaceLearnItem.id, kind: 'lesson', revision: null, savedAt: '2026-09-20T10:00:00.000Z', current: true }] }))
+    await Promise.resolve()
+    expect(screen.queryByRole('link', { name: sampleWorkplaceLearnItem.title })).not.toBeInTheDocument()
   })
 })
