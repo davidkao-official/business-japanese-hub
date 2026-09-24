@@ -62,7 +62,8 @@ not recurring Aio.
 | [5631 — Recurring result notification](https://developers.ecpay.com.tw/5631/) | Initial success uses `ReturnURL`; later authorizations POST to `PeriodReturnURL`. Notifications include `MerchantTradeNo`, authorization result/amount, `gwsr`, `ProcessDate`, `TotalSuccessTimes`, schedule fields, and `CheckMacValue`. A period notification is sent once; a missed result must be reconciled by query. Simulated notifications are not real charges. |
 | [2892 — Recurring order query](https://developers.ecpay.com.tw/2892/) | Read-back exposes recurring order identity, schedule and amount, execution status, total successful count/amount, and per-execution log entries with result, amount, transaction reference, and process time. This is the documented missed-notification reconciliation source. |
 | [2900 — Recurring order operations](https://developers.ecpay.com.tw/2900/) | Successful `Cancel` terminates that recurring order irreversibly: it cannot be re-enabled, and re-entry requires a new recurring order. `ReAuth` applies only to the latest failed authorization, cannot operate on a paused or terminated order, and **cannot be tested in stage**. These provider operations do not decide the customer’s paid-access cutoff. |
-| [16214 — Merchant recurring-order management](https://support.ecpay.com.tw/16214/) | The merchant guide says ECPay automatically terminates after all executions, card expiry at authorization, or **six consecutive** authorization failures. The integration page's less precise six-failure wording leaves the exact counter semantics for account/sandbox confirmation. Qualified merchants may edit future amount, frequency, and execution count in the dashboard. A paused order can be re-enabled by setting a next execution date; termination cannot be reversed. |
+| [16214 — Merchant recurring-order management](https://support.ecpay.com.tw/16214/) | The merchant guide says ECPay automatically terminates after all executions, card expiry at authorization, or **six consecutive** authorization failures. The integration page's less precise six-failure wording leaves the exact counter semantics for account/sandbox confirmation. Qualified merchants may edit future amount, frequency, and execution count in the dashboard, but the documented **monthly dashboard edit range is 1–99 authorizations**, distinct from the Aio API creation cap of 999. Amount/cadence edits set a new next-execution date; an edit that sets this date on a paused order automatically re-enables it. Termination cannot be reversed. An already charged installment is refunded or voided by its own `TradeNo`, one at a time; stopping future charges is a separate operation. |
+| [2885 — Credit-card refund API](https://developers.ecpay.com.tw/2885/) | Refund/void of a charged installment does not cancel its recurring order or stop future collections. The credit-card refund API cannot be exercised in the test environment; use fixtures and read-only/provider support evidence for that branch before any authorized production exercise. |
 
 The merchant dashboard is a privileged provider-side writer outside the
 repository's server-owned Plus catalog. A qualified operator could change a
@@ -74,6 +75,11 @@ server-bound offer. An unapproved change must quarantine the order and stop
 local access admission; receipt mismatch alone cannot undo an already charged
 customer amount. Neither dashboard re-enable nor an ECPay status change can
 mint a Plus paid window without a verified charge and approved period mapping.
+The API's 999-monthly-cycle creation allowance does not establish that a
+qualified operator can edit an existing 999-cycle order in the dashboard: its
+published monthly execution-count edit range is only 1–99. The effect of
+editing another field on such an order needs account/support evidence; do not
+assume the edit preserves the 999-cycle horizon.
 
 The separate [ECPay Embedded Checkout 2.0 Web API documentation](https://developers.ecpay.com.tw/category/ecp_web/)
 and the [new gateway payment reference](https://developers.ecpay.com.tw/9040/)
@@ -91,6 +97,40 @@ capabilities, not proof that this Taiwan account can create a TWD subscription,
 receive/settle the charge as intended, or use the required merchant product in
 production. Repository PayPal functions and adapters implement one-time Orders
 and capture/refund processing, not Subscriptions.
+
+PayPal's [REST webhook guide](https://developer.paypal.com/api/rest/webhooks/rest/)
+requires the listener's configured webhook ID and either local signature
+verification of the original body/transmission headers or PayPal's verification
+API before an event is trusted. The webhook payload's `id` is the candidate
+stable `source_event_id`, namespaced by provider, app/account, and environment;
+the transmission header is a delivery identifier, not a new charge. A missing
+2xx acknowledgment can cause up to 25 deliveries over three days, so verified
+replays must compare the first immutable receipt rather than repeat a lifecycle
+write. A browser approval return, an unverified event, or a mock event cannot
+mint paid access. The [subscription transactions read-back API](https://developer.paypal.com/api/subscriptions/v1/subscriptions-transactions)
+is `GET /v1/billing/subscriptions/{id}/transactions` with required
+`start_time` and `end_time`; its documented Manage plan & subscription scope
+must be available to the admitted app. Reconcile transaction IDs, amounts,
+currency, status, and charge time against verified webhook evidence and the
+server-bound paid interval; a subscription status alone is insufficient.
+
+PayPal's [REST request guidance](https://developer.paypal.com/api/make-api-requests)
+recommends `PayPal-Request-Id` for POST/PUT creation or modification. The
+[Subscriptions create](https://developer.paypal.com/api/subscriptions/v1/subscriptions-create)
+and [capture](https://developer.paypal.com/api/subscriptions/v1/subscriptions-capture)
+references explicitly document the optional header and 72-hour ID storage for
+those endpoints. Persist one server-generated request ID per intended action,
+reuse it only for a retry of that same action, and read back the result after
+an uncertain response. Do not assume undocumented endpoints or a retry after
+the documented window have identical idempotency behavior.
+
+PayPal also documents `CUSTOMER.DISPUTE.CREATED`, `.UPDATED`, and `.RESOLVED`
+in its [Disputes testing guide](https://developer.paypal.com/platforms/disputes/test-go-live/).
+These are real dispute evidence candidates distinct from a subscription
+cancellation or a simple sale reversal; verify, correlate to the underlying
+charge, and await the approved #107/#112 dispute/access decision. Actual
+[Disputes app feature and account provisioning](https://developer.paypal.com/platforms/disputes/integrate-disputes/)
+remain account-specific and do not follow from a documented event name.
 
 The server catalog's `amount_minor = 29900` means **NT$299**, whereas PayPal
 documents [TWD as zero-decimal](https://developer.paypal.com/api/codes/currency/)
@@ -204,6 +244,11 @@ object for this purpose: use an opaque server-owned correlation and bind it
 before checkout to the authenticated user, admission, consent, and provider
 account/environment. Do not assume an optional `MerchantMemberID`/card-binding
 feature is enabled for this merchant.
+For a refund or pre-settlement void, first identify the charged installment's
+own `TradeNo` from recurring query/history and bind that one transaction to its
+refund amount/reference. ECPay permits one `TradeNo` per refund operation;
+refund/void evidence and future recurring-order stop evidence are separate
+facts. Neither operation alone determines the approved Plus access cutoff.
 
 The #165 RPC does not accept verified charge amount/currency, transaction
 reference, or consent-revision evidence. The recurring admission contract
@@ -314,20 +359,36 @@ These vectors are a plan, not a test claim or implementation authorization:
    no access; verified provider stop maps only to the chosen immediate or
    period-end cutoff. A successful Aio `Cancel` cannot reactivate that order;
    a return requires a separately bound new order and approved consent/access
-   treatment. Verified full refund, reversal, or dispute follows the
+   treatment. For each charged Aio installment, query its `TradeNo`, exercise
+   the one-installment refund/void mapping with fixtures, and reconcile its
+   amount/reference separately from future-order `Cancel`/pause evidence.
+   ECPay's refund API cannot be executed in its stage environment, so this
+   preflight makes no sandbox refund claim. Verified full refund, reversal, or dispute follows the
    separately approved terminal matrix; a support request or webhook redirect
    alone cannot revoke or restore access.
    For qualified ECPay dashboard access, detect changes to future amount,
    cadence, execution count, pause, next date, and re-enable against the
    server-bound offer and approved operator record. Quarantine unapproved
    drift before admitting another lifecycle receipt; do not assume dashboard
-   changes create a local event or reverse a prior real charge.
+   changes create a local event or reverse a prior real charge. Cover an Aio
+   API-created 999-cycle monthly order against the dashboard's documented
+   1–99 edit limit; treat the effect of other edits on that order as an
+   account/support question. An amount/cadence edit on a paused order can set a
+   next execution date and re-enable collection.
 8. **PayPal fallback:** verified subscription activation binds the right user,
    plan, and account/environment but grants no paid window by itself. A
    verified first completed sale must establish charge and coverage; failed
    payment, canceled/expired subscription, refund, reversal, duplicate and
-   out-of-order webhooks reconcile against the subscription/payment read API and
-   the same immutable receipt requirements. Confirm Taiwan-account TWD
+   out-of-order webhooks reconcile against the subscription transaction
+   read-back and the same immutable receipt requirements. Reject invalid
+   webhook signatures; deduplicate by namespaced event `id`, compare immutable
+   charge details on replay, and recover missed events through the bounded
+   transaction-list time window. Exercise PayPal's non-2xx redelivery and
+   create/capture retries with a persisted `PayPal-Request-Id` inside each
+   endpoint's documented 72-hour window; uncertain outcomes require read-back.
+   Exercise `CUSTOMER.DISPUTE.CREATED`/`.UPDATED`/`.RESOLVED` as verified,
+   charge-correlated evidence without automatically deciding Plus access.
+   Confirm Taiwan-account TWD
    eligibility before treating this as a viable fallback. Exercise two retries,
    the failure threshold, suspension, next-cycle outstanding balance, and both
    `auto_bill_outstanding` settings; establish the exact authoritative failure
@@ -367,7 +428,10 @@ GitHub.
 - Whether qualified dashboard users can edit a live order's future amount,
   frequency, execution count, card expiry or next charge date, and pause or
   re-enable it. Identify the authorized operator/control and read-back route;
-  confirm how an out-of-band change is detected before another charge.
+  confirm how an out-of-band change is detected before another charge. For an
+  API-created 999-cycle monthly order, obtain account/support evidence for
+  what happens when an operator edits another field while the dashboard's
+  published monthly execution-count edit range is 1–99.
 - Whether the merchant has working stage access and documented sample records
   for initial success/failure, subsequent success/failure, duplicate/missed
   notification, query, cancellation, and test notification. Separately confirm
@@ -375,7 +439,11 @@ GitHub.
 - Authoritative meanings and stable identifiers for recurring order,
   per-authorization event/transaction, failure result, effective cancellation,
   automatic termination (including card expiry and the six-failure counter),
-  paused/re-enabled state, and query history retention for the actual account.
+  paused/re-enabled state, per-installment `TradeNo` refund/void evidence, and
+  query history retention for the actual account. Confirm the account's
+  dispute/chargeback evidence and support route; the public refund API's
+  stage-environment limitation leaves any real refund exercise outside this
+  preflight.
 
 ### PayPal fallback account confirmation
 
@@ -384,7 +452,10 @@ GitHub.
   and settlement/withdrawal route.
 - Business/KYC status, seller match, supported customer jurisdictions/payment
   methods, production webhook event catalog, and sandbox-to-production account
-  separation are confirmed by the account owner.
+  separation are confirmed by the account owner. Confirm the admitted app's
+  subscription transaction-read scope, webhook subscription/ID, Disputes app
+  feature and any required account-manager provisioning; the public webhook
+  event names and API contract themselves are already documented.
 - Confirm whether `auto_bill_outstanding: false` is supported and behaves as
   expected in sandbox and production, and which retry/failure-threshold
   configuration can report effective failure without silently rolling an
