@@ -88,6 +88,8 @@ Adapter 去除 publication、reviewer 與 rights 欄位，驗證 bounded runtime
 
 Workplace Learn v1 runtime 必須明確提供 `titleLanguage`、`leadLanguage` 與相關內容 `labelLanguage`，值限 `ja`、`zh-TW`、`zh-CN`、`en`；consumer 依欄位標記語言，不可由 item kind、slug 或目前 fixture 推測。標示 `ZhTW` 的解說欄位必須使用繁體中文連續撰寫，不要把日文短語混入中文解說；日文原句、term、讀音保留在各自明確標記的日文欄位。v1 lesson 只能宣告 `practiceTypes: ["rewrite"]`；它對應頁面上明確標示未儲存、未評分的自我改寫欄位，不代表有已持久化 Practice evidence。
 
+#174 的 Workplace save 是 owner-scoped preference，只保存 stable item id、kind、current revision 與 server timestamp，不包含教材或練習文字。Service-only publication projection 是可保存與可返回的 publication authority；immutable private release import 不會自動發布。GET 的 current flag 必須來自該 projection（Plus 另需 exact `workplace-lesson`/`workplace-vocabulary` member release），而 UI 還需將 id/kind/revision/access 與本機 body-free catalog 精確比對才可連結；stale preference 仍可移除。**#124 首次 Plus Workplace publication、revision 變更或 rollback 前**，必須驗證 publication projection、Edge cache、frontend catalog、cached client 與 rollback 的組合：新版本只在明確發布後可保存；舊版/retired save 不可指向新 body；rollback 只恢復明確指定的相容 revision。不得以 private release 存在或舊 Edge/catalog cache 推定 publication。
+
 `check:public-content-boundary` 拒絕公開 checkout 內的 canonical filename、改名後的完整 private authoring JSON、完整 Plus runtime JSON 及其 delivery wrapper。這是 public-Git guard；private artifact isolation 仍以 clean GitHub／Cloudflare hosted checkout 和 owner 確認的 build environment 為準。首次正式 Plus corpus publication、revision 變更與 rollback 必須先確認 frontend、Edge、cached client 對 catalog／release 的相容性；不要把 immutable release 的存在當成當前可發佈狀態。Free production publication 也需要另外的公開來源與權利審查決策，不能靠 `access: free` 繞過 member delivery。
 
 ## #114 Practice / Web Test private authoring path

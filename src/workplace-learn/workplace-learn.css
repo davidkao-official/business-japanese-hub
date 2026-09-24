@@ -103,10 +103,23 @@
 .workplace-learn__self-practice textarea:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
 .workplace-learn__self-practice-note { color: var(--color-text-muted); font-size: var(--text-sm); }
 .workplace-learn__status { text-align: center; color: var(--color-text-muted); padding: var(--space-4); }
+.workplace-learn__save { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); max-width: var(--workplace-content-width); margin: 0 auto var(--space-5); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); background: var(--color-surface-muted); }
+.workplace-learn__save-label { margin: 0; color: var(--color-text); font-size: var(--text-sm); font-weight: 650; }
+.workplace-learn__save [role='status'] { flex: 1 1 14rem; margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); }
+.workplace-learn__save .btn { min-height: 2.5rem; }
+.my-learning-workplace-saves__list { display: grid; gap: var(--space-3); margin: var(--space-4) 0 0; padding: 0; list-style: none; }
+.my-learning-workplace-saves__list > li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--color-border); }
+.my-learning-workplace-saves__item { display: grid; gap: var(--space-1); min-width: 0; }
+.my-learning-workplace-saves__item a { color: var(--color-accent-hover); font-weight: 600; text-underline-offset: .2em; }
+.my-learning-workplace-saves__item time { color: var(--color-text-muted); font-size: var(--text-sm); }
+.my-learning-workplace-saves__item [role='status'] { color: var(--color-text-muted); }
+.my-learning-workplace-saves__list .btn { flex: 0 0 auto; min-height: 2.5rem; }
 
 @media (max-width: 48rem) {
   .workplace-learn__grid { grid-template-columns: 1fr; }
   .workplace-learn__browse-links { align-items: flex-start; flex-direction: column; }
   .workplace-learn__browse-links a + a { margin-left: 0; }
   .workplace-learn__vocabulary-body dl > div { grid-template-columns: 1fr; gap: var(--space-1); }
+  .workplace-learn__save { align-items: flex-start; flex-direction: column; }
+  .my-learning-workplace-saves__list > li { align-items: flex-start; }
 }
