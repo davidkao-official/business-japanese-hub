@@ -1635,7 +1635,7 @@ const zhCN: AppStrings = {
     saveNonMember: '保存 Workplace Learn 教材需要 Plus 会员。', saveMembershipUnavailable: '目前无法确认会员状态。',
     saveContentLoading: '正在加载教材。', saveLoading: '正在读取保存状态。', saveReady: '可以将这项教材保存到 My Learning。',
     saveSaved: '已保存在 My Learning。这不代表完成或精熟。', saveStale: '已保存的教材版本目前无法使用；你可以移除这条保存。',
-    saveUnavailable: '目前无法确认保存状态。', saveConflict: '这次保存未成功；目前没有确认到新的保存记录。请重新确认版本后再试。', saveAction: '保存到 My Learning', removeSave: '移除保存', saveWorking: '处理中…', saveRetry: '重试',
+    saveLabel: '保存到 My Learning', saveUnavailable: '目前无法确认保存状态。', saveConflict: '这次保存未成功；目前没有确认到新的保存记录。请重新确认版本后再试。', saveAction: '保存到 My Learning', removeSave: '移除保存', saveWorking: '处理中…', saveRetry: '重试',
   },
   reading: {
     ...zhTW.reading,
