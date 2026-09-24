@@ -21,8 +21,12 @@ test('public Git Workplace Learn authoring boundary rejects the canonical filena
 })
 
 test('public Git Workplace Learn authoring boundary rejects renamed complete private drafts', () => {
-  assert.equal(privateWorkplaceArtifactReason('nested/draft.json', JSON.stringify(authoring(sampleWorkplaceLearnItem))), 'authoring shape')
-  assert.equal(privateWorkplaceArtifactReason('nested/term.txt', `\uFEFF${JSON.stringify(authoring(sampleWorkplaceVocabularyItem))}`), 'authoring shape')
+  const lessonDraft = authoring(sampleWorkplaceLearnItem)
+  const vocabularyDraft = authoring(sampleWorkplaceVocabularyItem)
+  assert.equal(privateWorkplaceArtifactReason('nested/draft.json', JSON.stringify(lessonDraft)), 'authoring shape')
+  assert.equal(privateWorkplaceArtifactReason('nested/term.txt', `\uFEFF${JSON.stringify(vocabularyDraft)}`), 'authoring shape')
+  assert.equal(privateWorkplaceArtifactReason('nested/draft-batch.json', JSON.stringify([lessonDraft])), 'authoring shape')
+  assert.equal(privateWorkplaceArtifactReason('nested/nested-drafts.json', JSON.stringify([[vocabularyDraft]])), 'authoring shape')
 })
 
 test('public Git Workplace Learn boundary rejects direct Plus runtime bodies and delivery wrappers', () => {
@@ -43,6 +47,8 @@ test('public Git Workplace Learn boundary rejects direct Plus runtime bodies and
     if (!prepared.ok) continue
     assert.equal(privateWorkplaceArtifactReason('renamed-release.json', JSON.stringify(prepared.value)), 'Plus runtime shape')
     assert.equal(privateWorkplaceArtifactReason('renamed-payload.json', JSON.stringify(prepared.value.payload)), 'Plus runtime shape')
+    assert.equal(privateWorkplaceArtifactReason('renamed-batch.json', JSON.stringify([prepared.value])), 'Plus runtime shape')
+    assert.equal(privateWorkplaceArtifactReason('renamed-nested-batch.json', JSON.stringify([[prepared.value]])), 'Plus runtime shape')
     assert.equal(privateWorkplaceArtifactReason('renamed-delivery.json', JSON.stringify({
       content: {
         contentId: prepared.value.contentId,
@@ -55,14 +61,27 @@ test('public Git Workplace Learn boundary rejects direct Plus runtime bodies and
 })
 
 test('public Git Workplace Learn authoring boundary allows runtime fixtures and body-free catalog metadata', () => {
-  assert.equal(privateWorkplaceArtifactReason('src/workplace-learn/sample.json', JSON.stringify(sampleWorkplaceLearnItem)), null)
-  assert.equal(privateWorkplaceArtifactReason('src/workplace-learn/catalog.json', JSON.stringify({
+  const freeCatalogEntry = {
     schemaVersion: 1, kind: 'lesson', id: sampleWorkplaceLearnItem.id, slug: sampleWorkplaceLearnItem.slug,
     title: sampleWorkplaceLearnItem.title, lead: sampleWorkplaceLearnItem.lead, access: 'free', category: sampleWorkplaceLearnItem.category,
-  })), null)
-  assert.equal(privateWorkplaceArtifactReason('src/workplace-learn/plus-catalog.json', JSON.stringify({
+  }
+  const plusCatalogEntry = {
     schemaVersion: 1, kind: 'lesson', id: 'workplace-plus-example', slug: 'workplace-plus-example',
     title: 'Private title metadata only', titleLanguage: 'en', lead: 'Metadata only.', leadLanguage: 'en', access: 'plus', category: 'workplace-communication',
-  })), null)
+  }
+  assert.equal(privateWorkplaceArtifactReason('src/workplace-learn/sample.json', JSON.stringify(sampleWorkplaceLearnItem)), null)
+  assert.equal(privateWorkplaceArtifactReason('src/workplace-learn/catalog.json', JSON.stringify(freeCatalogEntry)), null)
+  assert.equal(privateWorkplaceArtifactReason('src/workplace-learn/plus-catalog.json', JSON.stringify(plusCatalogEntry)), null)
   assert.equal(privateWorkplaceArtifactReason('src/workplace-learn/free-wrapper.json', JSON.stringify({ workplaceLearn: sampleWorkplaceLearnItem })), null)
+  assert.equal(privateWorkplaceArtifactReason('src/workplace-learn/catalog-batch.json', JSON.stringify([freeCatalogEntry, plusCatalogEntry])), null)
+  assert.equal(privateWorkplaceArtifactReason('src/workplace-learn/nested-catalog-batch.json', JSON.stringify([[freeCatalogEntry], [plusCatalogEntry]])), null)
+})
+
+test('public Git Workplace Learn boundary fails closed when bounded JSON traversal limits are exceeded', () => {
+  const oversizedArray = JSON.stringify(new Array(10_001).fill(null))
+  assert.notEqual(privateWorkplaceArtifactReason('nested/oversized.json', oversizedArray), null)
+
+  let deeplyNested: unknown = null
+  for (let depth = 0; depth < 66; depth += 1) deeplyNested = [deeplyNested]
+  assert.notEqual(privateWorkplaceArtifactReason('nested/deep.json', JSON.stringify(deeplyNested)), null)
 })
