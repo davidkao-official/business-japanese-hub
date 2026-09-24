@@ -146,6 +146,10 @@ drop function public._resolve_plus_membership_access_at(uuid, timestamptz);
 alter function public._reading_publication_race_original_access_at(uuid, timestamptz)
   rename to _resolve_plus_membership_access_at;
 drop function public._reading_publication_race_test_mutate();
+update public.plus_membership_access_window
+set window_end = now() + interval '1 day'
+where user_id = '18200000-0000-4000-8000-000000000001'
+  and window_end <= now();
 
 set local role service_role;
 select public.publish_reading_item('reading-publication-contract-test', repeat('b', 64));
