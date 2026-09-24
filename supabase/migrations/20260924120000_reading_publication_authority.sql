@@ -127,6 +127,10 @@ $$;
 
 -- Membership, publication, and immutable release are evaluated inside this
 -- single RPC. A Reading body is never fetched on an earlier Edge query.
+-- The fixed-time membership helper is read-only and samples no clock itself,
+-- so its result can share the body query's statement snapshot.
+alter function public._resolve_plus_membership_access_at(uuid, timestamptz) stable;
+
 create function public.get_member_reading_release(
   p_user_id uuid,
   p_item_id text,
@@ -138,7 +142,6 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_access jsonb;
   v_release jsonb;
 begin
   if p_user_id is null or p_item_id is null or p_revision is null
@@ -147,29 +150,36 @@ begin
     return jsonb_build_object('status', 'missing');
   end if;
 
-  v_access := public.resolve_plus_membership_access(p_user_id);
-  if v_access ->> 'access_status' is distinct from 'active' then
-    return jsonb_build_object('status', 'non-member');
-  end if;
+  with access as materialized (
+    select public._resolve_plus_membership_access_at(
+      p_user_id, clock_timestamp()
+    ) ->> 'access_status' as status
+  )
+  select case
+    when access.status is distinct from 'active' then
+      jsonb_build_object('status', 'non-member')
+    else coalesce((
+      select jsonb_build_object(
+        'status', 'found',
+        'content_id', r.content_id,
+        'revision', r.revision,
+        'content_kind', r.content_kind,
+        'payload', r.payload
+      )
+      from public.reading_publication p
+      join public.private_content_release r
+        on r.content_id = p.item_id and r.revision = p.revision
+      where p.item_id = p_item_id
+        and p.revision = p_revision
+        and p.access_scope = 'plus'
+        and p.available
+        and r.content_kind = 'reading'
+        and r.access_scope = 'member'
+    ), jsonb_build_object('status', 'missing'))
+  end into v_release
+  from access;
 
-  select jsonb_build_object(
-    'status', 'found',
-    'content_id', r.content_id,
-    'revision', r.revision,
-    'content_kind', r.content_kind,
-    'payload', r.payload
-  ) into v_release
-  from public.reading_publication p
-  join public.private_content_release r
-    on r.content_id = p.item_id and r.revision = p.revision
-  where p.item_id = p_item_id
-    and p.revision = p_revision
-    and p.access_scope = 'plus'
-    and p.available
-    and r.content_kind = 'reading'
-    and r.access_scope = 'member';
-
-  return coalesce(v_release, jsonb_build_object('status', 'missing'));
+  return v_release;
 end;
 $$;
 
