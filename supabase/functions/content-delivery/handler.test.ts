@@ -4,6 +4,7 @@ import type { DbClient } from '../_shared/db.ts'
 
 const contentId = 'book-private-member-fixture'
 const readingContentId = 'reading-private-member-fixture'
+const workplaceContentId = 'workplace-private-member-fixture'
 const revision = 'a'.repeat(64)
 
 function dbFor(userId: string | null): DbClient {
@@ -40,6 +41,7 @@ describe('content delivery', () => {
       membershipAccessFor: async () => 'unavailable',
       getContentKind: async () => ({ kind: 'found', contentKind: 'book' }),
       getPublishedReadingRelease: vi.fn(),
+      getPublishedWorkplaceRelease: vi.fn(),
       getRelease,
     })
     expect(result.status).toBe(503)
@@ -54,6 +56,7 @@ describe('content delivery', () => {
       membershipAccessFor: async () => 'non-member',
       getContentKind: async () => ({ kind: 'found', contentKind: 'book' }),
       getPublishedReadingRelease: vi.fn(),
+      getPublishedWorkplaceRelease: vi.fn(),
       getRelease,
     })
     expect(result.status).toBe(403)
@@ -68,6 +71,7 @@ describe('content delivery', () => {
       membershipAccessFor: async () => 'active',
       getContentKind: vi.fn(),
       getPublishedReadingRelease: vi.fn(),
+      getPublishedWorkplaceRelease: vi.fn(),
       getRelease,
     })
     expect(result.status).toBe(401)
@@ -85,6 +89,7 @@ describe('content delivery', () => {
       membershipAccessFor: async () => 'active',
       getContentKind: vi.fn(),
       getPublishedReadingRelease: vi.fn(),
+      getPublishedWorkplaceRelease: vi.fn(),
       getRelease,
     })
     expect(result.status).toBe(400)
@@ -97,6 +102,7 @@ describe('content delivery', () => {
       membershipAccessFor: async () => 'active',
       getContentKind: async () => ({ kind: 'found', contentKind: 'book' }),
       getPublishedReadingRelease: vi.fn(),
+      getPublishedWorkplaceRelease: vi.fn(),
       getRelease: async () => ({
         kind: 'found',
         release: {
@@ -118,6 +124,7 @@ describe('content delivery', () => {
       membershipAccessFor: async () => 'active',
       getContentKind: async () => ({ kind: 'found', contentKind: 'book' }),
       getPublishedReadingRelease: vi.fn(),
+      getPublishedWorkplaceRelease: vi.fn(),
       getRelease: async () => ({ kind: 'unavailable' }),
     })
     expect(result.status).toBe(503)
@@ -130,6 +137,7 @@ describe('content delivery', () => {
       membershipAccessFor: async () => 'active',
       getContentKind: async () => ({ kind: 'found', contentKind: 'book' }),
       getPublishedReadingRelease: vi.fn(),
+      getPublishedWorkplaceRelease: vi.fn(),
       getRelease: async () => ({ kind: 'found', release: {
         contentId,
         revision,
@@ -174,6 +182,7 @@ describe('content delivery', () => {
         membershipAccessFor: vi.fn(),
         getContentKind: async () => ({ kind: 'found', contentKind: 'reading' }),
         getPublishedReadingRelease: async () => ({ kind }),
+        getPublishedWorkplaceRelease: vi.fn(),
         getRelease,
       })
       expect(result.status).toBe(kind === 'non-member' ? 403 : kind === 'missing' ? 404 : 503)
@@ -191,10 +200,90 @@ describe('content delivery', () => {
       membershipAccessFor: vi.fn(),
       getContentKind: async () => ({ kind: 'found', contentKind: 'reading' }),
       getPublishedReadingRelease: async () => { throw new Error('database unavailable') },
+      getPublishedWorkplaceRelease: vi.fn(),
       getRelease,
     })
     expect(result.status).toBe(503)
     expect(result.headers?.['Cache-Control']).toBe('private, no-store')
     expect(getRelease).not.toHaveBeenCalled()
+  })
+
+  it.each(['workplace-lesson', 'workplace-vocabulary'] as const)(
+    'uses the atomic publication lookup for %s', async (contentKind) => {
+      const getRelease = vi.fn()
+      const getPublishedWorkplaceRelease = vi.fn().mockResolvedValue({ kind: 'found', release: {
+        contentId: workplaceContentId,
+        revision,
+        contentKind,
+        payload: { example: 'published workplace body' },
+      } })
+      const result = await handleContentDelivery(request('Bearer valid-token', {
+        contentId: workplaceContentId, revision,
+      }), {
+        db: dbFor('user-1'),
+        membershipAccessFor: vi.fn(),
+        getContentKind: async () => ({ kind: 'found', contentKind }),
+        getPublishedReadingRelease: vi.fn(),
+        getPublishedWorkplaceRelease,
+        getRelease,
+      })
+      expect(result.status).toBe(200)
+      expect(result.body).toContain('published workplace body')
+      expect(getPublishedWorkplaceRelease).toHaveBeenCalledWith('user-1', workplaceContentId, revision)
+      expect(getRelease).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(['non-member', 'missing', 'unavailable'] as const)(
+    'does not expose Workplace content when the atomic publication lookup is %s', async (kind) => {
+      const getRelease = vi.fn()
+      const result = await handleContentDelivery(request('Bearer valid-token', {
+        contentId: workplaceContentId, revision,
+      }), {
+        db: dbFor('user-1'),
+        membershipAccessFor: vi.fn(),
+        getContentKind: async () => ({ kind: 'found', contentKind: 'workplace-lesson' }),
+        getPublishedReadingRelease: vi.fn(),
+        getPublishedWorkplaceRelease: async () => ({ kind }),
+        getRelease,
+      })
+      expect(result.status).toBe(kind === 'non-member' ? 403 : kind === 'missing' ? 404 : 503)
+      expect(result.body).not.toContain('private body')
+      expect(getRelease).not.toHaveBeenCalled()
+    },
+  )
+
+  it('fails closed when the atomic Workplace publication RPC throws', async () => {
+    const getRelease = vi.fn()
+    const result = await handleContentDelivery(request('Bearer valid-token', {
+      contentId: workplaceContentId, revision,
+    }), {
+      db: dbFor('user-1'),
+      membershipAccessFor: vi.fn(),
+      getContentKind: async () => ({ kind: 'found', contentKind: 'workplace-vocabulary' }),
+      getPublishedReadingRelease: vi.fn(),
+      getPublishedWorkplaceRelease: async () => { throw new Error('database unavailable') },
+      getRelease,
+    })
+    expect(result.status).toBe(503)
+    expect(result.headers?.['Cache-Control']).toBe('private, no-store')
+    expect(getRelease).not.toHaveBeenCalled()
+  })
+
+  it('keeps Book delivery on the existing temporal membership and exact release path', async () => {
+    const getPublishedWorkplaceRelease = vi.fn()
+    const result = await handleContentDelivery(request(), {
+      db: dbFor('user-1'),
+      membershipAccessFor: async () => 'active',
+      getContentKind: async () => ({ kind: 'found', contentKind: 'book' }),
+      getPublishedReadingRelease: vi.fn(),
+      getPublishedWorkplaceRelease,
+      getRelease: async () => ({ kind: 'found', release: {
+        contentId, revision, contentKind: 'book', payload: { body: 'book body' },
+      } }),
+    })
+    expect(result.status).toBe(200)
+    expect(result.body).toContain('book body')
+    expect(getPublishedWorkplaceRelease).not.toHaveBeenCalled()
   })
 })
