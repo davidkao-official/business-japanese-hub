@@ -63,6 +63,8 @@ describe('Workplace Learn Plus content client', () => {
     ['wrong item kind', body({ ...runtimeItem, kind: 'vocabulary' }, 'workplace-vocabulary')],
     ['draft authoring fields', body({ ...runtimeItem, publication: { status: 'draft' } })],
     ['catalog slug mismatch', body({ ...runtimeItem, slug: 'other-slug' })],
+    ['catalog title language mismatch', body({ ...runtimeItem, titleLanguage: 'en' })],
+    ['catalog lead language mismatch', body({ ...runtimeItem, leadLanguage: 'en' })],
     ['markup injection', body({ ...runtimeItem, whatToSayJapanese: '<script>x</script>' })],
   ])('fails closed on %s', async (_label, value) => {
     vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')

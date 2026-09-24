@@ -86,6 +86,8 @@ pnpm workflow:import-private-workplace --source=/absolute/private/workplace-item
 
 Adapter 去除 publication、reviewer 與 rights 欄位，驗證 bounded runtime，對 `{ workplaceLearn: runtime }` 計算 immutable SHA-256 revision，並以 `workplace-lesson` 或 `workplace-vocabulary`、`access_scope=member` 寫入既有 `private_content_release`。Import 本身不發佈 catalog entry；公開 Plus metadata 必須只指向相同 content id 與 revision，browser 只能在 verified active membership 後透過 `content-delivery` 讀取並重新驗證 payload。缺少 catalog reference、access、release 或合法 payload 時，UI 必須顯示 unavailable，不可回退到 private body 的公開 bundle copy。
 
+Workplace Learn v1 runtime 必須明確提供 `titleLanguage`、`leadLanguage` 與相關內容 `labelLanguage`，值限 `ja`、`zh-TW`、`zh-CN`、`en`；consumer 依欄位標記語言，不可由 item kind、slug 或目前 fixture 推測。標示 `ZhTW` 的解說欄位必須使用繁體中文連續撰寫，不要把日文短語混入中文解說；日文原句、term、讀音保留在各自明確標記的日文欄位。v1 lesson 只能宣告 `practiceTypes: ["rewrite"]`；它對應頁面上明確標示未儲存、未評分的自我改寫欄位，不代表有已持久化 Practice evidence。
+
 `check:public-content-boundary` 拒絕公開 checkout 內的 canonical filename、改名後的完整 private authoring JSON、完整 Plus runtime JSON 及其 delivery wrapper。這是 public-Git guard；private artifact isolation 仍以 clean GitHub／Cloudflare hosted checkout 和 owner 確認的 build environment 為準。首次正式 Plus corpus publication、revision 變更與 rollback 必須先確認 frontend、Edge、cached client 對 catalog／release 的相容性；不要把 immutable release 的存在當成當前可發佈狀態。Free production publication 也需要另外的公開來源與權利審查決策，不能靠 `access: free` 繞過 member delivery。
 
 ## #114 Practice / Web Test private authoring path

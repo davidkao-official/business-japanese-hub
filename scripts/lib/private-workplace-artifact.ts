@@ -59,9 +59,12 @@ export function isContractShapedPrivateWorkplaceRuntimeJson(text: string): boole
     return false
   }
   if (isWorkplaceRuntimeItem(value)) return true
-  return record(value)
-    && Object.keys(value).length === 1
-    && isWorkplaceRuntimeItem(value.workplaceLearn)
+  if (!record(value)) return false
+  if (isWorkplaceRuntimeItem(value.workplaceLearn)) return true
+  if (record(value.payload) && isWorkplaceRuntimeItem(value.payload.workplaceLearn)) return true
+  return record(value.content)
+    && record(value.content.payload)
+    && isWorkplaceRuntimeItem(value.content.payload.workplaceLearn)
 }
 
 export function privateWorkplaceArtifactReason(

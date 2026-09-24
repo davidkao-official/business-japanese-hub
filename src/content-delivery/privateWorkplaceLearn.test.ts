@@ -27,6 +27,11 @@ describe('private Workplace Learn release preparation', () => {
       expect(result.value.payload.workplaceLearn).not.toHaveProperty('publication')
       expect(result.value.payload.workplaceLearn).not.toHaveProperty('reviewer')
       expect(result.value.payload.workplaceLearn).not.toHaveProperty('rights')
+      expect(result.value.payload.workplaceLearn).toMatchObject({
+        titleLanguage: source.titleLanguage,
+        leadLanguage: source.leadLanguage,
+        ...(source.kind === 'lesson' ? { practiceTypes: ['rewrite'] } : {}),
+      })
       expect(preparePrivateWorkplaceLearnRelease(source.id, source)).toMatchObject({ ok: true, value: { revision: result.value.revision } })
     }
     const lesson = releasedPlus(sampleWorkplaceLearnItem)

@@ -15,6 +15,7 @@ const TAG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const MAX_SLUG_LENGTH = 80
 const MAX_TAG_LENGTH = 48
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+const LANGUAGES = ['ja', 'zh-TW', 'zh-CN', 'en'] as const
 const MARKUP = /<\/?[a-z][^>]*>|!\[[^\]]*\]\([^)]*\)|\[[^\]]+\]\([^)]*\)|`|\*\*|__|(?:^|\n)\s{0,3}(?:#{1,6}\s|>\s|[-*+]\s|\d+\.\s)/i
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -95,9 +96,10 @@ function validateLinks(value: unknown, path: string, issues: WorkplaceLearnValid
       issues.push({ path: itemPath, message: 'must be a related content link' })
       return
     }
-    onlyKeys(entry, ['kind', 'label', 'targetId'], itemPath, issues)
+    onlyKeys(entry, ['kind', 'label', 'labelLanguage', 'targetId'], itemPath, issues)
     if (!['learn', 'read', 'practice'].includes(String(entry.kind))) issues.push({ path: `${itemPath}.kind`, message: 'must be learn, read, or practice' })
     plainText(entry.label, `${itemPath}.label`, issues, 1, 120)
+    if (!(LANGUAGES as readonly unknown[]).includes(entry.labelLanguage)) issues.push({ path: `${itemPath}.labelLanguage`, message: 'must be ja, zh-TW, zh-CN, or en' })
     if (typeof entry.targetId !== 'string' || !ID.test(entry.targetId)) issues.push({ path: `${itemPath}.targetId`, message: 'must be a stable content id' })
   })
 }
@@ -112,13 +114,13 @@ function validateRuntimeShape(
     return
   }
   const lessonKeys = [
-    'schemaVersion', 'kind', 'id', 'slug', 'title', 'lead', 'category', 'tags', 'access',
+    'schemaVersion', 'kind', 'id', 'slug', 'title', 'titleLanguage', 'lead', 'leadLanguage', 'category', 'tags', 'access',
     'situation', 'meaningInContextZhTW', 'learningObjective', 'capabilityDomain', 'skill', 'coreJudgment',
     'whatToDo', 'whatToSayJapanese', 'whyItWorksZhTW', 'practiceTypes', 'transferTakeaway', 'examples',
     'cautionZhTW', 'relationshipContext', 'relatedVocabularyIds', 'relatedLinks', 'sampleLabel',
   ]
   const vocabularyKeys = [
-    'schemaVersion', 'kind', 'id', 'slug', 'title', 'lead', 'category', 'tags', 'access',
+    'schemaVersion', 'kind', 'id', 'slug', 'title', 'titleLanguage', 'lead', 'leadLanguage', 'category', 'tags', 'access',
     'term', 'reading', 'meaningZhTW', 'workplaceNuanceZhTW', 'usageContext', 'example', 'cautionZhTW',
     'register', 'relationshipContext', 'relatedTermIds', 'relatedLinks', 'sampleLabel',
   ]
@@ -128,7 +130,9 @@ function validateRuntimeShape(
   if (typeof value.id !== 'string' || !ID.test(value.id)) issues.push({ path: '$.id', message: 'must be a stable lowercase content id' })
   if (typeof value.slug !== 'string' || value.slug.length > MAX_SLUG_LENGTH || !SLUG.test(value.slug)) issues.push({ path: '$.slug', message: `must be a stable lowercase hyphenated slug of at most ${MAX_SLUG_LENGTH} characters` })
   plainText(value.title, '$.title', issues, 1, 180)
+  if (!(LANGUAGES as readonly unknown[]).includes(value.titleLanguage)) issues.push({ path: '$.titleLanguage', message: 'must be ja, zh-TW, zh-CN, or en' })
   plainText(value.lead, '$.lead', issues, 1, 360)
+  if (!(LANGUAGES as readonly unknown[]).includes(value.leadLanguage)) issues.push({ path: '$.leadLanguage', message: 'must be ja, zh-TW, zh-CN, or en' })
   if (!(WORKPLACE_LEARN_CATEGORIES as readonly unknown[]).includes(value.category)) issues.push({ path: '$.category', message: 'is not a supported Workplace Learn category' })
   if (value.access !== 'free' && value.access !== 'plus') issues.push({ path: '$.access', message: 'must be free or plus' })
   if (!Array.isArray(value.tags) || value.tags.length > 12 || value.tags.some((tag) => typeof tag !== 'string' || tag.length > MAX_TAG_LENGTH || !TAG.test(tag))) {
@@ -147,7 +151,7 @@ function validateRuntimeShape(
     plainText(value.whatToDo, '$.whatToDo', issues, 1, 1800)
     plainText(value.whatToSayJapanese, '$.whatToSayJapanese', issues, 1, 1600)
     plainText(value.whyItWorksZhTW, '$.whyItWorksZhTW', issues, 1, 2000)
-    stringArray(value.practiceTypes, '$.practiceTypes', issues, { max: 5, allowed: ['recall', 'rewrite', 'dialogue', 'role-play', 'audio-scenario'], allowEmpty: true })
+    stringArray(value.practiceTypes, '$.practiceTypes', issues, { max: 1, allowed: ['rewrite'] })
     plainText(value.transferTakeaway, '$.transferTakeaway', issues, 1, 1000)
     if (!Array.isArray(value.examples) || value.examples.length === 0 || value.examples.length > 8) issues.push({ path: '$.examples', message: 'must be an array with 1–8 examples' })
     else value.examples.forEach((example, index) => validateExample(example, `$.examples[${index}]`, issues))
@@ -272,7 +276,9 @@ export function toWorkplaceLearnCatalogEntry(item: WorkplaceLearnRuntimeItem, re
     id: item.id,
     slug: item.slug,
     title: item.title,
+    titleLanguage: item.titleLanguage,
     lead: item.lead,
+    leadLanguage: item.leadLanguage,
     category: item.category,
     tags: [...item.tags],
     access: item.access,

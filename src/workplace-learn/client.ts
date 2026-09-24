@@ -28,11 +28,13 @@ function exactKeys(value: Record<string, unknown>, expected: readonly string[]):
 function hasValidPlusReference(entry: WorkplaceLearnCatalogEntry): boolean {
   if (!record(entry)) return false
   if (typeof entry.id !== 'string' || typeof entry.slug !== 'string' || typeof entry.access !== 'string') return false
-  if (!exactKeys(entry, ['schemaVersion', 'kind', 'id', 'slug', 'title', 'lead', 'category', 'tags', 'access', ...(entry.sampleLabel === undefined ? [] : ['sampleLabel']), 'releaseReference'])) return false
+  if (!exactKeys(entry, ['schemaVersion', 'kind', 'id', 'slug', 'title', 'titleLanguage', 'lead', 'leadLanguage', 'category', 'tags', 'access', ...(entry.sampleLabel === undefined ? [] : ['sampleLabel']), 'releaseReference'])) return false
   if (entry.schemaVersion !== 1 || (entry.kind !== 'lesson' && entry.kind !== 'vocabulary')) return false
   if (!(WORKPLACE_LEARN_CATEGORIES as readonly unknown[]).includes(entry.category)) return false
   if (typeof entry.title !== 'string' || entry.title.trim().length === 0 || entry.title.length > 180) return false
+  if (!['ja', 'zh-TW', 'zh-CN', 'en'].includes(entry.titleLanguage)) return false
   if (typeof entry.lead !== 'string' || entry.lead.trim().length === 0 || entry.lead.length > 360) return false
+  if (!['ja', 'zh-TW', 'zh-CN', 'en'].includes(entry.leadLanguage)) return false
   if (!Array.isArray(entry.tags) || entry.tags.length > 12 || entry.tags.some((tag) => typeof tag !== 'string' || tag.length > 48 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(tag))) return false
   if (entry.sampleLabel !== undefined && entry.sampleLabel !== 'non-proprietary-teaching-sample') return false
   const reference = entry.releaseReference
@@ -57,7 +59,9 @@ function matchesCatalog(entry: WorkplaceLearnCatalogEntry, item: WorkplaceLearnR
     && item.access === 'plus'
     && item.schemaVersion === entry.schemaVersion
     && item.title === entry.title
+    && item.titleLanguage === entry.titleLanguage
     && item.lead === entry.lead
+    && item.leadLanguage === entry.leadLanguage
     && item.category === entry.category
     && item.tags.length === entry.tags.length
     && item.tags.every((tag, index) => tag === entry.tags[index])

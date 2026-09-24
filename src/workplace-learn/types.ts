@@ -11,6 +11,7 @@ export const WORKPLACE_LEARN_CATEGORIES = [
 export type WorkplaceLearnCategory = (typeof WORKPLACE_LEARN_CATEGORIES)[number]
 export type WorkplaceLearnAccess = 'free' | 'plus'
 export type WorkplaceLearnKind = 'lesson' | 'vocabulary'
+export type WorkplaceLearnLanguage = 'ja' | 'zh-TW' | 'zh-CN' | 'en'
 export type WorkplaceCapabilityDomain =
   | 'meeting-discussion'
   | 'hou-ren-sou'
@@ -23,6 +24,7 @@ export type WorkplaceCapabilityDomain =
 export type WorkplaceLearnRelatedLink = {
   kind: 'learn' | 'read' | 'practice'
   label: string
+  labelLanguage: WorkplaceLearnLanguage
   targetId: string
 }
 
@@ -38,7 +40,9 @@ export type WorkplaceLearnLesson = {
   id: string
   slug: string
   title: string
+  titleLanguage: WorkplaceLearnLanguage
   lead: string
+  leadLanguage: WorkplaceLearnLanguage
   category: WorkplaceLearnCategory
   tags: string[]
   access: WorkplaceLearnAccess
@@ -52,7 +56,7 @@ export type WorkplaceLearnLesson = {
   whatToSayJapanese: string
   whyItWorksZhTW: string
   /** Editorial suggestions only; this field does not assert that a Practice activity exists. */
-  practiceTypes: Array<'recall' | 'rewrite' | 'dialogue' | 'role-play' | 'audio-scenario'>
+  practiceTypes: Array<'rewrite'>
   transferTakeaway: string
   examples: WorkplaceLearnExample[]
   cautionZhTW: string
@@ -68,7 +72,9 @@ export type WorkplaceLearnVocabulary = {
   id: string
   slug: string
   title: string
+  titleLanguage: WorkplaceLearnLanguage
   lead: string
+  leadLanguage: WorkplaceLearnLanguage
   category: WorkplaceLearnCategory
   tags: string[]
   access: WorkplaceLearnAccess
@@ -108,7 +114,7 @@ export type WorkplaceLearnReleaseReference = { contentId: string; revision: stri
 
 /** Discovery metadata only; lesson and vocabulary bodies never belong in this shape. */
 export type WorkplaceLearnCatalogEntry = Pick<WorkplaceLearnRuntimeItem,
-  'schemaVersion' | 'kind' | 'id' | 'slug' | 'title' | 'lead' | 'category' | 'tags' | 'access' | 'sampleLabel'
+  'schemaVersion' | 'kind' | 'id' | 'slug' | 'title' | 'titleLanguage' | 'lead' | 'leadLanguage' | 'category' | 'tags' | 'access' | 'sampleLabel'
 > & { releaseReference?: WorkplaceLearnReleaseReference }
 
 export type WorkplaceLearnValidationIssue = { path: string; message: string }

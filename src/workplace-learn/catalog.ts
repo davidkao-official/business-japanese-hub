@@ -29,9 +29,9 @@ export function buildWorkplaceLearnCatalogWithPlusMetadata(
   plusMetadata: readonly unknown[],
 ): readonly WorkplaceLearnCatalogEntry[] {
   const plusEntries = plusMetadata.map(validatePlusCatalogEntry)
-  const plusLessonIds = plusEntries.filter((entry) => entry.kind === 'lesson').map((entry) => entry.id)
+  const plusContentIds = plusEntries.map((entry) => entry.id)
   const plusVocabularyIds = plusEntries.filter((entry) => entry.kind === 'vocabulary').map((entry) => entry.id)
-  const freeEntries = projectFreeCatalogItems(freeItems, plusVocabularyIds, plusLessonIds)
+  const freeEntries = projectFreeCatalogItems(freeItems, plusVocabularyIds, plusContentIds)
   const identities = new Set<string>()
   const slugs = new Set<string>()
   for (const entry of [...freeEntries, ...plusEntries]) {
@@ -46,12 +46,12 @@ export function buildWorkplaceLearnCatalogWithPlusMetadata(
 function projectFreeCatalogItems(
   items: readonly WorkplaceLearnRuntimeItem[],
   extraVocabularyIds: readonly string[] = [],
-  extraLessonIds: readonly string[] = [],
+  extraContentIds: readonly string[] = [],
 ): readonly WorkplaceLearnCatalogEntry[] {
   const ids = new Set<string>()
   const slugs = new Set<string>()
   const vocabularyIds = [...items.filter((item) => item.kind === 'vocabulary').map((item) => item.id), ...extraVocabularyIds]
-  const lessonIds = [...items.filter((item) => item.kind === 'lesson').map((item) => item.id), ...extraLessonIds]
+  const contentIds = [...items.map((item) => item.id), ...extraContentIds]
   for (const item of items) {
     if (item.access !== 'free') {
       throw new Error(`Plus Workplace Learn bodies are not accepted in the public catalog; provide body-free metadata: ${item.id}`)
@@ -65,7 +65,7 @@ function projectFreeCatalogItems(
     slugs.add(item.slug)
   }
   for (const item of items) {
-    const validated = validateWorkplaceLearnRuntimeItem(item, { vocabularyIds, contentIds: lessonIds })
+    const validated = validateWorkplaceLearnRuntimeItem(item, { vocabularyIds, contentIds })
     if (!validated.ok) throw new Error(`Invalid Workplace Learn item ${item.id}: ${validated.issues[0]?.path ?? 'unknown field'}`)
   }
   return Object.freeze(items.map((item) => freezeEntry(toWorkplaceLearnCatalogEntry(item))))
@@ -73,13 +73,15 @@ function projectFreeCatalogItems(
 
 function validatePlusCatalogEntry(raw: unknown): WorkplaceLearnCatalogEntry {
   if (!isRecord(raw)) throw new Error('Plus Workplace Learn catalog entry must be an object')
-  const allowed = ['schemaVersion', 'kind', 'id', 'slug', 'title', 'lead', 'category', 'tags', 'access', 'releaseReference']
+  const allowed = ['schemaVersion', 'kind', 'id', 'slug', 'title', 'titleLanguage', 'lead', 'leadLanguage', 'category', 'tags', 'access', 'releaseReference']
   if (!hasExactKeys(raw, allowed)) throw new Error('Plus Workplace Learn catalog entry has missing or unknown fields')
   if (raw.schemaVersion !== 1 || (raw.kind !== 'lesson' && raw.kind !== 'vocabulary')) throw new Error('Invalid Plus Workplace Learn catalog kind or version')
   if (typeof raw.id !== 'string' || !CONTENT_ID.test(raw.id)) throw new Error('Invalid Plus Workplace Learn catalog id')
   if (typeof raw.slug !== 'string' || raw.slug.length > 80 || !SLUG.test(raw.slug)) throw new Error('Invalid Plus Workplace Learn catalog slug')
   if (typeof raw.title !== 'string' || raw.title.trim().length < 1 || raw.title.length > 180) throw new Error('Invalid Plus Workplace Learn catalog title')
+  if (!['ja', 'zh-TW', 'zh-CN', 'en'].includes(String(raw.titleLanguage))) throw new Error('Invalid Plus Workplace Learn catalog title language')
   if (typeof raw.lead !== 'string' || raw.lead.trim().length < 1 || raw.lead.length > 360) throw new Error('Invalid Plus Workplace Learn catalog lead')
+  if (!['ja', 'zh-TW', 'zh-CN', 'en'].includes(String(raw.leadLanguage))) throw new Error('Invalid Plus Workplace Learn catalog lead language')
   if (!(WORKPLACE_LEARN_CATEGORIES as readonly unknown[]).includes(raw.category)) throw new Error('Invalid Plus Workplace Learn catalog category')
   if (!Array.isArray(raw.tags) || raw.tags.length > 12 || raw.tags.some((tag) => typeof tag !== 'string' || tag.length > 48 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(tag)) || new Set(raw.tags).size !== raw.tags.length) {
     throw new Error('Invalid Plus Workplace Learn catalog tags')
@@ -95,7 +97,9 @@ function validatePlusCatalogEntry(raw: unknown): WorkplaceLearnCatalogEntry {
     id: raw.id,
     slug: raw.slug,
     title: raw.title,
+    titleLanguage: raw.titleLanguage as WorkplaceLearnCatalogEntry['titleLanguage'],
     lead: raw.lead,
+    leadLanguage: raw.leadLanguage as WorkplaceLearnCatalogEntry['leadLanguage'],
     category: raw.category as WorkplaceLearnCategory,
     tags: raw.tags as string[],
     access: 'plus',

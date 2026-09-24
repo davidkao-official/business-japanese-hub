@@ -70,7 +70,7 @@ export interface AppStrings {
     vocabularyIndexLink: string; vocabularyIndexTitle: string; vocabularyIndexLead: string; backToLearn: string
     backToVocabulary: string; legacyLinkPrefix: string; situation: string; meaning: string; objective: string
     whatToDo: string; whatToSay: string; examples: string; caution: string; relatedVocabulary: string; takeaway: string
-    reading: string; meaningLabel: string; nuance: string; usage: string; register: string; relationship: string
+    termLabel: string; reading: string; meaningLabel: string; nuance: string; usage: string; register: string; relationship: string
     example: string; related: string; relatedUnavailable: string; sampleNote: string; loading: string; unavailable: string; vocabularyEmpty: string
     selfPracticeTitle: string; selfPracticePrompt: string; selfPracticeLabel: string; selfPracticeNoSave: string
   }
@@ -447,7 +447,7 @@ const ja: AppStrings = {
     categoryKicker: 'BROWSE BY CATEGORY', categoryTitle: '職場のテーマ', allCategories: 'すべて', filterLabel: 'カテゴリーで絞り込む', emptyCategory: 'このテーマの教材は準備中です。',
     lessonLabel: '職場の場面', vocabularyLabel: '職場語彙', openItem: '内容を読む', vocabularyIndexLink: '語彙一覧', vocabularyIndexTitle: '日本職場の語彙', vocabularyIndexLead: '語の意味に加えて、職場での使い方や注意点を確認します。',
     backToLearn: 'Learn へ戻る', backToVocabulary: '職場語彙へ戻る', legacyLinkPrefix: '既存の Learn 講座：', situation: '場面', meaning: 'この場面での意味', objective: '学習目標', whatToDo: 'どう動くか', whatToSay: 'どう伝えるか', examples: '例文', caution: '表現と関係性への留意', relatedVocabulary: '関連語彙', takeaway: '次の場面に活かす',
-    reading: '読み方', meaningLabel: '意味', nuance: '職場でのニュアンス', usage: '使用場面', register: '語域', relationship: '相手との関係', example: '例文', related: '関連する教材', relatedUnavailable: 'この教材は現在利用できません。', sampleNote: '架空のオリジナル教材例です。すべての会社や職場での使い方を示すものではありません。',
+    termLabel: '語', reading: '読み方', meaningLabel: '意味', nuance: '職場でのニュアンス', usage: '使用場面', register: '語域', relationship: '相手との関係', example: '例文', related: '関連する教材', relatedUnavailable: 'この教材は現在利用できません。', sampleNote: '架空のオリジナル教材例です。すべての会社や職場での使い方を示すものではありません。',
     loading: '教材を読み込んでいます。', unavailable: '現在、教材を読み込めません。時間をおいて再度お試しください。', vocabularyEmpty: '公開中の職場語彙はありません。',
     selfPracticeTitle: '自分で言い換える', selfPracticePrompt: '例文を自分の職場で起こりそうな場面に置き換え、伝える事実、次の行動、相手に合った語調を選んで書き直してみましょう。', selfPracticeLabel: '自分の表現を書いてみる', selfPracticeNoSave: 'ここで入力した内容は保存も採点もされません。',
   },
@@ -839,7 +839,7 @@ const en: AppStrings = {
     categoryKicker: 'BROWSE BY CATEGORY', categoryTitle: 'Workplace topics', allCategories: 'All topics', filterLabel: 'Filter by category', emptyCategory: 'Materials for this topic are being prepared.',
     lessonLabel: 'Workplace situation', vocabularyLabel: 'Workplace vocabulary', openItem: 'Read material', vocabularyIndexLink: 'Vocabulary list', vocabularyIndexTitle: 'Japanese workplace vocabulary', vocabularyIndexLead: 'Review meaning, workplace use, and points to watch for.',
     backToLearn: 'Back to Learn', backToVocabulary: 'Back to vocabulary', legacyLinkPrefix: 'Existing Learn course: ', situation: 'Situation', meaning: 'Meaning in context', objective: 'Learning objective', whatToDo: 'What to do', whatToSay: 'What to say', examples: 'Examples', caution: 'Register and relationship context', relatedVocabulary: 'Related vocabulary', takeaway: 'Carry this into the next situation',
-    reading: 'Reading', meaningLabel: 'Meaning', nuance: 'Workplace nuance', usage: 'Usage context', register: 'Register', relationship: 'Relationship context', example: 'Example', related: 'Related materials', relatedUnavailable: 'This material is currently unavailable.', sampleNote: 'Hypothetical, original teaching example. Usage is not universal across companies or workplaces.',
+    termLabel: 'Term', reading: 'Reading', meaningLabel: 'Meaning', nuance: 'Workplace nuance', usage: 'Usage context', register: 'Register', relationship: 'Relationship context', example: 'Example', related: 'Related materials', relatedUnavailable: 'This material is currently unavailable.', sampleNote: 'Hypothetical, original teaching example. Usage is not universal across companies or workplaces.',
     loading: 'Loading material.', unavailable: 'This material is unavailable right now. Please try again later.', vocabularyEmpty: 'No workplace vocabulary is currently published.',
     selfPracticeTitle: 'Try a rewrite', selfPracticePrompt: 'Adapt the example to a plausible situation of your own. Choose the facts to share, your next action, and a tone that fits the person you are addressing.', selfPracticeLabel: 'Write your own version', selfPracticeNoSave: 'Your response stays on this page and is not saved or scored.',
   },
@@ -1231,7 +1231,7 @@ const zhTW: AppStrings = {
     categoryKicker: 'BROWSE BY CATEGORY', categoryTitle: '職場主題', allCategories: '全部主題', filterLabel: '依類別篩選', emptyCategory: '此主題的教材正在準備中。',
     lessonLabel: '職場情境課', vocabularyLabel: '職場語彙', openItem: '閱讀內容', vocabularyIndexLink: '語彙列表', vocabularyIndexTitle: '日本職場語彙', vocabularyIndexLead: '除了詞義，也確認職場中的用法與注意事項。',
     backToLearn: '返回 Learn', backToVocabulary: '返回職場語彙', legacyLinkPrefix: '既有 Learn 課程：', situation: '情境', meaning: '情境中的含意', objective: '學習目標', whatToDo: '如何應對', whatToSay: '如何表達', examples: '例句', caution: '語氣與人際關係上的留意', relatedVocabulary: '相關語彙', takeaway: '帶入下一個職場情境',
-    reading: '讀音', meaningLabel: '詞義', nuance: '職場語感', usage: '使用情境', register: '語域', relationship: '對人關係', example: '例句', related: '相關教材', relatedUnavailable: '此教材目前無法使用。', sampleNote: '架空的原創教學範例，不代表所有公司或職場都採用相同用法。',
+    termLabel: '詞語', reading: '讀音', meaningLabel: '詞義', nuance: '職場語感', usage: '使用情境', register: '語域', relationship: '對人關係', example: '例句', related: '相關教材', relatedUnavailable: '此教材目前無法使用。', sampleNote: '架空的原創教學範例，不代表所有公司或職場都採用相同用法。',
     loading: '正在載入教材。', unavailable: '目前無法載入教材，請稍後再試。', vocabularyEmpty: '目前沒有已公開的職場語彙。',
     selfPracticeTitle: '自己改寫看看', selfPracticePrompt: '把例句換成自己職場中可能遇到的情境，選擇要傳達的事實、下一步行動，以及適合對方的語氣，再重新寫一次。', selfPracticeLabel: '寫下自己的表達', selfPracticeNoSave: '此處輸入的內容不會儲存或評分。',
   },
@@ -1607,7 +1607,7 @@ const zhCN: AppStrings = {
     categoryTitle: '职场主题', allCategories: '全部主题', filterLabel: '按类别筛选', emptyCategory: '此主题的教材正在准备中。',
     lessonLabel: '职场情境课', vocabularyLabel: '职场词汇', openItem: '阅读内容', vocabularyIndexLink: '词汇列表', vocabularyIndexTitle: '日本职场词汇', vocabularyIndexLead: '除了词义，也确认职场中的用法与注意事项。',
     backToLearn: '返回 Learn', backToVocabulary: '返回职场词汇', legacyLinkPrefix: '现有 Learn 课程：', situation: '情境', meaning: '情境中的含义', objective: '学习目标', whatToDo: '如何应对', whatToSay: '如何表达', examples: '例句', caution: '语气与人际关系方面的注意事项', relatedVocabulary: '相关词汇', takeaway: '带入下一个职场情境',
-    reading: '读音', meaningLabel: '词义', nuance: '职场语感', usage: '使用情境', register: '语域', relationship: '人际关系', example: '例句', related: '相关教材', relatedUnavailable: '此教材目前无法使用。', sampleNote: '架空的原创教学示例，不代表所有公司或职场都采用相同用法。',
+    termLabel: '词语', reading: '读音', meaningLabel: '词义', nuance: '职场语感', usage: '使用情境', register: '语域', relationship: '人际关系', example: '例句', related: '相关教材', relatedUnavailable: '此教材目前无法使用。', sampleNote: '架空的原创教学示例，不代表所有公司或职场都采用相同用法。',
     loading: '正在加载教材。', unavailable: '目前无法加载教材，请稍后再试。', vocabularyEmpty: '目前没有已发布的职场词汇。',
     selfPracticeTitle: '自己改写看看', selfPracticePrompt: '把例句换成自己职场中可能遇到的情境，选择要传达的事实、下一步行动，以及适合对方的语气，再重新写一次。', selfPracticeLabel: '写下自己的表达', selfPracticeNoSave: '此处输入的内容不会保存或评分。',
   },

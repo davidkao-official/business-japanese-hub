@@ -25,8 +25,25 @@ describe('Workplace Learn authoring and runtime contract', () => {
   it('accepts the explicit hypothetical Free fixture with substantive Japanese and zh-TW support', () => {
     expect(validateWorkplaceLearnRuntimeItem(sampleWorkplaceLearnItem).ok).toBe(true)
     expect(sampleWorkplaceLearnItem.whatToSayJapanese).toContain('想定より時間がかかっており')
-    expect(sampleWorkplaceLearnItem.meaningInContextZhTW).toContain('目前事實')
+    expect(sampleWorkplaceLearnItem.meaningInContextZhTW).toContain('目前確認的事實')
+    expect(sampleWorkplaceLearnItem.meaningInContextZhTW).not.toContain('「')
+    expect(sampleWorkplaceVocabularyItem.workplaceNuanceZhTW).not.toContain('「')
     expect(sampleWorkplaceLearnItem.sampleLabel).toBe('non-proprietary-teaching-sample')
+  })
+
+  it('accepts only explicit supported language tags for titles, leads, and link labels', () => {
+    for (const language of ['ja', 'zh-TW', 'zh-CN', 'en'] as const) {
+      expect(validateWorkplaceLearnRuntimeItem({
+        ...sampleWorkplaceLearnItem,
+        titleLanguage: language,
+        leadLanguage: language,
+        relatedLinks: [{ kind: 'learn', label: 'related item', labelLanguage: language, targetId: sampleWorkplaceVocabularyItem.id }],
+      }).ok).toBe(true)
+    }
+    const missingLanguages: Record<string, unknown> = { ...sampleWorkplaceLearnItem }
+    delete missingLanguages.titleLanguage
+    delete missingLanguages.leadLanguage
+    expect(validateWorkplaceLearnRuntimeItem(missingLanguages).ok).toBe(false)
   })
 
   it('requires reviewed, released, rights-cleared content for release projection', () => {
@@ -57,13 +74,16 @@ describe('Workplace Learn authoring and runtime contract', () => {
     expect(validateWorkplaceLearnRuntimeItem({ ...sampleWorkplaceLearnItem, slug: 'a'.repeat(81) }).ok).toBe(false)
     expect(validateWorkplaceLearnRuntimeItem({ ...sampleWorkplaceLearnItem, tags: ['a'.repeat(49)] }).ok).toBe(false)
     expect(validateWorkplaceLearnRuntimeItem({ ...sampleWorkplaceLearnItem, examples: [] }).ok).toBe(false)
-    expect(validateWorkplaceLearnRuntimeItem({ ...sampleWorkplaceLearnItem, practiceTypes: [] }).ok).toBe(true)
+    expect(validateWorkplaceLearnRuntimeItem({ ...sampleWorkplaceLearnItem, practiceTypes: [] }).ok).toBe(false)
+    expect(validateWorkplaceLearnRuntimeItem({ ...sampleWorkplaceLearnItem, practiceTypes: ['dialogue'] }).ok).toBe(false)
+    expect(validateWorkplaceLearnRuntimeItem({ ...sampleWorkplaceLearnItem, titleLanguage: 'fr' }).ok).toBe(false)
+    expect(validateWorkplaceLearnRuntimeItem({ ...sampleWorkplaceLearnItem, relatedLinks: [{ kind: 'learn', label: '次の教材', labelLanguage: 'fr', targetId: sampleWorkplaceVocabularyItem.id }] }).ok).toBe(false)
   })
 
   it('requires lesson and vocabulary references to resolve within the bounded collection', () => {
     const vocabulary: WorkplaceLearnRuntimeItem = {
       schemaVersion: 1, kind: 'vocabulary', id: 'learn-term-next-update', slug: 'next-update',
-      title: '次回の更新', lead: '次に状況を知らせる時点を示します。', category: 'workplace-vocabulary',
+      title: '次回の更新', titleLanguage: 'ja', lead: '次に状況を知らせる時点を示します。', leadLanguage: 'ja', category: 'workplace-vocabulary',
       tags: ['reporting'], access: 'free', term: '改めて状況をご報告します', reading: 'あらためてじょうきょうをごほうこくします',
       meaningZhTW: '之後再回報狀況', workplaceNuanceZhTW: '讓對方知道你會在資訊更新後再次聯絡。',
       usageContext: '承諾下一次進度回報時使用。',
@@ -72,6 +92,12 @@ describe('Workplace Learn authoring and runtime contract', () => {
     }
     const lesson = { ...sampleWorkplaceLearnItem, relatedVocabularyIds: ['learn-term-next-update'] }
     expect(buildWorkplaceLearnCatalog([lesson, vocabulary])).toHaveLength(2)
+    const learnToVocabulary = {
+      ...sampleWorkplaceLearnItem,
+      relatedVocabularyIds: [],
+      relatedLinks: [{ kind: 'learn' as const, label: '次回の更新', labelLanguage: 'ja' as const, targetId: vocabulary.id }],
+    }
+    expect(buildWorkplaceLearnCatalog([learnToVocabulary, vocabulary])).toHaveLength(2)
     expect(validateWorkplaceLearnRuntimeItem({ ...lesson, relatedVocabularyIds: ['unknown-term'] }, { vocabularyIds: [vocabulary.id] }).ok).toBe(false)
     expect(() => buildWorkplaceLearnCatalog([lesson, { ...vocabulary, id: lesson.id }])).toThrow('Duplicate Workplace Learn id')
     expect(() => buildWorkplaceLearnCatalog([lesson, { ...vocabulary, slug: lesson.slug }])).toThrow('Duplicate Workplace Learn slug')
@@ -89,7 +115,7 @@ describe('Workplace Learn authoring and runtime contract', () => {
     expect(sampleWorkplaceLearnItem.relatedVocabularyIds).toContain(sampleWorkplaceVocabularyItem.id)
     expect(sampleWorkplaceVocabularyItem.term).toBe('見込み')
     expect(sampleWorkplaceVocabularyItem.relatedLinks).toContainEqual({
-      kind: 'learn', label: sampleWorkplaceLearnItem.title, targetId: sampleWorkplaceLearnItem.id,
+      kind: 'learn', label: sampleWorkplaceLearnItem.title, labelLanguage: 'ja', targetId: sampleWorkplaceLearnItem.id,
     })
 
     const sampleBody = { ...sampleWorkplaceLearnItem }
