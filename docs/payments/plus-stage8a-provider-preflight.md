@@ -58,10 +58,22 @@ not recurring Aio.
 
 | Aio document | Contract fact relevant to this preflight |
 | --- | --- |
-| [2868 — Credit-card recurring payment](https://developers.ecpay.com.tw/2868/) | AioCheckOut V5 hosted redirect; `PeriodType=M`, `Frequency=1`; integer TWD `PeriodAmount`; `ExecTimes` required and at most 999 for monthly cadence. The first authorization must succeed to enter the schedule. Aio documents month-end anchoring: if the original day is absent, charge on that month’s last day. After six recurring deduction failures, ECPay automatically cancels subsequent deductions; do not expect another scheduled charge from that order. |
+| [2868 — Credit-card recurring payment](https://developers.ecpay.com.tw/2868/) | AioCheckOut V5 hosted redirect; `PeriodType=M`, `Frequency=1`; integer TWD `PeriodAmount`; `ExecTimes` required and at most 999 for monthly cadence. The first authorization must succeed to enter the schedule. Aio documents month-end anchoring: if the original day is absent, charge on that month’s last day. Its integration page says deductions stop when failures reach six. |
 | [5631 — Recurring result notification](https://developers.ecpay.com.tw/5631/) | Initial success uses `ReturnURL`; later authorizations POST to `PeriodReturnURL`. Notifications include `MerchantTradeNo`, authorization result/amount, `gwsr`, `ProcessDate`, `TotalSuccessTimes`, schedule fields, and `CheckMacValue`. A period notification is sent once; a missed result must be reconciled by query. Simulated notifications are not real charges. |
 | [2892 — Recurring order query](https://developers.ecpay.com.tw/2892/) | Read-back exposes recurring order identity, schedule and amount, execution status, total successful count/amount, and per-execution log entries with result, amount, transaction reference, and process time. This is the documented missed-notification reconciliation source. |
 | [2900 — Recurring order operations](https://developers.ecpay.com.tw/2900/) | Successful `Cancel` terminates that recurring order irreversibly: it cannot be re-enabled, and re-entry requires a new recurring order. `ReAuth` applies only to the latest failed authorization, cannot operate on a paused or terminated order, and **cannot be tested in stage**. These provider operations do not decide the customer’s paid-access cutoff. |
+| [16214 — Merchant recurring-order management](https://support.ecpay.com.tw/16214/) | The merchant guide says ECPay automatically terminates after all executions, card expiry at authorization, or **six consecutive** authorization failures. The integration page's less precise six-failure wording leaves the exact counter semantics for account/sandbox confirmation. Qualified merchants may edit future amount, frequency, and execution count in the dashboard. A paused order can be re-enabled by setting a next execution date; termination cannot be reversed. |
+
+The merchant dashboard is a privileged provider-side writer outside the
+repository's server-owned Plus catalog. A qualified operator could change a
+live order's future charge amount or cadence, or pause/re-enable collection,
+without a local lifecycle event. Before admitting Aio, confirm whether this
+account exposes those actions, restrict them to an approved operator process,
+and reconcile order settings and per-charge receipts against the original
+server-bound offer. An unapproved change must quarantine the order and stop
+local access admission; receipt mismatch alone cannot undo an already charged
+customer amount. Neither dashboard re-enable nor an ECPay status change can
+mint a Plus paid window without a verified charge and approved period mapping.
 
 The separate [ECPay Embedded Checkout 2.0 Web API documentation](https://developers.ecpay.com.tw/category/ecp_web/)
 and the [new gateway payment reference](https://developers.ecpay.com.tw/9040/)
@@ -79,6 +91,22 @@ capabilities, not proof that this Taiwan account can create a TWD subscription,
 receive/settle the charge as intended, or use the required merchant product in
 production. Repository PayPal functions and adapters implement one-time Orders
 and capture/refund processing, not Subscriptions.
+
+The server catalog's `amount_minor = 29900` means **NT$299**, whereas PayPal
+documents [TWD as zero-decimal](https://developer.paypal.com/api/codes/currency/)
+and its subscription money value is a currency-specific string. A future
+PayPal adapter must therefore send `currency_code: "TWD"` and `value: "299"`
+for this offer, never `"29900"` or `"299.00"`; the verified charge must still
+match the server catalog's normalized minor-unit amount. This is a mapping
+requirement, not evidence that this Taiwan account can use TWD Subscriptions.
+
+PayPal [documents suspension and reactivation](https://developer.paypal.com/subscriptions/customize)
+as distinct from cancellation/expiry; its webhook catalog includes
+`BILLING.SUBSCRIPTION.SUSPENDED`. A later `ACTIVE` state or resume operation
+does not itself prove a paid charge or restore Plus access. #107 must map a
+verified recovered payment and its approved coverage period before any access
+restoration; durable #165 terminal cutoffs still require a separate lifecycle
+decision.
 
 There is a material failure-policy fit question: PayPal’s current [payment
 failure/recovery guide](https://developer.paypal.com/subscriptions/payment-failure-retry/)
@@ -190,8 +218,11 @@ Before choosing a paid-period mapping, #107/#112/Product Owner must resolve:
 
 Cancellation must distinguish a user request from the provider-confirmed
 effective stop. Aio `Cancel` irreversibly ends that provider order; its later
-reactivation is unavailable. ECPay also stops future deductions automatically
-after six recurring deduction failures. Reconcile either provider-side stop
+reactivation is unavailable. ECPay also documents automatic termination after
+card expiry at authorization, all planned executions, or a six-failure
+threshold. The merchant guide says **consecutive** failures, while the Aio API
+page does not specify that qualifier; confirm the account's actual counter and
+status through sandbox/support evidence. Reconcile each provider-side stop
 against the order query and verified receipts; do not wait for a nonexistent
 next scheduled charge or treat the provider stop alone as an approved access
 cutoff. A later customer re-entry needs a new provider order with a new
@@ -243,9 +274,11 @@ These vectors are a plan, not a test claim or implementation authorization:
    success uses the approved coverage mapping. ReAuth is tested with fixtures
    and explicitly marked **not stage-testable**; it cannot operate on a paused
    or terminated order. No real reauthorization is part of this preflight.
-   At six recurring deduction failures, query and reconcile ECPay's automatic
-   stop of subsequent deductions; do not await a seventh charge or infer an
-   access cutoff without the approved policy and verified effective evidence.
+   Exercise the six-failure threshold with consecutive and separated failures
+   to resolve the official-source ambiguity; also exercise card expiry at
+   authorization and final planned execution. Query and reconcile any automatic
+   termination; do not expect a further charge or infer an access cutoff
+   without the approved policy and verified effective evidence.
 6. **Schedule boundaries:** January 29/30/31 and February (including leap
    year), next month’s return to the original anchor, timezone conversion from
    ECPay `ProcessDate`, overlapping/recovered cycles, and the final allowed
@@ -257,6 +290,11 @@ These vectors are a plan, not a test claim or implementation authorization:
    treatment. Verified full refund, reversal, or dispute follows the
    separately approved terminal matrix; a support request or webhook redirect
    alone cannot revoke or restore access.
+   For qualified ECPay dashboard access, detect changes to future amount,
+   cadence, execution count, pause, next date, and re-enable against the
+   server-bound offer and approved operator record. Quarantine unapproved
+   drift before admitting another lifecycle receipt; do not assume dashboard
+   changes create a local event or reverse a prior real charge.
 8. **PayPal fallback:** verified subscription activation binds the right user,
    plan, and account/environment but grants no paid window by itself. A
    verified first completed sale must establish charge and coverage; failed
@@ -267,6 +305,10 @@ These vectors are a plan, not a test claim or implementation authorization:
    the failure threshold, suspension, next-cycle outstanding balance, and both
    `auto_bill_outstanding` settings; establish the exact authoritative failure
    point and make sure any posted amount still maps to the server catalog.
+   Assert the exact zero-decimal TWD request mapping `29900` minor units to
+   `"299"` PayPal value. Exercise suspend and later reactivate separately from
+   cancel/expire; no `ACTIVE` status alone restores access without a verified
+   recovered charge and approved paid interval.
 
 ## Account evidence still required
 
@@ -288,13 +330,18 @@ GitHub.
   subscription/card-binding feature; whether recurring can continue after the
   999-cycle cap; and applicable account limits, overseas-card enablement, card
   brands, and settlement/fee terms.
+- Whether qualified dashboard users can edit a live order's future amount,
+  frequency, execution count, card expiry or next charge date, and pause or
+  re-enable it. Identify the authorized operator/control and read-back route;
+  confirm how an out-of-band change is detected before another charge.
 - Whether the merchant has working stage access and documented sample records
   for initial success/failure, subsequent success/failure, duplicate/missed
   notification, query, cancellation, and test notification. Separately confirm
   that ReAuth cannot be stage-tested and how production ReAuth is controlled.
 - Authoritative meanings and stable identifiers for recurring order,
   per-authorization event/transaction, failure result, effective cancellation,
-  and query history retention for the actual account.
+  automatic termination (including card expiry and the six-failure counter),
+  paused/re-enabled state, and query history retention for the actual account.
 
 ### PayPal fallback account confirmation
 
@@ -354,12 +401,15 @@ activation behind their separate owner-authorized gates.
 - ECPay recurring callback: <https://developers.ecpay.com.tw/5631/>
 - ECPay recurring query: <https://developers.ecpay.com.tw/2892/>
 - ECPay recurring cancel/ReAuth operations: <https://developers.ecpay.com.tw/2900/>
+- ECPay merchant recurring-order management and dashboard edits: <https://support.ecpay.com.tw/16214/>
 - ECPay Embedded Checkout 2.0 Web docs (separate product contract): <https://developers.ecpay.com.tw/category/ecp_web/>
 - ECPay new-gateway payment reference (separate from Aio): <https://developers.ecpay.com.tw/9040/>
 - PayPal infinite/finite billing cycles: <https://developer.paypal.com/platforms/subscriptions/customize/billing-cycles/>
 - PayPal subscription failure retries and outstanding balance: <https://developer.paypal.com/subscriptions/payment-failure-retry/>
 - PayPal Subscriptions API plan definition (`auto_bill_outstanding` default): <https://developer.paypal.com/api/subscriptions/v1/definitions/plan_list/>
 - PayPal subscription webhook event catalog: <https://developer.paypal.com/subscriptions/webhooks/>
+- PayPal zero-decimal TWD currency rule: <https://developer.paypal.com/api/codes/currency/>
+- PayPal suspension/reactivation capability: <https://developer.paypal.com/subscriptions/customize>
 
 Repository authority: `AGENTS.md`, `docs/product-contract.md`,
 `docs/payments/decision-record.md`, `docs/payments/plus-recurring-admission.md`,
