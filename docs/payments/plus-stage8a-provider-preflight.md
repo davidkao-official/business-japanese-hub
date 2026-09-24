@@ -108,7 +108,19 @@ verified recovered payment and its approved coverage period before any access
 restoration; durable #165 terminal cutoffs still require a separate lifecycle
 decision.
 
-There is a material failure-policy fit question: PayPal’s current [payment
+PayPal also [allows a plan-level price change](https://developer.paypal.com/platforms/subscriptions/customize/update-plan-pricing)
+for existing subscribers: it sends its own email notice, allows a 10-day
+response window, and applies the new price to later cycles. Its webhook catalog
+lists `BILLING.PLAN.PRICING-CHANGE.ACTIVATED`. This provider-side writer can
+change a real future charge and customer notice without changing the
+server-owned Plus catalog or approved consent revision. Before admitting a
+PayPal plan, restrict plan-price operations to an approved operator process,
+read back the plan price and pending changes, and reconcile the webhook and
+subsequent receipts with the server-bound offer. Quarantine unapproved drift
+and do not assume a later local receipt rejection prevents or reverses a
+provider-side charge or notice.
+
+There is a material failure-policy fit question: one current PayPal [payment
 failure/recovery guide](https://developer.paypal.com/subscriptions/payment-failure-retry/)
 says failed charges are retried every five days up to twice per billing cycle;
 after the second retry fails, the payment is counted as failed and its amount is
@@ -116,6 +128,10 @@ added to the next cycle’s outstanding balance. The plan setting
 `auto_bill_outstanding` controls whether that balance is billed with the next
 cycle and its documented default is `true` ([Subscriptions API plan
 definition](https://developer.paypal.com/api/subscriptions/v1/definitions/plan_list/)).
+Another current [PayPal failure guide](https://developer.paypal.com/api/handle-payment-failures/)
+describes configurable, intelligent retry timing and manual dashboard/API
+retries. Do not assume the fixed five-day schedule is the only behavior for
+the actual account/product; confirm the effective retry controls and signals.
 That can create a later charge above the single-period Plus catalog amount and
 does not directly match #165’s no-grace failure cutoff and per-period receipt
 expectation. Setting `auto_bill_outstanding: false` is a candidate to evaluate,
@@ -124,6 +140,17 @@ policy must confirm it, and retries still need a rule for when a failure becomes
 authoritative. Do not record an early retry notification as
 `membership_payment_failed` or grant a later period based on a combined balance
 without an explicit allocation rule.
+
+The same recovery guide documents a merchant-initiated subscription
+`/capture` of all or part of an outstanding balance after suspension, and its
+example permits settling an outstanding balance after cancellation. Thus
+`auto_bill_outstanding: false`, suspension, or cancellation does not by itself
+prove no later collection. Treat manual retry/capture as privileged payment
+operations: require an approved operator and charge-to-period allocation,
+reconcile each successful sale/reference and read-back before lifecycle
+admission, and decide consent, notices, refunds, and access consequences for
+partial or multi-period payments with #107/#112. A provider `ACTIVE` state or
+later capture alone never reopens a durable terminal access cutoff.
 
 ## Facts required before invoking the #165 lifecycle writer
 
@@ -308,7 +335,14 @@ These vectors are a plan, not a test claim or implementation authorization:
    Assert the exact zero-decimal TWD request mapping `29900` minor units to
    `"299"` PayPal value. Exercise suspend and later reactivate separately from
    cancel/expire; no `ACTIVE` status alone restores access without a verified
-   recovered charge and approved paid interval.
+   recovered charge and approved paid interval. Exercise plan-price changes
+   for existing subscribers, the pricing-change webhook and provider notice
+   against the unchanged server catalog/consent; quarantine any unapproved
+   future amount before access admission. Exercise configurable/intelligent
+   versus fixed five-day retry behavior, merchant manual retry, and full or
+   partial outstanding-balance capture after suspension or cancellation;
+   reconcile each real charge to an approved paid-period allocation without
+   reviving a terminal cutoff.
 
 ## Account evidence still required
 
@@ -356,6 +390,10 @@ GitHub.
   configuration can report effective failure without silently rolling an
   unpaid prior cycle into a later charge. This is a provider/policy fit check,
   not an instruction to configure it.
+- Confirm who can change a plan price for existing subscribers or initiate a
+  manual retry/outstanding-balance capture, which effective retry mode applies
+  to this account, and how plan/charge changes are read back and approved before
+  they affect customer notices, real money, or Plus access.
 
 ### Names-only production inventory observed 2026-09-24
 
@@ -410,6 +448,8 @@ activation behind their separate owner-authorized gates.
 - PayPal subscription webhook event catalog: <https://developer.paypal.com/subscriptions/webhooks/>
 - PayPal zero-decimal TWD currency rule: <https://developer.paypal.com/api/codes/currency/>
 - PayPal suspension/reactivation capability: <https://developer.paypal.com/subscriptions/customize>
+- PayPal plan-level pricing changes for existing subscribers: <https://developer.paypal.com/platforms/subscriptions/customize/update-plan-pricing>
+- PayPal alternative intelligent/manual retry guide: <https://developer.paypal.com/api/handle-payment-failures/>
 
 Repository authority: `AGENTS.md`, `docs/product-contract.md`,
 `docs/payments/decision-record.md`, `docs/payments/plus-recurring-admission.md`,
