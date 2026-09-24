@@ -58,10 +58,10 @@ not recurring Aio.
 
 | Aio document | Contract fact relevant to this preflight |
 | --- | --- |
-| [2868 — Credit-card recurring payment](https://developers.ecpay.com.tw/2868/) | AioCheckOut V5 hosted redirect; `PeriodType=M`, `Frequency=1`; integer TWD `PeriodAmount`; `ExecTimes` required and at most 999 for monthly cadence. The first authorization must succeed to enter the schedule. Aio documents month-end anchoring: if the original day is absent, charge on that month’s last day. |
+| [2868 — Credit-card recurring payment](https://developers.ecpay.com.tw/2868/) | AioCheckOut V5 hosted redirect; `PeriodType=M`, `Frequency=1`; integer TWD `PeriodAmount`; `ExecTimes` required and at most 999 for monthly cadence. The first authorization must succeed to enter the schedule. Aio documents month-end anchoring: if the original day is absent, charge on that month’s last day. After six recurring deduction failures, ECPay automatically cancels subsequent deductions; do not expect another scheduled charge from that order. |
 | [5631 — Recurring result notification](https://developers.ecpay.com.tw/5631/) | Initial success uses `ReturnURL`; later authorizations POST to `PeriodReturnURL`. Notifications include `MerchantTradeNo`, authorization result/amount, `gwsr`, `ProcessDate`, `TotalSuccessTimes`, schedule fields, and `CheckMacValue`. A period notification is sent once; a missed result must be reconciled by query. Simulated notifications are not real charges. |
 | [2892 — Recurring order query](https://developers.ecpay.com.tw/2892/) | Read-back exposes recurring order identity, schedule and amount, execution status, total successful count/amount, and per-execution log entries with result, amount, transaction reference, and process time. This is the documented missed-notification reconciliation source. |
-| [2900 — Recurring order operations](https://developers.ecpay.com.tw/2900/) | `Cancel` stops future authorizations. `ReAuth` applies only to the latest failed authorization; ECPay explicitly says ReAuth **cannot be tested in stage**. These operations do not decide the customer’s paid-access cutoff. |
+| [2900 — Recurring order operations](https://developers.ecpay.com.tw/2900/) | Successful `Cancel` terminates that recurring order irreversibly: it cannot be re-enabled, and re-entry requires a new recurring order. `ReAuth` applies only to the latest failed authorization, cannot operate on a paused or terminated order, and **cannot be tested in stage**. These provider operations do not decide the customer’s paid-access cutoff. |
 
 The separate [ECPay Embedded Checkout 2.0 Web API documentation](https://developers.ecpay.com.tw/category/ecp_web/)
 and the [new gateway payment reference](https://developers.ecpay.com.tw/9040/)
@@ -189,11 +189,18 @@ Before choosing a paid-period mapping, #107/#112/Product Owner must resolve:
   Do not auto-create a successor contract or imply seamless perpetual renewal.
 
 Cancellation must distinguish a user request from the provider-confirmed
-effective stop. Aio `Cancel` stops future charges; #165’s period-end terminal
+effective stop. Aio `Cancel` irreversibly ends that provider order; its later
+reactivation is unavailable. ECPay also stops future deductions automatically
+after six recurring deduction failures. Reconcile either provider-side stop
+against the order query and verified receipts; do not wait for a nonexistent
+next scheduled charge or treat the provider stop alone as an approved access
+cutoff. A later customer re-entry needs a new provider order with a new
+server-owned identity binding and whatever consent/disclosure #107/#112 approve;
+do not restore the old order or silently mint access. #165’s period-end terminal
 can retain access until `period_end`, while an immediate terminal cuts off at
 its authoritative event time. Which behavior customers receive remains an
 explicit product/legal choice. A terminal cutoff is durable under the current
-lifecycle: do not infer restoration from provider resume, reversal, or a later
+lifecycle: do not infer restoration from a new provider order, reversal, or a later
 success without a separate lifecycle decision.
 
 For Early Access, the current #165 rule is **no grace**: only an authoritative
@@ -234,15 +241,20 @@ These vectors are a plan, not a test claim or implementation authorization:
    schedule; a transient retry/collection warning does not cut access; an
    authoritative failed attempt follows the approved no-grace rule; later
    success uses the approved coverage mapping. ReAuth is tested with fixtures
-   and explicitly marked **not stage-testable**; no real reauthorization is part
-   of this preflight.
+   and explicitly marked **not stage-testable**; it cannot operate on a paused
+   or terminated order. No real reauthorization is part of this preflight.
+   At six recurring deduction failures, query and reconcile ECPay's automatic
+   stop of subsequent deductions; do not await a seventh charge or infer an
+   access cutoff without the approved policy and verified effective evidence.
 6. **Schedule boundaries:** January 29/30/31 and February (including leap
    year), next month’s return to the original anchor, timezone conversion from
    ECPay `ProcessDate`, overlapping/recovered cycles, and the final allowed
    Aio cycle all produce the explicitly approved half-open intervals.
 7. **Stop and terminal finance evidence:** cancellation request alone changes
    no access; verified provider stop maps only to the chosen immediate or
-   period-end cutoff. Verified full refund, reversal, or dispute follows the
+   period-end cutoff. A successful Aio `Cancel` cannot reactivate that order;
+   a return requires a separately bound new order and approved consent/access
+   treatment. Verified full refund, reversal, or dispute follows the
    separately approved terminal matrix; a support request or webhook redirect
    alone cannot revoke or restore access.
 8. **PayPal fallback:** verified subscription activation binds the right user,
