@@ -47,7 +47,7 @@ for (const functionName of functions) {
     continue
   }
 
-  const result = spawnSync('deno', ['info', '--json', entrypoint], {
+  const result = spawnSync('deno', ['info', '--json', '--no-config', '--no-lock', '--node-modules-dir=none', entrypoint], {
     cwd: repositoryRoot,
     encoding: 'utf8',
     env: { ...process.env, DENO_NO_PACKAGE_JSON: '1', DENO_NO_UPDATE_CHECK: '1' },
@@ -75,6 +75,7 @@ for (const functionName of functions) {
 
   if (result.status !== 0) failures.push(`${functionName}: deno info exited ${result.status}: ${result.stderr.trim()}`)
   if (!Array.isArray(graph.roots) || graph.roots.length !== 1) failures.push(`${functionName}: expected one graph root`)
+  if (!Array.isArray(graph.modules) || graph.modules.length === 0) failures.push(`${functionName}: expected a non-empty module graph`)
   if (graphErrors.length > 0) failures.push(`${functionName}: graph errors: ${graphErrors.join('; ')}`)
   if (workspaceSymlinks.length > 0) failures.push(`${functionName}: workspace package symlinks entered graph: ${workspaceSymlinks.join(', ')}`)
   if (workspacePackageImports.length > 0) failures.push(`${functionName}: workspace package imports remain: ${workspacePackageImports.join(', ')}`)
