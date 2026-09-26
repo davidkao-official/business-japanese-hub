@@ -2,6 +2,10 @@
 
 本文件是本 repository 的 agent 快速入口與硬性規則。**在動任何 product / platform 程式碼之前，先讀完本文件與 [`docs/product-contract.md`](docs/product-contract.md)。**
 
+**Current execution / release entrypoint:** before acting on backlog state, read [#166](https://github.com/davidkao-official/business-japanese-hub/issues/166) and its latest `agent-handoff:v1`. Product/security/DB authority remains in the canonical documents below; #166 is execution coordination, not higher product authority.
+
+**Production boundary:** until the deployment owner verifies a separate release control, **every merge to `main` is a potential production release**, including docs-only changes. GitHub CI, preview success, Oracle review, or an unchanged runtime diff does not authorize production. Read [#186](https://github.com/davidkao-official/business-japanese-hub/issues/186) and [#97](https://github.com/davidkao-official/business-japanese-hub/issues/97) before any merge or production-affecting action.
+
 ## 專案身份
 
 - Business Japanese Hub 是 **web-first、subscription-based 的日本求職與日本職場日文學習服務**。
