@@ -9,6 +9,22 @@ production migration or Edge Function release, use the owner-authorized
 [controlled release contract](supabase-release-control.md); its toggle-only
 decision does not authorize a release.
 
+### Main-merge admission while Supabase production auto-deploy is disabled
+
+Before admitting any `main` candidate during this period, record an explicit
+pre-merge disposition proving it is safe with the **currently active** Supabase
+backend, identified by its production migration ledger and full deployed
+function/version/config inventory, and the actual active Library and Career
+Game production SHAs and publication floors. If separately authorized reads
+cannot establish that baseline, hold the merge. This check must precede the
+merge because both Cloudflare projects continue to deploy from `main`; a later
+backend-release check cannot prevent an incompatible frontend from going live.
+If a candidate needs new backend behavior, split it into a backward-compatible
+expand merge, separately
+authorized backend release and verification, then a separately authorized
+frontend-activation merge. Keep Cloudflare automatic deployment enabled and
+its project settings unchanged.
+
 ## 1. Canonical frontends: two Cloudflare Pages projects
 
 The canonical production frontends are:
@@ -346,14 +362,15 @@ catalog is excluded because it is configuration, not lifecycle evidence.
 
 ### 2.6 Apply migrations and deploy Edge Functions
 
-The broad deploy commands below are legacy examples only. In particular,
-`functions deploy` without explicit slugs must not be used for a governed
-production release. Use the exact pending migration delta and one explicitly
-named function per command under the separately authorized release contract.
+These are conditional command examples, not release authority. The migration
+dry run must match the entire separately approved pending delta; deploy Edge
+Functions with one explicitly approved slug per command. Do not use a blanket
+`functions deploy` command.
 
 ```bash
 supabase db push --linked
-supabase functions deploy --project-ref <production-project-ref>
+supabase functions deploy <approved-slug> \
+  --project-ref <production-project-ref> --use-api --jobs 1
 ```
 
 Deploy using the JWT settings committed in `supabase/config.toml`. Both

@@ -5,14 +5,26 @@ future owner-authorized release. It records no production setting change,
 release authorization, successful deployment, or current production baseline.
 The Supabase production automatic-deployment setting remains as last verified by
 its owner; this repository cannot establish its current value. A reviewed,
-immutable candidate may be authorized before it is merged, so authorization
-does not depend on this proposal already being on `main`.
+immutable proposal or toggle-only transition may be owner-authorized before
+merge. A backend release is authorized separately against the exact reviewed
+SHA that equals the frozen current `main` tip.
 
 This procedure covers Supabase production migrations and Edge Functions only.
 It does not authorize a release, a schema or function rollback, frontend
 deployment, private-content import/publication, credentials changes, or paid
 launch. Follow the product, shared-backend, private-content and database
 validation contracts linked from [`deployment.md`](deployment.md).
+
+**Pre-main-merge gate:** while Supabase production auto-deploy is disabled, each
+candidate for `main` must have an explicit pre-merge disposition showing it is
+safe with the currently active backend, identified by its production migration
+ledger and full deployed function/version/config inventory, and the actual
+active Library and Career Game production SHAs/publication floors. If separately
+authorized reads cannot establish that baseline, hold the merge. Both Cloudflare
+projects remain on `main`, so this gate must pass before merge, not at later
+backend release time. If unsafe, stage a backward-compatible expand merge,
+separately authorized backend release and verification, then a separately
+authorized frontend-activation merge.
 
 ## 1. Release authority and the separate toggle decision
 
@@ -29,10 +41,11 @@ decisions:
    decision authorizes no production release.
 2. **A later, specific release:** name the exact reviewed main SHA, migration
    and function manifests, operator, window, compatibility decision, recovery
-   owner, and permitted effects. The owner must separately authorize the
-   verification merge of PR #188, if it is still part of the plan. That merge
-   must be checked for absence of observed Supabase backend effects before a
-   manual release proceeds.
+   owner, and permitted effects. PR #188 is the currently selected one-time
+   verification event; an owner must explicitly disposition that merge before
+   it occurs, then its exact result must be checked for absence of observed
+   Supabase backend effects. Future releases record a named verification event
+   only when applicable.
 
 The transition packet below is a template for the first decision only. The
 owner approves the exact scope, operator and freeze/preconditions before the
@@ -90,14 +103,35 @@ No production command is permitted by this proposal alone. The release owner
 must approve an immutable exact candidate and complete the following evidence
 before authorizing a window:
 
-- The toggle-only transition is complete and read back as disabled. The
-  separately authorized #188 verification merge has completed, and timestamped
-  observations show no Supabase migration, function or storage change caused by
-  it. CI and both Cloudflare frontend builds/deployments are recorded with their
-  exact SHAs. The Cloudflare projects remain separate and unchanged by this
-  Supabase procedure.
-- A clean, isolated checkout is at the exact reviewed full SHA reachable from
-  `main`, with no local changes. Record repository, root, branch, SHA, operator,
+- The reviewed frontend candidate was proven safe with the currently active
+  production backend **before its main merge**. Both Cloudflare projects still
+  deploy from `main`; compatibility discovered after merge is too late. If the
+  candidate is unsafe with the current backend, split it into a
+  backward-compatible expand merge, a separately authorized backend release
+  and verification, then a separately authorized frontend-activation merge.
+- The toggle-only transition is complete and read back as disabled. For this
+  proposal, the owner explicitly dispositioned the selected one-time
+  verification event (#188); timestamped observations show no Supabase
+  migration, function or storage change caused by it. Record that event's exact
+  SHA, CI result and both Cloudflare build/active deployment SHAs. Future
+  receipts name a one-time verification event only when applicable.
+- Before the first backend write, freeze main merges and every Cloudflare-
+  changing writer, including main-triggered builds/deployments, manual
+  deployments, rollbacks, project-setting and environment changes. Drain and
+  read back queued, running and retryable Cloudflare operations too. This is
+  operator coordination; keep Cloudflare automatic deployment enabled and its
+  settings unchanged. Record the actual active Library and Career Game SHAs and
+  their publication floors in the baseline, and keep both stable through full
+  release reconciliation.
+- The release SHA must equal the frozen current `main` tip. Before the first
+  backend write and between each release step, recheck the binding tuple:
+  reviewed release SHA equals frozen `main` tip, active Library SHA equals its
+  recorded baseline, and active Career Game SHA equals its recorded baseline.
+  Confirm both publication floors also remain unchanged. Stop on any drift or
+  unknown value; an older SHA that is merely reachable from `main` is not
+  eligible.
+- A clean, isolated checkout is at that exact reviewed full SHA, with no local
+  changes. Record repository, working directory, branch, SHA, operator,
   start time and host/session identity. Do not run release commands from a
   developer worktree or a checkout containing unrelated files.
 - Supabase CLI is exactly `2.115.0`. Obtain it from the official release source;
@@ -136,8 +170,8 @@ before authorizing a window:
   read. A release direction, toggle decision or this document grants no
   production-query authority. Keep those reads bounded; do not export private
   content or dump environment/credential values.
-- The owner has reviewed a complete manifest of all **18 configured Edge
-  Functions** at the candidate: each slug, `verify_jwt`, effective entrypoint,
+- The owner has reviewed a complete manifest of all Edge Functions configured
+  at the candidate (**18 at this proposal base**): each slug, `verify_jwt`, effective entrypoint,
   hashes of all public local deployment inputs/configuration/entrypoints/import
   maps, and the literal external dependency specifiers. Reconcile this manifest
   with the full live deployed-function
@@ -145,14 +179,12 @@ before authorizing a window:
   evidence. Do not infer inventory from a count. Unknown, missing or extra live
   functions require explicit reconciliation; do not delete or prune any
   function.
-- The owner has assessed the compatibility window across: a new Cloudflare
-  frontend with the old backend; a new database schema with old Edge Functions;
-  mixed old/new Edge Functions during sequential deployment; and every relevant
-  publication floor for active, cached and rolled-back clients. Include shared
-  database and membership/access behavior where affected. If an intermediate
-  state is unsafe, change sequencing or add a separately reviewed compatible
-  release before the window; do not assume the final state proves intermediate
-  safety.
+- In addition to the pre-merge gate above, the owner has assessed every
+  backend-release intermediate state: new database schema with old Edge
+  Functions, mixed old/new Edge Functions during sequential deployment, and
+  relevant active/cached/rolled-back client publication floors. Include shared
+  database and membership/access behavior where affected. Do not assume the
+  final state proves intermediate safety.
 - A named owner controls stop/recovery decisions. The release authorization
   states the migration and function scope, allowed effects, freeze duration,
   stop criteria, forward-repair authority and any separately permitted Edge
@@ -176,7 +208,7 @@ state:
 | --- | --- | --- |
 | Target | Full SHA, repository/working directory (`.`)/branch, explicit project ref and verified project identity | Project ref/name readback and current deployment settings |
 | Migrations | Complete ordered pending identifiers; SHA-256 per source; reviewed dry-run and expected effects | Full migration ledger, applied/pending sets and any unknown entries |
-| Edge Functions | All 18 configured slugs; JWT setting; effective entrypoint; SHA-256 for public local deployment inputs/configuration/import maps; literal external dependency specifiers | Full live inventory, slug, deployed version, JWT/configuration and timestamp/log evidence |
+| Edge Functions | All candidate-configured slugs (18 at this proposal base); JWT setting; effective entrypoint; SHA-256 for public local deployment inputs/configuration/import maps; literal external dependency specifiers | Full live inventory, slug, deployed version, JWT/configuration and timestamp/log evidence |
 | Other integration scope | Confirm no storage changes are declared; any declaration stops this procedure pending a separately reviewed mechanism and authorization | No storage write under this procedure |
 | Compatibility | Each intermediate state, clients/publication floors and rollback floor | Current frontend/backend/schema/function versions and relevant publication state |
 | Quiescence | Freeze owner, start time, affected writers, drain evidence, end condition | Queue/running/retryable work re-read immediately before first write |
@@ -215,15 +247,17 @@ assuming the default. Hash every public local deployment input, config,
 entrypoint and import map; record external dependency specifiers literally.
 The manifest must retain the mixed JWT contract. Do not replace per-function
 settings with a blanket override. Compare the expected live inventory one
-function at a time. A count of 18 alone is not a successful reconciliation.
+function at a time. Reconcile every function configured at this candidate; a
+matching function count alone is not successful reconciliation.
 
-The current function sources use `npm:@supabase/supabase-js@^2.112.3` in 17
-imports, and there is no committed Supabase Edge lockfile. The CLI's `--use-api`
-source-upload path resolves external dependencies; there is no evidence that it
-consumes `pnpm-lock.yaml`. Consequently, the same Git SHA can produce a
-different remote bundle as external dependencies resolve. Local source hashes
-and literal specifiers establish input attribution only; they do not establish
-resolved dependency hashes or byte parity with a compiled/deployed bundle.
+At this proposal base, 17 function imports use
+`npm:@supabase/supabase-js@^2.112.3`, and no Supabase Edge lockfile is
+committed. The CLI's `--use-api` source-upload path resolves external
+dependencies; there is no evidence that it consumes `pnpm-lock.yaml`.
+Consequently, the same Git SHA can produce a different remote bundle as
+external dependencies resolve. Local source hashes and literal specifiers
+establish input attribution only; they do not establish resolved dependency
+hashes or byte parity with a compiled/deployed bundle.
 Retain available provider deployment/version/artifact receipts, timestamps and
 relevant logs separately. A deterministic bundle mechanism is a future,
 separately qualified requirement; it is not a prerequisite for the toggle-only
@@ -238,8 +272,13 @@ receipt, and production commands must not be copied into CI or a workflow.
 
 1. Reconfirm the approved full SHA, clean checkout, CLI binary checksum,
    project identity/ref, disabled auto-deploy readback, writer freeze, drained
-   queues, migration ledger, function manifest and live inventory. Any delta
-   from the approved evidence stops the window.
+   Supabase and Cloudflare queues, migration ledger, function manifest and live
+   inventory. Confirm the release SHA equals frozen current `main` tip, both
+   active Cloudflare SHAs equal their baseline SHAs, and publication floors are
+   unchanged. Recheck that tuple immediately before and after each mutating CLI
+   command and between individually deployed function slugs; stop on drift or
+   unknown state. Review compatibility across every migration prefix in the
+   approved batch before applying it.
 2. Capture the final migration dry run and compare every proposed identifier to
    the owner-approved ordered delta. If the CLI proposes anything else, stop.
 3. After the separately authorized link is verified, run the final dry run with
@@ -249,6 +288,12 @@ receipt, and production commands must not be copied into CI or a workflow.
    supabase db push --linked --dry-run
    supabase db push --linked
    ```
+
+   Treat `db push` as one mutating command: it may commit a migration prefix,
+   and this procedure assumes neither an atomic batch nor per-migration pause
+   and tuple inspection. Preserve compatibility across the entire approved
+   migration batch. On failure or uncertainty, stop and use only the existing
+   separately authorized ledger readback to reconcile the applied prefix.
 
 4. `--use-api` uploads and deploys source, changing remote bundle/version
    state; it is not an API-bundle-only preflight. Deploy only the approved
@@ -261,13 +306,15 @@ receipt, and production commands must not be copied into CI or a workflow.
    ```
 
    Continue only while each command result and resulting live version/config
-   readback matches the approved manifest. Preserve `verify_jwt` from committed
-   per-function configuration.
+   readback matches the approved manifest. Recheck the frozen-main/Cloudflare
+   tuple between individually deployed slugs; preserve `verify_jwt` from
+   committed per-function configuration.
 5. Read back the complete migration ledger and all live functions; compare
    source/version, JWT configuration and timestamps, and inspect relevant logs
    for observed effects. Counts or command exit status alone are insufficient.
-   Record frontend exact SHA/build evidence and verify the planned compatibility
-   and publication floors before releasing any freeze.
+   Confirm the recorded active Library and Career Game SHAs and publication
+   floors stayed stable through complete release reconciliation before releasing
+   any freeze.
 6. The owner reviews the receipt and explicitly ends the freeze. Keep the toggle
    disabled unless a separate owner decision authorizes a different state and
    its consequences. Re-enabling automation is never an automatic recovery
@@ -321,16 +368,18 @@ CLI version / download URL / published checksum / verified checksum:
 Project ref and human-readable identity readback:
 Deploy-to-production toggle readback and timestamp:
 Queue freeze and drained-operation evidence:
-#188 verification-merge decision, SHA, CI/Cloudflare receipts,
-  and no-observed-Supabase-effect evidence:
+Named one-time verification event and owner disposition (if applicable), SHA,
+  CI/Cloudflare receipts, and no-observed-Supabase-effect evidence:
 Migration manifest link, ordered delta, per-file digests, dry run:
 Pre/post full migration ledger and observed applied prefix:
-Function manifest link (18 configured slugs, JWT, local-input/config hashes,
+Function manifest link (all candidate-configured slugs; 18 at proposal base;
+  JWT, local-input/config hashes,
   literal external dependency specifiers):
 Pre/post full deployed-function inventory and per-function versions/config:
 Deployment timestamps/logs and observed effects:
 Storage scope/reconciliation, if applicable:
-Frontend exact SHA/builds and compatibility/publication-floor evidence:
+Frozen main SHA; active Library and Career Game baseline SHAs and publication
+  floors; evidence they remained stable through reconciliation:
 Failures, uncertainty, stop/recovery actions or forward repair authorization:
 Toggle final state / separate decision link:
 Owner disposition: RELEASE PASS / HOLD / PARTIAL-RECONCILED
