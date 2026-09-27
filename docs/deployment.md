@@ -4,6 +4,11 @@ This runbook keeps the public frontend deployable while payment, entitlement,
 auth, legal, email, refund, and reconciliation paths remain server-authoritative
 and fail closed.
 
+**Supabase production release control is proposed and inactive.** Before any
+production migration or Edge Function release, use the owner-authorized
+[controlled release contract](supabase-release-control.md); its toggle-only
+decision does not authorize a release.
+
 ## 1. Canonical frontends: two Cloudflare Pages projects
 
 The canonical production frontends are:
@@ -184,6 +189,13 @@ Do not perform production writes until the intended Supabase project and
 credentials are explicitly identified. Never use `supabase db reset --linked`
 on production.
 
+For controlled production migrations and Edge Function releases, follow the
+proposed, inactive [Supabase release-control contract](supabase-release-control.md).
+The commands below are legacy launch-runbook examples: they are conditional
+procedures, not an authorization or a complete release plan. Do not execute
+them as a batch for a governed release; use only the exact commands and scope
+separately authorized for that release.
+
 ### 2.1 Exact-head local gates
 
 From an exact reviewed `main`:
@@ -202,6 +214,11 @@ The DB gate must use the [owned disposable validation runbook](db-validation.md)
 Never substitute raw local reset/start/stop commands when the guard refuses.
 
 ### 2.2 Link and preflight the intended project
+
+These link and dry-run examples are conditional read/preflight steps. A
+production link or authenticated read still requires owner authorization for
+the exact project, operator and read scope under the release-control contract.
+The local `project_id` is not proof of the linked target.
 
 ```bash
 supabase login
@@ -328,6 +345,11 @@ committed. Do not activate the new lifecycle RPC between migrations. The plan
 catalog is excluded because it is configuration, not lifecycle evidence.
 
 ### 2.6 Apply migrations and deploy Edge Functions
+
+The broad deploy commands below are legacy examples only. In particular,
+`functions deploy` without explicit slugs must not be used for a governed
+production release. Use the exact pending migration delta and one explicitly
+named function per command under the separately authorized release contract.
 
 ```bash
 supabase db push --linked
