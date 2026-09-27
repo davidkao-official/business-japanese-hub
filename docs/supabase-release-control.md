@@ -86,16 +86,20 @@ Readback confirming no other setting changed: <evidence>
 Freeze end condition and authorized operator: <record>
 ```
 
-The operator first freezes all merge and deployment writers that could reach
-the target, including queued, running, retryable, manually dispatched and
-integration-triggered work. Drain and inspect those operations before taking a
-baseline: switching the setting off does not cancel work already accepted or
-running. Preserve a pre-change readback and queue state. Change only the named
-toggle, then read it back in the same project and capture timestamped evidence.
-Stop if project identity, prior state, queue state or readback is uncertain, or
-if another setting would need to change. Keep the freeze in place until the
-owner records its exact end condition and authorized operator; do not silently
-release held or queued work.
+The operator first freezes every writer capable of mutating production `main`,
+including PR merges, direct pushes, force/ref updates, merge queues, bots, API
+actors and any other authorized writer, as well as deployment writers and
+queued, running, retryable, manually dispatched or integration-triggered work.
+The owner must demonstrably quiesce and reconcile those writers; do not assume
+branch protection will do so. Switching the setting off does not cancel work
+already accepted or running. Preserve pre-change main SHA, setting readback and
+queue state. Change only the named toggle, then read it back in the same project
+and capture timestamped evidence. Before releasing this freeze, re-read and
+record the unchanged main SHA and Supabase integration queued/running/retryable/
+accepted deployment state, reconciling any accepted work. Stop if identity,
+state, queue readback or freeze evidence is uncertain, or if another setting
+would need to change. The owner records the exact freeze end condition and
+operator; do not silently release held or queued work.
 
 ## 2. Preconditions for a separately authorized release
 
@@ -115,14 +119,17 @@ before authorizing a window:
   migration, function or storage change caused by it. Record that event's exact
   SHA, CI result and both Cloudflare build/active deployment SHAs. Future
   receipts name a one-time verification event only when applicable.
-- Before the first backend write, freeze main merges and every Cloudflare-
+- Before the first backend write, freeze every writer capable of mutating
+  production `main` (PR merges, direct pushes, force/ref updates, merge queues,
+  bots, API actors and any other authorized writer) and every Cloudflare-
   changing writer, including main-triggered builds/deployments, manual
-  deployments, rollbacks, project-setting and environment changes. Drain and
-  read back queued, running and retryable Cloudflare operations too. This is
-  operator coordination; keep Cloudflare automatic deployment enabled and its
-  settings unchanged. Record the actual active Library and Career Game SHAs and
-  their publication floors in the baseline, and keep both stable through full
-  release reconciliation.
+  deployments, rollbacks, project-setting and environment changes. The owner
+  must demonstrate these writers are quiesced and reconciled; do not assume
+  branch protection is enabled. Drain and read back queued, running, retryable
+  and already accepted Cloudflare operations too. This is operator coordination;
+  keep Cloudflare automatic deployment enabled and settings unchanged. Record
+  actual active Library and Career Game SHAs and publication floors in the
+  baseline, and keep both stable through full release reconciliation.
 - The release SHA must equal the frozen current `main` tip. Before the first
   backend write and between each release step, recheck the binding tuple:
   reviewed release SHA equals frozen `main` tip, active Library SHA equals its
@@ -190,6 +197,10 @@ before authorizing a window:
   stop criteria, forward-repair authority and any separately permitted Edge
   rollback. It does not authorize schema-history repair, reverse migrations,
   data deletion, content publication or identity/access fabrication.
+- The release receipt will durably record, separately for Library and Career
+  Game, the minimum compatible frontend rollback target and its publication
+  revision/floor. These are the rollback floors for later Cloudflare operations
+  until a newer reviewed backend release receipt supersedes them.
 
 Use the official [Supabase CLI v2.115.0 deploy implementation](https://github.com/supabase/cli/blob/v2.115.0/apps/cli/src/shared/functions/deploy.ts)
 for the explicit-name and per-function configuration behavior. The
@@ -312,9 +323,10 @@ receipt, and production commands must not be copied into CI or a workflow.
 5. Read back the complete migration ledger and all live functions; compare
    source/version, JWT configuration and timestamps, and inspect relevant logs
    for observed effects. Counts or command exit status alone are insufficient.
-   Confirm the recorded active Library and Career Game SHAs and publication
-   floors stayed stable through complete release reconciliation before releasing
-   any freeze.
+   Confirm the production main SHA and integration queued/running/retryable/
+   accepted deployment state, plus active Library and Career Game SHAs and
+   publication floors, stayed stable through complete reconciliation before
+   releasing any freeze. Reconcile accepted work; the toggle does not cancel it.
 6. The owner reviews the receipt and explicitly ends the freeze. Keep the toggle
    disabled unless a separate owner decision authorizes a different state and
    its consequences. Re-enabling automation is never an automatic recovery
@@ -380,6 +392,10 @@ Deployment timestamps/logs and observed effects:
 Storage scope/reconciliation, if applicable:
 Frozen main SHA; active Library and Career Game baseline SHAs and publication
   floors; evidence they remained stable through reconciliation:
+Per-product minimum compatible frontend rollback target and publication
+  revision/floor (record separate full SHA/deployment and revision for each):
+  Library:
+  Career Game:
 Failures, uncertainty, stop/recovery actions or forward repair authorization:
 Toggle final state / separate decision link:
 Owner disposition: RELEASE PASS / HOLD / PARTIAL-RECONCILED

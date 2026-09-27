@@ -554,6 +554,16 @@ Inspect finance state, payment events, outbox state, scheduler health, and logs.
 
 ## 5. Rollback and observability
 
+Before any Cloudflare rollback, consult the latest reviewed backend release
+receipt and its per-product minimum compatible frontend rollback target and
+publication revision/floor. Review the proposed Library or Career Game target
+against the **current** database schema, Edge API/function versions and
+publication state. Do not use ordinary rollback for a target below that floor
+or when the floor/target is unknown. Stop and require a fresh compatibility
+review and specific owner authorization for any such rollback; otherwise use a
+separately authorized forward repair. Exact-SHA and cache smoke checks establish
+frontend identity and availability, not backend compatibility.
+
 - **Cloudflare Pages / Library:** use the `business-japanese-hub` production
   history to roll back only `dist/`, then smoke both products and the cross-links.
 - **Cloudflare Pages / Career Game:** use the
