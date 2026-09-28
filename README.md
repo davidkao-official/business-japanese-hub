@@ -90,24 +90,20 @@ Book / Universal Reader 是 `Read` 的 long-form editorial capability；Career G
 - AI 不是 primary product abstraction，也不能產生 opaque mastery truth。
 - Non-goals：native app current critical path、full LMS、leaderboard/streak economy、AI-chat-first、microservices、universal mega-schema、destructive migration。
 
-## Current delivery direction
+## Current execution entrypoint
 
-目前階段是 **subscription-product convergence / Plus Early Access preparation**。
+The canonical implementation/restart map is [#166](https://github.com/davidkao-official/business-japanese-hub/issues/166). Read its current body and latest `agent-handoff:v1` before selecting work; do not infer priority from old open-issue numbering.
 
-舊的 `first paid Book sale` milestone 已 superseded。主要執行線為：
+[#111](https://github.com/davidkao-official/business-japanese-hub/issues/111) is the sole public Plus Early Access launch-acceptance issue. Source readiness, a green PR, or recurring billing alone is not launch acceptance.
 
-- SPI / Web Test Acquisition：#113–#117、#119–#120
-- Product IA / visible skeleton：#108、#127
-- Learning System / My Learning：#109
-- Reusable Learn / Practice：#110
-- Business Reading Engagement：#122 → #125
-- Work in Japan Retention：#124 → #126
-- Recurring membership commerce：#107
-- Membership UX：#123
-- Recurring legal/compliance：#112
-- Membership Paid Launch：#111
-- Deployment safety：#101/#102（獨立）
-- Learning production readiness：#97（獨立）
+Current remaining work is organized around:
+
+- [#186](https://github.com/davidkao-official/business-japanese-hub/issues/186) / [#97](https://github.com/davidkao-official/business-japanese-hub/issues/97): explicit production admission and authenticated production acceptance;
+- [#107](https://github.com/davidkao-official/business-japanese-hub/issues/107) + [#112](https://github.com/davidkao-official/business-japanese-hub/issues/112): one actually admitted recurring provider plus legal/customer-policy facts;
+- [#187](https://github.com/davidkao-official/business-japanese-hub/issues/187): prove one real SPI → Practice → My Learning → return journey using existing implementation;
+- [#122](https://github.com/davidkao-official/business-japanese-hub/issues/122) and [#124](https://github.com/davidkao-official/business-japanese-hub/issues/124): approved Reading/Workplace content and useful comprehension/practice/return value.
+
+Completed foundations should be reused, not rebuilt. See #166 for exact live refs, dependencies, holds and sequencing.
 
 ## 部署
 
