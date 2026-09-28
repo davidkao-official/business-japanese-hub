@@ -28,9 +28,22 @@ export type ReleaseLookup =
   | { kind: 'missing' }
   | { kind: 'unavailable' }
 
+export type ContentKindLookup =
+  | { kind: 'found'; contentKind: string }
+  | { kind: 'missing' }
+  | { kind: 'unavailable' }
+
+export type ReadingReleaseLookup =
+  | { kind: 'found'; release: PrivateContentRelease }
+  | { kind: 'non-member' }
+  | { kind: 'missing' }
+  | { kind: 'unavailable' }
+
 export interface ContentDeliveryDeps {
   db: DbClient
   membershipAccessFor: (userId: string) => Promise<MembershipAccess>
+  getContentKind: (contentId: string, revision: string) => Promise<ContentKindLookup>
+  getPublishedReadingRelease: (userId: string, contentId: string, revision: string) => Promise<ReadingReleaseLookup>
   getRelease: (contentId: string, revision: string) => Promise<ReleaseLookup>
 }
 
@@ -66,14 +79,54 @@ export async function handleContentDelivery(
   const userId = await authenticateBearer(deps.db, headerValue(req.headers, 'authorization'))
   if (!userId) return privateNoStore(unauthorized())
 
-  const access = await deps.membershipAccessFor(userId)
-  if (access === 'unavailable') return privateNoStore(jsonResult(503, { error: 'membership access unavailable' }))
-  if (access !== 'active') return privateNoStore(forbidden('active membership required'))
+  let contentKind: ContentKindLookup
+  try {
+    contentKind = await deps.getContentKind(reference.contentId, reference.revision)
+  } catch {
+    contentKind = { kind: 'unavailable' }
+  }
+  if (contentKind.kind !== 'found') {
+    let access: MembershipAccess
+    try {
+      access = await deps.membershipAccessFor(userId)
+    } catch {
+      access = 'unavailable'
+    }
+    if (access === 'unavailable') return privateNoStore(jsonResult(503, { error: 'membership access unavailable' }))
+    if (access !== 'active') return privateNoStore(forbidden('active membership required'))
+    if (contentKind.kind === 'unavailable') return privateNoStore(jsonResult(503, { error: 'content delivery unavailable' }))
+    return privateNoStore(notFound('published member content not found'))
+  }
 
-  const lookup = await deps.getRelease(reference.contentId, reference.revision)
+  let lookup: ReleaseLookup | ReadingReleaseLookup
+  if (contentKind.contentKind === 'reading') {
+    try {
+      lookup = await deps.getPublishedReadingRelease(userId, reference.contentId, reference.revision)
+    } catch {
+      lookup = { kind: 'unavailable' }
+    }
+    if (lookup.kind === 'non-member') return privateNoStore(forbidden('active membership required'))
+  } else {
+    let access: MembershipAccess
+    try {
+      access = await deps.membershipAccessFor(userId)
+    } catch {
+      access = 'unavailable'
+    }
+    if (access === 'unavailable') return privateNoStore(jsonResult(503, { error: 'membership access unavailable' }))
+    if (access !== 'active') return privateNoStore(forbidden('active membership required'))
+    try {
+      lookup = await deps.getRelease(reference.contentId, reference.revision)
+    } catch {
+      lookup = { kind: 'unavailable' }
+    }
+  }
   if (lookup.kind === 'unavailable') return privateNoStore(jsonResult(503, { error: 'content delivery unavailable' }))
   if (lookup.kind === 'missing') return privateNoStore(notFound('published member content not found'))
   const { release } = lookup
+  if (release.contentKind !== contentKind.contentKind) {
+    return privateNoStore(jsonResult(503, { error: 'content delivery unavailable' }))
+  }
   return privateNoStore(jsonResult(200, {
     content: {
       contentId: release.contentId,
