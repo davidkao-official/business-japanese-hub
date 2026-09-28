@@ -41,11 +41,12 @@ decisions:
    decision authorizes no production release.
 2. **A later, specific release:** name the exact reviewed main SHA, migration
    and function manifests, operator, window, compatibility decision, recovery
-   owner, and permitted effects. PR #188 is the currently selected one-time
-   verification event; an owner must explicitly disposition that merge before
-   it occurs, then its exact result must be checked for absence of observed
-   Supabase backend effects. Future releases record a named verification event
-   only when applicable.
+   owner, and permitted effects. PR #188 was a separately authorized one-time
+   verification event and is complete; its [post-event receipt](https://github.com/davidkao-official/business-japanese-hub/issues/186#issuecomment-5863976677)
+   records no observed change across 57 migrations and 18 Edge Functions. This
+   completed event grants no standing authority for PR #189 or any later `main`,
+   Cloudflare, or backend event; each retains its exact applicable
+   authorization.
 
 The transition packet below is a template for the first decision only. The
 owner approves the exact scope, operator and freeze/preconditions before the
