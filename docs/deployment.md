@@ -4,14 +4,35 @@ This runbook keeps the public frontend deployable while payment, entitlement,
 auth, legal, email, refund, and reconciliation paths remain server-authoritative
 and fail closed.
 
+## 0. Production admission boundary
+
+A repository change can pass source review without being authorized for production. Treat these as separate gates:
+
+| Gate | What it proves | What it does **not** prove |
+| --- | --- | --- |
+| Code admission | Exact source/tests/review are acceptable | Production release is authorized |
+| Production release | Exact migration/Edge/frontend effects are approved and verified | Private content is published or recurring billing is live |
+| Content publication | Exact approved private revision is imported/published through its publication contract | Billing is enabled or learning value is proven |
+| Billing activation | Exact admitted provider/customer/legal/receipt lifecycle is ready for real recurring charges | Product launch acceptance |
+
+Until the deployment owner verifies a separate release control, **every `main` merge is production-sensitive, including docs-only merges**. #181 demonstrated a docs-only merge that redeployed 17 production Edge Functions. Follow [#186](https://github.com/davidkao-official/business-japanese-hub/issues/186), [#97](https://github.com/davidkao-official/business-japanese-hub/issues/97), and the current [#166](https://github.com/davidkao-official/business-japanese-hub/issues/166) handoff before any merge.
+
+Keep evidence categories distinct: source/unit/DB tests; exact hosted build; canonical frontend served SHA; live migration ledger; live Edge inventory/source attribution; authenticated production behavior; and real recurring-payment evidence. `Supabase Preview: SKIPPED` is never deployment proof.
+
+### Historical Book operations
+
+The PayPal/USD Book catalog, Book checkout, finance, email/outbox, scheduler, first-revenue and Book golden-path commands later in this runbook are retained as **historical one-time Book operational procedures and audit context**. They are not a Business Japanese Hub Plus recurring-membership activation recipe. Do not migrate historical Book Orders/Payments/Refunds/Entitlements into memberships or infer Plus access from them.
+
+For current Plus admission, use [#107](https://github.com/davidkao-official/business-japanese-hub/issues/107) and [#112](https://github.com/davidkao-official/business-japanese-hub/issues/112), together with [`docs/payments/plus-recurring-admission.md`](payments/plus-recurring-admission.md) and [`docs/payments/plus-stage8a-provider-preflight.md`](payments/plus-stage8a-provider-preflight.md); do not duplicate that provider preflight here.
+
 **Supabase production release control is proposed and inactive.** Before any
 production migration or Edge Function release, use the owner-authorized
 [controlled release contract](supabase-release-control.md); its toggle-only
 decision does not authorize a release.
 
-### Main-merge admission while Supabase production auto-deploy is disabled
+### Pre-merge compatibility while Supabase production auto-deploy is disabled
 
-Before admitting any `main` candidate during this period, record an explicit
+Before admitting a `main` candidate during this period, record an explicit
 pre-merge disposition proving it is safe with the **currently active** Supabase
 backend, identified by its production migration ledger and full deployed
 function/version/config inventory, and the actual active Library and Career
@@ -20,10 +41,9 @@ cannot establish that baseline, hold the merge. This check must precede the
 merge because both Cloudflare projects continue to deploy from `main`; a later
 backend-release check cannot prevent an incompatible frontend from going live.
 If a candidate needs new backend behavior, split it into a backward-compatible
-expand merge, separately
-authorized backend release and verification, then a separately authorized
-frontend-activation merge. Keep Cloudflare automatic deployment enabled and
-its project settings unchanged.
+expand merge, separately authorized backend release and verification, then a
+separately authorized frontend-activation merge. Keep Cloudflare automatic
+deployment enabled and its project settings unchanged.
 
 ## 1. Canonical frontends: two Cloudflare Pages projects
 
