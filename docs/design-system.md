@@ -1,6 +1,6 @@
 # Business Japanese Hub — Design System「Source & Gloss」
 
-> **狀態：canonical / 視覺與互動設計 authority（v2.1，2026-10-02）。**
+> **狀態：canonical / 視覺與互動設計 authority（v2.2，2026-10-02）。**
 >
 > 本文件定義 Business Japanese Hub 整個產品（main frontend 與 Career Game）的視覺識別、typography、色彩、marks、shell／navigation、components、各 surface 的 presentation grammar、states 與 implementation sequence。
 >
@@ -28,7 +28,7 @@ V1 這三層**全部是日文**。所以「Source & Gloss」的重點不是兩�
 - **原文是主角。** 放在白色 **sheet** 上，用日本商業文件實際使用的**明朝體角色**；**解説**用黑體、較小、`ink-2`，以丸数字 ①②③ 連回原文；**介面與紀錄**用黑體與 tabular 數字。這正是日本參考書與商業書區分「本文／例文」與「解説」的方式。
 - **讀者已經通過 N1。** 不加常用漢字的振假名、不簡化日文、不用學習 app 的語氣；解説是給能讀日文的人看的職場與語用判斷，不是翻譯。
 - **唯一的裝飾是工作上的標記：** 螢光筆（marker）、丸数字、赤入れ、〇／×。
-- **用平實的數字說真話。** 只用 `3／5`；不足 5 題就說「データ不足」。沒有 mastery %、streak、進度環。
+- **用平實的數字說真話。** 只用 `3／5` 這類計數；證據不足時誠實顯示「データ不足」——**何時算不足由 learning authority 定義，不由本文件定義**（§8.1）。沒有 mastery %、streak、進度環。
 - **每個畫面一個下一步；專注時 chrome 退場。**
 - **手機是通勤用 app（底部 tab bar），桌機是工作桌（原文與解説並排）。**
 - **在地化是之後的一層，不是 V1 的形狀。** 字體跟著 `lang`、文字全部走 i18n keys、為 support language 預留一個可選的位置，但 V1 的版面、文案與 QA 不依賴它。
@@ -258,7 +258,7 @@ Reference CSS：[`docs/design/reference/reference.css`](design/reference/referen
 | `ChoiceRow` | 選項 | ≥52px；A–E key；選取＝2px ink；結果＝ok／ng＋文字。Practice 與 Career Game 共用 |
 | `ResultMark` | 〇／×／未確認 | 必附文字 |
 | `CheckpointLadder` | 題意 → 立式 → 計算 | 每步：問題＋ResultMark；附「原因の判定ではありません」 |
-| `ObservationTable` | 分野 × 正解／解答 | n < 5 → 「データ不足」 |
+| `ObservationTable` | 分野 × 正解／解答 | 永遠只顯示計數；signal 欄依 learning authority 的規則顯示「要確認」或「データ不足」；不顯示比率或 bar，直到 learning authority 定義其門檻（§8.1） |
 | `NextStep` | 次の一歩 | 一句理由＋一個按鈕 |
 | `ListRow` | 分野、間違えた問題、保存 | 規則線分隔 |
 | `StatePanel` | 空、データ不足、ログイン、Plus、エラー、版が古い | 虛線框、標題、一句、一動作 |
@@ -321,7 +321,7 @@ Reader 是 focus mode；正文預設原文明朝角色（可切黑體）；measu
 
 ### 7.10 学習記録 — [`my-learning.html`](design/reference/my-learning.html)
 
-`学習記録 → 次の一歩 → 左：間違えた問題、保存した内容（tabs）→ 右：観察（正解／解答、データ不足）、理解の確認（段階別 不正解／確認回数）、最近の解答（〇×）`。不顯示 mastery %、streak、進度環、AI 診斷。理解の確認彙整需 #109 延伸（Q7）。
+`学習記録 → 次の一歩 → 左：間違えた問題、保存した内容（tabs）→ 右：観察（正解／解答、データ不足）、理解の確認（段階別 不正解／確認回数）、最近の解答（〇×）`。不顯示 mastery %、streak、進度環、AI 診斷。理解の確認彙整與任何 pattern 文句依 Q7（learning authority）；規則核准前不顯示該區塊。
 
 ### 7.11 Plus — [`plus.html`](design/reference/plus.html)
 
@@ -346,9 +346,23 @@ About 需要日文主文案（#72 的已核准文案是繁中；日文版屬內�
 | 会員状態を確認できない | StatePanel＋再試行 | ローカルの情報で代用しない |
 | 読み込み中 | 與最終版面同尺寸的 skeleton | — |
 | 空 | StatePanel＋一個起點 | 「まだ…はありません」＋次の一歩 |
-| データ不足 | dotted marker＋「データ不足」＋あと何問 | 割合を表示しない |
+| データ不足 | dotted marker＋「データ不足」 | 不自行計算門檻或「あと何問」；只有在 learning authority 的規則提供具體數字時才顯示 |
 | 版が古い | StatePanel＋再読み込み | 「問題の版が更新されました」 |
 | 保存失敗 | inline `role="alert"`＋再試行 | 「保存できたか確認できません」 |
+
+### 8.1 Numeric learning thresholds（authority boundary）
+
+本文件**不定義**任何學習／產品語意門檻，只規定「證據不足」要如何被誠實呈現。目前的數字來源：
+
+| 數字 | 狀態 | 來源 |
+| --- | --- | --- |
+| 学習記録 只讀最近 50 筆 Practice attempts | **Canonical** | `learning-and-progress.md`（#109） |
+| weak-area signal：同一 category／domain 至少 5 筆且至少 2 筆答錯 | **Canonical** | `learning-and-progress.md`（#109）；`src/lib/learning/practiceMyLearning.ts` |
+| 答錯的題目在之後答對時從復習清單移除 | **Canonical（已實作）** | #117／#109 |
+| 分野正答率的顯示門檻 | **未定義** | SPI research §9 提議 ≥5（「MVP reporting rule to validate」）→ Q7 |
+| 理解の確認彙整與 pattern 規則 | **未定義** | Q7 |
+
+參考稿中的數字（`3／5`、`2／3`、`2 問` 等）是版面示意資料。
 
 ---
 
@@ -359,7 +373,7 @@ About 需要日文主文案（#72 的已核准文案是繁中；日文版屬內�
 - **禁用工程用語：** evidence、runtime、projection、payload、Workplace Learn 等。
 - **語氣：** です・ます體、冷靜、直接，像可靠的先輩；不使用「かんたん」「すぐにペラペラ」之類的話；不使用感嘆號。
 - **解説是判斷，不是翻譯。** 說明這句話在職場上「為什麼這樣說」「對誰、在什麼時候」「哪裡容易失禮」。
-- 描述觀察而不是診斷：「立式での不正解が多め」而不是「あなたの弱点は論理です」。
+- 描述觀察而不是診斷：例如「立式での不正解が多め」而不是「あなたの弱点は論理です」——但只在 learning authority 定義了該 pattern 的成立規則後才可顯示（Q7）。
 - 示意題與範例標示「サンプル」「架空の教材」。
 - **草稿與審閱分開：** 日文解説與行銷文案可以從第一原理撰寫草稿，但其內容品質（正確性、自然度、語用）由內容審閱 lane 把關；本文件只規定文案的角色、語氣與排版，不是文案的核准來源（D22）。
 - **不假設共同母語。** 例：「母語に訳さず、日本語のまま判断する」而不是「不要先翻成中文」。
@@ -394,7 +408,7 @@ WCAG 2.2 AA（§4.2 實測值）；marker、顏色、〇× 皆不單獨承載意
 | **S4 Primitives** | §6 元件 | `src/components/ui/*`、`src/styles/components.css` | S2 |
 | **S5 Practice** | hub 扁平化、runner 兩態、key-term marks、ladder、完了、action bar | `WebTestHubPage.tsx`（拆 runner） | S1、S3、S4；匿名試做依 G1 |
 | **S6 Home／Plus／About** | 新首頁、Plus、About；刪 Concept C／editorial 首頁 CSS | `HomePage.tsx`、`homeEditorial.ts`、`PlusPage.tsx`、`AboutPage.tsx`、CSS | S4；primary CTA 行為依 G1 |
-| **S7 学習記録** | 次の一歩、間違えた問題、観察、保存 | `MyLearningPage.tsx` | S4；Q7 |
+| **S7 学習記録** | 次の一歩、間違えた問題、観察、保存 | `MyLearningPage.tsx` | S4；signal 依 `learning-and-progress.md` 既有規則；理解の確認區塊依 Q7（未核准前不顯示，不阻擋 S7） |
 | **S8 学ぶ** | レッスン重排＋rail、語彙、一覧 | `src/workplace-learn/pages.tsx`、`workplace-learn.css`、`LearnUnitPage.tsx` | S4；#195；marks 可選擇等 Q6 |
 | **S9 読む** | 一覧、記事原文 sheet＋marks＋論點標籤、BottomSheet | `ReadLandingPage.tsx`、`ReadDetailPage.tsx`、`reading.css` | S4；#195 |
 | **S10 Reader／Books／Library** | focus bar、type roles、Book detail、Library | `src/reader/*`、`reader.css`、`BookPage.tsx`、`LibraryPage.tsx`、`shop.css` | S2–S4；購買 CTA 依 G2 |
@@ -465,7 +479,7 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | --- | --- | --- |
 | Q2、Q11、Q12 | **內容品質審閱** | 日文 mode 名稱、首頁／About／Plus 文案、既有內容的日文解説：可起草，由內容 lane 審閱定稿（D22） |
 | Q6 | Content contract（#195 同一修訂可選） | authored annotation ranges；未加入前只用 exact match |
-| Q7 | Engineering（#109 延伸） | 理解の確認彙整 read model；未實作前不顯示該區塊 |
+| Q7 | **Learning authority**（`learning-and-progress.md`／#109） | 尚未核准的學習規則：(a) 分野正答率／比率的顯示門檻（SPI research §9 提議 ≥5，標示為待驗證）、(b) 理解の確認彙整 read model 與 pattern 成立規則。核准前：只顯示計數，不顯示比率、bar 或 pattern 文句；不阻擋視覺 authority 或 S7 其他區塊 |
 
 ---
 
@@ -495,6 +509,7 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | 色彩理由 | 含「橘色在台灣平台同質化」 | 移除地域性理由；以語意與 AA 為理由 |
 | 參考稿 | 繁中文案 | 全部日文文案；解説為本參考撰寫並標示 |
 | **v2.1** | 前提待 Owner 確認；切換器在 footer；14 個 open questions | 前提已核准並寫入 product contract；V1 無切換器；只剩 3 個真正的 owner gates（G0–G2），內容審閱與商業幣別分為獨立 lane |
+| **v2.2** | 「n < 5 → データ不足」寫成設計規則；Q7 歸為 engineering | 移除自訂門檻（§8.1 authority boundary）；canonical 只有 50 筆窗口與 weak-area ≥5／≥2 規則；Q7 改為 learning authority |
 
 ---
 
