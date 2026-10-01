@@ -8,6 +8,8 @@
 >
 > **取代：** 先前的視覺方向——Quiet Editorial Modernism（#2 / #74、[`docs/design/visual-redesign-reference.md`](design/visual-redesign-reference.md)）、#77 Distinction-style LP、#155 Concept C「Modern Learning Platform」——**不再是視覺 authority**。它們的 palette、字體、間距、版面、component 外觀與「日本感」motifs 都不延續。保留的只有仍然成立的契約：已核准文案、accessibility、Reader typography 研究、#157 斷行規則、#156 四語系 i18n 行為（見 §15）。
 >
+> **Execution：** epic [#190](https://github.com/davidkao-official/business-japanese-hub/issues/190)（implementation sequence、owner questions）；Stage 0 defects [#191](https://github.com/davidkao-official/business-japanese-hub/issues/191)。每次 merge 到 `main` 都是潛在 production release（#186），需另行授權。
+>
 > **Reference compositions：** [`docs/design/reference/`](design/reference/)（靜態 HTML + 截圖）。執行 `python3 -m http.server 4810 --directory docs/design/reference` 後開啟 `http://localhost:4810/`。
 
 ---
