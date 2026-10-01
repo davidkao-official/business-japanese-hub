@@ -6,7 +6,7 @@
 <title>Practice runner — Source &amp; Gloss reference</title>
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="reference.css">
-<script>(function(){var q=new URLSearchParams(location.search);var t=q.get('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;document.documentElement.dataset.state=q.get('state')==='feedback'?'feedback':'question';})();</script>
+<script>(function(){function apply(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-'),d=document.documentElement;var t=q.get('theme')||(h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null);if(t)d.dataset.theme=t;d.dataset.state=(q.get('state')==='feedback'||h.indexOf('feedback')>-1)?'feedback':'question';}apply();addEventListener('hashchange',function(){apply();scrollTo(0,0);});})();</script>
 <style>
   html[data-state="question"] .only-feedback { display: none !important; }
   html[data-state="feedback"] .only-question { display: none !important; }
@@ -36,7 +36,7 @@
 </style>
 </head>
 <body>
-<div class="proto-note" lang="en"><span>Design reference · Practice runner · <a href="runner.html">question</a> / <a href="runner.html?state=feedback">feedback</a> · 示意題 (original illustrative item, not product content)</span><a href="index.html">All references</a></div>
+<div class="proto-note" lang="en"><span>Design reference · Practice runner · <a href="runner.html#question">question</a> / <a href="runner.html#feedback">feedback</a> · 示意題 (original illustrative item, not product content)</span><a href="index.html">All references</a></div>
 
 <div class="focusbar">
   <div class="wrap focusbar__in">
@@ -64,7 +64,7 @@
     </fieldset>
     <div class="submitbar">
       <p class="caption">選好後送出；送出後會顯示解說與理解檢查。</p>
-      <a class="btn" href="runner.html?state=feedback">送出答案</a>
+      <a class="btn" href="runner.html#feedback">送出答案</a>
     </div>
   </div>
 
@@ -119,7 +119,7 @@
       </section>
       <div class="nextbar">
         <p class="caption">已儲存作答。這題已加入錯題複習，之後答對就會移除。</p>
-        <a class="btn" href="runner.html">下一題</a>
+        <a class="btn" href="runner.html#question">下一題</a>
       </div>
     </div>
   </div>

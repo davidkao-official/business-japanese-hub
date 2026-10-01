@@ -6,7 +6,7 @@
 <title>Home — Source &amp; Gloss reference</title>
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="reference.css">
-<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;})();</script>
+<script>(function(){function apply(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-'),d=document.documentElement;var t=q.get('theme')||(h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null);if(t)d.dataset.theme=t;d.dataset.state=(q.get('state')==='feedback'||h.indexOf('feedback')>-1)?'feedback':'question';}apply();addEventListener('hashchange',function(){apply();scrollTo(0,0);});})();</script>
 <style>
   .hero { padding-block: clamp(40px, 6vw, 88px) clamp(48px, 7vw, 96px); }
   .hero__grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: clamp(32px, 5vw, 72px); align-items: center; }

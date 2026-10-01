@@ -504,7 +504,7 @@ S0 不依賴任何 Owner 決策，應優先；S4 是商業價值最高的重設�
 | 檔案 | 內容 |
 | --- | --- |
 | [`docs/design/reference/index.html`](design/reference/index.html) | 系統總覽：三種聲音、marks、色彩、components、Never 清單 |
-| [`home.html`](design/reference/home.html)、[`practice.html`](design/reference/practice.html)、[`runner.html`](design/reference/runner.html)（`?state=feedback`）、[`learn.html`](design/reference/learn.html)、[`read.html`](design/reference/read.html)、[`my-learning.html`](design/reference/my-learning.html)、[`plus.html`](design/reference/plus.html) | 主要 surfaces（responsive；`?theme=dark`） |
+| [`home.html`](design/reference/home.html)、[`practice.html`](design/reference/practice.html)、[`runner.html`](design/reference/runner.html)（`#feedback`）、[`learn.html`](design/reference/learn.html)、[`read.html`](design/reference/read.html)、[`my-learning.html`](design/reference/my-learning.html)、[`plus.html`](design/reference/plus.html) | 主要 surfaces（responsive；`#dark` 或 `?theme=dark`） |
 | [`tokens.css`](design/reference/tokens.css)、[`reference.css`](design/reference/reference.css) | Token 規格與參考 component CSS |
 | [`screenshots/`](design/reference/screenshots/) | 1440 桌機、390 手機（2x）、dark 樣本，以及 `audit-live-*` 現況證據 |
 

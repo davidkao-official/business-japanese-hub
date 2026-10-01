@@ -7,7 +7,7 @@
 <meta name="description" content="Business Japanese Hub canonical visual system — reference compositions.">
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="reference.css">
-<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;})();</script>
+<script>(function(){function apply(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-'),d=document.documentElement;var t=q.get('theme')||(h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null);if(t)d.dataset.theme=t;d.dataset.state=(q.get('state')==='feedback'||h.indexOf('feedback')>-1)?'feedback':'question';}apply();addEventListener('hashchange',function(){apply();scrollTo(0,0);});})();</script>
 <style>
   .ix-head { padding-block: clamp(40px, 6vw, 80px) var(--space-6); max-width: 920px; }
   .ix-head h1 { margin-top: 8px; }
@@ -39,7 +39,7 @@
 </style>
 </head>
 <body>
-<div class="proto-note" lang="en"><span>Business Japanese Hub · canonical design references · docs/design-system.md is the written authority</span><span><a href="?theme=light">Light</a> · <a href="?theme=dark">Dark</a></span></div>
+<div class="proto-note" lang="en"><span>Business Japanese Hub · canonical design references · docs/design-system.md is the written authority</span><span><a href="#light">Light</a> · <a href="#dark">Dark</a></span></div>
 
 <main class="wrap">
   <header class="ix-head">
@@ -50,12 +50,12 @@
 
   <section class="ix-sec" aria-labelledby="h-surf">
     <h2 id="h-surf">Reference compositions</h2>
-    <p class="muted">Static references for the major surfaces. Each page is responsive (open at phone width) and supports <code>?theme=dark</code>.</p>
+    <p class="muted">Static references for the major surfaces. Each page is responsive (open at phone width) and supports <code>#dark</code> (or <code>?theme=dark</code>).</p>
     <ul class="surfaces">
       <li><a href="home.html"><b>首頁 Home</b><span>Public acquisition · specimen hero · journey coverage</span></a></li>
       <li><a href="practice.html"><b>練習 Practice hub</b><span>SPI categories on one page · resume</span></a></li>
       <li><a href="runner.html"><b>練習 Runner — question</b><span>Focus mode · choices · sticky submit</span></a></li>
-      <li><a href="runner.html?state=feedback"><b>練習 Runner — feedback</b><span>○× · marked conditions · checkpoint ladder</span></a></li>
+      <li><a href="runner.html#feedback"><b>練習 Runner — feedback</b><span>○× · marked conditions · checkpoint ladder</span></a></li>
       <li><a href="learn.html"><b>課程 Learn lesson</b><span>Situation → judgment → Japanese → why → rewrite</span></a></li>
       <li><a href="read.html"><b>閱讀 Read article</b><span>Source sheet with vocabulary + logic marks</span></a></li>
       <li><a href="my-learning.html"><b>我的學習 My Learning</b><span>One next step · review · honest observations</span></a></li>
