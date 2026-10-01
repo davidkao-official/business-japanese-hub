@@ -1,12 +1,12 @@
 # Business Japanese Hub
 
-Business Japanese Hub 是一個 **web-first、subscription-based 的日本求職與日本職場日文學習服務**，核心服務已具備一定日文能力、特別是 **JLPT N2～N1 程度的華語學習者**。
+Business Japanese Hub 是一個 **web-first、subscription-based 的日本求職與日本職場日文學習服務**，核心服務**已通過 JLPT N1、不限母語的外國學習者**。**V1 以日文為主**（介面與解説皆為日文）；英文、中文、韓文等在地化於 launch 後逐步加入。
 
 產品要解決的 gap 是：
 
 > **從「考試日文」升級到「能用日文在日本求職、讀懂日本商業資料、進入日本企業並持續工作成長」。**
 
-Business Japanese Hub **不是 JLPT preparation service**。N2／N1 是主要 entry point，不是學習終點。
+Business Japanese Hub **不是 JLPT preparation service**。N1 合格是主要 entry point，不是學習終點。
 
 Canonical user journey：
 

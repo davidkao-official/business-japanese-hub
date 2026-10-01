@@ -1,15 +1,15 @@
 # Business Japanese Hub — Design System「Source & Gloss」
 
-> **狀態：canonical / 視覺與互動設計 authority（v2，2026-10-02）。**
+> **狀態：canonical / 視覺與互動設計 authority（v2.1，2026-10-02）。**
 >
 > 本文件定義 Business Japanese Hub 整個產品（main frontend 與 Career Game）的視覺識別、typography、色彩、marks、shell／navigation、components、各 surface 的 presentation grammar、states 與 implementation sequence。
 >
-> **產品前提（v2）：** launch audience 是**已通過 JLPT N1 的外國學習者（不限母語）**；**V1 全產品以日文為主**（介面、解説、原文皆為日文）；英文、中文、韓文等在地化於 launch 後逐步加入。保留在地化能力，但**不讓未來的在地化主導 V1 體驗**。
-> 這個前提與 `product-contract.md` §1／§13.1、`post-n1-learning-map.md` §1／§6 及現行 content contracts（`*ZhTW` 欄位）仍記載的「N2–N1 華語學習者、繁中 explanation layer」不一致；修正項目與 Owner 決策列於 **[#193](https://github.com/davidkao-official/business-japanese-hub/issues/193)**。在 #193 落地前，產品、商業、access、payment、security、deployment 規則仍以上位文件為準；本文件只決定「看起來、讀起來、用起來」怎麼做。
+> **產品前提（已核准，product contract §1 / §13.15）：** launch audience 是**已通過 JLPT N1 的外國學習者（不限母語）**；**V1 全產品以日文為主**（介面、解説、原文皆為日文）；**V1 不開放未完成的非日文 locale**；英文、中文、韓文等在 launch 後逐步加入。保留在地化能力，但不讓它主導 V1。價格幣別是獨立的商業決策，不影響本文件。
+> 產品、商業、access、payment、security、deployment 規則仍以上位文件為準；本文件只決定「看起來、讀起來、用起來」怎麼做。**日文解説與行銷文案的字句品質屬內容審閱 lane，與本視覺 authority 分開**（D22）。
 >
 > **取代：** Quiet Editorial Modernism（#2／#74、[`docs/design/visual-redesign-reference.md`](design/visual-redesign-reference.md)）、#77 LP、#155 Concept C 的**視覺方向**不再是 authority（見 §15）。
 >
-> **Execution：** epic [#190](https://github.com/davidkao-official/business-japanese-hub/issues/190)；Stage 0 defects [#191](https://github.com/davidkao-official/business-japanese-hub/issues/191)；Japanese-first UI copy [#194](https://github.com/davidkao-official/business-japanese-hub/issues/194)；product premise [#193](https://github.com/davidkao-official/business-japanese-hub/issues/193)。每次 merge 到 `main` 都是潛在 production release（#186），需另行授權。
+> **Execution：** epic [#190](https://github.com/davidkao-official/business-japanese-hub/issues/190)；Stage 0 defects [#191](https://github.com/davidkao-official/business-japanese-hub/issues/191)；Japanese-first UI copy [#194](https://github.com/davidkao-official/business-japanese-hub/issues/194)；Japanese 解説 content contracts [#195](https://github.com/davidkao-official/business-japanese-hub/issues/195)；product premise [#193](https://github.com/davidkao-official/business-japanese-hub/issues/193)（已核准）。每次 merge 到 `main` 都是潛在 production release（#186），需另行授權。
 >
 > **Reference compositions：** [`docs/design/reference/`](design/reference/)（日文靜態 HTML + 截圖）。`python3 -m http.server 4810 --directory docs/design/reference` 後開啟 `http://localhost:4810/`。
 
@@ -63,7 +63,7 @@ V1 這三層**全部是日文**。所以「Source & Gloss」的重點不是兩�
 | B5 | 工程用語出現在使用者文案（evidence、Workplace Learn…）。 | My Learning、Footer | P0（與 B7 一併處理） |
 | B6 | 日文介面內的英文導覽標籤（Learn / Read / Practice / My Learning / Experience）。 | Header | P0（S3 shell） |
 | **B7** | **核心學習 surfaces 繞過 i18n、寫死繁體中文。** SPI explainer（約 2,300 漢字）、Practice hub／runner（約 790）、My Learning（約 680）、About、Learn unit、mode pages、Read landing 皆以 `lang="zh-TW"` 寫死。預設 `ja` locale 下，acquisition（SPI）與 subscription justification（My Learning）仍是中文畫面。 | `src/app/*Page.tsx` | **P0：V1 blocker**（#194） |
-| **B8** | **Content contracts 只有中文解說欄位**（`meaningZhTW`、`explanationZhTW`、`whyItWorksZhTW`…），Plus 的日文文案把受眾寫成「中国語話者」。 | `src/reading/types.ts`、`src/workplace-learn/types.ts`、ja strings | **P0：需 product／content 決策**（#193） |
+| **B8** | **Content contracts 只有中文解說欄位**（`meaningZhTW`、`explanationZhTW`、`whyItWorksZhTW`…），Plus 的日文文案把受眾寫成「中国語話者」。 | `src/reading/types.ts`、`src/workplace-learn/types.ts`、ja strings | **P0**（contract：#195；文案：#194） |
 
 **C. Acquisition 斷在登入牆。** 匿名訪客要點四層（Web テスト → SPI → 非言語 → 分野）才看到「需要登入」，沒有任何一題可以先試（#187／#107）。
 
@@ -198,7 +198,7 @@ Scale（16px root，字距 0）：
 
 ### 4.7 Brand mark 與命名
 
-暫定 glyph：墨色方塊內的「 」與一道 marker（品牌承諾「『試験の日本語』から『仕事の日本語』へ」的括號）。Wordmark 建議為 **Business Japanese Hub**；V1 日文介面中可並列「ビジネス日本語ハブ」作為描述，但不再有 locale 別的不同品牌名。正式 logo 待設計（Q3）。
+暫定 glyph：墨色方塊內的「 」與一道 marker（品牌承諾「『試験の日本語』から『仕事の日本語』へ」的括號）。Wordmark 建議為 **Business Japanese Hub**；V1 日文介面中可並列「ビジネス日本語ハブ」作為描述，但不再有 locale 別的不同品牌名。正式 logo 為後續資產工作（D24）。
 
 ---
 
@@ -209,7 +209,7 @@ Scale（16px root，字距 0）：
 `[glyph + Business Japanese Hub] [学ぶ 読む 練習 学習記録 体験] ……… [Plus] [ログイン／アカウント]`
 
 - 64px；目前 mode 以粗體＋marker 底線表示。
-- **語言切換不在 header**（D18）：V1 是日文產品，切換器移到 footer 的「表示言語」（與外観同列）。#156 的鍵盤、persistence、fallback 行為保留。
+- **V1 沒有語言切換器**（D18）：V1 只開放 `ja`。#156 的 locale 架構、persistence、鍵盤行為保留在程式中；當某個 locale 完整上線時，切換器出現在 footer 與「その他」，**不放回 header**。
 
 ### 5.2 Mode labels（D8）
 
@@ -228,7 +228,7 @@ Canonical IDs 與 routes 不變；**V1 顯示名稱為日文**：
 ### 5.3 Mobile（< 960px）
 
 - Header 56px：glyph + wordmark + ログイン／アカウント。
-- **底部 tab bar**：`学ぶ／読む／練習／学習記録／その他`。「その他」開啟 sheet：体験（Career Game）、Plus、Business Japanese Hub について、表示言語、外観、規約。
+- **底部 tab bar**：`学ぶ／読む／練習／学習記録／その他`。「その他」開啟 sheet：体験（Career Game）、Plus、Business Japanese Hub について、外観、規約（post-V1 才加入表示言語）。
 - Safe-area、44px 點擊區、目前 tab 以粗體＋marker icon 底表示；專注模式中隱藏。
 
 ### 5.4 Focus mode（runner、Reader、書いてみる）
@@ -237,7 +237,7 @@ Canonical IDs 與 routes 不變；**V1 顯示名稱為日文**：
 
 ### 5.5 Footer
 
-品牌一句話、mode 連結、Plus／について、規約・ポリシー、**表示言語**、外観、販売事業者表示。
+品牌一句話、mode 連結、Plus／について、規約・ポリシー、外観、販売事業者表示（post-V1 加入表示言語）。
 
 ---
 
@@ -272,11 +272,11 @@ Reference CSS：[`docs/design/reference/reference.css`](design/reference/referen
 
 ### 7.1 ホーム（public）— [`home.html`](design/reference/home.html)
 
-1. **Hero：** kicker「日本語能力試験 N1 に合格し、日本で働く・働きたい方へ」→ h1「『試験の日本語』から、『日本のビジネス社会で使う日本語』へ。」（現行 ja 字串；須經 #193 核准為主文案）→ lead → `SPI の問題を試す`（primary，Q4）＋`Plus について`。右側 **specimen sheet**：一段職場日文原文＋marker＋①②③＋**日文解説**＋連到該レッスン。
+1. **Hero：** kicker「日本語能力試験 N1 に合格し、日本で働く・働きたい方へ」→ h1「『試験の日本語』から、『日本のビジネス社会で使う日本語』へ。」（product contract §1 的日文 brand promise；字句由內容審閱定稿）→ lead → `SPI の問題を試す`（primary；行為依 G1）＋`Plus について`。右側 **specimen sheet**：一段職場日文原文＋marker＋①②③＋**日文解説**＋連到該レッスン。
 2. **Journey coverage：** 就職準備 → 選考 → 入社 → 職場に慣れる → 専門性を高める × 練習／読む／学ぶ／体験。
 3. **Learning state：** 四個問題（最近どこまで進んだか…）＋標示「サンプル画面」的 checkpoint ladder。
-4. **Plus offer：** 價格與真實狀態（「準備中・お支払いはまだできません」）。幣別見 Q13。
-5. **Founder：** David Kao 的真實經歷（日文版待核准）。
+4. **Plus offer：** 價格由設定提供、版面不依賴幣別；顯示真實狀態（「準備中・お支払いはまだできません」）。
+5. **Founder：** David Kao 的真實經歷（日文字句由內容審閱確認事實與措辭）。
 - 移除四張 pillar 與 editorial／書籍區塊。
 
 ### 7.2 練習 hub（就活 Web テスト対策）— [`practice.html`](design/reference/practice.html)
@@ -297,11 +297,11 @@ Reference CSS：[`docs/design/reference/reference.css`](design/reference/referen
 
 ### 7.4 SPI とは（SEO explainer）
 
-日文長文、measure 36em；David の視点以署名 commentary 區塊呈現；結尾一個 CTA 到練習 hub。**現行全文為繁中（B7），V1 需要日文版（#193／#194）。**
+日文長文、measure 36em；David の視点以署名 commentary 區塊呈現；結尾一個 CTA 到練習 hub。**現行全文為繁中（B7）；V1 需要日文版（介面 #194；本文由內容 lane 撰寫審閱）。**
 
 ### 7.5 学ぶ：レッスン — [`learn.html`](design/reference/learn.html)
 
-`breadcrumb → レッスン名・リード → このレッスンのゴール → 場面 → まず判断する → こう言う（キーフレーズ sheet＋解説）→ 別の場面 → 言い方と相手との関係 → 書いてみる（保存・採点なしと明記）→ 持ち帰る一文`。桌機右 rail：保存（Plus）、構成、関連する語彙。手機：保存移到標題下、語彙卡移到文末。參考稿的日文解説為本參考撰寫；現行資料只有繁中解說（B8）。
+`breadcrumb → レッスン名・リード → このレッスンのゴール → 場面 → まず判断する → こう言う（キーフレーズ sheet＋解説）→ 別の場面 → 言い方と相手との関係 → 書いてみる（保存・採点なしと明記）→ 持ち帰る一文`。桌機右 rail：保存（Plus）、構成、関連する語彙。手機：保存移到標題下、語彙卡移到文末。參考稿的日文解説為本參考從第一原理撰寫的草稿；現行資料只有繁中解說（B8，#195）。
 
 ### 7.6 職場語彙
 
@@ -317,7 +317,7 @@ Reference CSS：[`docs/design/reference/reference.css`](design/reference/referen
 
 ### 7.9 Books、Reader、Library
 
-Reader 是 focus mode；正文預設原文明朝角色（可切黑體）；measure 依 ui-ux-research §3；**theme 用 role tokens（B1）**。Book detail 是読む下的長文頁；購買 CTA 見 Q5。
+Reader 是 focus mode；正文預設原文明朝角色（可切黑體）；measure 依 ui-ux-research §3；**theme 用 role tokens（B1）**。Book detail 是読む下的長文頁；購買 CTA 依 G2。
 
 ### 7.10 学習記録 — [`my-learning.html`](design/reference/my-learning.html)
 
@@ -333,7 +333,7 @@ Career Game 已是日文；保留 narrative grammar，改用共用 tokens：台�
 
 ### 7.13 について、規約、Auth、404
 
-About 需要日文主文案（#72 的已核准文案是繁中，Q11）；核心問題以 display＋單一 marker 強調。規約依文件語言設 `lang`。Auth 單欄。404 一句話＋ホーム／練習。
+About 需要日文主文案（#72 的已核准文案是繁中；日文版屬內容 lane）；核心問題以 display＋單一 marker 強調。規約依文件語言設 `lang`。Auth 單欄。404 一句話＋ホーム／練習。
 
 ---
 
@@ -361,6 +361,7 @@ About 需要日文主文案（#72 的已核准文案是繁中，Q11）；核心�
 - **解説是判斷，不是翻譯。** 說明這句話在職場上「為什麼這樣說」「對誰、在什麼時候」「哪裡容易失禮」。
 - 描述觀察而不是診斷：「立式での不正解が多め」而不是「あなたの弱点は論理です」。
 - 示意題與範例標示「サンプル」「架空の教材」。
+- **草稿與審閱分開：** 日文解説與行銷文案可以從第一原理撰寫草稿，但其內容品質（正確性、自然度、語用）由內容審閱 lane 把關；本文件只規定文案的角色、語氣與排版，不是文案的核准來源（D22）。
 - **不假設共同母語。** 例：「母語に訳さず、日本語のまま判断する」而不是「不要先翻成中文」。
 
 ---
@@ -374,7 +375,7 @@ WCAG 2.2 AA（§4.2 實測值）；marker、顏色、〇× 皆不單獨承載意
 ## 11. Responsive model & QA matrix
 
 - Breakpoints：`< 600`、`600–959`（tab bar）、`≥ 960`（header＋並排）。
-- **V1 QA matrix：`ja` × System／Light／Dark × 360／390／768／1024／1440。** 其他 locale 只做 smoke（無 raw key、無 overflow），不做構圖驗收。
+- **V1 QA matrix：`ja` × System／Light／Dark × 360／390／768／1024／1440。** 非日文 locale 在 V1 不對使用者開放，因此不做畫面驗收；i18n 結構（無 raw key、fallback 決定性）由 unit tests 保護。
 - 抽查 computed `font-family`：原文 → 明朝、解説與 UI → 黑體。
 - Lighthouse mobile 不得低於 stage 前 baseline（#77／#96）。本機 QA 不是 private-content artifact admission。
 
@@ -387,17 +388,17 @@ WCAG 2.2 AA（§4.2 實測值）；marker、顏色、〇× 皆不單獨承載意
 | Stage | 範圍 | 主要檔案 | 依賴 |
 | --- | --- | --- | --- |
 | **S0 Defects** | B1、B3、B5（B4 可延到 S6） | `reader.css`、`src/reader/*`、`workplace-learn.css`、`MyLearningPage.tsx`、`Footer.tsx` | 無（#191） |
-| **S1 Japanese-first copy** | B7：學習 surfaces 的介面文案移入 i18n，`ja` 為 source；日文分野名稱；Plus 對象文案 | `WebTestHubPage.tsx`、`MyLearningPage.tsx`、`SpiExplainerPage.tsx`、`AboutPage.tsx`、`LearnUnitPage.tsx`、`ProductModePage.tsx`、`ReadLandingPage.tsx`、`discoveryCatalog.ts`、`src/i18n/strings.ts` | 前提確認（#193）；#194 |
-| **S2 Tokens** | role tokens、`:lang()` type roles（含 B2）、compat aliases、移除 `--home-*` | `src/styles/tokens.css`、`lp-tokens.test.ts` | Q1 |
-| **S3 Shell** | Header（日文 mode labels）、表示言語移到 footer、tab bar＋その他、focus bar、footer | `Header.tsx`、`Navigation.tsx`、`Layout.tsx`、`Footer.tsx`、`LanguageControl.tsx`、`AccountControl.tsx`、`productModes.ts`、i18n | S2、Q2、Q3 |
+| **S1 Japanese-first copy** | B7：學習 surfaces 的介面文案移入 i18n，`ja` 為 source；日文分野名稱；Plus 對象文案；**V1 locale 解析固定為 `ja`、不顯示切換器**（保留 #156 架構） | `WebTestHubPage.tsx`、`MyLearningPage.tsx`、`SpiExplainerPage.tsx`、`AboutPage.tsx`、`LearnUnitPage.tsx`、`ProductModePage.tsx`、`ReadLandingPage.tsx`、`discoveryCatalog.ts`、`src/i18n/strings.ts` | #194（前提已核准） |
+| **S2 Tokens** | role tokens、`:lang()` type roles（含 B2）、compat aliases、移除 `--home-*` | `src/styles/tokens.css`、`lp-tokens.test.ts` | — |
+| **S3 Shell** | Header（日文 mode labels、移除語言切換器）、tab bar＋その他、focus bar、footer | `Header.tsx`、`Navigation.tsx`、`Layout.tsx`、`Footer.tsx`、`LanguageControl.tsx`、`AccountControl.tsx`、`productModes.ts`、i18n | S2 |
 | **S4 Primitives** | §6 元件 | `src/components/ui/*`、`src/styles/components.css` | S2 |
-| **S5 Practice** | hub 扁平化、runner 兩態、key-term marks、ladder、完了、action bar | `WebTestHubPage.tsx`（拆 runner） | S1、S3、S4；匿名試用依 Q4 |
-| **S6 Home／Plus／About** | 新首頁、Plus、About；刪 Concept C／editorial 首頁 CSS | `HomePage.tsx`、`homeEditorial.ts`、`PlusPage.tsx`、`AboutPage.tsx`、CSS | S4、Q1、Q4、Q11、Q13 |
+| **S5 Practice** | hub 扁平化、runner 兩態、key-term marks、ladder、完了、action bar | `WebTestHubPage.tsx`（拆 runner） | S1、S3、S4；匿名試做依 G1 |
+| **S6 Home／Plus／About** | 新首頁、Plus、About；刪 Concept C／editorial 首頁 CSS | `HomePage.tsx`、`homeEditorial.ts`、`PlusPage.tsx`、`AboutPage.tsx`、CSS | S4；primary CTA 行為依 G1 |
 | **S7 学習記録** | 次の一歩、間違えた問題、観察、保存 | `MyLearningPage.tsx` | S4；Q7 |
-| **S8 学ぶ** | レッスン重排＋rail、語彙、一覧 | `src/workplace-learn/pages.tsx`、`workplace-learn.css`、`LearnUnitPage.tsx` | S4；日文解説 Q12；marks Q6 |
-| **S9 読む** | 一覧、記事原文 sheet＋marks＋論點標籤、BottomSheet | `ReadLandingPage.tsx`、`ReadDetailPage.tsx`、`reading.css` | S4；Q12 |
-| **S10 Reader／Books／Library** | focus bar、type roles、Book detail、Library | `src/reader/*`、`reader.css`、`BookPage.tsx`、`LibraryPage.tsx`、`shop.css` | S2–S4、Q5 |
-| **S11 Career Game** | 共用 tokens／ChoiceRow／Sheet | `apps/career-game/src/*` | S2、S4、Q10 |
+| **S8 学ぶ** | レッスン重排＋rail、語彙、一覧 | `src/workplace-learn/pages.tsx`、`workplace-learn.css`、`LearnUnitPage.tsx` | S4；#195；marks 可選擇等 Q6 |
+| **S9 読む** | 一覧、記事原文 sheet＋marks＋論點標籤、BottomSheet | `ReadLandingPage.tsx`、`ReadDetailPage.tsx`、`reading.css` | S4；#195 |
+| **S10 Reader／Books／Library** | focus bar、type roles、Book detail、Library | `src/reader/*`、`reader.css`、`BookPage.tsx`、`LibraryPage.tsx`、`shop.css` | S2–S4；購買 CTA 依 G2 |
+| **S11 Career Game** | 共用 tokens／ChoiceRow／Sheet | `apps/career-game/src/*` | S2、S4 |
 | **S12 Cleanup & QA** | 死 CSS、raw-hex lint、§11 matrix、Lighthouse | `src/styles/*` | 全部 |
 
 S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何視覺重做**；S5 是商業價值最高的重設計。
@@ -425,38 +426,52 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | D15 | Wordmark 統一為 Business Japanese Hub | 一個品牌一個名字 |
 | D16 | Career Game 共用 tokens／components，保留 narrative grammar | 同一家族、不同文法 |
 | D17 | 列表用 rows；卡片只給 sheet | 避免 generic card grid |
-| **D18** | **語言切換器移出 header，放到 footer 與「その他」** | V1 是日文產品；在地化不主導首屏 |
+| **D18** | **V1 不顯示語言切換器；post-V1 只放在 footer 與「その他」，不放 header** | V1 只開放 `ja`（product contract §1） |
 | **D19** | **Support language 是 post-V1 的可選層，位於日文解説之下，永不取代** | 保留在地化能力而不讓它決定 V1 |
 | **D20** | **不振假名常用漢字；解説寫給 N1 讀者** | 受眾已通過 N1 |
-| **D21** | **V1 QA 驗收只針對 `ja`；其他 locale 只做 smoke** | 不讓未完成的 locale 拖住或改變 V1 |
+| **D21** | **V1 QA 驗收只針對 `ja`** | 非日文 locale 在 V1 不開放 |
+| **D22** | **內容品質審閱與視覺 authority 分開** | 文案可起草，但正確性與自然度由內容 lane 把關 |
+| **D23** | **價格由設定提供，版面不依賴幣別** | 幣別是獨立商業決策，不阻擋設計 |
+| **D24** | **Wordmark 統一為 Business Japanese Hub；正式 logo 為後續資產工作**（取代 Q3） | 一個品牌一個名字；logo 不阻擋實作 |
 
 ---
 
-## 14. Unresolved questions
+## 14. Owner gates, resolved questions, and separate lanes
 
-| ID | 問題 | 影響 | 建議 |
+### 14.1 Remaining true owner gates
+
+| ID | Gate | 只影響 | 設計上的處理 |
 | --- | --- | --- | --- |
-| Q1 | 確認以 ink＋marker 取代 #155 的橘色 | S2、S6 | 確認 |
-| Q2 | 日文 mode 名稱最終用字（§5.2） | S3 | 採表列建議，請母語者審閱 |
-| Q3 | Wordmark 是否統一為 Business Japanese Hub；正式 logo 由誰設計 | S3 | 統一 |
-| Q4 | 匿名訪客能否先試做 SPI（#187／#107） | S5、S6 | 首頁 primary CTA 依此決定 |
-| Q5 | 歷史 Book 購買 CTA（USD 12）是否保留 | S10 | 待 commerce 決策 |
-| Q6 | 內容契約是否加入 authored annotation ranges | S8、S9 | 另開 content-contract issue |
-| Q7 | 学習記録的理解の確認 read model 與門檻 | S7 | #109 延伸 |
-| Q8 | Android 無明朝時是否接受退回黑體 | S2 | 先接受 |
-| Q10 | Career Game 遷移時程 | S11 | 主站之後 |
-| **Q11** | **首頁 h1、About 等核准文案的日文主版本** | S6 | 依 #193 核准 |
-| **Q12** | **既有 Learn／Read 內容的日文解説由誰撰寫審閱；繁中解說是否保留為 support overlay** | S8、S9 | 依 #193 |
-| **Q13** | **價格幣別（NT$299 對日本在住、多國籍受眾是否合適）** | S6、#107 | 依 #193 |
-| **Q14** | **V1 是否仍開放 zh-TW／zh-CN／en 選擇（部分翻譯），或 V1 只開放 `ja`** | S1、S3 | 依 #193；設計兩者皆可 |
+| **G0** | PR #192 及每個 stage 的 merge／production authorization（#186） | 所有 merge | 設計 authority 可在 draft 中使用；落到 `main` 需 deployment owner 授權 |
+| **G1** | 匿名訪客能否先試做 SPI（free-sample 範圍，#187／#107） | S5、S6 的 primary CTA 行為 | 版面已支援兩種狀態：可試做→直接進 runner；不可→hub＋誠實的登入說明 |
+| **G2** | 歷史單本 Book 購買 CTA（USD 12）是否保留 | S10 Book detail | 保留歷史 entitlement；CTA 呈現等決策 |
 
-（Q9「是否需要自有攝影」已結案：不需要。）
+### 14.2 Resolved
+
+| 原 ID | 決議 |
+| --- | --- |
+| Premise | 已核准：N1 合格的外國學習者、V1 Japanese-first、V1 不開放未完成 locale（product contract §1／§13.15） |
+| Q1 | 退役 #155 橘色：Owner 已指示完全捨棄現行視覺系統（2026-10-02），palette 屬本 authority |
+| Q3 | Wordmark 統一（D24）；logo 為後續資產工作，不阻擋實作 |
+| Q8 | 接受無明朝環境退回黑體 |
+| Q9 | 不需要攝影 |
+| Q10 | Career Game 排在主站之後（S11） |
+| Q13 | 幣別為獨立商業決策，不阻擋（D23） |
+| Q14 | V1 只開放 `ja`（D18） |
+
+### 14.3 Separate lanes（非 owner gate，也不阻擋視覺 authority）
+
+| 原 ID | Lane | 說明 |
+| --- | --- | --- |
+| Q2、Q11、Q12 | **內容品質審閱** | 日文 mode 名稱、首頁／About／Plus 文案、既有內容的日文解説：可起草，由內容 lane 審閱定稿（D22） |
+| Q6 | Content contract（#195 同一修訂可選） | authored annotation ranges；未加入前只用 exact match |
+| Q7 | Engineering（#109 延伸） | 理解の確認彙整 read model；未實作前不顯示該區塊 |
 
 ---
 
 ## 15. 延續與取代
 
-**延續：** `ui-ux-research.md` 的 Japanese typography 研究（§3）、Reader chrome／settings 行為、accessibility，以及被其他文件引用的行為契約（§4.2 Preview boundary、§4.4 resume-state、§8.3 entitlement CTA states）；#157 斷行規則；#156 的 locale 架構、persistence、鍵盤行為與 legal fallback（只改變切換器位置）；#155 的「不得虛構 social proof」「appearance 在 footer」「header 單列」；#72 About 的內容（需日文主版本）。
+**延續：** `ui-ux-research.md` 的 Japanese typography 研究（§3）、Reader chrome／settings 行為、accessibility，以及被其他文件引用的行為契約（§4.2 Preview boundary、§4.4 resume-state、§8.3 entitlement CTA states）；#157 斷行規則；#156 的 locale 架構、persistence、鍵盤行為與 legal fallback（保留在程式中；V1 不顯示切換器，post-V1 放在 footer／その他）；#155 的「不得虛構 social proof」「appearance 在 footer」「header 單列」；#72 About 的內容（需日文主版本）。
 
 **取代：** `ui-ux-research.md` 的視覺方向（Quiet Editorial、色彩、Storefront 版面）；#74 設計文件；#77 LP 視覺規格；#155 的 color／type tokens 與 hero 構圖；`src/styles/tokens.css` 現行 `--home-*`、editorial-v2、Concept C 數值。
 
@@ -479,6 +494,7 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | QA | 4 locales 全量 | `ja` 全量，其他 locale smoke |
 | 色彩理由 | 含「橘色在台灣平台同質化」 | 移除地域性理由；以語意與 AA 為理由 |
 | 參考稿 | 繁中文案 | 全部日文文案；解説為本參考撰寫並標示 |
+| **v2.1** | 前提待 Owner 確認；切換器在 footer；14 個 open questions | 前提已核准並寫入 product contract；V1 無切換器；只剩 3 個真正的 owner gates（G0–G2），內容審閱與商業幣別分為獨立 lane |
 
 ---
 

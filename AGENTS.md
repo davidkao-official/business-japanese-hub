@@ -9,10 +9,11 @@
 ## 專案身份
 
 - Business Japanese Hub 是 **web-first、subscription-based 的日本求職與日本職場日文學習服務**。
-- Primary audience：**已具備一定日文能力、特別是 JLPT N2～N1 程度，並希望在日本求職、讀懂日本商業資料或進入日本企業工作的華語學習者**。
+- Primary audience：**已通過 JLPT N1、不限母語的外國學習者**，希望在日本求職、讀懂日本商業資料或進入日本企業工作。
+- **V1 是 Japanese-first**：介面與解説以日文為主；V1 不開放未完成的非日文 locale；en／zh／ko 為 launch 後逐步加入（保留 i18n 能力，但不得主導 V1）。
 - 核心 gap：從 **exam Japanese → Japan job-hunting / business reading / workplace Japanese**。
 - Canonical user journey：`準備日本求職 → 通過選考 → 進入日本企業 → 適應日本職場 → 提升專業商務日文能力`。
-- Business Japanese Hub **不是 JLPT prep service**；N2／N1 是 entry point，不是產品終點。
+- Business Japanese Hub **不是 JLPT prep service**；N1 合格是 entry point，不是產品終點。
 
 ## Product invariants（摘要）
 
@@ -88,6 +89,7 @@ Current goal：
 - **Product IA**：#108。
 - **Learning System / My Learning**：#109；Plus launch 不得把它降成「nice to have」。
 - **Reusable Learn / Practice**：#110。
+- **V1 Japanese-first convergence**：#194（UI copy → `ja` i18n、V1 不開放其他 locale）、#195（日文解説 content contracts）；視覺 authority 見 `docs/design-system.md`（#190）。
 - **Recurring commerce / access**：#107。
 - **Recurring legal/compliance**：#112。
 - **Membership Paid Launch**：#111；必須證明 recurring lifecycle + authoritative access + 真實 learning value，而不只是可以扣款。
@@ -107,7 +109,7 @@ Current goal：
 
 - 清楚的 Plus value proposition / approved price；
 - 至少一條真實 acquisition → learning/practice → saved/progress/review → return path；
-- 足以讓 N2～N1 華語學習者理解並使用的 content/practice；
+- 足以讓已通過 N1 的外國學習者以日文理解並使用的 content/practice（含日文解説）；
 - Learning System 有真實 persistent state，不是假 dashboard；
 - recurring membership lifecycle / cancellation / failed renewal / access contract 正確；
 - legal、merchant/KYC、email、deployment external gates 明確或已完成。

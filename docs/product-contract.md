@@ -12,7 +12,9 @@ Business Japanese Hub 是一個 **web-first、subscription-based 的日本求職
 
 核心受眾是：
 
-> **已經具備一定日文能力，特別是 JLPT N2～N1 程度，並希望在日本求職、讀懂日本商業資料、進入日本企業工作或提升日本職場溝通能力的華語學習者。**
+> **已通過 JLPT N1、以日文以外語言為母語（不限特定母語），並希望在日本求職、讀懂日本商業資料、進入日本企業工作或提升日本職場溝通能力的外國學習者。**
+>
+> （2026-10-02 Product Owner decision，取代先前「N2～N1 華語學習者」的定義；見 #193。）
 
 產品要解決的不是「如何再考過一張日文檢定」，而是：
 
@@ -21,18 +23,24 @@ Business Japanese Hub 是一個 **web-first、subscription-based 的日本求職
 因此：
 
 - Business Japanese Hub **不是 JLPT preparation service**。
-- N2／N1 是主要使用者的 entry point／assumed proficiency，不是產品終點。
+- N1 合格是主要使用者的 assumed proficiency 與 entry point，不是產品終點。
 - 核心能力依 workplace capability 組織，而不是依 JLPT 文法級別組織。
-- 繁體中文是第一階段主要 explanation/support layer；日文仍是主要學習、題目、閱讀與職場語境語言。
-- 日本母語者、大學生或年輕職場人士可以從內容中受益，但不是要求產品設計必須同時服務的 primary segment；不得因 secondary audience 而弱化華語進階學習者的核心需求。
+- **V1 是 Japanese-first：** 介面、解說（解説）、題目、閱讀材料與職場語境全部以日文為主要語言。受眾沒有共同母語，因此 V1 的 explanation layer 是寫給 N1 合格者的日文解説，不是任何單一母語的翻譯。
+- **V1 不對使用者開放未完成的非日文 locale。** 英文、中文、韓文等在地化於 launch 後逐一加入，且只有在該 locale 完整時才開放；在地化能力（i18n keys、`lang`-aware typography、locale-keyed support overlays）必須保留，但不得主導 V1 的體驗、文案或版面。
+- 母語 support（例如某一語言的補充說明）是 post-V1、可選、依 locale 提供的附加層，永遠不取代日文解説。
+- 日本母語者、大學生或年輕職場人士可以從內容中受益，但不是要求產品設計必須同時服務的 primary segment；不得因 secondary audience 而弱化外國 N1 合格者的核心需求。
 
-推薦的 user-facing brand promise：
+推薦的 user-facing brand promise（V1 以日文為主要版本；最終字句屬內容品質審閱，與視覺設計 authority 分開）：
 
-> **從「日文檢定的日文」，走進「日本社會人的日文」。**
+> **「試験の日本語」から、「日本のビジネス社会で使う日本語」へ。**
+
+（先前的中文版「從『日文檢定的日文』，走進『日本社會人的日文』」保留作為未來 zh 在地化的參考。）
 
 更直接的 acquisition wording 可以表達為：
 
-> **考過 N2，只代表你已經有日文基礎。接下來，要學的是怎麼用日文進入日本職場。**
+> **N1 に合格したら、次は日本語を仕事で使う番です。**
+
+（日文為 V1 主要版本；最終字句屬內容品質審閱。）
 
 ## 2. Canonical User Journey
 
@@ -81,6 +89,7 @@ Plus 是 **recurring membership / subscription**。平台的主要付費單位�
 
 重要規則：
 
+- 對新受眾（多國籍、在日本或海外）的**幣別與市場**是獨立的商業決策，不屬於本次受眾／語言前提的修訂，也不阻擋設計或在地化工作；在另行決定前，以上核准價格方向不變。
 - NT$299 → NT$399 **不是依日期自動漲價**；必須由 Product Owner 明確判定產品成熟度已足以支撐 Standard pricing。
 - Early Access 不需要先提供年繳；先驗證月繳 willingness-to-pay 與 subscription retention。
 - NT$3,990／年是已接受的 packaging direction，不代表 recurring provider、legal disclosure、tax display 或 checkout 已實作完成。
@@ -327,7 +336,7 @@ AI 不是 first-slice engine，也不是 primary product abstraction。
 
 未經新的 explicit Product Owner decision，不得違反：
 
-1. Primary audience = **N2～N1 附近、有日本求職／日本職場需求的華語學習者**。
+1. Primary audience = **已通過 JLPT N1、有日本求職／日本職場需求的外國學習者（不限母語）**。
 2. Product goal = **exam Japanese → Japan job-hunting / business reading / workplace Japanese**。
 3. User journey 必須延伸到入社後與長期 professional growth。
 4. Primary paid product = **Business Japanese Hub Plus recurring membership**。
@@ -341,6 +350,7 @@ AI 不是 first-slice engine，也不是 primary product abstraction。
 12. UI quality、accessibility、mobile usability 是 P0。
 13. One repo + shared Supabase modular monolith 是預設 architecture；不為了產品 taxonomy 做 infrastructure rewrite。
 14. AI 不是 primary learning engine 或 trust boundary。
+15. **V1 Japanese-first**：介面與解説以日文為主；V1 不開放未完成的非日文 locale；en／zh／ko 等為 launch 後逐步加入，保留在地化能力但不讓其主導 V1。
 
 ## 14. Current delivery phase
 
@@ -358,6 +368,7 @@ Canonical product contract (#105)
         ├── Retention: Work in Japan (#124 → #126)
         ├── Subscription Justification: Learning System / My Learning (#109 + practice evidence)
         ├── Product IA / reusable surfaces (#108 / #110 / #127)
+        ├── V1 Japanese-first convergence: UI copy (#194) / Japanese 解説 contracts (#195)
         ├── Recurring commerce + access (#107 / #123)
         └── Recurring legal/compliance (#112)
                          │

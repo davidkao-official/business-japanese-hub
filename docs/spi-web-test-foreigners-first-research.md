@@ -6,6 +6,8 @@
 >
 > 本文件只決定「值不值得做、先做多小、content / checkpoint-reporting / IP contract 長什麼樣」。不建立 production quiz UI、不生成大型題庫、不改 payment / entitlement / Career Game runtime，也不建立第三套 shared LMS schema。
 
+
+> **2026-10-02 premise note：** 本研究寫於受眾定義為「N2–N1 華語學習者」時。Product contract §1 現已改為「已通過 N1、不限母語的外國學習者；V1 Japanese-first」。因此本文中「第一支 support language 為繁體中文」與繁中 explanation 相關假設改為：V1 的解説為日文（`coreExplanation`、`whatIsAskedJa`、vocabulary `explanationJa`），locale support overlays 屬 post-V1。Checkpoint ladder、language-vs-reasoning 觀察、IP 與 validation 規則仍然有效。本文其餘內容保留為研究紀錄。
 ## 1. Executive recommendation
 
 ### Decision
