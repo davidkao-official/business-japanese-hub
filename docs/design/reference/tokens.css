@@ -7,13 +7,16 @@
  * staged sequence in docs/design-system.md §12. Values here are verified for
  * WCAG 2.2 AA (see §6 of the design system for the measured pairs).
  *
+ * Product premise (2026-10-02): V1 is Japanese-first for foreign learners who
+ * have passed JLPT N1. Source material, commentary (解説) and interface are all
+ * Japanese. Other locales are a later, key-based layer and must not shape V1.
+ *
  * Naming: tokens describe ROLE, never appearance.
  *   desk   — the app background the learner works on
- *   sheet  — white paper that holds Japanese source material
+ *   sheet  — white paper that holds Japanese source material (原文)
  *   ink    — text and the primary action
  *   marker — the highlighter: "this Japanese matters"
- *   gloss  — explanation layer (Traditional Chinese first)
- *   ok/ng  — result marks (○ / ×); ng doubles as correction ink (赤入れ)
+ *   ok/ng  — result marks (〇 / ×); ng doubles as correction ink (赤入れ)
  */
 
 :root {
@@ -52,18 +55,20 @@
   --focus: var(--ink);
   --focus-halo: var(--marker);
 
-  /* ── Type roles (system faces only; no CJK webfont, see §5.4) ── */
-  --font-latin: "Helvetica Neue", "Segoe UI", "Roboto", "Arial";
-  --font-zh-hant: var(--font-latin), "PingFang TC", "Noto Sans TC",
-    "Microsoft JhengHei", "Heiti TC", sans-serif;
-  --font-zh-hans: var(--font-latin), "PingFang SC", "Noto Sans SC",
-    "Microsoft YaHei", sans-serif;
-  --font-ja-sans: var(--font-latin), "Hiragino Sans", "Hiragino Kaku Gothic ProN",
-    "BIZ UDPGothic", "Yu Gothic UI", "Meiryo", "Noto Sans JP", sans-serif;
-  /* Japanese SOURCE material: the face Japanese business documents are set in */
+  /* ── Type roles (system faces only; no CJK webfont, see design-system §4.3) ──
+     V1: three Japanese roles. Role, not language, separates them:
+       --font-material  原文  Mincho — the face Japanese business documents use
+       --font-ja        解説 + interface — Gothic
+     Latin follows the Japanese face (no separate Latin-first stack in V1). */
+  --font-ja: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic",
+    "Yu Gothic UI", "Yu Gothic", "Meiryo", "Noto Sans JP", system-ui, sans-serif;
   --font-material: "Hiragino Mincho ProN", "BIZ UDPMincho", "Yu Mincho", "YuMincho",
-    "Noto Serif JP", "Noto Serif CJK JP", var(--font-ja-sans);
-  --font-en: var(--font-latin), system-ui, sans-serif;
+    "Noto Serif JP", "Noto Serif CJK JP", var(--font-ja);
+  --font-en: system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  /* Post-V1 localization slots (support layer only; never used for 原文 or 解説) */
+  --font-zh-hant: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --font-zh-hans: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --font-ko: "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
 
   /* Scale — CJK-first, 16px root, letter-spacing always 0 for CJK */
   --size-display: clamp(1.75rem, 1.1rem + 2.6vw, 2.75rem);
@@ -78,8 +83,8 @@
 
   --leading-display: 1.3;
   --leading-title: 1.4;
-  --leading-zh: 1.8;
-  --leading-ja: 1.75;
+  --leading-ja: 1.8;          /* 解説・本文 */
+  --leading-ui: 1.6;
   --leading-material: 1.95;
   --leading-tight: 1.5;
 
@@ -87,7 +92,7 @@
   --weight-medium: 500;
   --weight-bold: 700;
 
-  --measure-zh: 38em;      /* ≈38 CJK chars at body size */
+  --measure-ja: 36em;      /* ≈36 字 at body size (JLREQ ≤ 40) */
   --measure-material: 34em;
 
   /* ── Space (4-based) ────────────────────────────────────── */
@@ -191,9 +196,15 @@
   }
 }
 
-/* ── Language-bound type roles: font follows lang, never page locale ── */
-:lang(zh-Hant), :lang(zh-TW), :lang(zh-HK) { font-family: var(--font-zh-hant); line-height: var(--leading-zh); }
-:lang(zh-Hans), :lang(zh-CN) { font-family: var(--font-zh-hans); line-height: var(--leading-zh); }
-:lang(ja) { font-family: var(--font-ja-sans); line-height: var(--leading-ja); }
-:lang(en) { font-family: var(--font-en); }
+/* ── Language-bound type roles: font follows lang, never page locale ──
+   V1 root is lang="ja". Other scripts appear only in a post-V1 support layer. */
+:root { font-family: var(--font-ja); line-height: var(--leading-ja); }
+:lang(ja) { font-family: var(--font-ja); }
 .material:lang(ja), .material :lang(ja) { font-family: var(--font-material); line-height: var(--leading-material); }
+:lang(en) { font-family: var(--font-en); }
+:lang(zh-Hant), :lang(zh-TW) { font-family: var(--font-zh-hant); }
+:lang(zh-Hans), :lang(zh-CN) { font-family: var(--font-zh-hans); }
+:lang(ko) { font-family: var(--font-ko); }
+
+/* Japanese spacing: progressive enhancement, harmless where unsupported */
+:root { text-autospace: normal; text-spacing-trim: trim-start; }

@@ -136,14 +136,14 @@ ul, ol { margin: 0; padding: 0; }
 .t1 { font-size: var(--size-title-1); line-height: var(--leading-title); }
 .t2 { font-size: var(--size-title-2); line-height: var(--leading-title); }
 .t3 { font-size: var(--size-title-3); line-height: var(--leading-tight); }
-.lead { font-size: 1.0625rem; color: var(--ink-2); max-width: var(--measure-zh); }
+.lead { font-size: 1.0625rem; color: var(--ink-2); max-width: var(--measure-ja); }
 .muted { color: var(--ink-2); }
 .caption { font-size: var(--size-caption); color: var(--ink-3); line-height: var(--leading-tight); }
 .small { font-size: var(--size-small); }
 .crumbs { font-size: var(--size-caption); color: var(--ink-3); display: flex; flex-wrap: wrap; gap: 6px; }
 .crumbs a { text-decoration: none; }
 .crumbs a:hover { text-decoration: underline; }
-.kicker { font-size: var(--size-small); color: var(--ink-2); font-weight: var(--weight-medium); }
+.kicker { font-size: var(--size-small); color: var(--ink-2); font-weight: var(--weight-medium); word-break: auto-phrase; text-wrap: balance; }
 
 /* ── Buttons & links ────────────────────────────────────── */
 .btn {
@@ -211,6 +211,7 @@ button.mk { border: 0; font: inherit; color: inherit; cursor: pointer; border-bo
   color: var(--ink-2); vertical-align: 0.35em; line-height: 1; margin-inline: 1px;
 }
 .glosses { list-style: none; display: grid; gap: var(--space-4); }
+.kaisetsu { font-size: var(--size-small); color: var(--ink-2); }
 .glosses li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: baseline; }
 .glosses .gn { vertical-align: 0; font-size: 1.05rem; margin: 0; color: var(--ink); }
 .glosses .term { font-weight: var(--weight-bold); }
