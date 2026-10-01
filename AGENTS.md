@@ -53,6 +53,7 @@
 ## 未來 agents 必須遵守的規則
 
 - 修改 product positioning / pricing / free-vs-member / learning IA 前，先讀 `docs/product-contract.md`；implementation issue 不得擅自覆蓋 product authority。
+- 修改任何 UI、樣式、design tokens、文案呈現或新增 surface 前，先讀 [`docs/design-system.md`](docs/design-system.md)；不得再依 `src/styles/` 現況、Quiet Editorial、#77 或 #155 Concept C 的外觀推導新畫面。
 - 修改 cross-product architecture 前先讀 `docs/platform-architecture.md`；shared contract 必須 narrow、consumer-driven，不得建立 universal content mega-schema。
 - 新增／分類 Learn／Read／Practice／My Learning／Experience、Reading、SPI/Web Test、Career Game learning tags 前先讀 `docs/post-n1-learning-map.md`。
 - Library **不得新增單一本書特有的 schema、component、route 或 hard-coded content**；新 Book 應靠 metadata/content pipeline 上架。
@@ -115,6 +116,7 @@ Current goal：
 
 - `README.md` — 專案入口。
 - `docs/product-contract.md` — **highest product/commercial authority**。
+- `docs/design-system.md` — **visual / interaction design authority（Source & Gloss）**：tokens、type roles、marks、shell、components、surface grammars、states、implementation sequence。先前 Quiet Editorial／#77／#155 視覺方向已 superseded。
 - `docs/post-n1-learning-map.md` — curriculum/content taxonomy authority。
 - `docs/platform-architecture.md` — technical bounded contexts、shared platform、frontend/deployment topology。
 - `docs/shared-backend-and-identity.md` — shared Supabase identity、origin/session、browser/server secret boundary。

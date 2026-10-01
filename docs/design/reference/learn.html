@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learn lesson — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;})();</script>
+<style>
+  .lesson { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: clamp(32px, 5vw, 72px); padding-block: var(--space-6) var(--space-9); }
+  .lesson__head .chips { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: var(--space-4); }
+  .lesson__head h1 { margin-top: var(--space-3); }
+  .lesson__head .ja-lead { margin-top: var(--space-3); font-size: 1.125rem; color: var(--ink-2); }
+  .objective { margin-top: var(--space-5); padding: 14px 16px; background: var(--sheet-sunk); border-radius: var(--radius-sheet); font-size: var(--size-small); }
+  .objective b { display: block; font-size: var(--size-caption); color: var(--ink-3); font-weight: var(--weight-medium); margin-bottom: 2px; }
+  .step { margin-top: var(--space-7); }
+  .step__h { display: flex; align-items: baseline; gap: 12px; margin-bottom: var(--space-4); }
+  .step__h h2 { font-size: var(--size-title-2); }
+  .step__h span { font-size: var(--size-caption); color: var(--ink-3); }
+  .step p + p { margin-top: 12px; }
+  .why { margin-top: var(--space-4); font-size: var(--size-small); color: var(--ink-2); }
+  .example + .example { margin-top: var(--space-3); }
+  .example .material { font-size: 1.0625rem; }
+  .example .gloss { margin-top: 10px; font-size: var(--size-small); color: var(--ink-2); }
+  .takeaway { margin-top: var(--space-7); padding: var(--space-5); border-top: 2px solid var(--ink); }
+  .takeaway p:first-child { font-size: var(--size-caption); color: var(--ink-3); }
+  .takeaway p:last-child { font-size: 1.125rem; font-weight: var(--weight-bold); margin-top: 6px; }
+  .rail { position: sticky; top: calc(var(--header-h) + 24px); align-self: start; display: grid; gap: var(--space-6); }
+  .rail h2 { font-size: var(--size-caption); color: var(--ink-3); font-weight: var(--weight-medium); margin-bottom: var(--space-3); }
+  .toc { list-style: none; display: grid; gap: 2px; border-left: 1px solid var(--rule); }
+  .toc a { display: block; padding: 6px 0 6px 14px; text-decoration: none; font-size: var(--size-small); color: var(--ink-2); margin-left: -1px; border-left: 2px solid transparent; }
+  .toc a[aria-current="true"] { color: var(--ink); font-weight: var(--weight-bold); border-left-color: var(--ink); }
+  .vocab-card { display: block; text-decoration: none; padding: var(--space-4); background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-sheet); }
+  .vocab-card .term { font-family: var(--font-material); font-size: 1.5rem; line-height: 1.3; }
+  .vocab-card .reading { font-size: var(--size-caption); color: var(--ink-3); }
+  .vocab-card p:last-child { font-size: var(--size-small); color: var(--ink-2); margin-top: 6px; }
+  .save { display: grid; gap: 8px; }
+  @media (max-width: 959px) {
+    .lesson { grid-template-columns: 1fr; }
+    .rail { position: static; order: 2; }
+    .rail .toc-block, .rail .save { display: none; }
+    .mobile-save { display: flex !important; }
+  }
+  .mobile-save { display: none; margin-top: var(--space-4); }
+</style>
+</head>
+<body class="has-tabbar">
+<div class="proto-note" lang="en"><span>Design reference · Learn / 日本職場實戰 lesson (published non-proprietary teaching sample)</span><a href="index.html">All references</a></div>
+
+<header class="hdr">
+  <div class="wrap hdr__in">
+    <a class="brand" href="home.html" aria-label="Business Japanese Hub 首頁">
+      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg>
+      <span class="brand__word" lang="en">Business Japanese Hub</span>
+    </a>
+    <nav class="nav" aria-label="主要導覽">
+      <a href="learn.html" aria-current="page">課程</a>
+      <a href="read.html">閱讀</a>
+      <a href="practice.html">練習</a>
+      <a href="my-learning.html">我的學習</a>
+      <a href="#">體驗</a>
+    </nav>
+    <div class="hdr__tools">
+      <a class="chip chip--plus" href="plus.html" lang="en">Plus</a>
+      <a class="locale" href="#">繁體中文 <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
+      <a class="btn btn--quiet btn--sm" href="#">登入</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap lesson">
+  <article>
+    <header class="lesson__head">
+      <p class="crumbs"><a href="#">課程</a><span aria-hidden="true">›</span><a href="#">日本職場實戰</a><span aria-hidden="true">›</span><span>職場溝通・報連相</span></p>
+      <h1 class="t1" lang="ja">報告時に事実と次の対応を短く伝える</h1>
+      <p class="ja-lead" lang="ja">進捗に遅れが出たときは、状況・影響・次の対応を分けて共有します。</p>
+      <div class="chips"><span class="chip">免費</span><span class="caption">架空的原創教學範例，不代表所有公司都採用相同用法。</span></div>
+      <p class="objective"><b>學完這一課，你能</b>遇到進度延遲時，用日文報告事實、預期影響與下一次更新時間。</p>
+      <div class="mobile-save actions"><button class="btn btn--quiet btn--sm" type="button">儲存到我的學習</button><span class="chip chip--plus" lang="en">Plus</span></div>
+    </header>
+
+    <section class="step" id="situation" aria-labelledby="s1">
+      <div class="step__h"><h2 id="s1">情境</h2></div>
+      <p>架空的公司專案中，資料確認比預期多花半天，原訂今天寄出的草案可能延後。</p>
+      <p class="muted">此處先交代目前確認的事實，再補上可能影響與下次更新時間，讓主管或同事能判斷是否需要調整安排。</p>
+    </section>
+
+    <section class="step" id="judge" aria-labelledby="s2">
+      <div class="step__h"><h2 id="s2">先判斷</h2></div>
+      <p>延遲會不會影響別人的工作？先分清楚<b>已知的事實</b>與<b>仍待確認的部分</b>。</p>
+      <p class="muted">儘早告知相關人員目前進度，說明可能影響，提出暫定的下一步與更新時間；若影響尚未確定，要清楚標示為預估。</p>
+    </section>
+
+    <section class="step" id="say" aria-labelledby="s3">
+      <div class="step__h"><h2 id="s3">這樣說</h2><span>對主管・口頭或聊天訊息</span></div>
+      <div class="sheet">
+        <p class="sheet__label"><b>關鍵表達</b><span>報告延遲與下一步</span></p>
+        <p class="material material--key" lang="ja">確認作業に想定より時間がかかっており、本日中に予定していた資料の共有が<mark>難しい見込み</mark><span class="gn">①</span>です。<mark>影響範囲を確認し</mark><span class="gn">②</span>、<mark>15時までに改めて状況をご報告します</mark><span class="gn">③</span>。</p>
+        <ol class="glosses" style="margin-top:20px; padding-top:20px; border-top:1px solid var(--rule); font-size: var(--size-small)">
+          <li><span class="gn" aria-hidden="true">①</span><p><span class="term" lang="ja">見込み</span>：標示這是依目前資訊的預估，不說成定論。</p></li>
+          <li><span class="gn" aria-hidden="true">②</span><p>說明你接下來會確認影響範圍。</p></li>
+          <li><span class="gn" aria-hidden="true">③</span><p>用明確的時間承諾下一次更新。</p></li>
+        </ol>
+      </div>
+      <p class="why">為什麼有效：先交代原因並標示判斷仍有不確定性，最後用明確時間承諾再次更新。</p>
+    </section>
+
+    <section class="step" id="examples" aria-labelledby="s4">
+      <div class="step__h"><h2 id="s4">換個情境</h2></div>
+      <div class="sheet example">
+        <p class="sheet__label"><b>例句</b><span>向負責排定後續確認時間的同事報告</span></p>
+        <p class="material" lang="ja">先方への確認がまだ終わっていません。回答を受け取り次第、今日の16時までに共有します。</p>
+        <p class="gloss">說明尚未完成的確認，並把下次分享時間與觸發條件說清楚。</p>
+      </div>
+    </section>
+
+    <section class="step" id="care" aria-labelledby="s5">
+      <div class="step__h"><h2 id="s5">語氣與關係</h2></div>
+      <p>對主管或會受延遲影響的同事，宜及早共享可確認的資訊；團隊既定的報告方式與語氣優先。</p>
+      <p class="muted">不要把尚未確認的影響說成確定結果。請依團隊約定、緊急程度及對方職責調整細節。</p>
+    </section>
+
+    <section class="step" id="rewrite" aria-labelledby="s6">
+      <div class="step__h"><h2 id="s6">換你寫寫看</h2></div>
+      <p class="muted">把例句換成你職場中可能遇到的情境：要傳達的事實、下一步，以及適合對方的語氣。</p>
+      <div class="field" style="margin-top:16px"><label for="rw">你的表達</label><textarea id="rw" class="input" lang="ja" placeholder="例：…の確認に時間がかかっており、…"></textarea><p class="caption">這裡的內容不會儲存，也不會評分。</p></div>
+    </section>
+
+    <div class="takeaway">
+      <p>帶走這一句</p>
+      <p>報告進度變化時，讓對方知道目前事實、可能影響，以及你何時會帶著新資訊再聯絡。</p>
+    </div>
+  </article>
+
+  <aside class="rail" aria-label="本課工具">
+    <div class="save">
+      <h2>儲存</h2>
+      <button class="btn btn--quiet" type="button">儲存到我的學習</button>
+      <p class="caption">Plus 會員可儲存課程，之後在「我的學習」找回。<span class="chip chip--plus" lang="en" style="margin-left:4px">Plus</span></p>
+    </div>
+    <nav class="toc-block" aria-label="本課段落">
+      <h2>這一課</h2>
+      <ol class="toc">
+        <li><a href="#situation">情境</a></li>
+        <li><a href="#judge">先判斷</a></li>
+        <li><a href="#say" aria-current="true">這樣說</a></li>
+        <li><a href="#examples">換個情境</a></li>
+        <li><a href="#care">語氣與關係</a></li>
+        <li><a href="#rewrite">換你寫寫看</a></li>
+      </ol>
+    </nav>
+    <div>
+      <h2>本課語彙</h2>
+      <a class="vocab-card" href="#"><p class="term" lang="ja">見込み</p><p class="reading" lang="ja">みこみ</p><p>預估、預期；根據目前掌握的資訊推測可能結果。</p></a>
+    </div>
+  </aside>
+</main>
+
+<nav class="tabbar" aria-label="主要導覽">
+  <a href="learn.html" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5.5h7a2 2 0 0 1 2 2V19a1.5 1.5 0 0 0-1.5-1.5H4z"/><path d="M20 5.5h-5a2 2 0 0 0-2 2V19a1.5 1.5 0 0 1 1.5-1.5H20z"/></svg>課程</a>
+  <a href="read.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M9 11h6M9 14h6M9 17h4"/></svg>閱讀</a>
+  <a href="practice.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>練習</a>
+  <a href="my-learning.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.5-5.5 3.5z"/></svg>我的學習</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>更多</a>
+</nav>
+</body>
+</html>

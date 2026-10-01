@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Learning — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;})();</script>
+<style>
+  .ml-head { padding-block: clamp(32px, 5vw, 56px) var(--space-6); }
+  .ml-head .lead { margin-top: 10px; }
+  .next {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-5); align-items: center;
+    padding: clamp(20px, 3vw, 28px); background: var(--sheet); border: 1px solid var(--rule); border-left: 6px solid var(--marker); border-radius: var(--radius-sheet);
+  }
+  .next__label { font-size: var(--size-caption); color: var(--ink-3); }
+  .next__title { font-size: var(--size-title-2); font-weight: var(--weight-bold); margin-top: 2px; }
+  .next__why { color: var(--ink-2); margin-top: 4px; font-size: var(--size-small); }
+  .ml-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: clamp(32px, 5vw, 64px); padding-block: var(--space-7) var(--space-9); }
+  .block + .block { margin-top: var(--space-7); }
+  .block__h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: var(--space-3); }
+  .block__h h2 { font-size: var(--size-title-3); }
+  .block__note { font-size: var(--size-caption); color: var(--ink-3); margin-top: var(--space-3); }
+  .attempts { list-style: none; }
+  .attempts li { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: var(--size-small); }
+  .attempts .rm::before { width: 14px; height: 14px; border-width: 2px; }
+  .attempts .rm--ng::before { border: 0; }
+  @media (max-width: 959px) {
+    .ml-grid { grid-template-columns: 1fr; }
+    .next { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body class="has-tabbar">
+<div class="proto-note" lang="en"><span>Design reference · My Learning (Plus member · illustrative data)</span><a href="index.html">All references</a></div>
+
+<header class="hdr">
+  <div class="wrap hdr__in">
+    <a class="brand" href="home.html" aria-label="Business Japanese Hub 首頁">
+      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg>
+      <span class="brand__word" lang="en">Business Japanese Hub</span>
+    </a>
+    <nav class="nav" aria-label="主要導覽">
+      <a href="learn.html">課程</a>
+      <a href="read.html">閱讀</a>
+      <a href="practice.html">練習</a>
+      <a href="my-learning.html" aria-current="page">我的學習</a>
+      <a href="#">體驗</a>
+    </nav>
+    <div class="hdr__tools">
+      <a class="chip chip--plus" href="plus.html" lang="en">Plus</a>
+      <a class="locale" href="#">繁體中文 <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
+      <a class="btn btn--quiet btn--sm" href="#">帳戶</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <header class="ml-head">
+    <h1 class="t1">我的學習</h1>
+    <p class="lead">只根據你實際做過的作答與儲存。儲存不代表已經學會，資料不足時我們會直接說。</p>
+  </header>
+
+  <section class="next" aria-labelledby="next-title">
+    <div>
+      <p class="next__label">下一步</p>
+      <p class="next__title" id="next-title">複習錯題：百分比與損益</p>
+      <p class="next__why">最近答錯的 <span class="num">2</span> 題還沒有重新作答。答對之後，就會從錯題清單移除。</p>
+    </div>
+    <a class="btn" href="runner.html">開始複習</a>
+  </section>
+
+  <div class="ml-grid">
+    <div>
+      <section class="block" aria-labelledby="rv">
+        <div class="block__h"><h2 id="rv">錯題複習</h2><span class="caption num">2 題</span></div>
+        <ul class="rows">
+          <li><div class="row"><div><p class="row__title">百分比與損益</p><p class="row__meta"><span>SPI・非言語</span><time class="num">9/28</time></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">複習</a></div></div></li>
+          <li><div class="row"><div><p class="row__title">百分比與損益</p><p class="row__meta"><span>SPI・非言語</span><time class="num">9/28</time></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">複習</a></div></div></li>
+        </ul>
+      </section>
+
+      <section class="block" aria-labelledby="sv">
+        <div class="block__h"><h2 id="sv">儲存的內容</h2></div>
+        <div class="tabs" role="tablist" aria-label="儲存類型">
+          <button role="tab" aria-selected="true" type="button">課程・語彙 <span class="num">2</span></button>
+          <button role="tab" aria-selected="false" type="button">文章 <span class="num">1</span></button>
+        </div>
+        <ul class="rows" style="border-top:0">
+          <li><a class="row" href="learn.html"><div><p class="row__title" lang="ja">報告時に事実と次の対応を短く伝える</p><p class="row__meta"><span>日本職場實戰・職場溝通</span><time class="num">儲存於 9/27</time></p></div><span class="caption">課程</span></a></li>
+          <li><a class="row" href="#"><div><p class="row__title" lang="ja">見込み<span class="caption" style="font-weight:400; margin-left:6px">みこみ</span></p><p class="row__meta"><span>預估、預期</span><time class="num">儲存於 9/27</time></p></div><span class="caption">語彙</span></a></li>
+        </ul>
+      </section>
+    </div>
+
+    <div>
+      <section class="block" aria-labelledby="ob">
+        <div class="block__h"><h2 id="ob">觀察</h2><span class="caption">最近 50 次作答內</span></div>
+        <table class="obs">
+          <thead><tr><th scope="col">類別</th><th scope="col">正確／作答</th><th scope="col"><span class="sr-only">說明</span></th></tr></thead>
+          <tbody>
+            <tr><td>百分比與損益</td><td class="n"><span class="frac">3<small>／5</small></span><span class="bar" aria-hidden="true"><span style="width:60%"></span></span></td><td class="caption">值得留意</td></tr>
+            <tr><td>速率與工作量</td><td class="n"><span class="frac">4<small>／5</small></span><span class="bar" aria-hidden="true"><span style="width:80%"></span></span></td><td></td></tr>
+            <tr><td>文脈語彙</td><td class="n"><span class="frac">2<small>／3</small></span></td><td><em class="insufficient">資料不足</em></td></tr>
+          </tbody>
+        </table>
+        <p class="block__note">少於 5 題的類別不顯示比率。這是你的作答紀錄，不是能力分數。</p>
+      </section>
+
+      <section class="block" aria-labelledby="cp">
+        <div class="block__h"><h2 id="cp">理解檢查</h2><span class="caption">有檢查點的題目</span></div>
+        <table class="obs">
+          <thead><tr><th scope="col">步驟</th><th scope="col">未通過／檢查次數</th></tr></thead>
+          <tbody>
+            <tr><td>題意<span class="caption" style="margin-left:6px">讀懂要求</span></td><td class="n"><span class="frac">1<small>／6</small></span></td></tr>
+            <tr><td>表示<span class="caption" style="margin-left:6px">選對式子</span></td><td class="n"><span class="frac">3<small>／5</small></span></td></tr>
+            <tr><td>計算<span class="caption" style="margin-left:6px">算出答案</span></td><td class="n"><span class="frac">0<small>／4</small></span></td></tr>
+          </tbody>
+        </table>
+        <p class="block__note">觀察到的模式：「表示」步驟未通過較多。這不是對錯誤原因的判定。</p>
+      </section>
+
+      <section class="block" aria-labelledby="ra">
+        <div class="block__h"><h2 id="ra">最近作答</h2></div>
+        <ul class="attempts">
+          <li><span class="rm rm--ng"><span class="sr-only">不正確</span></span><span>百分比與損益</span><time class="caption num">9/28</time></li>
+          <li><span class="rm rm--ok"><span class="sr-only">正確</span></span><span>百分比與損益</span><time class="caption num">9/28</time></li>
+          <li><span class="rm rm--ok"><span class="sr-only">正確</span></span><span>速率與工作量</span><time class="caption num">9/27</time></li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</main>
+
+<nav class="tabbar" aria-label="主要導覽">
+  <a href="learn.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5.5h7a2 2 0 0 1 2 2V19a1.5 1.5 0 0 0-1.5-1.5H4z"/><path d="M20 5.5h-5a2 2 0 0 0-2 2V19a1.5 1.5 0 0 1 1.5-1.5H20z"/></svg>課程</a>
+  <a href="read.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M9 11h6M9 14h6M9 17h4"/></svg>閱讀</a>
+  <a href="practice.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>練習</a>
+  <a href="my-learning.html" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.5-5.5 3.5z"/></svg>我的學習</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>更多</a>
+</nav>
+</body>
+</html>

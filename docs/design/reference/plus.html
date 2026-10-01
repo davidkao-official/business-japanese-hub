@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plus — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;})();</script>
+<style>
+  .p-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: clamp(32px, 5vw, 72px); padding-block: clamp(40px, 6vw, 80px); align-items: start; }
+  .p-hero h1 { margin-top: var(--space-3); }
+  .price { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-sheet); padding: clamp(24px, 3vw, 32px); }
+  .price__amt { font-family: var(--font-en); font-size: clamp(2.25rem, 1.8rem + 1.6vw, 3rem); font-weight: var(--weight-bold); letter-spacing: -0.02em; line-height: 1.1; margin-top: 8px; }
+  .price__amt small { font-family: var(--font-zh-hant); font-size: 1rem; font-weight: var(--weight-regular); color: var(--ink-2); letter-spacing: 0; }
+  .price__status { display: flex; gap: 8px; align-items: center; margin-top: var(--space-4); padding: 10px 12px; background: var(--sheet-sunk); border-radius: var(--radius-control); font-size: var(--size-small); }
+  .price__status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--ink-2); flex-shrink: 0; }
+  .price ul { list-style: none; display: grid; gap: 6px; margin-top: var(--space-4); font-size: var(--size-small); color: var(--ink-2); }
+  .adds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 clamp(32px, 5vw, 64px); margin-top: var(--space-6); }
+  .adds > div { padding-block: var(--space-5); border-top: 1px solid var(--rule); }
+  .adds h3 { font-size: var(--size-title-3); }
+  .adds p { color: var(--ink-2); margin-top: 6px; }
+  .adds .q { font-size: var(--size-caption); color: var(--ink-3); margin-top: 0; margin-bottom: 4px; }
+  .cmp { width: 100%; border-collapse: collapse; margin-top: var(--space-5); }
+  .cmp th, .cmp td { padding: 14px 12px 14px 0; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+  .cmp thead th { font-size: var(--size-small); border-bottom: 2px solid var(--ink); }
+  .cmp td:not(:first-child), .cmp th:not(:first-child) { width: 22%; }
+  .cmp .yes { font-weight: var(--weight-bold); }
+  .cmp .no { color: var(--ink-3); }
+  @media (max-width: 959px) { .p-hero { grid-template-columns: 1fr; } .adds { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body class="has-tabbar">
+<div class="proto-note" lang="en"><span>Design reference · Business Japanese Hub Plus (Early Access, payment not yet open)</span><a href="index.html">All references</a></div>
+
+<header class="hdr">
+  <div class="wrap hdr__in">
+    <a class="brand" href="home.html" aria-label="Business Japanese Hub 首頁">
+      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg>
+      <span class="brand__word" lang="en">Business Japanese Hub</span>
+    </a>
+    <nav class="nav" aria-label="主要導覽">
+      <a href="learn.html">課程</a>
+      <a href="read.html">閱讀</a>
+      <a href="practice.html">練習</a>
+      <a href="my-learning.html">我的學習</a>
+      <a href="#">體驗</a>
+    </nav>
+    <div class="hdr__tools">
+      <a class="chip chip--plus" href="plus.html" lang="en" aria-current="page">Plus</a>
+      <a class="locale" href="#">繁體中文 <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
+      <a class="btn btn--quiet btn--sm" href="#">登入</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="p-hero">
+    <div>
+      <p class="kicker" lang="en">Business Japanese Hub Plus</p>
+      <h1 class="display"><span class="phrase">不只多幾篇內容，</span><span class="phrase">而是<mark>記得你做過什麼</mark>。</span></h1>
+      <p class="lead" style="margin-top:20px">Plus 會保存你的作答、錯題與儲存，整理出值得複習的地方與下一步。從求職準備到入社之後，同一份學習紀錄會一直累積。</p>
+      <div class="actions" style="margin-top:28px"><a class="btn" href="practice.html">先免費開始練習</a><a class="link" href="#cmp">看 Free 與 Plus 的差別</a></div>
+    </div>
+    <aside class="price" aria-labelledby="price-title">
+      <p class="kicker" id="price-title">Early Access</p>
+      <p class="price__amt">NT$299<small>／月</small></p>
+      <p class="price__status">準備中・目前尚未開放付款</p>
+      <ul>
+        <li>目前規劃為月繳；年繳尚未開放。</li>
+        <li>價格與提供內容不會自動變更。</li>
+      </ul>
+    </aside>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <h2 class="t1">Plus 幫你回答四個問題</h2>
+    <div class="adds">
+      <div><p class="q">我最近做到哪裡？</p><h3>作答與儲存紀錄</h3><p>跨裝置保存練習作答，以及你儲存的課程、文章與語彙。</p></div>
+      <div><p class="q">我哪些地方一直錯？</p><h3>錯題複習</h3><p>答錯的題目自動進入複習清單，答對後才移除。</p></div>
+      <div><p class="q">有什麼值得現在複習？</p><h3>觀察</h3><p>以題數與比例呈現各類別的作答與理解檢查結果。樣本不足時直接標示「資料不足」。</p></div>
+      <div><p class="q">下一步應該做什麼？</p><h3>下一步</h3><p>根據你的紀錄，提出一個說得出理由的下一個練習。</p></div>
+    </div>
+  </section>
+
+  <section class="section" id="cmp" aria-labelledby="cmp-title">
+    <h2 class="t1" id="cmp-title">Free 與 Plus</h2>
+    <p class="caption" style="margin-top:8px">示意：實際開放範圍以會員權限規則（#107）為準。</p>
+    <table class="cmp">
+      <thead><tr><th scope="col">內容</th><th scope="col">Free</th><th scope="col">Plus</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">公開的課程、語彙與文章範例</th><td class="yes">可使用</td><td class="yes">可使用</td></tr>
+        <tr><th scope="row">SPI 網路測驗練習</th><td>開放範圍內</td><td class="yes">已發布題目</td></tr>
+        <tr><th scope="row">作答紀錄與錯題複習</th><td class="no">—</td><td class="yes">包含</td></tr>
+        <tr><th scope="row">儲存課程、文章與語彙</th><td class="no">—</td><td class="yes">包含</td></tr>
+        <tr><th scope="row">我的學習：觀察與下一步</th><td class="no">—</td><td class="yes">包含</td></tr>
+        <tr><th scope="row" lang="en">Career Game</th><td class="yes">可使用</td><td class="yes">可使用</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section" aria-labelledby="who">
+    <h2 class="t2" id="who">適合誰</h2>
+    <p class="lead" style="margin-top:12px">日文程度約 JLPT N2 至 N1，正在準備日本求職、想讀懂日本企業資料，或需要適應入社後職場日文的華語學習者。</p>
+  </section>
+</main>
+
+<nav class="tabbar" aria-label="主要導覽">
+  <a href="learn.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5.5h7a2 2 0 0 1 2 2V19a1.5 1.5 0 0 0-1.5-1.5H4z"/><path d="M20 5.5h-5a2 2 0 0 0-2 2V19a1.5 1.5 0 0 1 1.5-1.5H20z"/></svg>課程</a>
+  <a href="read.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M9 11h6M9 14h6M9 17h4"/></svg>閱讀</a>
+  <a href="practice.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>練習</a>
+  <a href="my-learning.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.5-5.5 3.5z"/></svg>我的學習</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>更多</a>
+</nav>
+</body>
+</html>

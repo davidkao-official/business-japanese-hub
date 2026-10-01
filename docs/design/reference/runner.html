@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice runner — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var q=new URLSearchParams(location.search);var t=q.get('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;document.documentElement.dataset.state=q.get('state')==='feedback'?'feedback':'question';})();</script>
+<style>
+  html[data-state="question"] .only-feedback { display: none !important; }
+  html[data-state="feedback"] .only-question { display: none !important; }
+  .stage { padding-block: var(--space-6) var(--space-9); }
+  .q-layout { max-width: 760px; margin-inline: auto; }
+  .fb-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); align-items: start; }
+  .prompt { font-size: 1.1875rem; }
+  .choices { margin-top: var(--space-5); }
+  .submitbar { margin-top: var(--space-5); display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
+  .result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding-bottom: var(--space-4); margin-bottom: var(--space-5); border-bottom: 1px solid var(--rule); }
+  .result .rm { font-size: 1.125rem; }
+  .explain > section + section { margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--rule); }
+  .explain h2 { font-size: var(--size-title-3); margin-bottom: var(--space-3); }
+  .calc { display: grid; gap: 6px; font-size: 1.0625rem; }
+  .calc div { display: grid; grid-template-columns: 1fr auto; gap: 16px; padding: 8px 0; border-bottom: 1px dashed var(--rule); }
+  .calc div:last-child { border-bottom: 0; font-weight: var(--weight-bold); }
+  .misread { border-left: 3px solid var(--ng); padding: 4px 0 4px 14px; }
+  .misread p:first-child { font-weight: var(--weight-bold); color: var(--ng); font-size: var(--size-small); }
+  .nextbar { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); margin-top: var(--space-6); padding-top: var(--space-5); border-top: 1px solid var(--rule); }
+  @media (max-width: 959px) {
+    .fb-layout { grid-template-columns: 1fr; }
+    .stage { padding-bottom: 120px; }
+    .submitbar, .nextbar { position: fixed; inset: auto 0 0 0; z-index: 25; margin: 0; padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom)); background: var(--desk-raised); border-top: 1px solid var(--rule); }
+    .submitbar .btn, .nextbar .btn { flex: 1; }
+    .submitbar .caption, .nextbar .caption { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="proto-note" lang="en"><span>Design reference · Practice runner · <a href="runner.html">question</a> / <a href="runner.html?state=feedback">feedback</a> · 示意題 (original illustrative item, not product content)</span><a href="index.html">All references</a></div>
+
+<div class="focusbar">
+  <div class="wrap focusbar__in">
+    <a class="icon-btn" href="practice.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>結束</a>
+    <p class="focusbar__title">SPI・非言語・百分比與損益</p>
+    <p class="focusbar__meta num">第 2／5 題</p>
+  </div>
+  <div class="progress" role="progressbar" aria-label="練習進度" aria-valuemin="0" aria-valuemax="5" aria-valuenow="2"><span style="width:40%"></span></div>
+</div>
+
+<main class="wrap stage">
+  <!-- QUESTION STATE -->
+  <div class="q-layout only-question">
+    <section class="sheet" aria-labelledby="q-title">
+      <p class="sheet__label"><b>題目</b><span>不計時練習・示意題</span></p>
+      <h1 id="q-title" class="material prompt" lang="ja">ある商品を定価の2割引で売ったところ、仕入れ値の1割の利益が出た。仕入れ値が1,200円のとき、この商品の定価はいくらか。</h1>
+    </section>
+    <fieldset class="choices" style="margin-top:20px">
+      <legend class="sr-only">選擇答案</legend>
+      <label class="choice"><input type="radio" name="a"><span class="choice__key">A</span><span class="choice__text num" lang="ja">1,440円</span><span></span></label>
+      <label class="choice is-selected"><input type="radio" name="a" checked><span class="choice__key">B</span><span class="choice__text num" lang="ja">1,584円</span><span></span></label>
+      <label class="choice"><input type="radio" name="a"><span class="choice__key">C</span><span class="choice__text num" lang="ja">1,650円</span><span></span></label>
+      <label class="choice"><input type="radio" name="a"><span class="choice__key">D</span><span class="choice__text num" lang="ja">1,700円</span><span></span></label>
+      <label class="choice"><input type="radio" name="a"><span class="choice__key">E</span><span class="choice__text num" lang="ja">1,800円</span><span></span></label>
+    </fieldset>
+    <div class="submitbar">
+      <p class="caption">選好後送出；送出後會顯示解說與理解檢查。</p>
+      <a class="btn" href="runner.html?state=feedback">送出答案</a>
+    </div>
+  </div>
+
+  <!-- FEEDBACK STATE -->
+  <div class="fb-layout only-feedback">
+    <div>
+      <div class="result" role="status">
+        <p class="rm rm--ng">答錯了</p>
+        <p class="small muted">你選 <span class="num" lang="ja">B 1,584円</span>・正確答案 <b class="num" lang="ja">C 1,650円</b></p>
+      </div>
+      <section class="sheet" aria-labelledby="q2-title">
+        <p class="sheet__label"><b>題目</b><span>標出解題需要的條件</span></p>
+        <h1 id="q2-title" class="material prompt" lang="ja">ある商品を<mark>定価の2割引</mark><span class="gn">①</span>で売ったところ、<mark>仕入れ値の1割の利益</mark><span class="gn">②</span>が出た。仕入れ値が1,200円のとき、この商品の<mark>定価</mark><span class="gn">③</span>はいくらか。</h1>
+        <ol class="glosses" style="margin-top:20px; padding-top:20px; border-top:1px solid var(--rule); font-size: var(--size-small)">
+          <li><span class="gn" aria-hidden="true">①</span><p><span class="term" lang="ja">定価の2割引</span>：定價打八折，也就是 ×0.8。</p></li>
+          <li><span class="gn" aria-hidden="true">②</span><p><span class="term" lang="ja">仕入れ値の1割の利益</span>：利潤＝進價 ×0.1。</p></li>
+          <li><span class="gn" aria-hidden="true">③</span><p>題目要求的是<span class="term" lang="ja">定価</span>（標價），不是實際售價。</p></li>
+        </ol>
+      </section>
+      <ul class="choices" style="margin-top:20px" aria-label="選項結果">
+        <li class="choice is-wrong"><span class="choice__key">B</span><span class="choice__text num" lang="ja">1,584円</span><span class="choice__flag">你的答案</span></li>
+        <li class="choice is-correct"><span class="choice__key">C</span><span class="choice__text num" lang="ja">1,650円</span><span class="choice__flag">正確答案</span></li>
+      </ul>
+    </div>
+
+    <div class="explain">
+      <section aria-labelledby="ask-title">
+        <h2 id="ask-title">這題在問什麼</h2>
+        <p>已知進價 <span class="num">1,200</span> 円。用定價打八折賣出後，利潤是進價的一成。求<b>定價</b>。</p>
+      </section>
+      <section aria-labelledby="solve-title">
+        <h2 id="solve-title">怎麼列式</h2>
+        <div class="sheet sheet--sunk calc" lang="ja">
+          <div><span>売値 ＝ 1,200 × 1.1</span><span class="num">1,320円</span></div>
+          <div><span>定価 × 0.8 ＝ 1,320</span><span></span></div>
+          <div><span>定価 ＝ 1,320 ÷ 0.8</span><span class="num">1,650円</span></div>
+        </div>
+      </section>
+      <section class="misread" aria-label="常見誤讀">
+        <p>常見誤讀</p>
+        <p class="small" style="margin-top:4px">把「2割引」當成「加兩成」，用 ×1.2 還原售價，就會得到 <span class="num" lang="ja">1,584円</span>。</p>
+      </section>
+      <section aria-labelledby="ladder-title">
+        <h2 id="ladder-title">理解檢查</h2>
+        <p class="small muted">作答後的三個小問題，分別記錄你在哪一步沒有通過。</p>
+        <ol class="ladder" style="margin-top:12px">
+          <li><div><p class="ladder__name">題意</p><p class="ladder__q">題目要求什麼？</p></div><p class="rm rm--ok rm--sm">通過</p></li>
+          <li><div><p class="ladder__name">表示</p><p class="ladder__q">該列哪個式子？</p></div><p class="rm rm--ng rm--sm">未通過</p></li>
+          <li><div><p class="ladder__name">計算</p><p class="ladder__q">算出答案</p></div><p class="rm rm--ok rm--sm">通過</p></li>
+        </ol>
+        <p class="caption" style="margin-top:12px">這是觀察到的結果，不是對錯誤原因的判定。建議複習：「〇割引」的式子怎麼列。</p>
+      </section>
+      <div class="nextbar">
+        <p class="caption">已儲存作答。這題已加入錯題複習，之後答對就會移除。</p>
+        <a class="btn" href="runner.html">下一題</a>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

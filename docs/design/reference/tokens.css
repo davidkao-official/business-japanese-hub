@@ -1,0 +1,199 @@
+/*
+ * Business Japanese Hub — "Source & Gloss" design tokens (reference draft v1)
+ *
+ * Canonical authority: docs/design-system.md
+ * This file is the token SPEC used by the static reference compositions in
+ * this folder. Production adoption happens in src/styles/tokens.css through the
+ * staged sequence in docs/design-system.md §12. Values here are verified for
+ * WCAG 2.2 AA (see §6 of the design system for the measured pairs).
+ *
+ * Naming: tokens describe ROLE, never appearance.
+ *   desk   — the app background the learner works on
+ *   sheet  — white paper that holds Japanese source material
+ *   ink    — text and the primary action
+ *   marker — the highlighter: "this Japanese matters"
+ *   gloss  — explanation layer (Traditional Chinese first)
+ *   ok/ng  — result marks (○ / ×); ng doubles as correction ink (赤入れ)
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ── Surfaces ───────────────────────────────────────────── */
+  --desk: #f4f4f1;
+  --desk-raised: #fafaf8;
+  --sheet: #ffffff;
+  --sheet-sunk: #edede8;
+  --overlay-scrim: rgb(20 21 25 / 40%);
+
+  /* ── Ink ────────────────────────────────────────────────── */
+  --ink: #1b1d23;
+  --ink-2: #464a54;   /* secondary text, 8.9:1 on sheet */
+  --ink-3: #61666f;   /* captions / metadata, ≥4.5:1 on every surface */
+  --ink-inverse: #ffffff;
+
+  /* ── Rules ──────────────────────────────────────────────── */
+  --rule: #dcdcd5;          /* decorative hairlines only */
+  --rule-control: #878a84;  /* input / choice boundaries, ≥3:1 (WCAG 1.4.11) */
+
+  /* ── Marks ──────────────────────────────────────────────── */
+  --marker: #ffe35a;          /* highlighter band behind Japanese that matters */
+  --marker-soft: #fff4b8;     /* Plus chip, selected-row wash */
+  --marker-ink: #1b1d23;      /* text on marker, 13:1 */
+  --ok: #1e7549;              /* ○ correct */
+  --ok-soft: #e6f2ea;
+  --ng: #be3219;              /* × incorrect · correction ink (赤入れ) */
+  --ng-soft: #fbe8e3;
+
+  /* ── Action ─────────────────────────────────────────────── */
+  --action: var(--ink);
+  --action-hover: #33363f;
+  --on-action: var(--ink-inverse);
+  --focus: var(--ink);
+  --focus-halo: var(--marker);
+
+  /* ── Type roles (system faces only; no CJK webfont, see §5.4) ── */
+  --font-latin: "Helvetica Neue", "Segoe UI", "Roboto", "Arial";
+  --font-zh-hant: var(--font-latin), "PingFang TC", "Noto Sans TC",
+    "Microsoft JhengHei", "Heiti TC", sans-serif;
+  --font-zh-hans: var(--font-latin), "PingFang SC", "Noto Sans SC",
+    "Microsoft YaHei", sans-serif;
+  --font-ja-sans: var(--font-latin), "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    "BIZ UDPGothic", "Yu Gothic UI", "Meiryo", "Noto Sans JP", sans-serif;
+  /* Japanese SOURCE material: the face Japanese business documents are set in */
+  --font-material: "Hiragino Mincho ProN", "BIZ UDPMincho", "Yu Mincho", "YuMincho",
+    "Noto Serif JP", "Noto Serif CJK JP", var(--font-ja-sans);
+  --font-en: var(--font-latin), system-ui, sans-serif;
+
+  /* Scale — CJK-first, 16px root, letter-spacing always 0 for CJK */
+  --size-display: clamp(1.75rem, 1.1rem + 2.6vw, 2.75rem);
+  --size-title-1: clamp(1.625rem, 1.35rem + 1.1vw, 2.25rem);
+  --size-title-2: 1.375rem;
+  --size-title-3: 1.125rem;
+  --size-body: 1rem;
+  --size-small: 0.875rem;
+  --size-caption: 0.8125rem;
+  --size-material-key: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
+  --size-material: 1.125rem;
+
+  --leading-display: 1.3;
+  --leading-title: 1.4;
+  --leading-zh: 1.8;
+  --leading-ja: 1.75;
+  --leading-material: 1.95;
+  --leading-tight: 1.5;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+
+  --measure-zh: 38em;      /* ≈38 CJK chars at body size */
+  --measure-material: 34em;
+
+  /* ── Space (4-based) ────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  --gutter: clamp(16px, 4vw, 40px);
+  --content-max: 1200px;
+
+  /* ── Shape ──────────────────────────────────────────────── */
+  --radius-sheet: 6px;
+  --radius-control: 8px;
+  --radius-chip: 4px;
+  --shadow-overlay: 0 12px 40px rgb(20 21 25 / 18%), 0 2px 6px rgb(20 21 25 / 8%);
+
+  /* ── Shell ──────────────────────────────────────────────── */
+  --header-h: 64px;
+  --bottom-bar-h: 64px;
+  --tap-min: 44px;
+  --choice-min: 52px;
+
+  /* ── Motion ─────────────────────────────────────────────── */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-mark: 260ms;
+}
+
+/* Dark: same roles, re-balanced. Applied for system dark unless the user
+   explicitly chose light, and always for an explicit dark choice. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --desk: #111215;
+    --desk-raised: #16171b;
+    --sheet: #1a1c21;
+    --sheet-sunk: #15171b;
+    --overlay-scrim: rgb(0 0 0 / 55%);
+    --ink: #ecece7;
+    --ink-2: #b9bbc1;
+    --ink-3: #8e919a;
+    --ink-inverse: #111215;
+    --rule: #2d3037;
+    --rule-control: #6e727c;
+    --marker: #6a5a12;
+    --marker-soft: #3a3418;
+    --marker-ink: #ecece7;
+    --ok: #58c793;
+    --ok-soft: #173326;
+    --ng: #ff8069;
+    --ng-soft: #3a1c17;
+    --action: #ecece7;
+    --action-hover: #ffffff;
+    --on-action: #111215;
+    --focus: #ecece7;
+    --focus-halo: #b59a1f;
+    --shadow-overlay: 0 12px 40px rgb(0 0 0 / 50%);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --desk: #111215;
+  --desk-raised: #16171b;
+  --sheet: #1a1c21;
+  --sheet-sunk: #15171b;
+  --overlay-scrim: rgb(0 0 0 / 55%);
+  --ink: #ecece7;
+  --ink-2: #b9bbc1;
+  --ink-3: #8e919a;
+  --ink-inverse: #111215;
+  --rule: #2d3037;
+  --rule-control: #6e727c;
+  --marker: #6a5a12;
+  --marker-soft: #3a3418;
+  --marker-ink: #ecece7;
+  --ok: #58c793;
+  --ok-soft: #173326;
+  --ng: #ff8069;
+  --ng-soft: #3a1c17;
+  --action: #ecece7;
+  --action-hover: #ffffff;
+  --on-action: #111215;
+  --focus: #ecece7;
+  --focus-halo: #b59a1f;
+  --shadow-overlay: 0 12px 40px rgb(0 0 0 / 50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-mark: 0ms;
+  }
+}
+
+/* ── Language-bound type roles: font follows lang, never page locale ── */
+:lang(zh-Hant), :lang(zh-TW), :lang(zh-HK) { font-family: var(--font-zh-hant); line-height: var(--leading-zh); }
+:lang(zh-Hans), :lang(zh-CN) { font-family: var(--font-zh-hans); line-height: var(--leading-zh); }
+:lang(ja) { font-family: var(--font-ja-sans); line-height: var(--leading-ja); }
+:lang(en) { font-family: var(--font-en); }
+.material:lang(ja), .material :lang(ja) { font-family: var(--font-material); line-height: var(--leading-material); }

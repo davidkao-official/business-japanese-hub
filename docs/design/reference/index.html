@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Source &amp; Gloss</title>
+<meta name="description" content="Business Japanese Hub canonical visual system — reference compositions.">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;})();</script>
+<style>
+  .ix-head { padding-block: clamp(40px, 6vw, 80px) var(--space-6); max-width: 920px; }
+  .ix-head h1 { margin-top: 8px; }
+  .ix-head .lead { margin-top: 16px; max-width: 46em; }
+  .ix-sec { padding-block: var(--space-7); border-top: 1px solid var(--rule); }
+  .ix-sec > h2 { font-size: var(--size-title-2); margin-bottom: var(--space-2); }
+  .ix-sec > p.muted { max-width: 46em; margin-bottom: var(--space-5); }
+  .voices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-4); }
+  .voice { padding: var(--space-5); border: 1px solid var(--rule); border-radius: var(--radius-sheet); background: var(--desk-raised); }
+  .voice h3 { font-size: var(--size-small); color: var(--ink-3); font-weight: var(--weight-medium); margin-bottom: var(--space-3); }
+  .voice .rules { margin-top: var(--space-3); font-size: var(--size-caption); color: var(--ink-3); }
+  .marks { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); }
+  .marks > div { padding: var(--space-5); background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-sheet); }
+  .marks h3 { font-size: var(--size-small); margin-bottom: var(--space-3); }
+  .marks p.caption { margin-top: var(--space-3); }
+  .surfaces { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-3); }
+  .surfaces a { display: block; padding: var(--space-4); border: 1px solid var(--rule); border-radius: var(--radius-sheet); background: var(--sheet); text-decoration: none; height: 100%; }
+  .surfaces a:hover { border-color: var(--ink); }
+  .surfaces b { display: block; }
+  .surfaces span { display: block; font-size: var(--size-caption); color: var(--ink-3); margin-top: 4px; }
+  .comp { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); }
+  .comp > div { padding: var(--space-5); border: 1px solid var(--rule); border-radius: var(--radius-sheet); }
+  .comp h3 { font-size: var(--size-small); color: var(--ink-3); font-weight: var(--weight-medium); margin-bottom: var(--space-4); }
+  .comp .state h3 { font-size: var(--size-title-3); color: var(--ink); font-weight: var(--weight-bold); margin-bottom: 0; }
+  .never { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 32px; }
+  .never li { padding-left: 22px; position: relative; color: var(--ink-2); }
+  .never li::before { content: "×"; position: absolute; left: 0; color: var(--ng); font-weight: var(--weight-bold); }
+  @media (max-width: 959px) { .voices, .marks, .comp, .never { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="proto-note" lang="en"><span>Business Japanese Hub · canonical design references · docs/design-system.md is the written authority</span><span><a href="?theme=light">Light</a> · <a href="?theme=dark">Dark</a></span></div>
+
+<main class="wrap">
+  <header class="ix-head">
+    <p class="kicker" lang="en">Business Japanese Hub · Design system v1</p>
+    <h1 class="display" lang="en">Source &amp; Gloss</h1>
+    <p class="lead">每一個學習單位都是同一個形狀：一段<b>日文原文</b>（要學會使用的東西）、一層<b>中文解說</b>（為什麼、怎麼用），以及<b>你自己的紀錄</b>（作答、儲存、錯題）。視覺系統只做一件事：讓這三層在每個畫面都清楚、一致、可信。</p>
+  </header>
+
+  <section class="ix-sec" aria-labelledby="h-surf">
+    <h2 id="h-surf">Reference compositions</h2>
+    <p class="muted">Static references for the major surfaces. Each page is responsive (open at phone width) and supports <code>?theme=dark</code>.</p>
+    <ul class="surfaces">
+      <li><a href="home.html"><b>首頁 Home</b><span>Public acquisition · specimen hero · journey coverage</span></a></li>
+      <li><a href="practice.html"><b>練習 Practice hub</b><span>SPI categories on one page · resume</span></a></li>
+      <li><a href="runner.html"><b>練習 Runner — question</b><span>Focus mode · choices · sticky submit</span></a></li>
+      <li><a href="runner.html?state=feedback"><b>練習 Runner — feedback</b><span>○× · marked conditions · checkpoint ladder</span></a></li>
+      <li><a href="learn.html"><b>課程 Learn lesson</b><span>Situation → judgment → Japanese → why → rewrite</span></a></li>
+      <li><a href="read.html"><b>閱讀 Read article</b><span>Source sheet with vocabulary + logic marks</span></a></li>
+      <li><a href="my-learning.html"><b>我的學習 My Learning</b><span>One next step · review · honest observations</span></a></li>
+      <li><a href="plus.html"><b>Plus</b><span>Truthful offer · four questions · Free vs Plus</span></a></li>
+    </ul>
+  </section>
+
+  <section class="ix-sec" aria-labelledby="h-voices">
+    <h2 id="h-voices">Three voices</h2>
+    <p class="muted">Font follows <code>lang</code>, never the page locale. Japanese source material is set in the face Japanese business documents use; everything else is set in the reader's own script.</p>
+    <div class="voices">
+      <div class="voice">
+        <h3>原文 · Japanese source material</h3>
+        <p class="material material--key" lang="ja">影響範囲を確認し、15時までに改めて状況をご報告します。</p>
+        <p class="rules">Mincho role · 18–26px · leading 1.85–1.95 · only on <code>.sheet</code></p>
+      </div>
+      <div class="voice">
+        <h3>解說 · Chinese gloss</h3>
+        <p>給出下一次更新的時間——報連相裡最容易被忽略的一句。</p>
+        <p class="rules">Traditional Chinese Hei (PingFang TC / Noto Sans TC / JhengHei) · 16px · leading 1.8</p>
+      </div>
+      <div class="voice">
+        <h3>介面 · Interface</h3>
+        <p><b>複習錯題</b>・<span class="num">2 題</span>・<span class="chip">免費</span> <span class="chip chip--plus" lang="en">Plus</span></p>
+        <p class="rules">Same script face as the locale · tabular numerals for every count · no uppercase mono labels</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="ix-sec" aria-labelledby="h-marks">
+    <h2 id="h-marks">Marks — the only ornaments</h2>
+    <p class="muted">Every mark comes from how Japanese work documents and study material are actually marked up. A mark is never the sole carrier of meaning.</p>
+    <div class="marks">
+      <div><h3>Marker 蛍光</h3><p class="material" lang="ja">共有が<mark>難しい見込み</mark>です。</p><p class="caption">This Japanese matters. Paired with a gloss numeral or an accessible name.</p></div>
+      <div><h3>Gloss numeral 丸数字</h3><p class="material" lang="ja">担当部署<span class="gn">②</span>を明確にする。</p><p class="caption">Links a phrase to its explanation. Real characters, so kinsoku still applies.</p></div>
+      <div><h3>Correction ink 赤入れ</h3><p class="material" lang="ja"><span class="ng-strike">2割増し</span> → 2割引</p><p class="caption">Mistakes, NG wording, missed checkpoints. Always with text.</p></div>
+      <div><h3>Result 〇 ×</h3><p class="rm rm--ok">通過</p><p class="rm rm--ng" style="margin-top:8px">未通過</p><p class="rm rm--na" style="margin-top:8px">未測量</p><p class="caption">Japanese grading convention, always labelled.</p></div>
+    </div>
+  </section>
+
+  <section class="ix-sec" aria-labelledby="h-color">
+    <h2 id="h-color">Color roles</h2>
+    <p class="muted">Desk, sheet, ink, marker, ok, ng. No category rainbow, no gradients, no brand orange.</p>
+    <div class="swatches">
+      <div class="swatch"><i style="background:var(--desk)"></i><div><b>desk</b><br><code>#F4F4F1</code></div></div>
+      <div class="swatch"><i style="background:var(--sheet)"></i><div><b>sheet</b><br><code>#FFFFFF</code></div></div>
+      <div class="swatch"><i style="background:var(--ink)"></i><div><b>ink · action</b><br><code>#1B1D23</code></div></div>
+      <div class="swatch"><i style="background:var(--ink-2)"></i><div><b>ink-2</b><br><code>#464A54</code></div></div>
+      <div class="swatch"><i style="background:var(--ink-3)"></i><div><b>ink-3</b><br><code>#61666F</code></div></div>
+      <div class="swatch"><i style="background:var(--marker)"></i><div><b>marker</b><br><code>#FFE35A</code></div></div>
+      <div class="swatch"><i style="background:var(--ok)"></i><div><b>ok 〇</b><br><code>#1E7549</code></div></div>
+      <div class="swatch"><i style="background:var(--ng)"></i><div><b>ng × · 赤入れ</b><br><code>#BE3219</code></div></div>
+    </div>
+  </section>
+
+  <section class="ix-sec" aria-labelledby="h-comp">
+    <h2 id="h-comp">Core components &amp; states</h2>
+    <div class="comp">
+      <div>
+        <h3>Actions</h3>
+        <div class="actions"><a class="btn" href="#">開始複習</a><a class="btn btn--quiet" href="#">了解 Plus</a><a class="link" href="#">看 SPI 是什麼</a></div>
+      </div>
+      <div>
+        <h3>Choice rows (Practice · Career Game)</h3>
+        <ul class="choices">
+          <li class="choice is-selected"><span class="choice__key">B</span><span class="choice__text num" lang="ja">1,584円</span><span></span></li>
+          <li class="choice is-correct"><span class="choice__key">C</span><span class="choice__text num" lang="ja">1,650円</span><span class="choice__flag">正確答案</span></li>
+        </ul>
+      </div>
+      <div>
+        <h3>State · insufficient data</h3>
+        <div class="state"><h3>資料還不夠</h3><p class="small muted">這個類別目前只有 <span class="num">2</span> 題作答紀錄。累積到 <span class="num">5</span> 題後，才會顯示正確比例。</p><a class="link small" href="#">再練 3 題</a></div>
+      </div>
+      <div>
+        <h3>State · membership required</h3>
+        <div class="state"><h3>這是 Plus 會員內容</h3><p class="small muted">登入並確認會員資格後即可使用。會員狀態只由伺服器判定。</p><div class="actions"><a class="btn btn--sm" href="#">登入</a><a class="link small" href="plus.html">了解 Plus</a></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ix-sec" aria-labelledby="h-never">
+    <h2 id="h-never">Never</h2>
+    <ul class="never">
+      <li>Uppercase mono English eyebrows (<span lang="en">BUSINESS / CONTEXT</span>)</li>
+      <li>“01 / 02 / 03” numbered feature cards</li>
+      <li>Floating hero cards, glass, gradients, glow</li>
+      <li>Torii, sakura, hanko, wave, indigo-dye or vermilion “Japan” motifs</li>
+      <li>Japanese fonts for Chinese text, or Chinese fonts for Japanese</li>
+      <li>Progress rings, mastery %, streaks, XP, invented stats</li>
+      <li>English labels inside a Chinese or Japanese interface</li>
+      <li>Internal terms in UI copy (evidence, runtime, Workplace Learn)</li>
+    </ul>
+  </section>
+</main>
+</body>
+</html>

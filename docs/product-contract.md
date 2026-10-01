@@ -266,11 +266,13 @@ Business Japanese Hub 必須感覺像成熟、premium、可信賴的日本職場
 - childish gamified language app；
 - AI wrapper。
 
-保留既有 editorial typography / Reader quality、System / Light / Dark、mobile accessibility、keyboard/focus、responsive 與 reduced-motion contracts。
+保留既有 Reader typography quality、System / Light / Dark、mobile accessibility、keyboard/focus、responsive 與 reduced-motion contracts。
+
+**視覺／互動設計 authority 為 [`design-system.md`](design-system.md)（Source & Gloss）。** 它取代先前 Quiet Editorial（#2/#74）、#77 LP 與 #155 Concept C 的視覺方向，但不改變本文件的產品、商業、IA 或 access 規則；遇到衝突以本文件為準。
 
 各 mode 可以有不同 presentation grammar，但必須在同一 brand family 內。
 
-`docs/ui-ux-research.md` 的 typography、Reader、design-token、editorial-quality 與 accessibility research 持續有效；其中 2026-08 Storefront-first、Book-as-commerce-unit、禁止 Practice/Progress IA 或 `subscription-first` non-goal 等舊產品假設已由本文件 supersede，不得反向覆蓋 current Plus product IA。
+`docs/ui-ux-research.md` 的 Japanese typography、Reader 與 accessibility research 持續有效（其視覺方向已由 `design-system.md` supersede）；其中 2026-08 Storefront-first、Book-as-commerce-unit、禁止 Practice/Progress IA 或 `subscription-first` non-goal 等舊產品假設已由本文件 supersede，不得反向覆蓋 current Plus product IA。
 
 ## 9. Platform, web-first, and deployment invariants
 

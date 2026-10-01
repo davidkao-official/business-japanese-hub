@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice hub — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;})();</script>
+<style>
+  .intro { padding-block: clamp(32px, 5vw, 64px) var(--space-6); display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--space-7); align-items: end; }
+  .intro .lead { margin-top: 12px; }
+  .resume { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-sheet); padding: var(--space-5); }
+  .resume__label { font-size: var(--size-caption); color: var(--ink-3); }
+  .resume__title { font-weight: var(--weight-bold); margin-top: 4px; }
+  .resume__why { font-size: var(--size-small); color: var(--ink-2); margin-top: 4px; }
+  .resume .btn { margin-top: var(--space-4); }
+  .domains { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-7); padding-bottom: var(--space-8); }
+  .domain h2 { display: flex; align-items: baseline; gap: 12px; margin-bottom: var(--space-3); }
+  .domain h2 .caption { font-weight: var(--weight-regular); }
+  .domain p.muted { font-size: var(--size-small); margin-bottom: var(--space-4); }
+  .disclaimer { border-top: 1px solid var(--rule); padding-block: var(--space-5) var(--space-8); }
+  @media (max-width: 959px) {
+    .intro { grid-template-columns: 1fr; gap: var(--space-5); }
+    .domains { grid-template-columns: 1fr; gap: var(--space-6); }
+  }
+</style>
+</head>
+<body class="has-tabbar">
+<div class="proto-note" lang="en"><span>Design reference · Practice / 日本求職網路測驗刷題 (signed-in member)</span><a href="index.html">All references</a></div>
+
+<header class="hdr">
+  <div class="wrap hdr__in">
+    <a class="brand" href="home.html" aria-label="Business Japanese Hub 首頁">
+      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg>
+      <span class="brand__word" lang="en">Business Japanese Hub</span>
+    </a>
+    <nav class="nav" aria-label="主要導覽">
+      <a href="learn.html">課程</a>
+      <a href="read.html">閱讀</a>
+      <a href="practice.html" aria-current="page">練習</a>
+      <a href="my-learning.html">我的學習</a>
+      <a href="#">體驗</a>
+    </nav>
+    <div class="hdr__tools">
+      <a class="chip chip--plus" href="plus.html" lang="en">Plus</a>
+      <a class="locale" href="#">繁體中文 <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
+      <a class="btn btn--quiet btn--sm" href="#" aria-label="帳戶">帳戶</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="intro">
+    <div>
+      <p class="crumbs"><a href="#">練習</a><span aria-hidden="true">›</span><span>日本求職 Web Test</span></p>
+      <h1 class="t1" style="margin-top:8px">日本求職網路測驗刷題</h1>
+      <p class="lead">從 SPI 開始。原創日文題目搭配中文解說，練習日本求職選考中的閱讀與推理。每題作答後，可以確認自己是卡在題意、列式還是計算。</p>
+      <p style="margin-top:16px"><a class="link" href="#">第一次準備 SPI？先看「SPI 是什麼」</a></p>
+    </div>
+    <aside class="resume" aria-labelledby="resume-title">
+      <p class="resume__label">下一步</p>
+      <p class="resume__title" id="resume-title">複習錯題：百分比與損益</p>
+      <p class="resume__why">上次答錯的 2 題還沒有重新作答。</p>
+      <a class="btn btn--block" href="runner.html">開始複習</a>
+    </aside>
+  </section>
+
+  <section class="domains" aria-label="SPI 練習類別">
+    <div class="domain">
+      <h2 class="t2">非言語 <span class="caption num">4 類・20 題</span></h2>
+      <p class="muted">比例、速率、集合與條件推理。題目是日文，難點常在讀懂條件。</p>
+      <ul class="rows">
+        <li><div class="row"><div><p class="row__title">百分比與損益</p><p class="row__meta"><span class="num">5 題</span><span>不計時</span><span>上次 3／5 正確</span></p></div><div class="row__end"><a class="btn btn--sm" href="runner.html">練習</a></div></div></li>
+        <li><div class="row"><div><p class="row__title">速率與工作量</p><p class="row__meta"><span class="num">5 題</span><span>不計時</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習</a></div></div></li>
+        <li><div class="row"><div><p class="row__title">集合與計數</p><p class="row__meta"><span class="num">5 題</span><span>不計時</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習</a></div></div></li>
+        <li><div class="row"><div><p class="row__title">條件與排序</p><p class="row__meta"><span class="num">5 題</span><span>不計時</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習</a></div></div></li>
+      </ul>
+    </div>
+    <div class="domain">
+      <h2 class="t2">言語 <span class="caption num">4 類・20 題</span></h2>
+      <p class="muted">語彙、語句關係與短文推論。練習用日文直接判斷，而不是先翻成中文。</p>
+      <ul class="rows">
+        <li><div class="row"><div><p class="row__title">文脈語彙</p><p class="row__meta"><span class="num">5 題</span><span>不計時</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習</a></div></div></li>
+        <li><div class="row"><div><p class="row__title">語句關係</p><p class="row__meta"><span class="num">5 題</span><span>不計時</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習</a></div></div></li>
+        <li><div class="row"><div><p class="row__title">句子邏輯</p><p class="row__meta"><span class="num">5 題</span><span>不計時</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習</a></div></div></li>
+        <li><div class="row"><div><p class="row__title">閱讀推論</p><p class="row__meta"><span class="num">5 題</span><span>不計時</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習</a></div></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="disclaimer">
+    <p class="caption" style="max-width:52em">本服務為獨立的日本求職 Web Test 練習入口，與 SPI、玉手箱及任何出題或測驗機構無隸屬關係，亦不提供官方題目。</p>
+  </section>
+</main>
+
+<nav class="tabbar" aria-label="主要導覽">
+  <a href="learn.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5.5h7a2 2 0 0 1 2 2V19a1.5 1.5 0 0 0-1.5-1.5H4z"/><path d="M20 5.5h-5a2 2 0 0 0-2 2V19a1.5 1.5 0 0 1 1.5-1.5H20z"/></svg>課程</a>
+  <a href="read.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M9 11h6M9 14h6M9 17h4"/></svg>閱讀</a>
+  <a href="practice.html" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>練習</a>
+  <a href="my-learning.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.5-5.5 3.5z"/></svg>我的學習</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>更多</a>
+</nav>
+</body>
+</html>

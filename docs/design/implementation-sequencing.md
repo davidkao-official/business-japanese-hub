@@ -1,5 +1,7 @@
 # #74 implementation sequencing
 
+> **Superseded 2026-10-02** by [`../design-system.md`](../design-system.md) (Source & Gloss). Kept as historical record only; do not use as visual or sequencing authority.
+
 Production UI changes for #74 must happen on a feature branch / PR. The high-fidelity reference and design index are documentation-only authority artifacts already available on `main`.
 
 Order:

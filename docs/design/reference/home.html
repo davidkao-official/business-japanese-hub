@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;})();</script>
+<style>
+  .hero { padding-block: clamp(40px, 6vw, 88px) clamp(48px, 7vw, 96px); }
+  .hero__grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: clamp(32px, 5vw, 72px); align-items: center; }
+  .hero h1 { margin-top: var(--space-4); }
+  .hero .lead { margin-top: var(--space-5); }
+  .hero .actions { margin-top: var(--space-6); }
+  .specimen .material { max-width: none; }
+  .specimen .glosses { margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--rule); font-size: var(--size-small); }
+  .specimen__src { margin-top: var(--space-5); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: var(--size-caption); color: var(--ink-3); }
+  @media (max-width: 959px) { .hero__grid { grid-template-columns: 1fr; } }
+
+  /* Journey coverage: canonical stages × real destinations */
+  .journey { margin-top: var(--space-7); }
+  .journey__stages, .journey__row { display: grid; grid-template-columns: 220px repeat(5, 1fr); align-items: stretch; }
+  .journey__stages { border-bottom: 2px solid var(--ink); }
+  .journey__stages div { padding: 0 8px 12px 0; font-size: var(--size-small); font-weight: var(--weight-bold); }
+  .journey__stages div:first-child { color: var(--ink-3); font-weight: var(--weight-regular); }
+  .journey__row { border-bottom: 1px solid var(--rule); min-height: 88px; text-decoration: none; }
+  .journey__row:hover .journey__name { text-decoration: underline; text-underline-offset: 3px; }
+  .journey__dest { padding: 18px 16px 18px 0; }
+  .journey__mode { font-size: var(--size-caption); color: var(--ink-3); }
+  .journey__name { font-weight: var(--weight-bold); margin-top: 2px; }
+  .journey__span { position: relative; display: flex; align-items: center; padding-right: 16px; }
+  .journey__span p { width: 100%; font-size: var(--size-small); color: var(--marker-ink); background: var(--marker); padding: 8px 12px; line-height: 1.5; border-radius: 2px; }
+  @media (max-width: 959px) {
+    .journey__stages { display: none; }
+    .journey__row { grid-template-columns: 1fr; padding-block: 16px; min-height: 0; }
+    .journey__dest { padding: 0; }
+    .journey__span { grid-column: 1 !important; padding: 8px 0 0; }
+    .journey__span p { padding: 0; color: var(--ink-2); background: none; }
+    .journey__stagechip { display: inline-flex !important; }
+  }
+  .journey__stagechip { display: none; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
+  .state-demo { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: clamp(32px, 5vw, 72px); align-items: start; }
+  .qs { list-style: none; counter-reset: q; display: grid; gap: var(--space-4); margin-top: var(--space-5); }
+  .qs li { padding-left: 34px; position: relative; font-size: 1.0625rem; font-weight: var(--weight-medium); }
+  .qs li::before { counter-increment: q; content: counter(q); position: absolute; left: 0; top: 2px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--rule-control); display: grid; place-items: center; font-size: 0.75rem; font-family: var(--font-en); color: var(--ink-2); }
+  @media (max-width: 959px) { .state-demo { grid-template-columns: 1fr; } }
+
+  .offer { display: grid; grid-template-columns: 1fr auto; gap: var(--space-6); align-items: center; padding: clamp(24px, 4vw, 40px); background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-sheet); }
+  .offer__price { font-size: clamp(1.75rem, 1.4rem + 1.2vw, 2.5rem); font-weight: var(--weight-bold); font-family: var(--font-en); letter-spacing: -0.01em; }
+  .offer__price small { font-size: 1rem; font-weight: var(--weight-regular); color: var(--ink-2); font-family: var(--font-zh-hant); }
+  @media (max-width: 759px) { .offer { grid-template-columns: 1fr; } }
+
+  .founder { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(32px, 5vw, 72px); }
+  .facts { list-style: none; display: grid; gap: 10px; margin-top: var(--space-4); }
+  .facts li { padding-left: 18px; position: relative; color: var(--ink-2); }
+  .facts li::before { content: ""; position: absolute; left: 0; top: 0.8em; width: 8px; height: 2px; background: var(--ink); }
+  @media (max-width: 759px) { .founder { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body class="has-tabbar">
+<div class="proto-note" lang="en"><span>Design reference · Source &amp; Gloss v1 · Home (public)</span><a href="index.html">All references</a></div>
+
+<header class="hdr">
+  <div class="wrap hdr__in">
+    <a class="brand" href="home.html" aria-label="Business Japanese Hub 首頁">
+      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg>
+      <span class="brand__word" lang="en">Business Japanese Hub</span>
+    </a>
+    <nav class="nav" aria-label="主要導覽">
+      <a href="learn.html">課程</a>
+      <a href="read.html">閱讀</a>
+      <a href="practice.html">練習</a>
+      <a href="my-learning.html">我的學習</a>
+      <a href="#">體驗</a>
+    </nav>
+    <div class="hdr__tools">
+      <a class="chip chip--plus" href="plus.html" lang="en">Plus</a>
+      <a class="locale" href="#">繁體中文 <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
+      <a class="btn btn--quiet btn--sm" href="#">登入</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap hero__grid">
+      <div>
+        <p class="kicker">給 JLPT N2–N1、準備在日本求職與工作的華語學習者</p>
+        <h1 class="display"><span class="phrase">從「日文檢定的日文」，</span><span class="phrase">成長為</span><span class="phrase">「<mark>日本商業社會的日文</mark>」。</span></h1>
+        <p class="lead">通過 JLPT，不代表已經能自在地在日本職場工作。從求職、商業閱讀到職場溝通，把熟悉的日文轉化為工作能力。</p>
+        <div class="actions actions--stack">
+          <a class="btn" href="practice.html">免費試做 SPI 題目</a>
+          <a class="btn btn--quiet" href="plus.html">了解 Plus 會員</a>
+        </div>
+      </div>
+
+      <figure class="sheet specimen" aria-labelledby="specimen-cap">
+        <p class="sheet__label"><b>例句</b><span>進度延遲時，向主管報告</span></p>
+        <p class="material material--key" lang="ja">確認作業に想定より時間がかかっており、本日中に予定していた資料の共有が<mark>難しい見込み</mark><span class="gn" aria-label="注1">①</span>です。<mark>影響範囲を確認し</mark><span class="gn" aria-label="注2">②</span>、<mark>15時までに改めて状況をご報告します</mark><span class="gn" aria-label="注3">③</span>。</p>
+        <ol class="glosses">
+          <li><span class="gn" aria-hidden="true">①</span><p><span class="term" lang="ja">見込み</span>：依目前資訊所做的預估。保留不確定性，不把可能性說成承諾。</p></li>
+          <li><span class="gn" aria-hidden="true">②</span><p>先說會確認影響範圍，讓主管能判斷是否需要調整安排。</p></li>
+          <li><span class="gn" aria-hidden="true">③</span><p>給出下一次更新的時間——報連相裡最容易被忽略的一句。</p></li>
+        </ol>
+        <figcaption class="specimen__src" id="specimen-cap"><span>出自「日本職場實戰」免費課程</span><a class="link" href="learn.html" lang="ja">報告時に事実と次の対応を短く伝える</a></figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <h2 class="t1"><span class="phrase">從求職到入社之後，</span><span class="phrase">都有下一步可以練</span></h2>
+      <p class="lead" style="margin-top:12px">Business Japanese Hub 沿著同一條職涯路線提供內容。找到工作不是終點。</p>
+
+      <div class="journey" role="table" aria-label="各學習內容對應的職涯階段">
+        <div class="journey__stages" role="row">
+          <div role="columnheader">內容</div>
+          <div role="columnheader">準備日本求職</div>
+          <div role="columnheader">通過選考</div>
+          <div role="columnheader">進入日本企業</div>
+          <div role="columnheader">適應日本職場</div>
+          <div role="columnheader">持續提升</div>
+        </div>
+        <a class="journey__row" role="row" href="practice.html">
+          <div class="journey__dest" role="cell"><p class="journey__mode">練習</p><p class="journey__name">日本求職網路測驗刷題</p><p class="journey__stagechip"><span class="chip">準備日本求職</span><span class="chip">通過選考</span></p></div>
+          <div class="journey__span" role="cell" style="grid-column: 2 / span 2"><p><span>SPI 言語・非言語：看見自己卡在題意、列式還是計算</span></p></div>
+        </a>
+        <a class="journey__row" role="row" href="read.html">
+          <div class="journey__dest" role="cell"><p class="journey__mode">閱讀</p><p class="journey__name">日本商業資料讀解</p><p class="journey__stagechip"><span class="chip">所有階段</span></p></div>
+          <div class="journey__span" role="cell" style="grid-column: 2 / span 5"><p><span>從日文原文讀懂提案、新聞與企業資料的論點</span></p></div>
+        </a>
+        <a class="journey__row" role="row" href="learn.html">
+          <div class="journey__dest" role="cell"><p class="journey__mode">課程</p><p class="journey__name">日本職場實戰・職場語彙</p><p class="journey__stagechip"><span class="chip">進入日本企業</span><span class="chip">適應日本職場</span><span class="chip">持續提升</span></p></div>
+          <div class="journey__span" role="cell" style="grid-column: 4 / span 3"><p><span>報連相、會議、Email：在情境裡判斷該怎麼說</span></p></div>
+        </a>
+        <a class="journey__row" role="row" href="#">
+          <div class="journey__dest" role="cell"><p class="journey__mode">體驗</p><p class="journey__name" lang="en">Career Game</p><p class="journey__stagechip"><span class="chip">進入日本企業</span><span class="chip">適應日本職場</span></p></div>
+          <div class="journey__span" role="cell" style="grid-column: 4 / span 2"><p><span>在職場案例中做選擇，看見每個選擇的結果</span></p></div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap state-demo">
+      <div>
+        <h2 class="t1"><span class="phrase">回來的時候，</span><span class="phrase">知道該從哪裡繼續</span></h2>
+        <p class="lead" style="margin-top:12px">Plus 會員的學習紀錄只根據你實際的作答與儲存。資料不足時，我們就直接說資料不足。</p>
+        <ol class="qs">
+          <li>我最近做到哪裡？</li>
+          <li>我哪些地方一直錯？</li>
+          <li>有什麼值得現在複習？</li>
+          <li>下一步應該做什麼？</li>
+        </ol>
+      </div>
+      <figure class="sheet" aria-label="作答後的理解檢查（示意）">
+        <p class="sheet__label"><b>作答紀錄</b><span>非言語・百分比與損益（示意畫面）</span></p>
+        <p class="rm rm--ng">這題答錯了</p>
+        <p class="small muted" style="margin-top:8px">答錯本身看不出原因。作答後的三個理解檢查，會分別記錄你在哪一步沒有通過：</p>
+        <ol class="ladder" style="margin-top:16px">
+          <li><p class="ladder__name">題意</p><p class="ladder__q">題目要求什麼？</p><p class="rm rm--ok rm--sm">通過</p></li>
+          <li><p class="ladder__name">表示</p><p class="ladder__q">該列哪個式子？</p><p class="rm rm--ng rm--sm">未通過</p></li>
+          <li><p class="ladder__name">計算</p><p class="ladder__q">算出答案</p><p class="rm rm--ok rm--sm">通過</p></li>
+        </ol>
+        <p class="caption" style="margin-top:16px">這是觀察到的結果，不是對錯誤原因的判定。</p>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="offer">
+        <div>
+          <p class="kicker"><span lang="en">Business Japanese Hub Plus</span>・Early Access</p>
+          <p class="offer__price" style="margin-top:6px">NT$299<small>／月</small></p>
+          <p class="muted" style="margin-top:8px">更多練習與內容，加上會持續累積的學習紀錄。目前準備中，尚未開放付款。</p>
+        </div>
+        <div class="actions"><a class="btn btn--quiet" href="plus.html">看 Free 與 Plus 的差別</a></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap founder">
+      <div>
+        <h2 class="t1"><span class="phrase">由在日本職場</span><span class="phrase">工作的人設計</span></h2>
+        <p class="lead" style="margin-top:12px">「N1 之後，我要怎麼讓日文真正變成工作能力？」這個問題，是 Business Japanese Hub 的起點。</p>
+        <p style="margin-top:20px"><a class="link" href="#">關於 Business Japanese Hub</a></p>
+      </div>
+      <div>
+        <p class="t3">創辦人 David Kao</p>
+        <ul class="facts">
+          <li>高中時期通過 JLPT N1</li>
+          <li>於日本取得 MBA</li>
+          <li>四大日本法人 Business Consultant 經歷</li>
+          <li>透過日本高度人才制度取得永久居留資格</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="ftr">
+  <div class="wrap">
+    <div class="ftr__grid">
+      <div class="ftr__brand"><a class="brand" href="home.html"><svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg><span class="brand__word" lang="en">Business Japanese Hub</span></a><p style="margin-top:12px; max-width: 28em">從考試日文，走進日本社會人的日文。</p></div>
+      <div><h2>學習</h2><ul><li><a href="learn.html">課程</a></li><li><a href="read.html">閱讀</a></li><li><a href="practice.html">練習</a></li><li><a href="my-learning.html">我的學習</a></li><li><a href="#">體驗</a></li></ul></div>
+      <div><h2>服務</h2><ul><li><a href="plus.html" lang="en">Plus</a></li><li><a href="#">關於我們</a></li></ul></div>
+      <div><h2>法律資訊</h2><ul><li><a href="#">服務條款</a></li><li><a href="#">隱私權政策</a></li><li><a href="#">特定商交易法標示</a></li><li><a href="#">退款政策</a></li></ul></div>
+    </div>
+    <div class="ftr__base">
+      <span>販售者名稱確認中</span>
+      <div class="seg" role="group" aria-label="外觀"><button type="button" aria-pressed="true">系統</button><button type="button" aria-pressed="false">淺色</button><button type="button" aria-pressed="false">深色</button></div>
+    </div>
+  </div>
+</footer>
+
+<nav class="tabbar" aria-label="主要導覽">
+  <a href="learn.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5.5h7a2 2 0 0 1 2 2V19a1.5 1.5 0 0 0-1.5-1.5H4z"/><path d="M20 5.5h-5a2 2 0 0 0-2 2V19a1.5 1.5 0 0 1 1.5-1.5H20z"/></svg>課程</a>
+  <a href="read.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M9 11h6M9 14h6M9 17h4"/></svg>閱讀</a>
+  <a href="practice.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>練習</a>
+  <a href="my-learning.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.5-5.5 3.5z"/></svg>我的學習</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>更多</a>
+</nav>
+</body>
+</html>

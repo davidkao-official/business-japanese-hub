@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Read article — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var t=new URLSearchParams(location.search).get('theme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;})();</script>
+<style>
+  .art-head { padding-block: var(--space-6) var(--space-6); max-width: 880px; }
+  .art-head h1 { margin-top: var(--space-3); }
+  .art-head .lead { margin-top: var(--space-3); }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin-top: var(--space-5); font-size: var(--size-small); color: var(--ink-2); }
+  .meta dt { font-size: var(--size-caption); color: var(--ink-3); }
+  .meta dl { display: flex; gap: 20px; margin: 0; }
+  .meta dd { margin: 0; }
+  .art { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: clamp(32px, 5vw, 64px); padding-bottom: var(--space-9); align-items: start; }
+  .source { position: sticky; top: calc(var(--header-h) + 24px); }
+  .srcseg { display: grid; grid-template-columns: 76px 1fr; gap: 12px; padding-block: 10px; }
+  .srcseg + .srcseg { border-top: 1px dashed var(--rule); }
+  .srcseg__tag { font-size: var(--size-caption); color: var(--ink-3); padding-top: 0.55em; line-height: 1.4; }
+  .srcseg__tag b { display: block; color: var(--ink); font-weight: var(--weight-bold); }
+  .srcseg .material { font-size: 1.1875rem; }
+  .source__foot { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--rule); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: var(--size-caption); color: var(--ink-3); }
+  .panel > section + section { margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--rule); }
+  .panel h2 { font-size: var(--size-title-3); margin-bottom: var(--space-3); }
+  .vocab { list-style: none; display: grid; gap: var(--space-4); }
+  .vocab li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; }
+  .vocab .gn { font-size: 1.05rem; vertical-align: 0; color: var(--ink); }
+  .vocab .t { font-weight: var(--weight-bold); }
+  .vocab .r { font-size: var(--size-caption); color: var(--ink-3); margin-left: 6px; font-weight: var(--weight-regular); }
+  .vocab .m { margin-top: 2px; }
+  .vocab .n { font-size: var(--size-small); color: var(--ink-2); margin-top: 2px; }
+  .logic { list-style: none; display: grid; gap: var(--space-4); }
+  .logic b { display: block; }
+  .logic .q { font-size: var(--size-small); color: var(--ink-2); margin-top: 2px; }
+  .next a { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; text-decoration: none; border-bottom: 1px solid var(--rule); }
+  .next a:first-child { border-top: 1px solid var(--rule); }
+  @media (max-width: 959px) {
+    .art { grid-template-columns: 1fr; }
+    .source { position: static; }
+    .srcseg { grid-template-columns: 1fr; gap: 2px; }
+    .srcseg__tag { padding-top: 0; }
+    .srcseg__tag b { display: inline; margin-right: 6px; }
+  }
+</style>
+</head>
+<body class="has-tabbar">
+<div class="proto-note" lang="en"><span>Design reference · Read / Business Reading article (published non-proprietary teaching sample)</span><a href="index.html">All references</a></div>
+
+<header class="hdr">
+  <div class="wrap hdr__in">
+    <a class="brand" href="home.html" aria-label="Business Japanese Hub 首頁">
+      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg>
+      <span class="brand__word" lang="en">Business Japanese Hub</span>
+    </a>
+    <nav class="nav" aria-label="主要導覽">
+      <a href="learn.html">課程</a>
+      <a href="read.html" aria-current="page">閱讀</a>
+      <a href="practice.html">練習</a>
+      <a href="my-learning.html">我的學習</a>
+      <a href="#">體驗</a>
+    </nav>
+    <div class="hdr__tools">
+      <a class="chip chip--plus" href="plus.html" lang="en">Plus</a>
+      <a class="locale" href="#">繁體中文 <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></a>
+      <a class="btn btn--quiet btn--sm" href="#">登入</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <header class="art-head">
+    <p class="crumbs"><a href="#">閱讀</a><span aria-hidden="true">›</span><a href="#">商業資料讀解</a><span aria-hidden="true">›</span><span>商務文件</span></p>
+    <h1 class="t1"><span class="phrase">從內部提案看</span><span class="phrase">日本商務資料的論點安排</span></h1>
+    <p class="lead">以原創架空的日文提案摘要，練習辨認現況、措施與預期效果。</p>
+    <div class="meta">
+      <span class="chip">免費</span>
+      <dl><div><dt>來源</dt><dd>原創架空商業文件・教學範例</dd></div></dl>
+      <button class="btn btn--quiet btn--sm" type="button" style="margin-left:auto">儲存文章</button>
+    </div>
+  </header>
+
+  <div class="art">
+    <section class="sheet source" aria-labelledby="src-title">
+      <p class="sheet__label" id="src-title"><b>原文</b><span>社內提案・摘要</span></p>
+      <div class="srcseg"><p class="srcseg__tag"><b>現況</b>課題</p><p class="material" lang="ja">現在、<mark>問い合わせ</mark><span class="gn">①</span>への回答に平均三日を要している。</p></div>
+      <div class="srcseg"><p class="srcseg__tag"><b>措施</b></p><p class="material" lang="ja">まず質問の分類表を作成し、<mark>担当部署</mark><span class="gn">②</span>を明確にする。</p></div>
+      <div class="srcseg"><p class="srcseg__tag"><b>效果</b>預期</p><p class="material" lang="ja">これにより、回答時間を短縮し、顧客対応の質を<mark>安定させる</mark><span class="gn">③</span>。</p></div>
+      <p class="source__foot"><span>原創教學範例，未引用任何真實公司或出版資料。</span></p>
+    </section>
+
+    <div class="panel">
+      <section aria-labelledby="exp">
+        <h2 id="exp">讀解說明</h2>
+        <p>這段提案先指出目前的問題，再提出兩項做法，最後說明預期效果。閱讀時留意「<span lang="ja">現在</span>」如何引出現況，以及「<span lang="ja">これにより</span>」如何把措施連到結果。</p>
+      </section>
+      <section aria-labelledby="voc">
+        <h2 id="voc">詞彙</h2>
+        <ol class="vocab">
+          <li><span class="gn" aria-hidden="true">①</span><div><p class="t" lang="ja">問い合わせ<span class="r">といあわせ</span></p><p class="m">詢問、洽詢</p><p class="n">商務文件中常指客戶或其他部門提出的問題。</p></div></li>
+          <li><span class="gn" aria-hidden="true">②</span><div><p class="t" lang="ja">担当部署<span class="r">たんとうぶしょ</span></p><p class="m">負責部門</p><p class="n">指出由哪個部門承接處理。</p></div></li>
+          <li><span class="gn" aria-hidden="true">③</span><div><p class="t" lang="ja">安定させる<span class="r">あんていさせる</span></p><p class="m">使之穩定</p><p class="n">此處描述讓服務品質維持一致。</p></div></li>
+        </ol>
+      </section>
+      <section aria-labelledby="logic">
+        <h2 id="logic">論點脈絡</h2>
+        <ul class="logic">
+          <li><b>現況與課題</b><p class="q">先用可觀察的時間資訊呈現問題，讓改善理由具體化。</p></li>
+          <li><b>措施與效果</b><p class="q">「<span lang="ja">これにより</span>」回指前面的措施，接著交代預期效果。</p></li>
+        </ul>
+      </section>
+      <section aria-labelledby="ctx">
+        <h2 id="ctx">商務背景</h2>
+        <p class="muted">架空提案以縮短回覆時間為目標。真實企業資料通常還會說明統計期間、責任分工與衡量方式；本範例沒有引用任何真實公司或出版資料。</p>
+      </section>
+      <section class="next" aria-labelledby="nx">
+        <h2 id="nx">接著學</h2>
+        <a href="learn.html"><span>論點如何在會議中承接與轉換</span><span class="caption">課程</span></a>
+      </section>
+    </div>
+  </div>
+</main>
+
+<nav class="tabbar" aria-label="主要導覽">
+  <a href="learn.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5.5h7a2 2 0 0 1 2 2V19a1.5 1.5 0 0 0-1.5-1.5H4z"/><path d="M20 5.5h-5a2 2 0 0 0-2 2V19a1.5 1.5 0 0 1 1.5-1.5H20z"/></svg>課程</a>
+  <a href="read.html" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M9 11h6M9 14h6M9 17h4"/></svg>閱讀</a>
+  <a href="practice.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>練習</a>
+  <a href="my-learning.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.5-5.5 3.5z"/></svg>我的學習</a>
+  <a href="#"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>更多</a>
+</nav>
+</body>
+</html>
