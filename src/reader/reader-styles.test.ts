@@ -16,6 +16,52 @@ import { describe, expect, it } from 'vitest'
 
 const readerCss = readFileSync(join(process.cwd(), 'src/styles/reader.css'), 'utf8')
 const tokensCss = readFileSync(join(process.cwd(), 'src/styles/tokens.css'), 'utf8')
+const globalCss = readFileSync(join(process.cwd(), 'src/styles/global.css'), 'utf8')
+
+describe('Reader heading theme isolation (#191)', () => {
+  for (const appTheme of ['system', 'light', 'dark']) {
+    for (const readerTheme of ['light', 'sepia', 'dark']) {
+      it(`uses Reader text roles with app ${appTheme} / Reader ${readerTheme}`, () => {
+        const style = document.createElement('style')
+        // Imports are already supplied explicitly; jsdom cannot load relative CSS.
+        style.textContent = `${tokensCss}\n${globalCss.replace(/@import[^;]+;/g, '')}\n${readerCss}`
+        document.head.append(style)
+        const root = document.documentElement
+        const previousTheme = root.getAttribute('data-theme')
+        const previousReaderTheme = root.getAttribute('data-reader-theme')
+        const fixture = document.createElement('div')
+        fixture.innerHTML = `<main class="reader-shell">
+          <h1 class="reader-chapter-header__title">章の見出し</h1>
+          <div class="reader-blocks"><h2 class="reader-heading">節</h2><h3 class="reader-heading">項</h3><h4 class="reader-heading">小見出し</h4></div>
+          <h2 class="reader-marginalia__title">語彙</h2>
+        </main>
+        <div class="reader-dialog"><h2 class="reader-dialog__title">読書設定</h2><h3 class="reader-settings__label">テーマ</h3></div>`
+        document.body.append(fixture)
+        if (appTheme === 'system') root.removeAttribute('data-theme')
+        else root.setAttribute('data-theme', appTheme)
+        root.setAttribute('data-reader-theme', readerTheme)
+        try {
+          // jsdom reports the cascaded custom-property reference rather than
+          // resolving its colour. Guard the actual CSS cascade, not pixel QA.
+          for (const heading of fixture.querySelectorAll('h1, h2, h3, h4')) {
+            const muted = heading.matches('.reader-marginalia__title, .reader-settings__label')
+            expect(getComputedStyle(heading).color).toBe(muted ? 'var(--reader-muted)' : 'var(--reader-text)')
+          }
+          expect(getComputedStyle(root).getPropertyValue('--reader-text').trim()).toBe({
+            light: '#21241f', sepia: '#43372b', dark: '#e8e4d9',
+          }[readerTheme])
+        } finally {
+          fixture.remove()
+          style.remove()
+          if (previousTheme === null) root.removeAttribute('data-theme')
+          else root.setAttribute('data-theme', previousTheme)
+          if (previousReaderTheme === null) root.removeAttribute('data-reader-theme')
+          else root.setAttribute('data-reader-theme', previousReaderTheme)
+        }
+      })
+    }
+  }
+})
 
 describe('reader design contract', () => {
   it('keeps the locked typographic baseline in the tokens', () => {
