@@ -79,6 +79,14 @@ html[data-reader-theme] {
   background-color: var(--reader-bg);
 }
 
+/* Global headings use app ink; these roles belong to the independent Reader
+ * palette, including dialogs rendered outside the reading column. */
+.reader-chapter-header__title,
+.reader-heading,
+.reader-dialog__title {
+  color: var(--reader-text);
+}
+
 .reader-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
