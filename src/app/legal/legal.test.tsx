@@ -43,35 +43,15 @@ describe('legal pages', () => {
     expect(screen.getByRole('heading', { name: '価格・支払' })).toBeInTheDocument()
   })
 
-  it('renders zh-TW legal labels, title, and body from the active locale preference', () => {
-    setLocalePreference('zh-TW')
-
+  it.each(['zh-TW', 'zh-CN', 'en'] as const)('keeps Japanese legal text for a dormant %s preference', (locale) => {
+    setLocalePreference(locale)
     renderWithAppProviders(
-      <Routes>
-        <Route path="/legal/:slug" element={<LegalPage />} />
-      </Routes>,
+      <Routes><Route path="/legal/:slug" element={<LegalPage />} /></Routes>,
       { initialEntries: ['/legal/refunds'] },
     )
-
-    expect(screen.getByRole('heading', { name: '退款政策' })).toBeInTheDocument()
-    expect(screen.getByText(/版本 v1/)).toBeInTheDocument()
-    expect(screen.getByText(/狀態 草稿/)).toBeInTheDocument()
-    expect(screen.getByRole('note')).toHaveTextContent(/本頁內容為草稿/)
-    expect(screen.getByRole('heading', { name: '台灣消費者保護法與 7 日解除權' })).toBeInTheDocument()
-  })
-
-  it('shows the existing Traditional Chinese legal draft with a visible Simplified Chinese fallback notice', () => {
-    setLocalePreference('zh-CN')
-    renderWithAppProviders(
-      <Routes>
-        <Route path="/legal/:slug" element={<LegalPage />} />
-      </Routes>,
-      { initialEntries: ['/legal/refunds'] },
-    )
-
-    expect(screen.getByRole('heading', { name: '退款政策' })).toHaveAttribute('lang', 'zh-TW')
-    expect(screen.getAllByRole('note').some((note) => note.textContent?.includes('简体中文版本'))).toBe(true)
-    expect(document.querySelector('.legal-doc__body')).toHaveAttribute('lang', 'zh-TW')
+    expect(screen.getByRole('heading', { name: '返品・返金ポリシー' })).toHaveAttribute('lang', 'ja')
+    expect(document.querySelector('.legal-doc__body')).toHaveAttribute('lang', 'ja')
+    expect(screen.queryByText(/简体中文版本/)).not.toBeInTheDocument()
   })
 
   it('renders a not-found state for an unknown slug', () => {

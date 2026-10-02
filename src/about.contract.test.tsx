@@ -4,35 +4,35 @@ import App from './App'
 import { COFOUNDER_PROFILE, FOUNDER_PROFILE } from './app/storefrontProfiles'
 
 const REAL_WORLD_EXAMPLES = [
-  '日本企業的簡報與企劃書',
-  '決算資料與統合報告書',
-  '中期經營計畫',
-  '商業新聞與產業報告',
-  '日本社會人閱讀的書籍與雜誌',
-  '公司裡真正使用的語彙',
-  '會議、打合せ、簡報與討論',
-  '敬語之外更加細微的語感',
+  "日本企業のプレゼン資料や企画書",
+  "決算資料や統合報告書",
+  "中期経営計画",
+  "ビジネスニュースや業界レポート",
+  "日本の社会人が読む書籍や雑誌",
+  "職場で実際に使われる語彙",
+  "会議、打ち合わせ、プレゼン、議論",
+  "敬語の知識だけでは捉えきれない、細かな言葉のニュアンス",
 ] as const
 
 const AUDIENCE_ITEMS = [
-  '已通過 JLPT N2／N1，卻不知道下一步該學什麼的人',
-  '準備到日本求職，希望突破日文面試瓶頸的人',
-  '已經在日本企業工作，卻覺得跟不上會議與溝通的人',
-  '日文文章大致看得懂，卻讀不懂企業資料與商業媒體的人',
-  '想提升商業語彙、表達與議論能力的人',
-  '希望不再只靠中文二手資訊，而能直接取得日本資訊的人',
+  "JLPT N1に合格したものの、次に何を学べばよいか分からない方",
+  "日本での就職を準備していて、日本語の面接で感じる壁を乗り越えたい方",
+  "すでに日本企業で働いているものの、会議やコミュニケーションについていくのが難しいと感じる方",
+  "日本語の文章はおおむね理解できても、企業資料やビジネスメディアを読みこなせない方",
+  "ビジネスの語彙、表現力、議論する力を伸ばしたい方",
+  "母語による二次情報だけに頼らず、日本語で直接情報を得られるようになりたい方",
 ] as const
 
 const NARRATIVE_CHECKPOINTS = [
-  '從「日文檢定的日文」，走進「日本社會人的日文」',
-  'Business Japanese Hub 是為已經具備中高階日文能力、希望真正進入日本職場與商業世界的人所打造的日文學習平台',
-  '看得懂日文',
-  '能用日文閱讀、思考、討論與工作',
-  '為什麼想做這個平台',
-  'N1 與日本職場之間，存在一段很少有人教的距離',
-  '這個平台適合誰',
-  '「N1 之後，我要怎麼讓日文真正變成工作能力？」',
-  '為什麼是我',
+  '「日本語試験のための日本語」から、「日本の社会人が使う日本語」へ。',
+  'Business Japanese Hubは、JLPT N1に合格し、日本の職場やビジネスの世界で実際に活躍したい外国人の方のための日本語学習プラットフォームです。',
+  "日本語を読んで理解できる",
+  '日本語で読み、考え、議論し、働ける。',
+  'なぜ、このプラットフォームを作ろうと思ったのか？',
+  'N1に合格してから日本の職場で働くまでの道のりは、あまり教わる機会がありません。',
+  'どんな方に向いている？',
+  "「N1の先で、日本語を本当に仕事で使える力にするには？」",
+  'なぜ、私が取り組むのか？',
 ] as const
 
 function renderAppAt(pathname: string) {
@@ -50,7 +50,7 @@ function expectOrderedText(checkpoints: readonly string[]): void {
 
   for (const checkpoint of checkpoints) {
     const index = pageText.indexOf(checkpoint)
-    expect(index, `missing approved About copy: ${checkpoint}`).toBeGreaterThanOrEqual(0)
+    expect(index, `missing Japanese About draft copy: ${checkpoint}`).toBeGreaterThanOrEqual(0)
     expect(index, `About narrative is out of order at: ${checkpoint}`).toBeGreaterThan(previousIndex)
     previousIndex = index
   }
@@ -83,9 +83,9 @@ describe('Issue #72 About public contract', () => {
 
     const h1s = screen.getAllByRole('heading', { level: 1 })
     expect(h1s).toHaveLength(1)
-    expect(h1s[0]).toHaveTextContent('關於 Business Japanese Hub')
+    expect(h1s[0]).toHaveTextContent("Business Japanese Hubについて")
     expect(screen.queryByRole('heading', { name: 'ページが見つかりません' })).not.toBeInTheDocument()
-    await waitFor(() => expect(document.title).toContain('關於 Business Japanese Hub'))
+    await waitFor(() => expect(document.title).toContain("Business Japanese Hubについて"))
   })
 
   it('makes /about discoverable from normal public site chrome', () => {
@@ -103,7 +103,7 @@ describe('Issue #72 About public contract', () => {
     expect(aboutLinks.length).toBeGreaterThan(0)
   })
 
-  it('preserves the approved narrative sequence and core contrast', () => {
+  it('preserves the Japanese narrative sequence and core contrast', () => {
     renderAppAt('/about')
 
     expectOrderedText(NARRATIVE_CHECKPOINTS)
@@ -120,26 +120,26 @@ describe('Issue #72 About public contract', () => {
   it('uses semantic section headings and a blockquote for the core post-N1 question', () => {
     renderAppAt('/about')
 
-    expect(screen.getByRole('heading', { name: '為什麼想做這個平台？' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: "なぜ、このプラットフォームを作ろうと思ったのか？" })).toBeInTheDocument()
     expect(
-      screen.getByRole('heading', { name: 'N1 與日本職場之間，存在一段很少有人教的距離。' }),
+      screen.getByRole('heading', { name: "N1に合格してから日本の職場で働くまでの道のりは、あまり教わる機会がありません。" }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '這個平台適合誰？' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '為什麼是我？' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: "どんな方に向いている？" })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: "なぜ、私が取り組むのか？" })).toBeInTheDocument()
 
-    const coreQuestion = screen.getByText('「N1 之後，我要怎麼讓日文真正變成工作能力？」')
+    const coreQuestion = screen.getByText("「N1の先で、日本語を本当に仕事で使える力にするには？」")
     expect(coreQuestion.closest('blockquote')).not.toBeNull()
   })
 
-  it('keeps the approved founder story and the existing founder/co-founder identities distinct', () => {
+  it('keeps the founder story and the existing founder/co-founder identities distinct', () => {
     renderAppAt('/about')
 
     const pageText = normalizedText(document.body.textContent)
-    expect(pageText).toContain('高中時，我通過了 JLPT N1')
-    expect(pageText).toContain('台灣日語導遊、日語領隊國家資格')
-    expect(pageText).toContain('後來來到日本攻讀 MBA')
-    expect(pageText).toContain('進入日本四大事務所做 Consulting 之後')
-    expect(pageText).toContain('考過 N1，和能不能在日本用日文工作，中間還隔著很長一段路')
+    expect(pageText).toContain('高校時代に、JLPT N1に合格しました。')
+    expect(pageText).toContain("大学時代には、台湾の日本語観光ガイド・日本語添乗員の国家資格を取得し、日本語の個別指導や中国語・日本語の通訳の経験も重ねました。")
+    expect(pageText).toContain('その後、MBAを取得するために日本へ留学しました。')
+    expect(pageText).toContain('日本の四大会計事務所の一つでコンサルティングに携わるようになってからは')
+    expect(pageText).toContain("N1に合格することと、日本で日本語を使って働けることの間には、まだ長い道のりがあります。")
 
     expect(FOUNDER_PROFILE.heading).toBe('創辦人｜David Kao')
     expect(COFOUNDER_PROFILE.heading).toBe('共同創辦人｜塔奇巧克力（TachikoChoko）')

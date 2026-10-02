@@ -78,10 +78,10 @@ describe('application shell', () => {
     expect(heading).toHaveTextContent('「試験の日本語」から「日本のビジネス社会で使う日本語」へ。')
   })
 
-  it('sets the Library SPA root language to the selected shell locale', async () => {
+  it('keeps the Library SPA root Japanese for a dormant locale preference', async () => {
     setLocalePreference('zh-CN')
     renderShellRoutes(['/'])
-    await waitFor(() => expect(document.documentElement).toHaveAttribute('lang', 'zh-CN'))
+    await waitFor(() => expect(document.documentElement).toHaveAttribute('lang', 'ja'))
     setLocalePreference(null)
   })
 
@@ -89,29 +89,29 @@ describe('application shell', () => {
     window.history.replaceState(null, '', '/practice/web-test/about-spi')
     render(<App />)
 
-    expect(screen.getByRole('heading', { level: 1, name: 'SPI是什麼？在日本求職前一定要知道的 網路測驗' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: "SPIとは？日本での就職・転職前に知っておきたいWebテスト" })).toBeInTheDocument()
     for (const heading of [
-      'SPI 3 是什麼？', 'SPI 主要在測什麼？', 'SPI 3 的主要種類', 'SPI 怎麼考？',
-      'SPI 大概要考多久？', 'SPI 真正考的是「快速＋正確」', '為什麼很多 N1 合格者還是覺得 SPI 很難？',
-      '對外國人而言，SPI 往往比 JLPT 更難', '外國人最大的問題：腦中還在「翻譯」',
-      '什麼叫做「快速解題」？', '什麼叫做「正確解題」？', '想進大型企業，SPI 不能只是「有準備就好」',
-      '正答率 90% 可以當作高標準目標', '能力測驗高分，也不代表一定會通過', '日本求職不只有 SPI',
-      '外國人應該怎麼開始準備？', 'David 給想在日本工作的外國人的建議',
+      "SPI 3とは？", "SPIでは何を測る？", "SPI 3の主な種類", "SPIの受検方法は？",
+      "SPIの試験時間はどのくらい？", "SPIで問われる「速さと正確さ」", "N1に合格していてもSPIが難しいのはなぜ？",
+      "外国人にとって、SPIはJLPTより難しく感じることも", "外国人がつまずく大きな要因：頭の中で「翻訳」している",
+      "「速く解く」とは？", "「正確に解く」とは？", "大手企業を目指すなら、SPIは「一応対策した」で終わらせない",
+      "正答率90％を高い練習目標にする", "能力検査で高得点でも、必ず通過できるとは限らない", "日本の採用試験はSPIだけではない",
+      "外国人は何から準備すればいい？", "日本で働きたい外国人の方へ、Davidからのアドバイス",
     ]) {
       expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
     }
-    expect(screen.getAllByText('David 觀點')).toHaveLength(3)
-    expect(screen.getByRole('complementary', { name: 'David 觀點：Web Test 對選考的影響' })).toBeInTheDocument()
-    expect(screen.getByRole('complementary', { name: 'David 觀點：未準備 Web Test 的選考結果' })).toBeInTheDocument()
-    expect(screen.getByRole('complementary', { name: 'David 觀點：SPI 的準備起點' })).toBeInTheDocument()
-    expect(screen.getByText(/David 認識許多正在找工作的學生/)).toBeInTheDocument()
-    expect(screen.getByText(/N1，是證明你會日文。SPI，是日本企業開始判斷你能不能用日文工作的地方。/)).toBeInTheDocument()
-    const timingTable = screen.getByRole('table', { name: 'SPI 3 作答時間參考' })
-    expect(within(timingTable).getByRole('row', { name: /性格検査 約 30–40 分鐘/ })).toBeInTheDocument()
-    expect(within(timingTable).getByRole('row', { name: /能力検査 約 35–70 分鐘/ })).toBeInTheDocument()
-    expect(within(timingTable).getByRole('row', { name: /實際應考時間 兩者皆依實施方式而異；實際時間請以企業通知為準/ })).toBeInTheDocument()
-    expect(within(timingTable).getByRole('row', { name: /編輯說明 這是來源提供的概略資訊/ })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '日本求職網路測驗刷題' })).toHaveAttribute('href', '/practice/web-test')
+    expect(screen.getAllByText("Davidの視点")).toHaveLength(3)
+    expect(screen.getByRole('complementary', { name: "Davidの視点：Webテストが選考に与える影響" })).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: "Davidの視点：Webテストの準備不足と選考結果" })).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: "Davidの視点：SPI対策の出発点" })).toBeInTheDocument()
+    expect(screen.getByText(/Davidが知る就職活動中の学生や転職活動中の社会人の中には、日本人・外国人を問わず、Webテストの準備不足で選考の初期段階に不合格となった方が多くいます。/)).toBeInTheDocument()
+    expect(screen.getByText(/N1は、日本語ができることを示すもの。SPIは、日本企業が日本語で働けるかどうかを判断し始める場です。/)).toBeInTheDocument()
+    const timingTable = screen.getByRole('table', { name: "SPI 3の試験時間の目安" })
+    expect(within(timingTable).getByRole('row', { name: /性格検査 約30〜40分/ })).toBeInTheDocument()
+    expect(within(timingTable).getByRole('row', { name: /能力検査 約35〜70分/ })).toBeInTheDocument()
+    expect(within(timingTable).getByRole('row', { name: /実際の試験時間 いずれも実施方式によって異なります。実際の時間は企業からの案内を確認してください。/ })).toBeInTheDocument()
+    expect(within(timingTable).getByRole('row', { name: /編集上の注記 出典に記載された概略/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: "就職・転職向けWebテストを練習する" })).toHaveAttribute('href', '/practice/web-test')
     expect(screen.queryByText(/David 監修/)).not.toBeInTheDocument()
   })
 
@@ -156,10 +156,10 @@ describe('application shell', () => {
     // A fresh page load must not steal focus.
     expect(document.activeElement).not.toBe(main)
 
-    fireEvent.click(screen.getByRole('link', { name: 'Learn' }))
+    fireEvent.click(screen.getByRole('link', { name: '学ぶ' }))
 
     await waitFor(() =>
-      expect(screen.getByRole('heading', { name: 'Learn' })).toBeInTheDocument(),
+      expect(screen.getByRole('heading', { name: '学ぶ' })).toBeInTheDocument(),
     )
     expect(document.activeElement).toBe(main)
   })
@@ -186,7 +186,7 @@ describe('application shell', () => {
     const scrollToSpy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
     renderShellRoutes(['/'])
 
-    fireEvent.click(screen.getByRole('link', { name: 'Learn' }))
+    fireEvent.click(screen.getByRole('link', { name: '学ぶ' }))
     await waitFor(() => expect(scrollToSpy).toHaveBeenCalledWith(0, 0))
   })
 

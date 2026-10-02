@@ -75,7 +75,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     )
 
     expect(description.content).toBe(
-      '獨立的日本求職 Web Test 練習入口，協助華語學習者準備 SPI 等選考中的日文閱讀與推理能力。',
+      "日本での就職・転職に向けた Web テスト練習。SPI などの選考で求められる読解力、判断力、数的処理を日本語で鍛えます。",
     )
     fireEvent.click(screen.getByRole('link', { name: '離開 Web Test' }))
     expect(screen.getByText('Practice overview')).toBeInTheDocument()
@@ -85,20 +85,20 @@ describe('Web Test discovery and runner-entry routes', () => {
   it('moves from the hub through released SPI domains and categories without a fixture count', () => {
     renderWebTestAt('/practice/web-test')
 
-    expect(screen.getByRole('heading', { name: '日本求職網路測驗刷題' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '第一次準備 SPI？先看 SPI 是什麼' })).toHaveAttribute(
+    expect(screen.getByRole('heading', { name: "就職・転職向けWebテストを練習する" })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: "SPI を初めて受ける方へ" })).toHaveAttribute(
       'href',
       '/practice/web-test/about-spi',
     )
-    const families = screen.getByRole('region', { name: '選擇測驗類型' })
+    const families = screen.getByRole('region', { name: "テストを選ぶ" })
     expect(within(families).getByRole('link', { name: /SPI/ })).toHaveAttribute('href', '/practice/web-test/spi')
     expect(screen.queryByText('玉手箱', { selector: '.web-test-hub__family-title' })).not.toBeInTheDocument()
 
     cleanup()
     renderWebTestAt('/practice/web-test/spi/verbal')
-    const category = screen.getByRole('heading', { name: '文脈語彙' }).closest('li')
+    const category = screen.getByRole('heading', { name: "文脈と語句の意味" }).closest('li')
     expect(category).not.toBeNull()
-    expect(within(category!).getByRole('link', { name: '不計時學習' })).toHaveAttribute(
+    expect(within(category!).getByRole('link', { name: "時間を計らず練習" })).toHaveAttribute(
       'href',
       '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning',
     )
@@ -107,9 +107,9 @@ describe('Web Test discovery and runner-entry routes', () => {
   it('keeps a valid runner selection directly loadable while signed out', async () => {
     renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning')
 
-    expect(screen.getByRole('heading', { name: '文脈語彙' })).toBeInTheDocument()
-    expect(screen.getByText('不計時學習 · 5 題已發布')).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByText('請登入後才能載入會員練習內容。')).toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: "文脈と語句の意味" })).toBeInTheDocument()
+    expect(screen.getByText("時間を計らず練習 · 5 問公開中")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText("会員向けの練習を始めるには、ログインしてください。")).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: /開始|送出|開始練習/ })).not.toBeInTheDocument()
   })
 
@@ -123,7 +123,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     )
 
     await waitFor(() => expect(screen.getByRole('heading', { name: '指定複習題的合成題幹' })).toBeInTheDocument())
-    expect(screen.getByText('第 1／1 題')).toBeInTheDocument()
+    expect(screen.getByText("1／1 問目")).toBeInTheDocument()
   })
 
   it('fails closed when an exact review question is no longer in the current release', async () => {
@@ -133,8 +133,8 @@ describe('Web Test discovery and runner-entry routes', () => {
       { session: { id: 'synthetic-member' } },
     )
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: '這個複習項目已無法使用' })).toBeInTheDocument())
-    expect(screen.getByText('題目版本可能已更新，請回到 My Learning 重新整理學習紀錄。')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('heading', { name: "この問題は復習できなくなりました" })).toBeInTheDocument())
+    expect(screen.getByText("問題が更新された可能性があります。学習記録に戻り、最新の記録を確認してください。")).toBeInTheDocument()
   })
 
   it('runs a synthetic member flow with ordering, authored feedback, and truthful category results', async () => {
@@ -148,7 +148,7 @@ describe('Web Test discovery and runner-entry routes', () => {
       testFamily: 'spi' as const,
       category: 'vocabulary-in-context',
       promptJa: '表示を順番に並べてください。',
-      promptRepresentation: { kind: 'table' as const, columns: ['項目'], rows: [['合成問題']] },
+      promptRepresentation: { kind: 'table' as const, columns: ["項目"], rows: [['合成問題']] },
       answer: { input: { kind: 'ordering' as const, choices: [{ id: 'one', textJa: '一番', representation: { kind: 'equation' as const, expression: '1' } }, { id: 'two', textJa: '二番', representation: { kind: 'diagram' as const, altText: '合成図', nodes: [{ id: 'a', label: '起点' }, { id: 'b', label: '終点' }], edges: [{ from: 'a', to: 'b', label: '進む' }] } }] }, expectedAnswer: { kind: 'ordering' as const, choiceIds: ['two', 'one'] }, scoring: { kind: 'exact-order' as const } },
       coreExplanation: { concise: '順序を確認します。', whatIsAskedJa: '二番を先にすることが求められています。', representation: { kind: 'logic-grid' as const, columns: ['職位'], rows: ['甲'], cells: [{ row: '甲', column: '職位', value: 'yes' as const }] } },
       itemAnalysis: { ...sourceQuestion.itemAnalysis, diagnosticCheckpoints: { registryVersion: 1, ids: ['synthetic-checkpoint-01', 'synthetic-checkpoint-02'] } },
@@ -175,50 +175,52 @@ describe('Web Test discovery and runner-entry routes', () => {
 
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1000)
     const rendered = renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
-    await waitFor(() => expect(screen.getByText('第 1／2 題')).toBeInTheDocument())
-    expect(screen.getByRole('figure', { name: '題目表示' })).toBeInTheDocument()
-    expect(screen.getByRole('figure', { name: '一番 表示' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText("1／2 問目")).toBeInTheDocument())
+    expect(screen.getByRole('figure', { name: "問題の図・表" })).toBeInTheDocument()
+    expect(screen.getByRole('figure', { name: "一番の図・表" })).toBeInTheDocument()
     expect(screen.getByText('起点 → 終点：進む')).toBeInTheDocument()
     expect(screen.queryByText('合成提示。')).not.toBeInTheDocument()
     expect(screen.queryByText('選択')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '二番 上移' }))
+    fireEvent.click(screen.getByRole('button', { name: '二番を上へ' }))
     expect(screen.getAllByRole('listitem')[0]).toHaveTextContent('二番')
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
     nowSpy.mockReturnValue(9000)
     expect(screen.getByText('二番、一番')).toHaveAttribute('lang', 'ja')
-    expect(document.activeElement).toBe(screen.getByRole('heading', { name: '解答與說明' }))
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: "解答と解説" }))
     expect(screen.getByText('這是合成表示。')).toBeInTheDocument()
     expect(screen.getByText('不要倒置順序。')).toBeInTheDocument()
     expect(screen.getByRole('rowheader', { name: '甲' })).toBeInTheDocument()
-    expect(screen.getByText('yes')).not.toHaveAttribute('lang', 'ja')
+    expect(screen.getByText('該当')).toBeInTheDocument()
+    expect(screen.getByText('這是合成表示。')).toHaveAttribute('lang', 'zh-TW')
+    expect(screen.getByText('不要倒置順序。')).toHaveAttribute('lang', 'zh-TW')
     expect(screen.getByText('請輸入三。')).toHaveAttribute('lang', 'ja')
     rendered.authClient.emitAuthStateChange({ id: 'synthetic-member', email: 'refreshed@example.com' })
     await Promise.resolve()
     await waitFor(() => expect(screen.getByText('請輸入三。')).toBeInTheDocument())
     expect(fetchPracticePayloadMock).toHaveBeenCalledTimes(1)
-    fireEvent.change(screen.getByLabelText('數值答案'), { target: { value: '3' } })
-    fireEvent.click(screen.getByRole('button', { name: '回答檢查點' }))
-    expect(screen.getByText('檢查點回答正確')).toBeInTheDocument()
-    expect(document.activeElement).toBe(screen.getByRole('heading', { name: /理解檢查/ }))
-    fireEvent.click(screen.getByRole('button', { name: '下一個檢查點' }))
+    fireEvent.change(screen.getByLabelText("数値を入力"), { target: { value: '3' } })
+    fireEvent.click(screen.getByRole('button', { name: "確認問題に解答する" }))
+    expect(screen.getByText("確認問題：正解")).toBeInTheDocument()
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: /確認問題/ }))
+    fireEvent.click(screen.getByRole('button', { name: "次の確認問題へ" }))
     expect(screen.getByText('請輸入四。')).toBeInTheDocument()
-    expect(document.activeElement).toBe(screen.getByRole('heading', { name: /理解檢查/ }))
-    fireEvent.change(screen.getByLabelText('數值答案'), { target: { value: '4' } })
-    fireEvent.click(screen.getByRole('button', { name: '回答檢查點' }))
-    expect(screen.getByText('檢查點回答正確')).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByText('作答紀錄已儲存。')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: '下一題' }))
-    expect(screen.getByText('第 2／2 題')).toBeInTheDocument()
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: /確認問題/ }))
+    fireEvent.change(screen.getByLabelText("数値を入力"), { target: { value: '4' } })
+    fireEvent.click(screen.getByRole('button', { name: "確認問題に解答する" }))
+    expect(screen.getByText("確認問題：正解")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText("解答を保存しました。")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: "次の問題へ" }))
+    expect(screen.getByText("2／2 問目")).toBeInTheDocument()
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: '二番を選んでください。' }))
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
-    await waitFor(() => expect(screen.getByText('作答紀錄已儲存。')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: '下一題' }))
-    expect(screen.getByText('正確 2／2 題（正答率 100%）；作答紀錄已儲存。')).toBeInTheDocument()
-    expect(document.activeElement).toBe(screen.getByRole('heading', { name: '練習完成' }))
-    expect(screen.getByText('文脈語彙：2／2')).toBeInTheDocument()
-    expect(screen.getByText('已觀測到檢查點未通過：0／2')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
+    await waitFor(() => expect(screen.getByText("解答を保存しました。")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: "次の問題へ" }))
+    expect(screen.getByText('正解 2／2 問（正答率 100%） · 解答を保存しました。')).toBeInTheDocument()
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: "練習が終わりました" }))
+    expect(screen.getByText("文脈と語句の意味：2／2")).toBeInTheDocument()
+    expect(screen.getByText('確認問題の不正解：0／2')).toBeInTheDocument()
     expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(2)
     const firstAttempt = submitPracticeAttemptMock.mock.calls[0]![0] as Record<string, unknown>
     expect(Object.keys(firstAttempt).sort()).toEqual([
@@ -247,19 +249,19 @@ describe('Web Test discovery and runner-entry routes', () => {
     renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
     await waitFor(() => expect(screen.getByRole('heading', { name: '失敗時の合成題幹' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('是否已儲存無法確認'))
-    expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
-    const nextButton = screen.getByRole('button', { name: '下一題' })
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("解答が保存されたか確認できません。"))
+    expect(screen.queryByText("解答を保存しました。")).not.toBeInTheDocument()
+    const nextButton = screen.getByRole('button', { name: "次の問題へ" })
     expect(nextButton).toBeDisabled()
     fireEvent.click(nextButton)
-    expect(screen.getByRole('heading', { name: '解答與說明' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '重試儲存' }))
-    await waitFor(() => expect(screen.getByText('作答紀錄已儲存。')).toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: "解答と解説" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: "保存を再試行" }))
+    await waitFor(() => expect(screen.getByText("解答を保存しました。")).toBeInTheDocument())
     expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(2)
     expect(submitPracticeAttemptMock.mock.calls[1]![0]).toEqual(submitPracticeAttemptMock.mock.calls[0]![0])
-    fireEvent.click(screen.getByRole('button', { name: '下一題' }))
-    expect(screen.getByRole('heading', { name: '練習完成' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: "次の問題へ" }))
+    expect(screen.getByRole('heading', { name: "練習が終わりました" })).toBeInTheDocument()
   })
 
   it('treats a stale attempt rejection as terminal and keeps progression blocked', async () => {
@@ -271,19 +273,19 @@ describe('Web Test discovery and runner-entry routes', () => {
     renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
     await waitFor(() => expect(screen.getByRole('heading', { name: '版本更新の合成題幹' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('此題版本已更新'))
-    expect(screen.queryByRole('button', { name: '重試儲存' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '下一題' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: '重新載入最新題目' }))
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("問題が更新されたため、解答は保存されていません。"))
+    expect(screen.queryByRole('button', { name: "保存を再試行" })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: "次の問題へ" })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: "最新の問題を読み込む" }))
     expect(reload).toHaveBeenCalledOnce()
-    expect(screen.getByRole('link', { name: '返回類別' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: "単元一覧へ" })).toBeInTheDocument()
   })
 
   it.each([
-    ['signed-out', '登入狀態已失效', true],
-    ['forbidden', '沒有可用的 Plus 練習存取權', true],
-    ['missing', '題目內容已無法取得', false],
+    ['signed-out', "ログインの有効期限が切れたため、保存を確認できません。画面上部から再ログインし、保存を再試行してください。", true],
+    ['forbidden', "現在、このアカウントでは Plus の練習を利用できず、保存を確認できません。", true],
+    ['missing', "問題を取得できないため、解答は保存されていません。", false],
   ] as const)('keeps a %s attempt result terminal and truthful', async (kind, message, retryable) => {
     fetchPracticePayloadMock.mockClear()
     submitPracticeAttemptMock.mockResolvedValueOnce({ kind })
@@ -291,19 +293,19 @@ describe('Web Test discovery and runner-entry routes', () => {
     renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
     await waitFor(() => expect(screen.getByRole('heading', { name: `${kind} 結果の合成題幹` })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(message))
-    if (retryable) expect(screen.getByRole('button', { name: '重試儲存' })).toBeInTheDocument()
-    else expect(screen.queryByRole('button', { name: '重試儲存' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '下一題' })).toBeDisabled()
-    expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '返回類別' })).toBeInTheDocument()
-    if (kind === 'missing') expect(screen.getByRole('button', { name: '重新載入最新題目' })).toBeInTheDocument()
+    if (retryable) expect(screen.getByRole('button', { name: "保存を再試行" })).toBeInTheDocument()
+    else expect(screen.queryByRole('button', { name: "保存を再試行" })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: "次の問題へ" })).toBeDisabled()
+    expect(screen.queryByText("解答を保存しました。")).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: "単元一覧へ" })).toBeInTheDocument()
+    if (kind === 'missing') expect(screen.getByRole('button', { name: "最新の問題を読み込む" })).toBeInTheDocument()
   })
 
   it.each([
-    ['invalid', '作答回應需要修正', false],
-    ['unavailable', '是否已儲存無法確認', true],
+    ['invalid', "解答を確認できず、保存されていません。単元一覧に戻り、問題を読み込み直して解答してください。", false],
+    ['unavailable', "解答が保存されたか確認できません。", true],
   ] as const)('keeps a %s result from claiming saved or enabling progression', async (kind, message, retryable) => {
     fetchPracticePayloadMock.mockClear()
     submitPracticeAttemptMock.mockResolvedValueOnce({ kind })
@@ -311,12 +313,12 @@ describe('Web Test discovery and runner-entry routes', () => {
     renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
     await waitFor(() => expect(screen.getByRole('heading', { name: `${kind} 結果の合成題幹` })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(message))
-    if (retryable) expect(screen.getByRole('button', { name: '重試儲存' })).toBeInTheDocument()
-    else expect(screen.queryByRole('button', { name: '重試儲存' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '下一題' })).toBeDisabled()
-    expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
+    if (retryable) expect(screen.getByRole('button', { name: "保存を再試行" })).toBeInTheDocument()
+    else expect(screen.queryByRole('button', { name: "保存を再試行" })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: "次の問題へ" })).toBeDisabled()
+    expect(screen.queryByText("解答を保存しました。")).not.toBeInTheDocument()
   })
 
   it('treats an out-of-range response time as terminal without retry and allows the next question', async () => {
@@ -329,14 +331,14 @@ describe('Web Test discovery and runner-entry routes', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
     nowSpy.mockReturnValue(3_601_001)
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('作答時間超出可接受範圍'))
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("解答時間が記録可能な範囲を超えたため、保存できません。"))
     expect(submitPracticeAttemptMock.mock.calls[0]![0]).toEqual(expect.objectContaining({ responseTimeMs: 3_600_001 }))
-    expect(screen.queryByRole('button', { name: '重試儲存' })).not.toBeInTheDocument()
-    const nextButton = screen.getByRole('button', { name: '下一題' })
+    expect(screen.queryByRole('button', { name: "保存を再試行" })).not.toBeInTheDocument()
+    const nextButton = screen.getByRole('button', { name: "次の問題へ" })
     expect(nextButton).toBeEnabled()
     fireEvent.click(nextButton)
-    expect(screen.getByRole('heading', { name: '練習完成' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: "練習が終わりました" })).toBeInTheDocument()
     nowSpy.mockRestore()
   })
 
@@ -354,15 +356,15 @@ describe('Web Test discovery and runner-entry routes', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: '第一題超限時間' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
     nowSpy.mockReturnValue(3_601_001)
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('作答時間超出可接受範圍'))
-    fireEvent.click(screen.getByRole('button', { name: '下一題' }))
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("解答時間が記録可能な範囲を超えたため、保存できません。"))
+    fireEvent.click(screen.getByRole('button', { name: "次の問題へ" }))
     await waitFor(() => expect(screen.getByRole('heading', { name: '第二題正常儲存' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
-    await waitFor(() => expect(screen.getByText('作答紀錄已儲存。')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: '下一題' }))
-    expect(screen.getByText('正確 2／2 題（正答率 100%）；部分作答未儲存：有作答時間超出可接受範圍，無法完整同步。')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
+    await waitFor(() => expect(screen.getByText("解答を保存しました。")).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: "次の問題へ" }))
+    expect(screen.getByText('正解 2／2 問（正答率 100%） · 解答時間が記録可能な範囲を超えたため、一部の解答は保存されていません。')).toBeInTheDocument()
     expect(screen.queryByText('結果只保留在目前頁面')).not.toBeInTheDocument()
     nowSpy.mockRestore()
   })
@@ -380,19 +382,19 @@ describe('Web Test discovery and runner-entry routes', () => {
     const rendered = renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'member-a' } })
     await waitFor(() => expect(screen.getByRole('heading', { name: 'A 題幹' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
-    await waitFor(() => expect(screen.getByText('正在儲存作答紀錄。')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
+    await waitFor(() => expect(screen.getByText("解答を保存しています。")).toBeInTheDocument())
 
     act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b' }))
     await waitFor(() => expect(screen.getByRole('heading', { name: 'B 題幹' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('是否已儲存無法確認'))
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("解答が保存されたか確認できません。"))
 
     resolveFirst({ kind: 'ok' })
     await Promise.resolve()
-    expect(screen.getByRole('alert')).toHaveTextContent('是否已儲存無法確認')
-    expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent("解答が保存されたか確認できません。")
+    expect(screen.queryByText("解答を保存しました。")).not.toBeInTheDocument()
   })
 
   it('retains a signed-out attempt for same-user reauthentication and retries with the same idempotency key', async () => {
@@ -404,17 +406,17 @@ describe('Web Test discovery and runner-entry routes', () => {
     const rendered = renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'member-a' } })
     await waitFor(() => expect(screen.getByRole('heading', { name: '重新登入前の題幹' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('登入狀態已失效'))
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("ログインの有効期限が切れたため、保存を確認できません。画面上部から再ログインし、保存を再試行してください。"))
     const firstAttempt = submitPracticeAttemptMock.mock.calls[0]![0]
 
     act(() => rendered.authClient.emitAuthStateChange(null))
-    expect(screen.getByRole('heading', { name: '需要登入' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: "ログインが必要です" })).toBeInTheDocument()
     act(() => rendered.authClient.emitAuthStateChange({ id: 'member-a' }))
     await waitFor(() => expect(screen.getByRole('heading', { name: '重新登入後の題幹' })).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: '重試儲存' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '重試儲存' }))
-    await waitFor(() => expect(screen.getByText('作答紀錄已儲存。')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: "保存を再試行" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: "保存を再試行" }))
+    await waitFor(() => expect(screen.getByText("解答を保存しました。")).toBeInTheDocument())
     expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(2)
     expect(submitPracticeAttemptMock.mock.calls[1]![0]).toEqual(firstAttempt)
   })
@@ -430,20 +432,20 @@ describe('Web Test discovery and runner-entry routes', () => {
     const rendered = renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'member-a' } })
     await waitFor(() => expect(screen.getByRole('heading', { name: '進行中の題幹' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
-    await waitFor(() => expect(screen.getByText('正在儲存作答紀錄。')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
+    await waitFor(() => expect(screen.getByText("解答を保存しています。")).toBeInTheDocument())
     const firstAttempt = submitPracticeAttemptMock.mock.calls[0]![0]
 
     act(() => rendered.authClient.emitAuthStateChange(null))
-    expect(screen.getByRole('heading', { name: '需要登入' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: "ログインが必要です" })).toBeInTheDocument()
     act(() => rendered.authClient.emitAuthStateChange({ id: 'member-a' }))
     await waitFor(() => expect(screen.getByRole('heading', { name: '再認證後の題幹' })).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: '重試儲存' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: "保存を再試行" })).toBeInTheDocument()
     act(() => resolveFirst({ kind: 'ok' }))
     await Promise.resolve()
-    expect(screen.getByRole('button', { name: '重試儲存' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '重試儲存' }))
-    await waitFor(() => expect(screen.getByText('作答紀錄已儲存。')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: "保存を再試行" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: "保存を再試行" }))
+    await waitFor(() => expect(screen.getByText("解答を保存しました。")).toBeInTheDocument())
     expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(2)
     expect(submitPracticeAttemptMock.mock.calls[1]![0]).toEqual(firstAttempt)
   })
@@ -457,14 +459,14 @@ describe('Web Test discovery and runner-entry routes', () => {
     const rendered = renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'member-a' } })
     await waitFor(() => expect(screen.getByRole('heading', { name: '換帳號前の題幹' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
-    fireEvent.click(screen.getByRole('button', { name: '回答' }))
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('登入狀態已失效'))
+    fireEvent.click(screen.getByRole('button', { name: "解答する" }))
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("ログインの有効期限が切れたため、保存を確認できません。画面上部から再ログインし、保存を再試行してください。"))
 
     act(() => rendered.authClient.emitAuthStateChange(null))
     act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b' }))
     await waitFor(() => expect(screen.getByRole('heading', { name: '換帳號後の題幹' })).toBeInTheDocument())
-    expect(screen.queryByRole('button', { name: '重試儲存' })).not.toBeInTheDocument()
-    expect(screen.queryByText('作答紀錄已儲存。')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: "保存を再試行" })).not.toBeInTheDocument()
+    expect(screen.queryByText("解答を保存しました。")).not.toBeInTheDocument()
     expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(1)
   })
 
@@ -481,7 +483,7 @@ describe('Web Test discovery and runner-entry routes', () => {
 
     act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b' }))
     expect(screen.queryByRole('heading', { name: 'A 私密題幹' })).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '載入練習' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: "練習を読み込んでいます" })).toBeInTheDocument()
   })
 
   it('removes the old ready payload synchronously when the runner route selection changes', async () => {
@@ -499,7 +501,7 @@ describe('Web Test discovery and runner-entry routes', () => {
 
     fireEvent.click(screen.getByRole('link', { name: '切換類別' }))
     expect(screen.queryByRole('heading', { name: 'A route 私密題幹' })).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '載入練習' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: "練習を読み込んでいます" })).toBeInTheDocument()
     await waitFor(() => expect(fetchPracticePayloadMock).toHaveBeenCalledTimes(2))
   })
 

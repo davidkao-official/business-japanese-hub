@@ -23,10 +23,10 @@ describe('Practice activity projection', () => {
     )
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: /Practice/i }),
+      await screen.findByRole('heading', { level: 1, name: /練習/i }),
     ).toBeInTheDocument()
     expect(document.querySelectorAll('.practice-activity-card')).toHaveLength(0)
-    expect(screen.queryByRole('button', { name: /Submit|Reveal answer/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /解答を確認|解答例を見る/i })).not.toBeInTheDocument()
   })
 
   it('renders every released exercise and locally reveals answer feedback for an owner', async () => {
@@ -51,10 +51,10 @@ describe('Practice activity projection', () => {
       },
     )
 
-    await screen.findByRole('heading', { level: 2, name: 'Exercise 01' })
+    await screen.findByRole('heading', { level: 2, name: '練習問題01' })
     const cards = Array.from(document.querySelectorAll<HTMLElement>('.practice-activity-card'))
     expect(cards).toHaveLength(4)
-    expect(screen.getAllByRole('button', { name: 'Submit' })).toHaveLength(4)
+    expect(screen.getAllByRole('button', { name: '解答を確認' })).toHaveLength(4)
     expect(screen.getAllByRole('radio')).toHaveLength(4)
     expect(screen.getAllByRole('textbox')).toHaveLength(3)
     expect(screen.getByText(/書き換えてください/)).toBeInTheDocument()
@@ -70,20 +70,20 @@ describe('Practice activity projection', () => {
       }),
     ).toBeInTheDocument()
     fireEvent.click(within(firstCard).getAllByRole('radio')[1]!)
-    fireEvent.click(within(firstCard).getByRole('button', { name: 'Submit' }))
+    fireEvent.click(within(firstCard).getByRole('button', { name: '解答を確認' }))
 
-    expect(within(firstCard).getByRole('button', { name: 'Reveal answer' })).toBeInTheDocument()
+    expect(within(firstCard).getByRole('button', { name: '解答例を見る' })).toBeInTheDocument()
     expect(within(firstCard).queryByText('二つ目')).not.toBeInTheDocument()
-    fireEvent.click(within(firstCard).getByRole('button', { name: 'Reveal answer' }))
+    fireEvent.click(within(firstCard).getByRole('button', { name: '解答例を見る' }))
 
     expect(within(firstCard).getByText('二つ目')).toBeInTheDocument()
-    expect(within(firstCard).getByText(/Feedback:/)).toBeInTheDocument()
+    expect(within(firstCard).getByText(/解説：/)).toBeInTheDocument()
 
     const thirdCard = cards[2]
     if (!thirdCard) throw new Error('missing third practice exercise')
     fireEvent.change(within(thirdCard).getByRole('textbox'), { target: { value: '回到主線' } })
-    fireEvent.click(within(thirdCard).getByRole('button', { name: 'Submit' }))
-    fireEvent.click(within(thirdCard).getByRole('button', { name: 'Reveal answer' }))
+    fireEvent.click(within(thirdCard).getByRole('button', { name: '解答を確認' }))
+    fireEvent.click(within(thirdCard).getByRole('button', { name: '解答例を見る' }))
 
     expect(thirdCard.querySelectorAll('br')).toHaveLength(2)
     expect(within(thirdCard).getByText(/①ここまでの意見/)).toBeInTheDocument()

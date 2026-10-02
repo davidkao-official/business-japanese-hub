@@ -53,7 +53,7 @@ describe('Business Reading surfaces', () => {
     expect(screen.getByRole('heading', { name: '日本のビジネス資料を、文脈とともに読む' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /從內部提案看日本商務資料的論點安排/ })).toHaveAttribute('href', '/read/sample-internal-proposal')
     expect(screen.getByText('Free')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Plus の Reading 記事' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Plus の記事' })).toBeInTheDocument()
     expect(screen.getByText('Plus の記事は現在公開されていません。公開後、会員状態をサーバーで確認して配信します。')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '書籍一覧を見る' })).toHaveAttribute('href', '/library')
     expect(screen.getAllByRole('link').some((link) => link.getAttribute('href')?.startsWith('/books/'))).toBe(true)
@@ -68,8 +68,22 @@ describe('Business Reading surfaces', () => {
     expect(screen.getByRole('heading', { name: sampleReadingItem.title })).toBeInTheDocument()
     expect(screen.getByText(sampleReadingItem.japaneseMaterial.text)).toHaveAttribute('lang', 'ja')
     expect(screen.getByText(sampleReadingItem.explanationZhTW)).toHaveAttribute('lang', 'zh-TW')
+    expect(screen.getByText(sampleReadingItem.source.label)).toHaveAttribute('lang', 'zh-TW')
     expect(screen.getByText('公開日なし')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /論點如何在會議中承接與轉換/ })).toHaveAttribute('href', '/learn/meeting-japanese-course-correction')
+  })
+
+  it.each([
+    ['free', undefined],
+    ['free', 'https://example.com/source'],
+    ['plus', undefined],
+    ['plus', 'https://example.com/source'],
+  ] as const)('marks the authored %s citation independently of Japanese UI with URL %s', (access, url) => {
+    const item: ReadingRuntimeItem = { ...sampleReadingItem, access, source: { ...sampleReadingItem.source, url } }
+    const entry = toReadingCatalogEntry(item, access === 'plus' ? { contentId: item.id, revision } : undefined)
+    renderWithAppProviders(routeSet([entry], undefined, [item]), { initialEntries: [`/read/${item.slug}`] })
+    expect(screen.getByText(item.source.label)).toHaveAttribute('lang', 'zh-TW')
+    if (url) expect(screen.getByRole('link', { name: item.source.label })).toHaveAttribute('href', url)
   })
 
   it('keeps authored Japanese and Chinese paragraphs distinct', () => {

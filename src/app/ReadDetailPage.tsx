@@ -146,8 +146,8 @@ function ReadingMetadata({ entry }: { entry: ReadingCatalogEntry }) {
       <h1 id="reading-detail-title" lang="zh-TW">{entry.title}</h1>
       <p lang="zh-TW">{entry.summary}</p>
       <p>{strings.reading.source}: {entry.source.url
-        ? <a href={entry.source.url} target="_blank" rel="noreferrer">{entry.source.label}</a>
-        : entry.source.label}</p>
+        ? <a href={entry.source.url} target="_blank" rel="noreferrer" lang="zh-TW">{entry.source.label}</a>
+        : <span lang="zh-TW">{entry.source.label}</span>}</p>
       <p>{strings.reading.publishedOn}: {entry.releasedAt
         ? <time dateTime={entry.releasedAt}>{entry.releasedAt.slice(0, 10)}</time>
         : strings.reading.notDated}</p>
@@ -160,7 +160,7 @@ function ReadingArticle({ item, saveControl }: { item: ReadingRuntimeItem; saveC
   return (
     <article className="reading-article">
       <header className="reading-article__header">
-        <p className="reading-eyebrow" lang="en">{strings.reading.eyebrow}</p>
+        <p className="reading-eyebrow">{strings.reading.eyebrow}</p>
         <div className="reading-card__meta">
           <span>{strings.reading.categories[item.category]}</span>
           <span className={`reading-access reading-access--${item.access}`}>
@@ -174,8 +174,8 @@ function ReadingArticle({ item, saveControl }: { item: ReadingRuntimeItem; saveC
           <div>
             <dt>{strings.reading.source}</dt>
             <dd>{item.source.url
-              ? <a href={item.source.url} target="_blank" rel="noreferrer">{item.source.label}</a>
-              : item.source.label}</dd>
+              ? <a href={item.source.url} target="_blank" rel="noreferrer" lang="zh-TW">{item.source.label}</a>
+              : <span lang="zh-TW">{item.source.label}</span>}</dd>
           </div>
           <div>
             <dt>{strings.reading.publishedOn}</dt>

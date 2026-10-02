@@ -1,12 +1,14 @@
+import { useStrings } from '../i18n/strings'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
-import { useStrings } from '../i18n/strings'
 import { READING_CATEGORIES, listReadingCatalogEntries } from '../reading/catalog'
 import type { ReadingCategory } from '../reading/types'
 import { listCatalogEntries } from '../reader/catalog'
 
 export function ReadLandingPage() {
+  const ui = useStrings().learningUi
+
   const strings = useStrings()
   const copy = strings.reading
   const [category, setCategory] = useState<ReadingCategory | 'all'>('all')
@@ -21,7 +23,7 @@ export function ReadLandingPage() {
   return (
     <section className="page reading-page" aria-labelledby="reading-title">
       <div className="reading-masthead">
-        <p className="reading-eyebrow" lang="en">{copy.eyebrow}</p>
+        <p className="reading-eyebrow">{copy.eyebrow}</p>
         <h1 className="reading-title" id="reading-title">{copy.title}</h1>
         <p className="reading-lead">{copy.lead}</p>
       </div>
@@ -29,7 +31,7 @@ export function ReadLandingPage() {
       <section className="reading-discovery" aria-labelledby="reading-discovery-title">
         <div className="reading-section-heading">
           <div>
-            <p className="reading-kicker">Read</p>
+            <p className="reading-kicker">{ui.readLabel}</p>
             <h2 id="reading-discovery-title">{strings.learningModes.modes.read.title}</h2>
           </div>
           <span className="reading-count" aria-live="polite">{entries.length}</span>
@@ -89,7 +91,7 @@ export function ReadLandingPage() {
 
       <section className="reading-books" aria-labelledby="reading-books-title">
         <div>
-          <p className="reading-kicker">Library</p>
+          <p className="reading-kicker">{ui.libraryLabel}</p>
           <h2 id="reading-books-title">{copy.booksTitle}</h2>
           <p>{copy.booksBody}</p>
         </div>

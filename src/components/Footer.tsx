@@ -1,3 +1,4 @@
+import { LanguageControl } from './LanguageControl'
 import { Link } from 'react-router-dom'
 import { useLocale, useStrings } from '../i18n/strings'
 import { legalContentLocaleFor, listLegalDocuments, SELLER_DISCLOSURE } from '../legal-content'
@@ -45,6 +46,7 @@ export function Footer() {
           <p className="site-footer__copyright">{strings.footer.note}</p>
         </div>
       </div>
+      <LanguageControl />
     </footer>
   )
 }
