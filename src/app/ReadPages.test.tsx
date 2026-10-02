@@ -51,6 +51,9 @@ describe('Business Reading surfaces', () => {
   it('shows the original free sample, category filters, and Book/Reader entry points', () => {
     renderWithAppProviders(routeSet(), { initialEntries: ['/read'] })
     expect(screen.getByRole('heading', { name: '日本のビジネス資料を、文脈とともに読む' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '記事を選ぶ' })).toBeInTheDocument()
+    expect(document.querySelector('.reading-discovery .reading-kicker')).toHaveTextContent('読む')
+    expect(screen.queryByRole('heading', { name: '読む', exact: true })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /從內部提案看日本商務資料的論點安排/ })).toHaveAttribute('href', '/read/sample-internal-proposal')
     expect(screen.getByText('Free')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Plus の記事' })).toBeInTheDocument()

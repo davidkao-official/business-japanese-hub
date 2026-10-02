@@ -127,7 +127,7 @@ export function WebTestFamilyPage() {
   return (
     <section className="page web-test-hub" lang={getActiveLocale()} aria-labelledby="web-test-family-page-title">
       <div className="web-test-hub__intro">
-        <p className="product-mode-page__eyebrow" lang={getActiveLocale()}>{ui.practicePrefix}{labelForFamily(family.testFamily)}</p>
+        <p className="product-mode-page__eyebrow" lang={getActiveLocale()}>{ui.practicePrefix} {labelForFamily(family.testFamily)}</p>
         <h1 className="page__title" id="web-test-family-page-title">{labelForFamily(family.testFamily)}</h1>
         <p className="page__lead">{ui.webDomainLead}</p>
       </div>
@@ -166,7 +166,7 @@ export function WebTestCategoryPage() {
   return (
     <section className="page web-test-hub" lang={getActiveLocale()} aria-labelledby="web-test-category-page-title">
       <div className="web-test-hub__intro">
-        <p className="product-mode-page__eyebrow" lang={getActiveLocale()}>{ui.practicePrefix}{labelForFamily(family.testFamily)} · {(domain.domain === 'verbal' ? ui.webVerbal : ui.webNonverbal)}</p>
+        <p className="product-mode-page__eyebrow" lang={getActiveLocale()}>{ui.practicePrefix} {labelForFamily(family.testFamily)} · {(domain.domain === 'verbal' ? ui.webVerbal : ui.webNonverbal)}</p>
         <h1 className="page__title" id="web-test-category-page-title">{(domain.domain === 'verbal' ? ui.webVerbal : ui.webNonverbal)}</h1>
         <p className="page__lead">{ui.webCategoryLead}</p>
       </div>
@@ -368,7 +368,7 @@ export function WebTestRunnerEntryPage() {
   return (
       <section className="page web-test-hub" lang={getActiveLocale()} aria-labelledby="web-test-runner-entry-title">
       <div className="web-test-hub__intro">
-        <p className="product-mode-page__eyebrow" lang={getActiveLocale()}>{ui.practicePrefix}{labelForFamily(family.testFamily)} · {(domain.domain === 'verbal' ? ui.webVerbal : ui.webNonverbal)}</p>
+        <p className="product-mode-page__eyebrow" lang={getActiveLocale()}>{ui.practicePrefix} {labelForFamily(family.testFamily)} · {(domain.domain === 'verbal' ? ui.webVerbal : ui.webNonverbal)}</p>
         <h1 className="page__title" id="web-test-runner-entry-title">{labelForCategory(family.testFamily, domain.domain, category)}</h1>
         <p className="page__lead">{(mode === 'untimed-learning' ? ui.webUntimed : ui.webTimed)} · {category.releasedCount} {ui.webPublishedCountSuffix}</p>
       </div>

@@ -53,6 +53,15 @@ function syntheticRuntimePayload(promptJa: string, category = 'vocabulary-in-con
 }
 
 describe('Web Test discovery and runner-entry routes', () => {
+  it.each([
+    '/practice/web-test/spi',
+    '/practice/web-test/spi/verbal',
+    '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning',
+  ])('separates the Japanese practice label from the family name at %s', (path) => {
+    renderWebTestAt(path)
+    expect(document.querySelector('.product-mode-page__eyebrow')).toHaveTextContent(/^練習 · SPI(?: · 言語)?$/)
+  })
+
   it('sets an independent Japanese recruitment Web Test description and restores the prior route description on leave', () => {
     const description = document.createElement('meta')
     description.name = 'description'

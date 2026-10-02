@@ -32,7 +32,7 @@ export function ReadLandingPage() {
         <div className="reading-section-heading">
           <div>
             <p className="reading-kicker">{ui.readLabel}</p>
-            <h2 id="reading-discovery-title">{strings.learningModes.modes.read.title}</h2>
+            <h2 id="reading-discovery-title">{ui.readDiscoveryTitle}</h2>
           </div>
           <span className="reading-count" aria-live="polite">{entries.length}</span>
         </div>
