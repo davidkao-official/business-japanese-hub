@@ -93,6 +93,7 @@ ul, ol { margin: 0; padding: 0; }
   .brand__word { font-size: 0.9375rem; overflow: hidden; text-overflow: ellipsis; }
 }
 @media (max-width: 359px) {
+  .brand { min-width: var(--tap-min); }
   .brand__word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 }
 
@@ -294,13 +295,14 @@ a.row:hover .row__title { text-decoration: underline; text-underline-offset: 3px
 button.choice { width: 100%; text-align: start; font: inherit; color: inherit; }
 button.choice:focus-visible { outline-offset: 3px; box-shadow: 0 0 0 6px var(--focus-halo); border-radius: var(--radius-control); }
 .choice[aria-disabled="true"], .choice:has(input:disabled), button.choice:disabled { cursor: not-allowed; color: var(--ink-3); border-style: dashed; }
-.choice__key--box { border-radius: 4px; }
-.choice.is-checked .choice__key--box { background: var(--ink); color: var(--ink-inverse); border-color: var(--ink); }
 .choice__key {
   width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%;
   border: 1px solid var(--rule-control); font-family: var(--font-en); font-size: var(--size-small); font-weight: var(--weight-bold); color: var(--ink-2);
 }
 .choice__text { font-size: 1.0625rem; }
+/* multi-select (checkbox) key is square; declared after .choice__key so it wins the cascade */
+.choice__key.choice__key--box { border-radius: 4px; }
+.choice.is-checked .choice__key.choice__key--box { background: var(--ink); color: var(--ink-inverse); border-color: var(--ink); }
 .choice.is-selected { border-color: var(--ink); border-width: 2px; padding: 9px 13px; }
 .choice.is-selected .choice__key { background: var(--ink); color: var(--ink-inverse); border-color: var(--ink); }
 .choice.is-correct { border-color: var(--ok); background: var(--ok-soft); }
@@ -409,7 +411,12 @@ dialog.dlg--sheet .dlg__body { padding-bottom: calc(var(--space-5) + env(safe-ar
 
 /* ── Representations (equation / table / diagram / elimination / logic grid) ── */
 .rep { margin-top: var(--space-4); }
-.rep__scroll { overflow-x: auto; max-width: 100%; }
+/* A Representation scrolls inside its own region. This only works when every grid/flex
+   ancestor can shrink (minmax(0, 1fr) tracks, min-width: 0 items) — never solved by
+   clipping page overflow. The region is focusable (tabindex="0", role="region",
+   aria-label) so keyboard users can scroll it with arrow keys. */
+.rep__scroll { overflow-x: auto; max-width: 100%; min-width: 0; overscroll-behavior-x: contain; }
+.rep__scroll:focus-visible { outline-offset: 2px; }
 .rep table { border-collapse: collapse; font-size: var(--size-small); min-width: 100%; }
 .rep th, .rep td { border: 1px solid var(--rule-control); padding: 8px 10px; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .rep th { background: var(--sheet-sunk); font-weight: var(--weight-medium); }

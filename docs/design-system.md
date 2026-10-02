@@ -1,6 +1,6 @@
 # Business Japanese Hub — Design System「Source & Gloss」
 
-> **狀態：canonical / 視覺與互動設計 authority（v2.3，2026-10-02）。**
+> **狀態：canonical / 視覺與互動設計 authority（v2.3.1，2026-10-02）。**
 >
 > 本文件定義 Business Japanese Hub 整個產品（main frontend 與 Career Game）的視覺識別、typography、色彩、marks、shell／navigation、components、各 surface 的 presentation grammar、states 與 implementation sequence。
 >
@@ -230,7 +230,7 @@ Canonical IDs 與 routes 不變；**V1 顯示名稱為日文**：
 
 - Header 56px：glyph + wordmark + ログイン／アカウント。**帳號控制項永遠可見、≥44px，不得被推出畫面或隱藏**（D29）：
   - < 600px：間距收窄、wordmark 15px；在較寬的 fallback 字型下 wordmark 可省略（…），但不得造成水平捲動。
-  - < 360px（含 320px reflow）：只顯示 glyph，連結保留 accessible name「Business Japanese Hub ホーム」。
+  - < 360px（含 320px reflow）：只顯示 30px glyph，連結保留 accessible name「Business Japanese Hub ホーム」，且連結本身仍是 **44×44px** 點擊區。
   - 驗收：320／360／390 × 未ログイン（ログイン）／已登入（アカウント）× 至少兩種字型環境（Apple 系統字型，以及 Windows 或 Linux 的 fallback），皆無水平捲動。參考：`narrow-320-*`、`narrow-360-*` 截圖。
 - **底部 tab bar**：`学ぶ／読む／練習／学習記録／その他`。「その他」是 `<button aria-haspopup="dialog">`，開啟 `Dialog`（sheet placement，§6）：体験（Career Game，另一個 origin，標示「別サイトで開きます」）、Plus、Business Japanese Hub について、外観、規約・ポリシー（post-V1 才加入表示言語）。參考：`practice.html#more`。
 - Safe-area、44px 點擊區、目前 tab 以粗體＋marker icon 底表示；專注模式中隱藏。
@@ -316,13 +316,13 @@ Runner 呈現 Practice **既有**的 authoring、計分與保存 contract（`src
 
 | kind | 呈現 | 規則 |
 | --- | --- | --- |
-| `single-choice` | `ChoiceRow` select（radio） | 選項數與順序依資料；A, B, C… 只是顯示用的 key；送出前可改選 |
+| `single-choice` | `ChoiceRow` select（radio，圓形 key） | 選項數與順序依資料；A, B, C… 只是顯示用的 key；送出前可改選 |
 | `multi-select` | `ChoiceRow` select（checkbox，方形 key） | 明示「当てはまるものをすべて選ぶ」；不提示正解數 |
 | `number` | `Field`（`inputmode="decimal"`） | label「答え（数値）」；單位由題目文字提供 |
 | `short-text` | `Field`（text） | 依 `exact-text` 計分；不自動修正輸入 |
 | `ordering` | 排序 rows＋「上へ／下へ」按鈕 | 初始順序依資料；拖曳只是加強，不能是唯一方式 |
 
-**B. Representation：** equation、table、diagram（必用 `altText`）、elimination、logic-grid、other 各自以 `Representation` 呈現在 sunk sheet 內。表格超過寬度時在具名、可聚焦的區域內水平捲動，頁面本身不得水平捲動。logic-grid 的〇×是資料（ink），不是正誤。
+**B. Representation：** equation、table、diagram（必用 `altText`）、elimination、logic-grid、other 各自以 `Representation` 呈現在 sunk sheet 內。表格超過寬度時在具名（`role="region"`＋`aria-label`）、可聚焦（`tabindex="0"`，鍵盤以方向鍵捲動）的區域內水平捲動，頁面本身不得水平捲動。**為此，從頁面到 Representation 之間的每一層 grid／flex 都必須能縮到比表格的 min-content 更窄**（`minmax(0, 1fr)` track、`min-width: 0` item）；不得以 `overflow: hidden` 裁掉頁面溢出來掩蓋。驗收用比 viewport 更寬的表格與 logic-grid（參考：`runner-states.html` 的 8 欄表與 6×6 grid、`narrow-320-runner-states-table` 截圖）。logic-grid 的〇×是資料（ink），不是正誤。
 
 **C. 確認問題（`PracticeCheckpoint`）：** 0..n 題，依作者順序；每題有自己的 `promptJa`、`answer`（輸入類型同 A）、`id`、`version`。標籤依 `dimension`：meaning＝**題意**、representation＝**整理**、execution＝**処理**（字句屬內容審閱，D22）。每步狀態：回答中／未回答／〇 正解／× 不正解。**沒有確認問題時不顯示 ladder，也不算作「未確認」或不正解。**「題意 → 立式 → 計算」只是 equation 題的示例，不是固定的三步結構。
 
@@ -593,6 +593,7 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | **v2.1** | 前提待 Owner 確認；切換器在 footer；14 個 open questions | 前提已核准並寫入 product contract；V1 無切換器；只剩 3 個真正的 owner gates（G0–G2），內容審閱與商業幣別分為獨立 lane |
 | **v2.2** | 「n < 5 → データ不足」寫成設計規則；Q7 歸為 engineering | 移除自訂門檻（§8.1 authority boundary）；canonical 只有 50 筆窗口與 weak-area ≥5／≥2 規則；Q7 改為 learning authority |
 | **v2.3**（PR #192 獨立審查） | Career Game 結果寫成〇×；runner 以單一計算題為準；ChoiceRow focus 不可見；窄 header 溢出；overlay 只有名稱 | Career Game 保留 strong／mixed／risky（D25）；runner 依既有輸入／確認問題／保存矩陣（D26）；`Dialog` 與 `NoteTrigger` 的互動 contract（D27）；focus 與 44px 點擊區（D28）；窄 header 與 320 reflow QA（D29）；Read 為 #122 保留位置（D30）；新增 `runner-states.html`、`game.html` 與 overlay／focus／窄螢幕截圖 |
+| **v2.3.1**（`0389757` 的再審查 R1–R3） | 寬表格／logic-grid 撐開整頁；multi-select 的方形 key 被圓形規則覆蓋；< 360px glyph-only 連結只有 30×44 | Representation 的 min-width 鏈與可鍵盤捲動的區域（§7.3 B）；方形 key 的 cascade 修正；glyph-only 連結 44×44（§5.3）；新增寬表／6×6 grid fixture 與 `narrow-320-runner-states-table` 截圖 |
 
 ---
 
@@ -605,6 +606,6 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | [`runner-states.html`](design/reference/runner-states.html)（`#signin`） | 練習 runner 的輸入類型、representation、確認問題狀態、保存狀態、完了（§7.3） |
 | [`game.html`](design/reference/game.html)（`#decision`／`#strong`／`#mixed`／`#risky`） | Career Game：commit choices 與三種判斷結果（§7.12），使用已公開的實際內容 |
 | [`tokens.css`](design/reference/tokens.css)、[`reference.css`](design/reference/reference.css) | Token 規格與參考 component CSS |
-| [`screenshots/`](design/reference/screenshots/) | 1440 桌機、390 手機（2x）、dark 樣本；`narrow-320-*`／`narrow-360-*`（窄 header）、`focus-*`（ChoiceRow focus）、`*-more-sheet`／`*-read-note`／`*-runner-signin`（Dialog 開啟狀態）、`*-game-*`（三種判斷結果）；以及 `audit-live-*` 現況證據 |
+| [`screenshots/`](design/reference/screenshots/) | 1440 桌機、390 手機（2x）、dark 樣本；`narrow-320-*`／`narrow-360-*`（窄 header；`narrow-320-runner-states-table`：寬表在自己的區域內捲動）、`focus-*`（ChoiceRow focus）、`*-more-sheet`／`*-read-note`／`*-runner-signin`（Dialog 開啟狀態）、`*-game-*`（三種判斷結果）；以及 `audit-live-*` 現況證據 |
 
 參考稿只使用已公開的 `non-proprietary-teaching-sample` 內容（日文原文部分）、Career Game 已公開的 `upward-disagreement` 內容（`game.html`），與為本參考原創、標示「サンプル」的範例；Learn／Read 的日文解説為本參考撰寫（現行資料為繁中）。学習記録與結果畫面的數字是版面用示意資料。

@@ -20,7 +20,10 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
   .rs-sec > h2 { font-size: var(--size-title-2); }
   .rs-sec > .muted { margin-top: 6px; max-width: 44em; }
   .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); margin-top: var(--space-5); }
-  .spec { display: grid; gap: var(--space-3); align-content: start; }
+  /* R1: every grid track between the page and a Representation must be able to shrink
+     below the table's min-content (minmax(0, 1fr) / min-width: 0); the table then
+     scrolls inside its own .rep__scroll region instead of widening the page. */
+  .spec { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); align-content: start; min-width: 0; }
   .spec__tag { font-size: var(--size-caption); color: var(--ink-3); font-family: var(--font-en); }
   .spec .material { font-size: 1.0625rem; }
   .mtable { width: 100%; border-collapse: collapse; margin-top: var(--space-5); font-size: var(--size-small); }
@@ -36,7 +39,7 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
   .done dd { margin: 4px 0 0; font-weight: var(--weight-bold); font-size: 1.25rem; font-variant-numeric: tabular-nums; }
   .done dd small { font-size: var(--size-small); font-weight: var(--weight-regular); color: var(--ink-2); }
   @media (max-width: 959px) {
-    .grid2 { grid-template-columns: 1fr; }
+    .grid2 { grid-template-columns: minmax(0, 1fr); }
     .done { grid-template-columns: 1fr 1fr; }
     .mtable, .mtable tbody, .mtable tr, .mtable td { display: block; }
     .mtable thead { display: none; }
@@ -100,12 +103,18 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
         <p class="caption">ドラッグは補助。上へ／下へのボタンだけで完了できる。</p>
       </div>
       <div class="spec">
+        <p class="spec__tag">representation: table · wide (8 columns, scrolls inside its region)</p>
+        <div class="sheet"><p class="sheet__label"><b>問題</b><span>サンプル</span></p><p class="material">上期の合計売上が最も大きい月はどれか。</p>
+          <div class="rep rep__scroll" role="region" aria-label="月別売上の表（横にスクロールできます）" tabindex="0"><table><thead><tr><th scope="col">店舗</th><th scope="col">4月（万円）</th><th scope="col">5月（万円）</th><th scope="col">6月（万円）</th><th scope="col">7月（万円）</th><th scope="col">8月（万円）</th><th scope="col">9月（万円）</th><th scope="col">上期合計（万円）</th></tr></thead><tbody><tr><th scope="row">A 店</th><td>1,210</td><td>1,185</td><td>1,302</td><td>1,340</td><td>1,288</td><td>1,395</td><td>7,720</td></tr><tr><th scope="row">B 店</th><td>812</td><td>790</td><td>845</td><td>870</td><td>833</td><td>902</td><td>5,052</td></tr><tr><th scope="row">C 店</th><td>498</td><td>520</td><td>505</td><td>556</td><td>571</td><td>590</td><td>3,240</td></tr><tr><th scope="row">D 店</th><td>642</td><td>655</td><td>688</td><td>701</td><td>679</td><td>720</td><td>4,085</td></tr></tbody></table></div></div>
+        <p class="caption">表は自分の領域の中だけで横にスクロールします。ページ全体は横に広がりません。領域は Tab で選択でき、矢印キーで動かせます。</p>
+      </div>
+      <div class="spec">
         <p class="spec__tag">short-text</p>
         <div class="field"><label for="st">答え</label><input id="st" class="input" value="ウ"></div>
       </div>
       <div class="spec">
-        <p class="spec__tag">representation: logic-grid (data, not grading)</p>
-        <div class="rep rep__scroll" role="region" aria-label="条件の表" tabindex="0"><table><thead><tr><th></th><th scope="col">1 番</th><th scope="col">2 番</th><th scope="col">3 番</th></tr></thead><tbody><tr><th scope="row">P</th><td class="grid-yes">〇</td><td class="grid-no">×</td><td class="grid-no">×</td></tr><tr><th scope="row">Q</th><td class="grid-no">×</td><td></td><td></td></tr><tr><th scope="row">R</th><td class="grid-no">×</td><td></td><td></td></tr></tbody></table></div>
+        <p class="spec__tag">representation: logic-grid · wide (6 × 6, scrolls inside its region)</p>
+        <div class="rep rep__scroll" role="region" aria-label="条件の表（横にスクロールできます）" tabindex="0"><table><thead><tr><th></th><th scope="col">1 番目に到着</th><th scope="col">2 番目に到着</th><th scope="col">3 番目に到着</th><th scope="col">4 番目に到着</th><th scope="col">5 番目に到着</th><th scope="col">6 番目に到着</th></tr></thead><tbody><tr><th scope="row">P</th><td class="grid-yes">〇</td><td class="grid-no">×</td><td class="grid-no">×</td><td class="grid-no">×</td><td class="grid-no">×</td><td class="grid-no">×</td></tr><tr><th scope="row">Q</th><td class="grid-no">×</td><td></td><td></td><td></td><td></td><td class="grid-yes">〇</td></tr><tr><th scope="row">R</th><td class="grid-no">×</td><td></td><td></td><td></td><td></td><td class="grid-no">×</td></tr><tr><th scope="row">S</th><td class="grid-no">×</td><td class="grid-no">×</td><td></td><td></td><td></td><td class="grid-no">×</td></tr><tr><th scope="row">T</th><td class="grid-no">×</td><td></td><td></td><td></td><td class="grid-no">×</td><td class="grid-no">×</td></tr><tr><th scope="row">U</th><td class="grid-no">×</td><td></td><td></td><td></td><td></td><td class="grid-no">×</td></tr></tbody></table></div>
         <p class="caption">〇＝当てはまる、×＝当てはまらない、空欄＝未確定。ink で表示し、ok／ng 色は使わない（正誤ではない）。</p>
       </div>
     </div>
