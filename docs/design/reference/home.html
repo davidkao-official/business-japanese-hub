@@ -6,7 +6,14 @@
 <title>Home — Source &amp; Gloss reference</title>
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="reference.css">
-<script>(function(){function apply(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-'),d=document.documentElement;var t=q.get('theme')||(h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null);if(t)d.dataset.theme=t;d.dataset.state=(q.get('state')==='feedback'||h.indexOf('feedback')>-1)?'feedback':'question';}apply();addEventListener('hashchange',function(){apply();scrollTo(0,0);});})();</script>
+<script>(function(){var d=document.documentElement;function tokens(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-').filter(Boolean);['state','open','theme'].forEach(function(k){if(q.get(k))h.push(q.get(k));});return h;}
+function apply(first){var h=tokens();var t=h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null;if(t)d.dataset.theme=t;if(!document.body)return;
+var els=[].slice.call(document.querySelectorAll('[data-st]'));if(els.length){var all=[];els.forEach(function(e){e.dataset.st.split(' ').forEach(function(x){if(all.indexOf(x)<0)all.push(x);});});var s=h.filter(function(x){return all.indexOf(x)>-1;})[0]||all[0];d.dataset.state=s;els.forEach(function(e){e.hidden=e.dataset.st.split(' ').indexOf(s)<0;});}
+[].slice.call(document.querySelectorAll('dialog.dlg')).forEach(function(g){if(h.indexOf(g.id)>-1&&!g.open)g.showModal();});if(!first)scrollTo(0,0);}
+apply(true);addEventListener('DOMContentLoaded',function(){apply(true);
+document.addEventListener('click',function(e){var o=e.target.closest('[data-open]');if(o){var g=document.getElementById(o.dataset.open);g.showModal();return;}
+var c=e.target.closest('[data-close]');if(c){c.closest('dialog').close();return;}if(e.target.tagName==='DIALOG')e.target.close();});});
+addEventListener('hashchange',function(){apply(false);});})();</script>
 <style>
   .hero { padding-block: clamp(40px, 6vw, 88px) clamp(48px, 7vw, 96px); }
   .hero__grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: clamp(32px, 5vw, 72px); align-items: center; }
@@ -122,7 +129,7 @@
         </div>
         <a class="journey__row" role="row" href="practice.html">
           <div class="journey__dest" role="cell"><p class="journey__mode">練習</p><p class="journey__name">就活 Web テスト対策</p><p class="journey__stagechip"><span class="chip">就職準備</span><span class="chip">選考</span></p></div>
-          <div class="journey__span" role="cell" style="grid-column: 2 / span 2"><p>SPI 言語・非言語。題意・立式・計算のどこでつまずいたかがわかる</p></div>
+          <div class="journey__span" role="cell" style="grid-column: 2 / span 2"><p>SPI 言語・非言語。確認問題で、どの段階でつまずいたかを記録できる</p></div>
         </a>
         <a class="journey__row" role="row" href="read.html">
           <div class="journey__dest" role="cell"><p class="journey__mode">読む</p><p class="journey__name">ビジネス資料読解</p><p class="journey__stagechip"><span class="chip">すべての段階</span></p></div>
@@ -158,8 +165,8 @@
         <p class="small muted" style="margin-top:8px">正誤だけでは、どこでつまずいたかはわかりません。解答後の 3 つの確認問題で、段階ごとの結果を記録します。</p>
         <ol class="ladder" style="margin-top:16px">
           <li><div><p class="ladder__name">題意</p><p class="ladder__q">何を求める問題か</p></div><p class="rm rm--ok rm--sm">正解</p></li>
-          <li><div><p class="ladder__name">立式</p><p class="ladder__q">どの式を立てるか</p></div><p class="rm rm--ng rm--sm">不正解</p></li>
-          <li><div><p class="ladder__name">計算</p><p class="ladder__q">答えを出す</p></div><p class="rm rm--ok rm--sm">正解</p></li>
+          <li><div><p class="ladder__name">整理</p><p class="ladder__q">条件を式に表す</p></div><p class="rm rm--ng rm--sm">不正解</p></li>
+          <li><div><p class="ladder__name">処理</p><p class="ladder__q">答えを出す</p></div><p class="rm rm--ok rm--sm">正解</p></li>
         </ol>
         <p class="caption" style="margin-top:16px">観察された結果を示すもので、間違いの原因を判定するものではありません。</p>
       </figure>
@@ -219,7 +226,23 @@
   <a href="read.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M9 11h6M9 14h6M9 17h4"/></svg>読む</a>
   <a href="practice.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>練習</a>
   <a href="my-learning.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.5-5.5 3.5z"/></svg>学習記録</a>
-  <a href="#"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>その他</a>
+  <button type="button" data-open="more" aria-haspopup="dialog" aria-controls="more"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>その他</button>
 </nav>
+<dialog class="dlg dlg--sheet" id="more" aria-labelledby="more-title">
+  <div class="dlg__head"><h2 id="more-title">その他</h2><button type="button" class="icon-btn" data-close aria-label="閉じる" style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="dlg__body">
+    <ul class="menu-rows">
+      <li><a href="game.html"><span>体験 <span class="caption" lang="en">Career Game</span></span><span class="caption">別サイトで開きます</span></a></li>
+      <li><a href="plus.html"><span lang="en">Plus</span></a></li>
+      <li><a href="#">Business Japanese Hub について</a></li>
+    </ul>
+    <h3 class="caption" style="margin:20px 0 8px">外観</h3>
+    <div class="seg" role="group" aria-label="外観"><button type="button" aria-pressed="true">システム</button><button type="button" aria-pressed="false">ライト</button><button type="button" aria-pressed="false">ダーク</button></div>
+    <h3 class="caption" style="margin:20px 0 0">規約・ポリシー</h3>
+    <ul class="menu-rows">
+      <li><a href="#">利用規約</a></li><li><a href="#">プライバシーポリシー</a></li><li><a href="#">特定商取引法に基づく表記</a></li><li><a href="#">返金ポリシー</a></li>
+    </ul>
+  </div>
+</dialog>
 </body>
 </html>

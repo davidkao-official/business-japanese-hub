@@ -6,7 +6,14 @@
 <title>Source &amp; Gloss</title>
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="reference.css">
-<script>(function(){function apply(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-'),d=document.documentElement;var t=q.get('theme')||(h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null);if(t)d.dataset.theme=t;d.dataset.state=(q.get('state')==='feedback'||h.indexOf('feedback')>-1)?'feedback':'question';}apply();addEventListener('hashchange',function(){apply();scrollTo(0,0);});})();</script>
+<script>(function(){var d=document.documentElement;function tokens(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-').filter(Boolean);['state','open','theme'].forEach(function(k){if(q.get(k))h.push(q.get(k));});return h;}
+function apply(first){var h=tokens();var t=h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null;if(t)d.dataset.theme=t;if(!document.body)return;
+var els=[].slice.call(document.querySelectorAll('[data-st]'));if(els.length){var all=[];els.forEach(function(e){e.dataset.st.split(' ').forEach(function(x){if(all.indexOf(x)<0)all.push(x);});});var s=h.filter(function(x){return all.indexOf(x)>-1;})[0]||all[0];d.dataset.state=s;els.forEach(function(e){e.hidden=e.dataset.st.split(' ').indexOf(s)<0;});}
+[].slice.call(document.querySelectorAll('dialog.dlg')).forEach(function(g){if(h.indexOf(g.id)>-1&&!g.open)g.showModal();});if(!first)scrollTo(0,0);}
+apply(true);addEventListener('DOMContentLoaded',function(){apply(true);
+document.addEventListener('click',function(e){var o=e.target.closest('[data-open]');if(o){var g=document.getElementById(o.dataset.open);g.showModal();return;}
+var c=e.target.closest('[data-close]');if(c){c.closest('dialog').close();return;}if(e.target.tagName==='DIALOG')e.target.close();});});
+addEventListener('hashchange',function(){apply(false);});})();</script>
 <style>
   .ix-head { padding-block: clamp(40px, 6vw, 80px) var(--space-6); max-width: 920px; }
   .ix-head h1 { margin-top: 8px; }
@@ -45,7 +52,7 @@
 
 <main class="wrap" lang="en">
   <header class="ix-head">
-    <p class="kicker">Business Japanese Hub · Design system v2 · Japanese-first V1</p>
+    <p class="kicker">Business Japanese Hub · Design system v2.3 · Japanese-first V1</p>
     <h1 class="display">Source &amp; Gloss</h1>
     <p class="lead">Every learning unit has the same shape: a piece of <b>Japanese source material</b> (what you must be able to use at work), a <b>Japanese commentary</b> (解説: why it works, what to watch), and <b>your own record</b> (attempts, mistakes, saves). V1 is written entirely in Japanese for people who have passed JLPT N1. The system's job is to keep those three layers distinct on every screen when all three are in the same language.</p>
   </header>
@@ -57,11 +64,17 @@
       <li><a href="home.html"><b lang="ja">ホーム</b><span>Public acquisition · specimen hero · journey coverage</span></a></li>
       <li><a href="practice.html"><b lang="ja">練習</b><span>SPI categories on one page · resume</span></a></li>
       <li><a href="runner.html#question"><b lang="ja">練習 · 問題</b><span>Focus mode · choices · sticky submit</span></a></li>
-      <li><a href="runner.html#feedback"><b lang="ja">練習 · 解説</b><span>〇× · marked conditions · checkpoint ladder</span></a></li>
+      <li><a href="runner.html#checkpoint"><b lang="ja">練習 · 確認問題</b><span>Answering an authored checkpoint · save after the last one</span></a></li>
+      <li><a href="runner.html#feedback"><b lang="ja">練習 · 解説</b><span>〇× · marked conditions · saved status on mobile</span></a></li>
+      <li><a href="runner-states.html"><b lang="ja">練習 · 入力と状態</b><span>All answer inputs · representations · save / retry / re-login · completion</span></a></li>
       <li><a href="learn.html"><b lang="ja">学ぶ · レッスン</b><span>Situation → judgment → Japanese → why → rewrite</span></a></li>
-      <li><a href="read.html"><b lang="ja">読む · 記事</b><span>Source sheet with vocabulary and logic marks</span></a></li>
+      <li><a href="read.html"><b lang="ja">読む · 記事</b><span>Source sheet · marks open notes · reserved #122 slot</span></a></li>
+      <li><a href="read.html#note1"><b lang="ja">読む · 注（シート）</b><span>Dialog primitive · long note · open at phone width</span></a></li>
       <li><a href="my-learning.html"><b lang="ja">学習記録</b><span>One next step · review · honest observations</span></a></li>
       <li><a href="plus.html"><b>Plus</b><span>Truthful offer · four questions · Free vs Plus</span></a></li>
+      <li><a href="practice.html#more"><b lang="ja">その他（シート）</b><span>Mobile tab bar sheet · open at phone width</span></a></li>
+      <li><a href="game.html"><b lang="ja">体験 · Career Game</b><span>Narrative decision · commit choices</span></a></li>
+      <li><a href="game.html#risky"><b lang="ja">体験 · 判断の結果</b><span>strong / mixed / risky stay distinct; not 〇×</span></a></li>
     </ul>
   </section>
 
@@ -125,11 +138,15 @@
         <div class="actions"><a class="btn" href="#">復習を始める</a><a class="btn btn--quiet" href="#">Plus について</a><a class="link" href="#">SPI とは</a></div>
       </div>
       <div>
-        <h3 lang="en">Choice rows (Practice · Career Game)</h3>
-        <ul class="choices">
-          <li class="choice is-selected"><span class="choice__key">B</span><span class="choice__text num">1,584円</span><span></span></li>
-          <li class="choice is-correct"><span class="choice__key">C</span><span class="choice__text num">1,650円</span><span class="choice__flag">正解</span></li>
-        </ul>
+        <h3 lang="en">ChoiceRow: one presentation, product-owned meaning</h3>
+        <div class="choices">
+          <label class="choice"><input type="radio" name="ix"><span class="choice__key">A</span><span class="choice__text num">1,440円</span><span></span></label>
+          <label class="choice is-selected"><input type="radio" name="ix" checked><span class="choice__key">B</span><span class="choice__text num">1,584円</span><span></span></label>
+          <div class="choice is-correct"><span class="choice__key">C</span><span class="choice__text num">1,650円</span><span class="choice__flag">正解</span></div>
+        </div>
+        <p class="caption" lang="en" style="margin-top:8px">Tab into the list: focus is drawn on the row, separate from the selected border. Practice grades with 〇×; Career Game never does.</p>
+        <div class="verdict" style="margin-top:16px"><p class="verdict__label">状況次第の判断</p></div>
+        <p class="caption" lang="en" style="margin-top:8px">Career Game outcome: authored strong / mixed / risky label, one neutral treatment.</p>
       </div>
       <div>
         <h3 lang="en">State · insufficient data</h3>
@@ -152,6 +169,7 @@
       <li>Copy that assumes one shared native language among learners</li>
       <li>Furigana on common kanji (the audience has passed N1)</li>
       <li>Progress rings, mastery %, streaks, XP, invented stats</li>
+      <li>〇×, 正解／不正解 or ok／ng colours on Career Game outcomes</li>
       <li>English labels or internal terms (evidence, runtime) in the Japanese UI</li>
     </ul>
   </section>
