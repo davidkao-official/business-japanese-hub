@@ -28,10 +28,10 @@ Business Japanese Hub 對使用者的公開概念名稱是：
 
 `N1 之後` 是產品定位與主要入口，不是所有內容的硬編碼資格條件。
 
-- 主要受眾是已具備 N2 / N1 附近能力、準備進入或已在日本職場的**華語進階學習者**；內容設計與優先級必須先服務這個 primary segment。
-- 日本的大學生與年輕職場人士可以從同一套 workplace-capability 內容獲得價值，但屬 secondary audience；**不得要求每一個核心內容同時為其最佳化，也不得因此弱化繁體中文 explanation/support 或華語學習者需求。**
-- Taxonomy 應圍繞 **workplace capability**，而不是把 `foreigner`、JLPT 等級或繁體中文支援寫死成每個內容型別的 schema identity。
-- 繁體中文是第一階段重要的 explanation/support layer；核心能力本身仍應是可轉移、真實的日本職場能力，而不是只對某一母語有意義的教材分類。
+- 主要受眾是**已通過 JLPT N1**、準備進入或已在日本職場的**外國學習者（不限母語）**；內容設計與優先級必須先服務這個 primary segment（product contract §1，2026-10-02）。
+- 日本的大學生與年輕職場人士可以從同一套 workplace-capability 內容獲得價值，但屬 secondary audience；不得要求每一個核心內容同時為其最佳化。
+- Taxonomy 應圍繞 **workplace capability**，而不是把 `foreigner`、JLPT 等級或任何特定母語支援寫死成每個內容型別的 schema identity。
+- **V1 的 explanation layer 是日文解説**，寫給 N1 合格者：精準、職場化，說明判斷與語用，而不是翻譯。母語 support 是 post-V1、可選、依 locale 提供的附加層。
 
 ---
 
@@ -147,7 +147,7 @@ Learn 可以由 Library Book / Chapter 承載，也可以未來由其他 present
 
 ### 3.2 Read
 
-**目的：** 直接讀懂日本的 business information，而不是永遠依賴中文二手摘要。
+**目的：** 直接讀懂日本的 business information，而不是永遠依賴母語的二手摘要。
 
 Read 的核心不是「文章 + 單字」，而是：
 
@@ -325,7 +325,8 @@ SPI / Web Test 的 reasoning / calculation 本身不是「日文能力」，但�
 - related Read item
 - related Career Game case
 - review / saved-expression hook
-- Traditional Chinese support explanation
+- Japanese explanation (解説) — required in V1
+- optional post-V1 support note in a learner locale (never replaces the Japanese 解説)
 
 ### Presentation principle
 
@@ -375,9 +376,11 @@ Read 不代表可以直接把第三方文章或商業書全文放進產品。
 
 不得把來源書籍的章節結構、練習題、例句集合或高度個別化表達直接變成 Business Japanese Hub 的 product taxonomy / production content。
 
-### Chinese explanation layer
+### Explanation layer
 
-繁體中文的作用是降低理解摩擦，不是取代日文閱讀。預設順序應是「先看日文，再提供必要的中文支援與 business context」，而不是把 Read 退化成中文摘要網站。
+V1 的解說是日文：先讀原文，再用日文解説說明語句、論點與 business context。目的仍是直接讀懂日本 business information，而不是把 Read 退化成摘要網站。Post-V1 的母語 support 只能作為可選的補充層。
+
+（2026-10-02 前本節定義為「Chinese explanation layer」；已由 product contract §1 的 Japanese-first V1 決策取代。現行 Read／Learn content contracts 的 `*ZhTW` 欄位屬過渡狀態，需以 versioned contract change 加入日文解説欄位，見 #195。）
 
 ---
 
@@ -524,12 +527,12 @@ first test family: SPI
 
 Foreigner-first 差異主要放在 support / explanation layer：
 
-- 繁體中文關鍵詞解說
-- plain-language Japanese restatement
+- Japanese key-term explanation and plain-language Japanese restatement（V1）
+- post-V1 locale support overlays（`supportOverlays.byLocale`）
 - foreign-learner common misread
 - language-vs-reasoning diagnosis
 
-不要把 `SPI` 或 `Traditional Chinese` 變成所有 Practice runtime 的硬編碼前提。
+不要把 `SPI` 或任何特定 support language 變成所有 Practice runtime 的硬編碼前提。
 
 ---
 

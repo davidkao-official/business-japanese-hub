@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plus — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var d=document.documentElement;function tokens(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-').filter(Boolean);['state','open','theme'].forEach(function(k){if(q.get(k))h.push(q.get(k));});return h;}
+function apply(first){var h=tokens();var t=h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null;if(t)d.dataset.theme=t;if(!document.body)return;
+var els=[].slice.call(document.querySelectorAll('[data-st]'));if(els.length){var all=[];els.forEach(function(e){e.dataset.st.split(' ').forEach(function(x){if(all.indexOf(x)<0)all.push(x);});});var s=h.filter(function(x){return all.indexOf(x)>-1;})[0]||all[0];d.dataset.state=s;els.forEach(function(e){e.hidden=e.dataset.st.split(' ').indexOf(s)<0;});}
+[].slice.call(document.querySelectorAll('dialog.dlg')).forEach(function(g){if(h.indexOf(g.id)>-1&&!g.open)g.showModal();});if(!first)scrollTo(0,0);}
+apply(true);addEventListener('DOMContentLoaded',function(){apply(true);
+document.addEventListener('click',function(e){var o=e.target.closest('[data-open]');if(o){var g=document.getElementById(o.dataset.open);g.showModal();return;}
+var c=e.target.closest('[data-close]');if(c){c.closest('dialog').close();return;}if(e.target.tagName==='DIALOG')e.target.close();});});
+addEventListener('hashchange',function(){apply(false);});})();</script>
+<style>
+  .p-hero { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: clamp(32px, 5vw, 72px); padding-block: clamp(40px, 6vw, 80px); align-items: start; }
+  .p-hero h1 { margin-top: var(--space-3); }
+  .price { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-sheet); padding: clamp(24px, 3vw, 32px); }
+  .price__amt { font-family: var(--font-en); font-size: clamp(2.25rem, 1.8rem + 1.6vw, 3rem); font-weight: var(--weight-bold); letter-spacing: -0.02em; line-height: 1.1; margin-top: 8px; }
+  .price__amt small { font-size: 1rem; font-weight: var(--weight-regular); color: var(--ink-2); letter-spacing: 0; }
+  .price__status { display: flex; gap: 8px; align-items: center; margin-top: var(--space-4); padding: 10px 12px; background: var(--sheet-sunk); border-radius: var(--radius-control); font-size: var(--size-small); }
+  .price__status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--ink-2); flex-shrink: 0; }
+  .price ul { list-style: none; display: grid; gap: 6px; margin-top: var(--space-4); font-size: var(--size-small); color: var(--ink-2); }
+  .adds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 clamp(32px, 5vw, 64px); margin-top: var(--space-6); }
+  .adds > div { padding-block: var(--space-5); border-top: 1px solid var(--rule); }
+  .adds h3 { font-size: var(--size-title-3); }
+  .adds p { color: var(--ink-2); margin-top: 6px; }
+  .adds .q { font-size: var(--size-caption); color: var(--ink-3); margin-top: 0; margin-bottom: 4px; }
+  .cmp { width: 100%; border-collapse: collapse; margin-top: var(--space-5); }
+  .cmp th, .cmp td { padding: 14px 12px 14px 0; border-bottom: 1px solid var(--rule); text-align: left; vertical-align: top; }
+  .cmp thead th { font-size: var(--size-small); border-bottom: 2px solid var(--ink); }
+  .cmp td:not(:first-child), .cmp th:not(:first-child) { width: 22%; }
+  .cmp .yes { font-weight: var(--weight-bold); }
+  .cmp .no { color: var(--ink-3); }
+  @media (max-width: 959px) { .p-hero { grid-template-columns: 1fr; } .adds { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body class="has-tabbar">
+<div class="proto-note" lang="en"><span>Design reference · Business Japanese Hub Plus (Early Access, payment not yet open)</span><a href="index.html">All references</a></div>
+<header class="hdr">
+  <div class="wrap hdr__in">
+    <a class="brand" href="home.html" aria-label="Business Japanese Hub ホーム">
+      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg>
+      <span class="brand__word" lang="en">Business Japanese Hub</span>
+    </a>
+    <nav class="nav" aria-label="メインナビゲーション">
+      <a href="learn.html">学ぶ</a>
+      <a href="read.html">読む</a>
+      <a href="practice.html">練習</a>
+      <a href="my-learning.html">学習記録</a>
+      <a href="#">体験</a>
+    </nav>
+    <div class="hdr__tools">
+      <a class="chip chip--plus" href="plus.html" lang="en" aria-current="page">Plus</a>
+      <a class="btn btn--quiet btn--sm" href="#">ログイン</a>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <section class="p-hero">
+    <div>
+      <p class="kicker" lang="en">Business Japanese Hub Plus</p>
+      <h1 class="display"><span class="phrase">教材が増えるだけではない。</span><span class="phrase"><mark>あなたが何をしてきたか</mark>を</span><span class="phrase"><mark>覚えている</mark>。</span></h1>
+      <p class="lead" style="margin-top:20px">Plus は、解答・間違い・保存を記録し、復習すべきところと次の一歩をまとめます。就職準備から入社後まで、同じ学習記録が積み重なっていきます。</p>
+      <div class="actions" style="margin-top:28px"><a class="btn" href="practice.html">まず無料で練習する</a><a class="link" href="#cmp">Free と Plus の違い</a></div>
+    </div>
+    <aside class="price" aria-labelledby="price-title">
+      <p class="kicker" id="price-title">Early Access</p>
+      <p class="price__amt">NT$299<small>／月</small></p>
+      <p class="price__status">準備中・現在お支払いはできません</p>
+      <ul>
+        <li>月額プランのみを予定しています。年額プランはありません。</li>
+        <li>料金や提供内容を自動で変更することはありません。</li>
+      </ul>
+    </aside>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <h2 class="t1">Plus が答える 4 つの問い</h2>
+    <div class="adds">
+      <div><p class="q">最近どこまで進んだか</p><h3>解答と保存の記録</h3><p>練習の解答と、保存したレッスン・記事・語彙を、端末をまたいで残します。</p></div>
+      <div><p class="q">何度も間違えているのはどこか</p><h3>間違えた問題の復習</h3><p>間違えた問題は自動で復習リストに入り、正解するまで残ります。</p></div>
+      <div><p class="q">いま復習すべきものは何か</p><h3>観察</h3><p>分野ごとの正解数と確認問題の結果を、問題数とともに示します。データが足りないときは「データ不足」と表示します。</p></div>
+      <div><p class="q">次に何をすればいいか</p><h3>次の一歩</h3><p>記録にもとづき、理由を説明できる次の練習を 1 つ提案します。</p></div>
+    </div>
+  </section>
+
+  <section class="section" id="cmp" aria-labelledby="cmp-title">
+    <h2 class="t1" id="cmp-title">Free と Plus</h2>
+    <p class="caption" style="margin-top:8px">サンプル：実際の提供範囲は会員権限のルール（#107）に従います。</p>
+    <table class="cmp">
+      <thead><tr><th scope="col">内容</th><th scope="col">Free</th><th scope="col">Plus</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">公開中のレッスン・語彙・記事のサンプル</th><td class="yes">利用可</td><td class="yes">利用可</td></tr>
+        <tr><th scope="row">SPI Web テストの練習</th><td>公開範囲内</td><td class="yes">公開済みの全問題</td></tr>
+        <tr><th scope="row">解答記録と間違えた問題の復習</th><td class="no">—</td><td class="yes">含む</td></tr>
+        <tr><th scope="row">レッスン・記事・語彙の保存</th><td class="no">—</td><td class="yes">含む</td></tr>
+        <tr><th scope="row">学習記録：観察と次の一歩</th><td class="no">—</td><td class="yes">含む</td></tr>
+        <tr><th scope="row" lang="en">Career Game</th><td class="yes">利用可</td><td class="yes">利用可</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section" aria-labelledby="who">
+    <h2 class="t2" id="who">対象となる方</h2>
+    <p class="lead" style="margin-top:12px">JLPT N1 に合格し、日本での就職、日本企業の資料の読解、入社後の職場の日本語に取り組む、日本語を母語としない方。</p>
+  </section>
+</main>
+<nav class="tabbar" aria-label="メインナビゲーション">
+  <a href="learn.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5.5h7a2 2 0 0 1 2 2V19a1.5 1.5 0 0 0-1.5-1.5H4z"/><path d="M20 5.5h-5a2 2 0 0 0-2 2V19a1.5 1.5 0 0 1 1.5-1.5H20z"/></svg>学ぶ</a>
+  <a href="read.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M9 11h6M9 14h6M9 17h4"/></svg>読む</a>
+  <a href="practice.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>練習</a>
+  <a href="my-learning.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.5-5.5 3.5z"/></svg>学習記録</a>
+  <button type="button" data-open="more" aria-haspopup="dialog" aria-controls="more"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>その他</button>
+</nav>
+<dialog class="dlg dlg--sheet" id="more" aria-labelledby="more-title">
+  <div class="dlg__head"><h2 id="more-title">その他</h2><button type="button" class="icon-btn" data-close aria-label="閉じる" style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="dlg__body">
+    <ul class="menu-rows">
+      <li><a href="game.html"><span>体験 <span class="caption" lang="en">Career Game</span></span><span class="caption">別サイトで開きます</span></a></li>
+      <li><a href="plus.html"><span lang="en">Plus</span></a></li>
+      <li><a href="#">Business Japanese Hub について</a></li>
+    </ul>
+    <h3 class="caption" style="margin:20px 0 8px">外観</h3>
+    <div class="seg" role="group" aria-label="外観"><button type="button" aria-pressed="true">システム</button><button type="button" aria-pressed="false">ライト</button><button type="button" aria-pressed="false">ダーク</button></div>
+    <h3 class="caption" style="margin:20px 0 0">規約・ポリシー</h3>
+    <ul class="menu-rows">
+      <li><a href="#">利用規約</a></li><li><a href="#">プライバシーポリシー</a></li><li><a href="#">特定商取引法に基づく表記</a></li><li><a href="#">返金ポリシー</a></li>
+    </ul>
+  </div>
+</dialog>
+</body>
+</html>

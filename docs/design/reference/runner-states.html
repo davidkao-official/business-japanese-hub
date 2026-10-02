@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice runner states — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var d=document.documentElement;function tokens(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-').filter(Boolean);['state','open','theme'].forEach(function(k){if(q.get(k))h.push(q.get(k));});return h;}
+function apply(first){var h=tokens();var t=h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null;if(t)d.dataset.theme=t;if(!document.body)return;
+var els=[].slice.call(document.querySelectorAll('[data-st]'));if(els.length){var all=[];els.forEach(function(e){e.dataset.st.split(' ').forEach(function(x){if(all.indexOf(x)<0)all.push(x);});});var s=h.filter(function(x){return all.indexOf(x)>-1;})[0]||all[0];d.dataset.state=s;els.forEach(function(e){e.hidden=e.dataset.st.split(' ').indexOf(s)<0;});}
+[].slice.call(document.querySelectorAll('dialog.dlg')).forEach(function(g){if(h.indexOf(g.id)>-1&&!g.open)g.showModal();});if(!first)scrollTo(0,0);}
+apply(true);addEventListener('DOMContentLoaded',function(){apply(true);
+document.addEventListener('click',function(e){var o=e.target.closest('[data-open]');if(o){var g=document.getElementById(o.dataset.open);g.showModal();return;}
+var c=e.target.closest('[data-close]');if(c){c.closest('dialog').close();return;}if(e.target.tagName==='DIALOG')e.target.close();});});
+addEventListener('hashchange',function(){apply(false);});})();</script>
+<style>
+  .stage { padding-block: var(--space-6) var(--space-9); }
+  .rs-sec { margin-top: var(--space-8); }
+  .rs-sec > h2 { font-size: var(--size-title-2); }
+  .rs-sec > .muted { margin-top: 6px; max-width: 44em; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-6); margin-top: var(--space-5); }
+  /* R1: every grid track between the page and a Representation must be able to shrink
+     below the table's min-content (minmax(0, 1fr) / min-width: 0); the table then
+     scrolls inside its own .rep__scroll region instead of widening the page. */
+  .spec { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); align-content: start; min-width: 0; }
+  .spec__tag { font-size: var(--size-caption); color: var(--ink-3); font-family: var(--font-en); }
+  .spec .material { font-size: 1.0625rem; }
+  .mtable { width: 100%; border-collapse: collapse; margin-top: var(--space-5); font-size: var(--size-small); }
+  .mtable th, .mtable td { text-align: left; vertical-align: top; padding: 12px 12px 12px 0; border-bottom: 1px solid var(--rule); }
+  .mtable th { font-size: var(--size-caption); color: var(--ink-3); font-weight: var(--weight-medium); }
+  .mtable code { font-size: 0.8125rem; }
+  .bar-mock { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: var(--desk-raised); border: 1px solid var(--rule); border-radius: var(--radius-sheet); min-width: 240px; }
+  .bar-mock .btn { width: 100%; }
+  .bar-mock .btn[aria-disabled="true"] { background: var(--sheet-sunk); color: var(--ink-3); border-color: var(--rule-control); cursor: not-allowed; }
+  .done { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-5); }
+  .done div { border-top: 2px solid var(--ink); padding-top: 10px; }
+  .done dt { font-size: var(--size-caption); color: var(--ink-3); }
+  .done dd { margin: 4px 0 0; font-weight: var(--weight-bold); font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+  .done dd small { font-size: var(--size-small); font-weight: var(--weight-regular); color: var(--ink-2); }
+  @media (max-width: 959px) {
+    .grid2 { grid-template-columns: minmax(0, 1fr); }
+    .done { grid-template-columns: 1fr 1fr; }
+    .mtable, .mtable tbody, .mtable tr, .mtable td { display: block; }
+    .mtable thead { display: none; }
+    .mtable tr { border-bottom: 1px solid var(--rule); padding-block: 12px; }
+    .mtable td { border: 0; padding: 4px 0; }
+  }
+</style>
+</head>
+<body>
+<div class="proto-note" lang="en"><span>Design reference · Practice runner state and input matrix (§7.3) · original sample items (not product content) · <a href="runner-states.html#signin">sign-in dialog open</a></span><a href="index.html">All references</a></div>
+
+<div class="focusbar">
+  <div class="wrap focusbar__in">
+    <a class="icon-btn" href="practice.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>終了</a>
+    <p class="focusbar__title">SPI・言語・二語の関係</p>
+    <p class="focusbar__meta num">1／5 問</p>
+  </div>
+  <div class="progress" role="progressbar" aria-label="進み具合" aria-valuemin="0" aria-valuemax="5" aria-valuenow="1"><span style="width:20%"></span></div>
+</div>
+
+<main class="wrap stage">
+  <h1 class="t1">練習 runner：入力と状態</h1>
+  <p class="lead" style="margin-top:8px">問題の形は作者が決めます。runner はその形を変えずに表示し、保存の結果を正直に伝えます。</p>
+
+  <section class="rs-sec" aria-labelledby="h-in">
+    <h2 id="h-in">解答の入力（<code>answer.input.kind</code>）</h2>
+    <p class="muted small">選択肢の数と順序は作者のデータどおり。キー（A, B, C…）は表示用で、数は固定しません。</p>
+    <div class="grid2">
+      <div class="spec">
+        <p class="spec__tag">single-choice · verbal</p>
+        <div class="sheet"><p class="sheet__label"><b>問題</b><span>サンプル</span></p><p class="material">「医師：診察」と同じ関係のものはどれか。</p></div>
+        <div class="choices" role="radiogroup" aria-label="答えを選ぶ">
+          <label class="choice"><input type="radio" name="v"><span class="choice__key">A</span><span class="choice__text">教師：授業</span><span></span></label>
+          <label class="choice is-selected"><input type="radio" name="v" checked><span class="choice__key">B</span><span class="choice__text">画家：絵具</span><span></span></label>
+          <label class="choice"><input type="radio" name="v" disabled><span class="choice__key">C</span><span class="choice__text">（選べない状態の例）</span><span></span></label>
+        </div>
+      </div>
+      <div class="spec">
+        <p class="spec__tag">multi-select</p>
+        <div class="sheet"><p class="sheet__label"><b>問題</b><span>サンプル</span></p><p class="material">次の条件をすべて満たすものを、当てはまるだけ選べ。</p></div>
+        <fieldset class="choices"><legend class="small muted" style="margin-bottom:4px">当てはまるものをすべて選ぶ</legend>
+          <label class="choice is-selected is-checked"><input type="checkbox" checked><span class="choice__key choice__key--box">A</span><span class="choice__text">P は Q より先に到着した</span><span></span></label>
+          <label class="choice"><input type="checkbox"><span class="choice__key choice__key--box">B</span><span class="choice__text">R は最後ではない</span><span></span></label>
+          <label class="choice is-selected is-checked"><input type="checkbox" checked><span class="choice__key choice__key--box">C</span><span class="choice__text">S は 2 番目に到着した</span><span></span></label>
+        </fieldset>
+      </div>
+      <div class="spec">
+        <p class="spec__tag">number · prompt representation: table</p>
+        <div class="sheet"><p class="sheet__label"><b>問題</b><span>サンプル</span></p><p class="material">表の 3 店舗の売上の合計は、前年から何%増えたか。</p>
+          <div class="rep rep__scroll" role="region" aria-label="表（横にスクロールできます）" tabindex="0"><table><thead><tr><th scope="col">店舗</th><th scope="col">前年（万円）</th><th scope="col">今年（万円）</th></tr></thead><tbody><tr><th scope="row">A</th><td>1,200</td><td>1,320</td></tr><tr><th scope="row">B</th><td>800</td><td>840</td></tr><tr><th scope="row">C</th><td>500</td><td>590</td></tr></tbody></table></div></div>
+        <div class="field"><label for="num">答え（数値）</label><input id="num" class="input input--num" inputmode="decimal" value="10"></div>
+      </div>
+      <div class="spec">
+        <p class="spec__tag">ordering</p>
+        <div class="sheet"><p class="sheet__label"><b>問題</b><span>サンプル</span></p><p class="material">文が自然につながるように並べ替えよ。</p></div>
+        <ol class="order-rows" aria-label="並べ替え">
+          <li><span>まず、現状の課題を整理した。</span><button type="button" disabled aria-label="「まず、現状の課題を整理した。」を上へ">上へ</button><button type="button" aria-label="「まず、現状の課題を整理した。」を下へ">下へ</button></li>
+          <li><span>そのうえで、二つの対策を比較した。</span><button type="button" aria-label="上へ">上へ</button><button type="button" aria-label="下へ">下へ</button></li>
+          <li><span>最後に、費用の少ない案を選んだ。</span><button type="button" aria-label="上へ">上へ</button><button type="button" disabled aria-label="下へ">下へ</button></li>
+        </ol>
+        <p class="caption">ドラッグは補助。上へ／下へのボタンだけで完了できる。</p>
+      </div>
+      <div class="spec">
+        <p class="spec__tag">representation: table · wide (8 columns, scrolls inside its region)</p>
+        <div class="sheet"><p class="sheet__label"><b>問題</b><span>サンプル</span></p><p class="material">上期の合計売上が最も大きい月はどれか。</p>
+          <div class="rep rep__scroll" role="region" aria-label="月別売上の表（横にスクロールできます）" tabindex="0"><table><thead><tr><th scope="col">店舗</th><th scope="col">4月（万円）</th><th scope="col">5月（万円）</th><th scope="col">6月（万円）</th><th scope="col">7月（万円）</th><th scope="col">8月（万円）</th><th scope="col">9月（万円）</th><th scope="col">上期合計（万円）</th></tr></thead><tbody><tr><th scope="row">A 店</th><td>1,210</td><td>1,185</td><td>1,302</td><td>1,340</td><td>1,288</td><td>1,395</td><td>7,720</td></tr><tr><th scope="row">B 店</th><td>812</td><td>790</td><td>845</td><td>870</td><td>833</td><td>902</td><td>5,052</td></tr><tr><th scope="row">C 店</th><td>498</td><td>520</td><td>505</td><td>556</td><td>571</td><td>590</td><td>3,240</td></tr><tr><th scope="row">D 店</th><td>642</td><td>655</td><td>688</td><td>701</td><td>679</td><td>720</td><td>4,085</td></tr></tbody></table></div></div>
+        <p class="caption">表は自分の領域の中だけで横にスクロールします。ページ全体は横に広がりません。領域は Tab で選択でき、矢印キーで動かせます。</p>
+      </div>
+      <div class="spec">
+        <p class="spec__tag">short-text</p>
+        <div class="field"><label for="st">答え</label><input id="st" class="input" value="ウ"></div>
+      </div>
+      <div class="spec">
+        <p class="spec__tag">representation: logic-grid · wide (6 × 6, scrolls inside its region)</p>
+        <div class="rep rep__scroll" role="region" aria-label="条件の表（横にスクロールできます）" tabindex="0"><table><thead><tr><th></th><th scope="col">1 番目に到着</th><th scope="col">2 番目に到着</th><th scope="col">3 番目に到着</th><th scope="col">4 番目に到着</th><th scope="col">5 番目に到着</th><th scope="col">6 番目に到着</th></tr></thead><tbody><tr><th scope="row">P</th><td class="grid-yes">〇</td><td class="grid-no">×</td><td class="grid-no">×</td><td class="grid-no">×</td><td class="grid-no">×</td><td class="grid-no">×</td></tr><tr><th scope="row">Q</th><td class="grid-no">×</td><td></td><td></td><td></td><td></td><td class="grid-yes">〇</td></tr><tr><th scope="row">R</th><td class="grid-no">×</td><td></td><td></td><td></td><td></td><td class="grid-no">×</td></tr><tr><th scope="row">S</th><td class="grid-no">×</td><td class="grid-no">×</td><td></td><td></td><td></td><td class="grid-no">×</td></tr><tr><th scope="row">T</th><td class="grid-no">×</td><td></td><td></td><td></td><td class="grid-no">×</td><td class="grid-no">×</td></tr><tr><th scope="row">U</th><td class="grid-no">×</td><td></td><td></td><td></td><td></td><td class="grid-no">×</td></tr></tbody></table></div>
+        <p class="caption">〇＝当てはまる、×＝当てはまらない、空欄＝未確定。ink で表示し、ok／ng 色は使わない（正誤ではない）。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="rs-sec" aria-labelledby="h-cp">
+    <h2 id="h-cp">理解の確認（作者が用意した確認問題）</h2>
+    <p class="muted small">確認問題は 0 問以上、作者が決めた順番で出ます。見出しは <code>dimension</code> による：meaning＝題意、representation＝整理、execution＝処理。各問いの文は作者のデータ。</p>
+    <div class="grid2">
+      <div class="spec"><p class="spec__tag">answered / current / not yet answered</p>
+        <ol class="ladder"><li><div><p class="ladder__name">題意</p><p class="ladder__q">何を問われているか</p></div><p class="rm rm--ng rm--sm">不正解</p></li><li class="is-current" aria-current="step"><div><p class="ladder__name">処理</p><p class="ladder__q">選択肢を絞る</p></div><p class="rm rm--na rm--sm">回答中</p></li></ol></div>
+      <div class="spec"><p class="spec__tag">no checkpoints authored</p>
+        <p class="small muted">この問題には確認問題がありません。</p><p class="caption">ladder は表示しない。「未確認」や不正解として数えない。</p></div>
+    </div>
+  </section>
+
+  <section class="rs-sec" aria-labelledby="h-save">
+    <h2 id="h-save">保存の状態</h2>
+    <p class="muted small">解答（と確認問題）は最後の確認問題のあとにまとめて保存されます。次の問題へ進めるのは「保存しました」と、時間外の例外のときだけ。手機では下の action bar にこの 1 行を必ず表示します。</p>
+    <table class="mtable">
+      <thead><tr><th scope="col">状態</th><th scope="col">action bar</th><th scope="col">次へ</th><th scope="col">動作</th></tr></thead>
+      <tbody><tr><td><code>pending</code></td><td><div class="bar-mock"><p class="statusline " role="status">保存中…</p><a class="btn" href="#" aria-disabled="true">次の問題</a></div></td><td>不可</td><td>—</td></tr><tr><td><code>saved</code></td><td><div class="bar-mock"><p class="statusline statusline--ok" role="status">保存しました</p><a class="btn" href="#">次の問題</a></div></td><td>可</td><td>—</td></tr><tr><td><code>failed</code></td><td><div class="bar-mock"><p class="statusline statusline--alert" role="alert">保存できたか確認できません</p><a class="btn" href="#">保存を再試行</a></div></td><td>不可（再試行が主動作）</td><td>再試行。成功を推測しない</td></tr><tr><td><code>signed-out</code></td><td><div class="bar-mock"><p class="statusline statusline--alert" role="alert">ログインの有効期限が切れました。解答はまだ保存されていません</p><a class="btn" href="#">ログインして保存</a></div></td><td>不可</td><td>focus mode のままログイン dialog を開く → 成功後、同じ解答を同じアカウントで再試行</td></tr><tr><td><code>forbidden</code></td><td><div class="bar-mock"><p class="statusline statusline--alert" role="alert">Plus の会員資格を確認できないため、保存できていません</p><a class="btn" href="#">会員資格を確認して再試行</a></div></td><td>不可</td><td>再試行／Plus について</td></tr><tr><td><code>stale / missing</code></td><td><div class="bar-mock"><p class="statusline statusline--alert" role="alert">問題の版が更新されたため、この解答は保存されませんでした</p><a class="btn" href="#">最新の問題を読み込む</a></div></td><td>不可</td><td>再読み込み</td></tr><tr><td><code>invalid</code></td><td><div class="bar-mock"><p class="statusline statusline--alert" role="alert">解答を保存できませんでした。分野に戻って問題を読み込み直してください</p><a class="btn" href="#">分野に戻る</a></div></td><td>不可</td><td>分野へ</td></tr><tr><td><code>invalid-response-time</code></td><td><div class="bar-mock"><p class="statusline statusline--alert" role="alert">解答時間が受け付けられる範囲外のため、保存されませんでした</p><a class="btn" href="#">次の問題</a></div></td><td>可（再試行なし）</td><td>例外として先へ進める</td></tr></tbody>
+    </table>
+  </section>
+
+  <section class="rs-sec" aria-labelledby="h-done">
+    <h2 id="h-done">完了</h2>
+    <dl class="done">
+      <div><dt>正解</dt><dd>3<small>／5 問</small></dd></div>
+      <div><dt>解答時間</dt><dd>6<small> 分 12 秒</small></dd></div>
+      <div><dt>確認問題の不正解</dt><dd>2<small>／7</small></dd></div>
+      <div><dt>保存</dt><dd><small>4 問保存・1 問は時間外のため未保存</small></dd></div>
+    </dl>
+    <p class="caption" style="margin-top:12px">計数だけを表示します。確認問題を 1 問も解いていない場合は「確認問題：なし」。段階ごとの傾向や原因の文は Q7 が決まるまで出しません。</p>
+  </section>
+</main>
+
+<dialog class="dlg dlg--sheet" id="signin" aria-labelledby="si-title">
+  <div class="dlg__head"><h2 id="si-title">ログイン</h2><button type="button" class="icon-btn" data-close aria-label="閉じる" style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="dlg__body stack">
+    <p class="small muted">ログインし直すと、この解答をもう一度保存します。問題の画面はそのまま残ります。</p>
+    <div class="field"><label for="em">メールアドレス</label><input id="em" class="input" type="email" autocomplete="username"></div>
+    <div class="field"><label for="pw">パスワード</label><input id="pw" class="input" type="password" autocomplete="current-password"></div>
+    <button class="btn btn--block" type="button">ログインして保存</button>
+    <p class="caption">別のアカウントでログインした場合、この解答は保存しません（前のアカウントの解答のため）。</p>
+  </div>
+</dialog>
+</body>
+</html>
