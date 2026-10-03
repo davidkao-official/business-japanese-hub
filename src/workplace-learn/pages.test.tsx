@@ -71,6 +71,9 @@ describe('Workplace Learn routes and details', () => {
     expect(screen.getByText(practiceLabel)).not.toHaveAttribute('lang')
     expect(screen.getByRole('region', { name: saveLabel })).toBeInTheDocument()
     expect(screen.getByRole('textbox')).toHaveAttribute('lang', 'ja')
+    const ui = getStrings(locale)
+    expect(document.title).toBe(`${entry.title} — ${ui.learningModes.modes.learn.title} — ${ui.app.name}`)
+    if (locale === 'ja') expect(document.title).not.toMatch(/Learn/)
   })
 
   it('keeps the Book-projected Learn slug available on its original route', () => {

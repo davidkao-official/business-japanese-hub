@@ -79,7 +79,7 @@ export function WorkplaceLearnLandingPage({ catalogEntries = workplaceLearnCatal
 
 export function WorkplaceVocabularyIndexPage({ catalogEntries = workplaceLearnCatalog }: { catalogEntries?: readonly WorkplaceLearnCatalogEntry[] }) {
   const strings = useStrings()
-  useDocumentTitle(`${strings.workplaceLearn.vocabularyIndexTitle} — Learn — ${strings.app.name}`)
+  useDocumentTitle(`${strings.workplaceLearn.vocabularyIndexTitle} — ${strings.learningModes.modes.learn.title} — ${strings.app.name}`)
   const entries = catalogEntries.filter((entry) => entry.kind === 'vocabulary')
   return (
     <section className="page workplace-learn" aria-labelledby="workplace-vocabulary-index-title">
@@ -104,7 +104,7 @@ export function WorkplaceLessonPage({ catalogEntries = workplaceLearnCatalog, pu
   const { slug = '' } = useParams()
   const strings = useStrings()
   const entry = useMemo(() => catalogEntries.find((candidate) => candidate.kind === 'lesson' && candidate.slug === slug), [catalogEntries, slug])
-  useDocumentTitle(entry ? `${entry.title} — Learn — ${strings.app.name}` : `Learn — ${strings.app.name}`)
+  useDocumentTitle(entry ? `${entry.title} — ${strings.learningModes.modes.learn.title} — ${strings.app.name}` : `${strings.learningModes.modes.learn.title} — ${strings.app.name}`)
   if (!entry) return <NotFoundPage />
   return <WorkplaceDetail entry={entry} catalogEntries={catalogEntries} publicItems={publicItems} loadPayload={loadPayload} />
 }
@@ -117,7 +117,7 @@ export function WorkplaceVocabularyPage({ catalogEntries = workplaceLearnCatalog
   const { slug = '' } = useParams()
   const strings = useStrings()
   const entry = useMemo(() => catalogEntries.find((candidate) => candidate.kind === 'vocabulary' && candidate.slug === slug), [catalogEntries, slug])
-  useDocumentTitle(entry ? `${entry.title} — ${strings.workplaceLearn.vocabularyIndexTitle} — ${strings.app.name}` : `Learn — ${strings.app.name}`)
+  useDocumentTitle(entry ? `${entry.title} — ${strings.workplaceLearn.vocabularyIndexTitle} — ${strings.app.name}` : `${strings.learningModes.modes.learn.title} — ${strings.app.name}`)
   if (!entry) return <NotFoundPage />
   return <WorkplaceDetail entry={entry} catalogEntries={catalogEntries} publicItems={publicItems} loadPayload={loadPayload} />
 }
