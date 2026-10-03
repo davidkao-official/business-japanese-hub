@@ -1,6 +1,6 @@
 # Business Japanese Hub — Design System「Source & Gloss」
 
-> **狀態：canonical / 視覺與互動設計 authority（v2.3.1，2026-10-02）。**
+> **狀態：canonical / 視覺與互動設計 authority（v2.3.2，2026-10-04）。**
 >
 > 本文件定義 Business Japanese Hub 整個產品（main frontend 與 Career Game）的視覺識別、typography、色彩、marks、shell／navigation、components、各 surface 的 presentation grammar、states 與 implementation sequence。
 >
@@ -62,7 +62,7 @@ V1 這三層**全部是日文**。所以「Source & Gloss」的重點不是兩�
 | B3 | 手機版 Learn 的儲存區塊是約 280px 的空盒。 | `audit-live-learn-mobile.jpg` | P0 |
 | B4 | 首頁 hero 的「」括號孤立（phrase atoms 不正確）。 | `audit-live-home-desktop.jpg` | P1（S6 會整個替換） |
 | B5 | 工程用語出現在使用者文案（evidence、Workplace Learn…）。 | My Learning、Footer | P0（與 B7 一併處理） |
-| B6 | 日文介面內的英文導覽標籤（Learn / Read / Practice / My Learning / Experience）。 | Header | P0（S3 shell） |
+| B6 | 日文介面內的英文導覽標籤（Learn / Read / Practice / My Learning / Experience）。 | Header | P0（S1，#194） |
 | **B7** | **核心學習 surfaces 繞過 i18n、寫死繁體中文。** SPI explainer（約 2,300 漢字）、Practice hub／runner（約 790）、My Learning（約 680）、About、Learn unit、mode pages、Read landing 皆以 `lang="zh-TW"` 寫死。預設 `ja` locale 下，acquisition（SPI）與 subscription justification（My Learning）仍是中文畫面。 | `src/app/*Page.tsx` | **P0：V1 blocker**（#194） |
 | **B8** | **Content contracts 只有中文解說欄位**（`meaningZhTW`、`explanationZhTW`、`whyItWorksZhTW`…），Plus 的日文文案把受眾寫成「中国語話者」。 | `src/reading/types.ts`、`src/workplace-learn/types.ts`、ja strings | **P0**（contract：#195；文案：#194） |
 
@@ -476,11 +476,11 @@ WCAG 2.2 AA（§4.2 實測值）；marker、顏色、〇×、outcome 皆不單�
 
 | Stage | 範圍 | 主要檔案 | 依賴 |
 | --- | --- | --- | --- |
-| **S0 Defects** | B1、B3、B5（B4 可延到 S6） | `reader.css`、`src/reader/*`、`workplace-learn.css`、`MyLearningPage.tsx`、`Footer.tsx` | 無（#191） |
-| **S1 Japanese-first copy** | B7：學習 surfaces 的介面文案移入 i18n，`ja` 為 source；日文分野名稱；Plus 對象文案；**V1 locale 解析固定為 `ja`、不顯示切換器**（保留 #156 架構） | `WebTestHubPage.tsx`、`MyLearningPage.tsx`、`SpiExplainerPage.tsx`、`AboutPage.tsx`、`LearnUnitPage.tsx`、`ProductModePage.tsx`、`ReadLandingPage.tsx`、`discoveryCatalog.ts`、`src/i18n/strings.ts` | #194（前提已核准） |
-| **S2 Tokens** | role tokens、`:lang()` type roles（含 B2）、compat aliases、移除 `--home-*` | `src/styles/tokens.css`、`lp-tokens.test.ts` | — |
-| **S3 Shell** | Header（日文 mode labels、移除語言切換器、窄螢幕規則 §5.3）、tab bar＋その他（`Dialog`）、focus bar、footer | `Header.tsx`、`Navigation.tsx`、`Layout.tsx`、`Footer.tsx`、`LanguageControl.tsx`、`AccountControl.tsx`、`productModes.ts`、i18n | S2 |
-| **S4 Primitives** | §6 元件；`Dialog` 由 `src/reader/ReaderDialog.tsx` 一般化（Reader 改用同一 primitive）；`ChoiceRow` 兩種 mode；`OutcomeVerdict`；`AnswerInput`；`Representation` | `src/components/ui/*`、`src/styles/components.css`、`src/reader/ReaderDialog.tsx` | S2 |
+| **S0 Defects** | B1、B3（B4 可延到 S6；B5 移到 S1） | `reader.css`、`src/reader/*`、`workplace-learn.css` | 無（#191） |
+| **S1 Japanese-first copy** | B7：學習 surfaces 的介面文案移入 i18n，`ja` 為 source；日文分野名稱；Plus 對象文案；B5（含 footer 的販売者 placeholder）；B6 日文 mode labels（D8）；**V1 locale 解析固定為 `ja`、不顯示切換器**（移除桌機 header 的切換器；保留 #156 架構） | `WebTestHubPage.tsx`、`MyLearningPage.tsx`、`SpiExplainerPage.tsx`、`AboutPage.tsx`、`LearnUnitPage.tsx`、`ProductModePage.tsx`、`ReadLandingPage.tsx`、`discoveryCatalog.ts`、`Navigation.tsx`、`Header.tsx`、`Footer.tsx`、`LanguageControl.tsx`、`src/i18n/*` | #194（前提已核准） |
+| **S2 Tokens** | role tokens、`:lang()` type roles（含 B2）、compat aliases、移除 `--home-*`；**Reader palette 只定義一次**（現行 `editorial-v2.css` 覆寫 `reader.css` 的 `--reader-*`），B1 regression test 依 `src/main.tsx` 的實際 CSS 載入順序驗證 app × reader theme 的有效值 | `src/styles/tokens.css`、`lp-tokens.test.ts` | — |
+| **S3 Shell** | Header（窄螢幕規則 §5.3；移除 mobile menu 中剩下的 `LanguageControl`，D18）、tab bar＋その他（`Dialog`）、focus bar、footer（日文 mode labels 與桌機切換器移除已在 S1 完成） | `Header.tsx`、`Navigation.tsx`、`Layout.tsx`、`Footer.tsx`、`LanguageControl.tsx`、`AccountControl.tsx`、`productModes.ts`、i18n | S2 |
+| **S4 Primitives** | §6 元件；`Dialog` 由 `src/reader/ReaderDialog.tsx` 一般化（Reader 改用同一 primitive；預設使用 app role tokens，`--reader-*` 只在 Reader context 內，B1 test 延伸到 `Dialog`）；`ChoiceRow` 兩種 mode；`OutcomeVerdict`；`AnswerInput`；`Representation` | `src/components/ui/*`、`src/styles/components.css`、`src/reader/ReaderDialog.tsx` | S2 |
 | **S5 Practice** | hub 扁平化；runner 依 §7.3 的輸入、確認問題與保存矩陣（不改變既有語意）；key-term marks；完了；action bar 狀態列；runner 內登入 | `WebTestHubPage.tsx`（拆 runner） | S1、S3、S4；匿名試做依 G1 |
 | **S6 Home／Plus／About** | 新首頁、Plus、About；刪 Concept C／editorial 首頁 CSS | `HomePage.tsx`、`homeEditorial.ts`、`PlusPage.tsx`、`AboutPage.tsx`、CSS | S4；primary CTA 行為依 G1 |
 | **S7 学習記録** | 次の一歩、間違えた問題、観察、保存 | `MyLearningPage.tsx` | S4；signal 依 `learning-and-progress.md` 既有規則；理解の確認區塊依 Q7（未核准前不顯示，不阻擋 S7） |
@@ -594,6 +594,7 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | **v2.2** | 「n < 5 → データ不足」寫成設計規則；Q7 歸為 engineering | 移除自訂門檻（§8.1 authority boundary）；canonical 只有 50 筆窗口與 weak-area ≥5／≥2 規則；Q7 改為 learning authority |
 | **v2.3**（PR #192 獨立審查） | Career Game 結果寫成〇×；runner 以單一計算題為準；ChoiceRow focus 不可見；窄 header 溢出；overlay 只有名稱 | Career Game 保留 strong／mixed／risky（D25）；runner 依既有輸入／確認問題／保存矩陣（D26）；`Dialog` 與 `NoteTrigger` 的互動 contract（D27）；focus 與 44px 點擊區（D28）；窄 header 與 320 reflow QA（D29）；Read 為 #122 保留位置（D30）；新增 `runner-states.html`、`game.html` 與 overlay／focus／窄螢幕截圖 |
 | **v2.3.1**（`0389757` 的再審查 R1–R3） | 寬表格／logic-grid 撐開整頁；multi-select 的方形 key 被圓形規則覆蓋；< 360px glyph-only 連結只有 30×44 | Representation 的 min-width 鏈與可鍵盤捲動的區域（§7.3 B）；方形 key 的 cascade 修正；glyph-only 連結 44×44（§5.3）；新增寬表／6×6 grid fixture 與 `narrow-320-runner-states-table` 截圖 |
+| **v2.3.2**（#192／#196／#199 integration review，#190） | §12 的 S0 含 B5、S3 含日文 mode labels 與切換器移除；B1 的結構修正與 Dialog 的 reader tokens 未列入驗收 | S0＝B1、B3；B5、B6 與桌機切換器移除歸 S1（#194 實作）；S2 加入 Reader palette 單一定義與實際 cascade 的 B1 test；S3 移除 mobile menu 的切換器；S4 的 `Dialog` 預設 app role tokens。只修正 stage 歸屬與驗收，不改設計決策 |
 
 ---
 
