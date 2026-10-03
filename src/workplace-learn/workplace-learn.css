@@ -121,5 +121,7 @@
   .workplace-learn__browse-links a + a { margin-left: 0; }
   .workplace-learn__vocabulary-body dl > div { grid-template-columns: 1fr; gap: var(--space-1); }
   .workplace-learn__save { align-items: flex-start; flex-direction: column; }
+  /* The desktop width basis must not become a 14rem height in a column. */
+  .workplace-learn__save [role='status'] { flex: 0 1 auto; }
   .my-learning-workplace-saves__list > li { align-items: flex-start; }
 }
