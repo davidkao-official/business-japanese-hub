@@ -250,6 +250,14 @@
   font-size: clamp(var(--text-xl), 3vw, var(--text-3xl));
 }
 
+/* The shared button never wraps; the Japanese CTA label is longer than a
+ * 360px column, so let this one wrap inside its container (#194). */
+.spi-explainer__cta .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
 .spi-explainer__sources {
   max-width: var(--spi-explainer-content-max-width);
   padding-top: var(--space-5);
