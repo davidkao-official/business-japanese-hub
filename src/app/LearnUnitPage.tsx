@@ -1,5 +1,5 @@
+import { useStrings, getActiveLocale } from '../i18n/strings'
 import { Link, useParams } from 'react-router-dom'
-import { useStrings } from '../i18n/strings'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { useBookState } from '../lib/persistence/useBookState'
 import { NotFoundPage } from './NotFoundPage'
@@ -14,21 +14,23 @@ import {
  * coupling Learn to the Book / Reader content model.
  */
 export function LearnUnitPage() {
+  const ui = useStrings().learningUi
+
   const { slug } = useParams()
   const learningUnit = getLearningUnitByLearnSlug(slug)
   const strings = useStrings()
   const { owned, loading, error } = useBookState(learningUnit?.bookId ?? '')
-  useDocumentTitle(learningUnit ? `${learningUnit.title} — Learn` : strings.notFound.title)
+  useDocumentTitle(learningUnit ? `${learningUnit.title} — ${ui.learnLabel}` : strings.notFound.title)
 
   if (!learningUnit) return <NotFoundPage />
 
   const canRenderBody = owned && !loading && !error
 
   return (
-    <section className="page learning-unit-page" lang="zh-TW" aria-labelledby="learning-unit-title">
+    <section className="page learning-unit-page" lang={getActiveLocale()} aria-labelledby="learning-unit-title">
       <div className="learning-unit-page__intro">
-        <p className="product-mode-page__eyebrow" lang="en">
-          {learningUnit.courseLabel} · Learn
+        <p className="product-mode-page__eyebrow" lang={getActiveLocale()}>
+          {ui.learnLabel} · <span lang="en">{learningUnit.courseLabel}</span>
         </p>
         <h1 className="page__title" id="learning-unit-title" lang="ja">
           {learningUnit.title}
@@ -39,13 +41,13 @@ export function LearnUnitPage() {
       {canRenderBody && (
         <>
           <p className="learning-unit-page__sequence">
-            <span aria-hidden="true">{learningUnit.learn.sequence.map((segment) => segment.text).join('')}</span>
+            <span aria-hidden="true">{renderLearningText(learningUnit.learn.sequence)}</span>
             <span className="visually-hidden">
               {renderLearningText(learningUnit.learn.sequence)}
             </span>
           </p>
 
-          <ol className="learning-unit-flow" aria-label="Learn unit steps" lang="en">
+          <ol className="learning-unit-flow" aria-label={ui.learnStepsLabel}>
             {learningUnit.learn.steps.map((step) => (
               <li key={step.number}>
                 <span className="learning-unit-flow__number" aria-hidden="true">{step.number}</span>
@@ -59,7 +61,7 @@ export function LearnUnitPage() {
 
           <section className="learning-unit-page__note" aria-labelledby="learning-unit-note-title">
             <p className="learning-unit-page__label">
-              {renderLearningText([learningUnit.learn.transfer.label])}
+              {ui.learnTransfer}
             </p>
             <h2 id="learning-unit-note-title">
               {renderLearningText([learningUnit.learn.transfer.title])}
@@ -69,10 +71,10 @@ export function LearnUnitPage() {
 
           <div className="learning-unit-page__actions">
             <Link className="btn btn--primary" to={`/practice/${learningUnit.practiceSlug}`}>
-              {renderLearningText(learningUnit.learn.practiceAction)}
+              {ui.learnAction}
             </Link>
             <Link className="btn btn--secondary" to="/learn">
-              {renderLearningText(learningUnit.learn.backAction)}
+              {ui.learnBack}
             </Link>
           </div>
         </>

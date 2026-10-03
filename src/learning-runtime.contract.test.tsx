@@ -109,9 +109,12 @@ describe('Issue #110 — reusable Learn and Practice presentation surfaces', () 
       repository,
     })
 
-    expect(await screen.findByText(/承接\s*→\s*Pivot\s*→\s*收斂/i)).toBeInTheDocument()
+    await waitFor(() => expect(document.querySelector('.learning-unit-page__sequence')).toHaveTextContent(/承接\s*→\s*Pivot\s*→\s*收斂/i))
+    const visibleSequence = document.querySelector('.learning-unit-page__sequence [aria-hidden="true"]')!
+    expect(visibleSequence.querySelector('[lang="zh-TW"]')).toHaveTextContent('承接')
+    expect(visibleSequence.querySelector('[lang="en"]')).toHaveTextContent('Pivot')
     expect(
-      screen.getByRole('link', { name: /Practice|練習改寫/i }),
+      screen.getByRole('link', { name: '言い換えを練習する' }),
     ).toHaveAttribute('href', `/practice/${COURSE_CORRECTION_PRACTICE_SLUG}`)
     learnView.unmount()
 
@@ -120,8 +123,8 @@ describe('Issue #110 — reusable Learn and Practice presentation surfaces', () 
       repository,
     })
 
-    expect(await screen.findByRole('heading', { level: 2, name: 'Exercise 01' })).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Submit' }).length).toBeGreaterThan(0)
+    expect(await screen.findByRole('heading', { level: 2, name: '練習問題01' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '解答を確認' }).length).toBeGreaterThan(0)
     expect(document.body).toHaveTextContent(/場面|情境|situational/i)
     expect(document.body).toHaveTextContent(/書き換え|改寫|rewrite/i)
     expect(document.body).not.toHaveTextContent(/SPI/i)
@@ -131,9 +134,9 @@ describe('Issue #110 — reusable Learn and Practice presentation surfaces', () 
     renderLearningRoute(`/practice/${COURSE_CORRECTION_PRACTICE_SLUG}`)
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: /Practice/i }),
+      await screen.findByRole('heading', { level: 1, name: /練習/i }),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { level: 2, name: 'Exercise 01' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Submit|Reveal answer/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 2, name: '練習問題01' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /解答を確認|解答例を見る/i })).not.toBeInTheDocument()
   })
 })

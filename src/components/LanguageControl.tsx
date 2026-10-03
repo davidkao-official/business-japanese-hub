@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
-import { SUPPORTED_LOCALES, setLocalePreference, useLocale, useStrings, type Locale } from '../i18n/strings'
+import { setLocalePreference, useLocale, useStrings, type Locale } from '../i18n/strings'
+
+import { LAUNCHED_LOCALES } from '../i18n/locales'
 
 const MENU_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End']
 
-export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile' }) {
+export function LanguageControl(props: { variant?: 'desktop' | 'mobile' }) {
+  if (LAUNCHED_LOCALES.length < 2) return null
+  return <LaunchedLanguageControl {...props} />
+}
+
+function LaunchedLanguageControl({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile' }) {
   const locale = useLocale()
   const strings = useStrings()
   const [open, setOpen] = useState(false)
-  const [activeOptionIndex, setActiveOptionIndex] = useState(() => SUPPORTED_LOCALES.indexOf(locale))
+  const [activeOptionIndex, setActiveOptionIndex] = useState(() => LAUNCHED_LOCALES.indexOf(locale))
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const optionsRef = useRef<Array<HTMLButtonElement | null>>([])
@@ -52,7 +59,7 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
       <fieldset className="language-control language-control--mobile">
         <legend>{strings.language.label}</legend>
         <div className="language-control__choices" role="radiogroup" aria-label={strings.language.label}>
-          {SUPPORTED_LOCALES.map((option) => (
+          {LAUNCHED_LOCALES.map((option) => (
             <label className="language-control__radio" key={option} lang={option}>
               <input
                 type="radio"
@@ -89,7 +96,7 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
           if (wasOpen) {
             setOpen(false)
           } else {
-            setActiveOptionIndex(SUPPORTED_LOCALES.indexOf(locale))
+            setActiveOptionIndex(LAUNCHED_LOCALES.indexOf(locale))
             setOpen(true)
           }
         }}
@@ -102,9 +109,9 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
           }
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault()
-            setActiveOptionIndex(SUPPORTED_LOCALES.indexOf(locale))
+            setActiveOptionIndex(LAUNCHED_LOCALES.indexOf(locale))
             setOpen(true)
-            requestAnimationFrame(() => optionsRef.current[SUPPORTED_LOCALES.indexOf(locale)]?.focus())
+            requestAnimationFrame(() => optionsRef.current[LAUNCHED_LOCALES.indexOf(locale)]?.focus())
           }
         }}
       >
@@ -139,13 +146,13 @@ export function LanguageControl({ variant = 'desktop' }: { variant?: 'desktop' |
             const nextIndex = event.key === 'Home'
               ? 0
               : event.key === 'End'
-                ? SUPPORTED_LOCALES.length - 1
-                : (currentIndex + (event.key === 'ArrowDown' ? 1 : -1) + SUPPORTED_LOCALES.length) % SUPPORTED_LOCALES.length
+                ? LAUNCHED_LOCALES.length - 1
+                : (currentIndex + (event.key === 'ArrowDown' ? 1 : -1) + LAUNCHED_LOCALES.length) % LAUNCHED_LOCALES.length
             setActiveOptionIndex(nextIndex)
             optionsRef.current[nextIndex]?.focus()
           }}
         >
-          {SUPPORTED_LOCALES.map((option, index) => (
+          {LAUNCHED_LOCALES.map((option, index) => (
             <button
               className="language-control__option"
               key={option}

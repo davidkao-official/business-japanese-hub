@@ -1,3 +1,10 @@
+// Dormant resources remain testable for future fully launched locales.
+// The unmocked V1 contract is covered in i18n/v1Locale.test.tsx.
+vi.mock('../i18n/locales', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../i18n/locales')>()
+  return { ...actual, LAUNCHED_LOCALES: actual.SUPPORTED_LOCALES }
+})
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, screen } from '@testing-library/react'
 import { CANONICAL_CAREER_GAME_ORIGIN } from '../lib/cross-product/careerGame'
@@ -104,7 +111,7 @@ describe('product mode gateways', () => {
     ).toBeInTheDocument()
 
     const eyebrow = document.querySelector('.product-mode-page__eyebrow')
-    expect(eyebrow).toHaveAttribute('lang', 'en')
-    expect(eyebrow).toHaveTextContent('Read')
+    expect(eyebrow).not.toHaveAttribute('lang', 'en')
+    expect(eyebrow).toHaveTextContent(strings.learningModes.modes.read.title)
   })
 })

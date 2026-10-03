@@ -68,7 +68,7 @@ describe('PlusAccessBoundary', () => {
     )
     expect(screen.getByText('Unlocked Plus content')).toBeInTheDocument()
     expect(screen.getByText('Plus が有効です')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'My Learning を見る' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '学習記録を見る' })).toHaveAttribute(
       'href',
       '/my-learning',
     )

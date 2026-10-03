@@ -59,8 +59,8 @@ describe('My Learning page', () => {
   it('shows a sign-in direction without requesting member evidence when signed out', async () => {
     renderWithAppProviders(<MyLearningPage />)
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: '登入後查看你的學習紀錄' })).toBeInTheDocument())
-    expect(screen.getByRole('link', { name: '前往 Web Test 練習入口' })).toHaveAttribute('href', '/practice/web-test')
+    await waitFor(() => expect(screen.getByRole('heading', { name: "ログインして学習記録を確認" })).toBeInTheDocument())
+    expect(screen.getByRole('link', { name: "Web テストを練習する" })).toHaveAttribute('href', '/practice/web-test')
   })
 
   it('shows a useful active-member empty state without fake statistics', async () => {
@@ -70,10 +70,10 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: '從下一題開始建立你的學習紀錄' })).toBeInTheDocument())
-    expect(screen.getByText('目前還沒有已儲存的 Practice 作答。')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('heading', { name: "最初の一問から、記録を始めましょう" })).toBeInTheDocument())
+    expect(screen.getByText("保存済みの解答はまだありません。")).toBeInTheDocument()
     expect(screen.queryByText(/正答率|弱點|連續|百分位/)).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '開始 Web Test 練習' })).toHaveAttribute('href', '/practice/web-test')
+    expect(screen.getByRole('link', { name: "Web テストを始める" })).toHaveAttribute('href', '/practice/web-test')
   })
 
   it('keeps the page shell around a ready snapshot', async () => {
@@ -83,8 +83,8 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getByRole('link', { name: '開始 Web Test 練習' })).toBeInTheDocument())
-    expect(screen.getByRole('heading', { level: 1, name: '把下一次練習接在上一次之後' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('link', { name: "Web テストを始める" })).toBeInTheDocument())
+    expect(screen.getByRole('heading', { level: 1, name: "前回の学びを、次の練習へ" })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1 }).closest('section')).toHaveClass('page', 'my-learning-page')
   })
 
@@ -97,15 +97,15 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getAllByText('文脈語彙').length).toBeGreaterThan(0))
+    await waitFor(() => expect(screen.getAllByText("文脈と語句の意味").length).toBeGreaterThan(0))
     act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b', email: 'b@example.com' }))
     await waitFor(() => expect(fetchSnapshot).toHaveBeenCalledTimes(2))
 
     expect(fetchSnapshot).toHaveBeenNthCalledWith(1, expect.any(Function), 'member-a')
     expect(fetchSnapshot).toHaveBeenNthCalledWith(2, expect.any(Function), 'member-b')
 
-    expect(screen.queryByText('文脈語彙')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: '載入你的學習紀錄' })).toBeInTheDocument()
+    expect(screen.queryByText("文脈と語句の意味")).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: "学習記録を読み込んでいます" })).toBeInTheDocument()
   })
 
   it('binds membership access to the current owner during an in-place A to B switch', async () => {
@@ -136,12 +136,12 @@ describe('My Learning page', () => {
 
     await waitFor(() => expect(fetchSnapshot).toHaveBeenCalledTimes(1))
     act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b', email: 'b@example.com' }))
-    await waitFor(() => expect(screen.getAllByText('語句關係').length).toBeGreaterThan(0))
+    await waitFor(() => expect(screen.getAllByText("二語の関係").length).toBeGreaterThan(0))
     act(() => resolveA({ kind: 'ok', snapshot: continuationSnapshot('vocabulary-in-context') }))
     await Promise.resolve()
 
-    expect(screen.getAllByText('語句關係').length).toBeGreaterThan(0)
-    expect(screen.queryByText('文脈語彙')).not.toBeInTheDocument()
+    expect(screen.getAllByText("二語の関係").length).toBeGreaterThan(0)
+    expect(screen.queryByText("文脈と語句の意味")).not.toBeInTheDocument()
   })
 
   it('surfaces a persisted mistake as the primary exact review action', async () => {
@@ -155,12 +155,12 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getAllByRole('link', { name: '複習這一題' })[0]).toBeInTheDocument())
-    expect(screen.getByText('最近答錯的題目')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getAllByRole('link', { name: "この問題を復習" })[0]).toBeInTheDocument())
+    expect(screen.getByText("最近間違えた問題")).toBeInTheDocument()
     expect(screen.queryByText(/#117/)).not.toBeInTheDocument()
-    expect(screen.getAllByText('文脈語彙').length).toBeGreaterThan(0)
+    expect(screen.getAllByText("文脈と語句の意味").length).toBeGreaterThan(0)
     expect(screen.queryByText('vocabulary-in-context')).not.toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: '複習這一題' })[0]).toHaveAttribute(
+    expect(screen.getAllByRole('link', { name: "この問題を復習" })[0]).toHaveAttribute(
       'href',
       '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning&review=question-1&reviewVersion=2',
     )
@@ -178,10 +178,10 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getByRole('link', { name: '繼續這個類別' })).toBeInTheDocument())
-    expect(screen.getByText('接著練習「文脈語彙」；系統沒有保存單一 session 位置。')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('link', { name: "この単元を練習" })).toBeInTheDocument())
+    expect(screen.getByText("「文脈と語句の意味」を練習しましょう。前回の途中位置からの再開には対応していません。")).toBeInTheDocument()
     expect(screen.queryByText(/vocabulary-in-context/)).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: '繼續這個類別' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: "この単元を練習" })).toHaveAttribute(
       'href',
       '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning',
     )
@@ -194,7 +194,7 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getByText('目前的作答樣本還不足以支持分類訊號。')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("分野ごとの傾向を示すには、まだ解答数が足りません。")).toBeInTheDocument())
   })
 
   it('renders the weak-area label from the discovery catalog', async () => {
@@ -214,7 +214,7 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getByText('文脈語彙：最近 5 題中有 2 題答錯，正答率 60%。')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText("文脈と語句の意味：最近の 5 問中 2 問が不正解（正答率 60%）。")).toBeInTheDocument())
     expect(screen.queryByText(/vocabulary-in-context/)).not.toBeInTheDocument()
   })
 
@@ -230,9 +230,9 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getByText('文脈語彙')).toBeInTheDocument())
-    expect(screen.queryByText('目前分類')).not.toBeInTheDocument()
-    expect(screen.getByText('選擇一個目前可用的 Web Test 類別，繼續建立學習紀錄。')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText("文脈と語句の意味")).toBeInTheDocument())
+    expect(screen.queryByText("この単元")).not.toBeInTheDocument()
+    expect(screen.getByText("公開中の単元を選び、解答を積み重ねましょう。")).toBeInTheDocument()
     expect(screen.queryByText('完成一題後，這裡才會出現你的實際作答紀錄。')).not.toBeInTheDocument()
   })
 
@@ -247,10 +247,10 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getByText('目前分類')).toBeInTheDocument())
-    expect(screen.getAllByText('目前分類').length).toBeGreaterThan(0)
+    await waitFor(() => expect(screen.getByText("この単元")).toBeInTheDocument())
+    expect(screen.getAllByText("この単元").length).toBeGreaterThan(0)
     expect(screen.queryByText(/internal-only-category/)).not.toBeInTheDocument()
-    expect(screen.getAllByRole('status').some((status) => status.textContent?.includes('這筆紀錄目前無法安全開啟，請從最新的 Web Test 入口選擇練習範圍。'))).toBe(true)
+    expect(screen.getAllByRole('status').some((status) => status.textContent?.includes("この記録の問題は現在開けません。Web テストの一覧から、練習する単元を選んでください。"))).toBe(true)
   })
 
   it('shows the endpoint non-member state when membership access is cached as active', async () => {
@@ -260,9 +260,9 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'My Learning 是 Plus 會員學習紀錄' })).toBeInTheDocument())
-    expect(screen.getByRole('link', { name: '了解 Plus' })).toHaveAttribute('href', '/plus')
-    expect(screen.queryByRole('heading', { name: 'Practice 作答暫時無法取得' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('heading', { name: "学習記録は Plus 会員向けの機能です" })).toBeInTheDocument())
+    expect(screen.getByRole('link', { name: "Plus について" })).toHaveAttribute('href', '/plus')
+    expect(screen.queryByRole('heading', { name: "解答記録を読み込めません" })).not.toBeInTheDocument()
   })
 
   it('shows the endpoint signed-out state when auth still has a cached user', async () => {
@@ -272,9 +272,9 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: '登入後查看你的學習紀錄' })).toBeInTheDocument())
-    expect(screen.getByRole('link', { name: '前往 Web Test 練習入口' })).toHaveAttribute('href', '/practice/web-test')
-    expect(screen.queryByRole('heading', { name: 'Practice 作答暫時無法取得' })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('heading', { name: "ログインして学習記録を確認" })).toBeInTheDocument())
+    expect(screen.getByRole('link', { name: "Web テストを練習する" })).toHaveAttribute('href', '/practice/web-test')
+    expect(screen.queryByRole('heading', { name: "解答記録を読み込めません" })).not.toBeInTheDocument()
   })
 
   it('renders membership and endpoint failures as truthful recovery states', async () => {
@@ -283,8 +283,8 @@ describe('My Learning page', () => {
       session: { id: 'member-1', email: 'member@example.com' },
       membershipAccessRepository: membership,
     })
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'My Learning 是 Plus 會員學習紀錄' })).toBeInTheDocument())
-    expect(screen.getByRole('link', { name: '了解 Plus' })).toHaveAttribute('href', '/plus')
+    await waitFor(() => expect(screen.getByRole('heading', { name: "学習記録は Plus 会員向けの機能です" })).toBeInTheDocument())
+    expect(screen.getByRole('link', { name: "Plus について" })).toHaveAttribute('href', '/plus')
 
     cleanup()
     const fetchSnapshot = vi.fn().mockResolvedValue({ kind: 'unavailable' as const })
@@ -293,7 +293,7 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
     await waitFor(() => expect(fetchSnapshot).toHaveBeenCalled())
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Practice 作答暫時無法取得' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: "解答記録を読み込めません" })).toBeInTheDocument())
     expect(fetchSnapshot).toHaveBeenCalled()
   })
 
@@ -313,13 +313,13 @@ describe('My Learning page', () => {
     })
     const sampleLink = await screen.findByRole('link', { name: sampleReadingItem.title })
     expect(sampleLink).toHaveAttribute('href', `/read/${sampleReadingItem.slug}`)
-    expect(screen.getByText('目前無法安全開啟這筆已儲存項目。')).toBeInTheDocument()
+    expect(screen.getByText("この保存済みの項目は、現在開けません。")).toBeInTheDocument()
     expect(screen.queryByText(staleId)).not.toBeInTheDocument()
     expect(screen.queryByText('a'.repeat(64))).not.toBeInTheDocument()
-    const removeButtons = screen.getAllByRole('button', { name: '移除' })
+    const removeButtons = screen.getAllByRole('button', { name: "保存を解除" })
     fireEvent.click(removeButtons[1]!)
     await waitFor(() => expect(deleteSave).toHaveBeenCalledWith(staleId, expect.any(Function), 'member-1', expect.any(AbortSignal)))
-    await waitFor(() => expect(screen.queryByText('目前無法安全開啟這筆已儲存項目。')).not.toBeInTheDocument())
+    await waitFor(() => expect(screen.queryByText("この保存済みの項目は、現在開けません。")).not.toBeInTheDocument())
   })
 
   it('refetches the capped list after removal so the next older save appears', async () => {
@@ -340,8 +340,8 @@ describe('My Learning page', () => {
       session: { id: 'member-1', email: 'member@example.com' },
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
-    expect(await screen.findAllByText('目前無法安全開啟這筆已儲存項目。')).toHaveLength(50)
-    fireEvent.click(screen.getAllByRole('button', { name: '移除' })[0]!)
+    expect(await screen.findAllByText("この保存済みの項目は、現在開けません。")).toHaveLength(50)
+    fireEvent.click(screen.getAllByRole('button', { name: "保存を解除" })[0]!)
     expect(await screen.findByRole('link', { name: sampleReadingItem.title })).toHaveAttribute('href', `/read/${sampleReadingItem.slug}`)
     expect(fetchSaves).toHaveBeenCalledTimes(2)
     expect(deleteSave).toHaveBeenCalledWith('retired-reading-0', expect.any(Function), 'member-1', expect.any(AbortSignal))
@@ -357,7 +357,7 @@ describe('My Learning page', () => {
       session: { id: 'member-1', email: 'member@example.com' },
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
-    expect(await screen.findByRole('heading', { name: 'Practice 作答暫時無法取得' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: "解答記録を読み込めません" })).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: sampleReadingItem.title })).toHaveAttribute('href', `/read/${sampleReadingItem.slug}`)
   })
 
@@ -369,9 +369,9 @@ describe('My Learning page', () => {
       session: { id: 'member-1', email: 'member@example.com' },
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
-    expect(await screen.findByText('已儲存的 Reading 暫時無法取得。')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('heading', { name: '最近儲存的 Reading（最多 50 筆）' }).closest('section')!.querySelector('button')!)
-    expect(await screen.findByText('目前還沒有已儲存的 Reading。')).toBeInTheDocument()
+    expect(await screen.findByText("保存した記事を読み込めません。")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('heading', { name: "最近保存した記事（最大 50 件）" }).closest('section')!.querySelector('button')!)
+    expect(await screen.findByText("保存した記事はまだありません。")).toBeInTheDocument()
     expect(fetchSaves).toHaveBeenCalledTimes(2)
   })
 
@@ -409,7 +409,7 @@ describe('My Learning page', () => {
     })
     await waitFor(() => expect(fetchSaves).toHaveBeenCalledTimes(1))
     act(() => rendered.authClient.emitAuthStateChange(null))
-    await waitFor(() => expect(screen.getByRole('heading', { name: '登入後查看你的學習紀錄' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: "ログインして学習記録を確認" })).toBeInTheDocument())
     expect(listSignal?.aborted).toBe(true)
     act(() => resolveList({ kind: 'ok', items: [{ itemId: sampleReadingItem.id, revision: null, savedAt: '2026-09-19T10:00:00.000Z' }] }))
     await Promise.resolve()
@@ -422,7 +422,7 @@ describe('My Learning page', () => {
       session: { id: 'member-1', email: 'member@example.com' },
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
-    expect(await screen.findByText('目前無法確認 Plus 存取權。')).toBeInTheDocument()
+    expect(await screen.findByText("現在、Plus の会員資格を確認できません。")).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: sampleReadingItem.title })).not.toBeInTheDocument()
   })
 
@@ -449,10 +449,10 @@ describe('My Learning page', () => {
     })
 
     expect(await screen.findByRole('link', { name: sampleWorkplaceLearnItem.title })).toHaveAttribute('href', `/learn/workplace/${sampleWorkplaceLearnItem.slug}`)
-    expect(screen.getByText('目前無法安全開啟這筆已儲存項目。')).toBeInTheDocument()
-    expect(screen.getByText(/不代表已完成、練習、理解或精熟/)).toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole('button', { name: '移除' }).at(-1)!)
-    await waitFor(() => expect(screen.queryByText('目前無法安全開啟這筆已儲存項目。')).not.toBeInTheDocument())
+    expect(screen.getByText("この保存済みの項目は、現在開けません。")).toBeInTheDocument()
+    expect(screen.getByText(/後で見返すために保存した教材です。学習の完了や理解度を示すものではありません。/)).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: "保存を解除" }).at(-1)!)
+    await waitFor(() => expect(screen.queryByText("この保存済みの項目は、現在開けません。")).not.toBeInTheDocument())
     expect(deleteWorkplaceItem).toHaveBeenCalledWith(stale.itemId, expect.any(Function), 'member-1', expect.any(AbortSignal))
   })
 

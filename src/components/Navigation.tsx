@@ -5,7 +5,6 @@ import { PRODUCT_MODES } from '../app/productModes'
 interface NavItem {
   to: string
   end: boolean
-  labelLanguage?: 'en'
   tone?: 'membership'
   getLabel: (strings: ReturnType<typeof useStrings>) => string
   getAriaLabel?: (strings: ReturnType<typeof useStrings>) => string
@@ -19,8 +18,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   ...PRODUCT_MODES.map((mode) => ({
     to: mode.href,
     end: true,
-    labelLanguage: 'en' as const,
-    getLabel: () => mode.label,
+    getLabel: (strings: ReturnType<typeof useStrings>) => strings.learningModes.modes[mode.id].title,
   })),
   {
     to: '/plus',
@@ -52,11 +50,7 @@ export function Navigation({ onNavigate }: { onNavigate?: () => void } = {}) {
               aria-label={item.getAriaLabel?.(strings)}
               onClick={onNavigate}
             >
-              {item.labelLanguage ? (
-                <span lang={item.labelLanguage}>{item.getLabel(strings)}</span>
-              ) : (
-                item.getLabel(strings)
-              )}
+              {item.getLabel(strings)}
             </NavLink>
           </li>
         ))}

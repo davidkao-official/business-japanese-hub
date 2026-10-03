@@ -5,7 +5,7 @@ import { renderWithAppProviders } from '../test/appProviders'
 import { SpiExplainerPage } from './SpiExplainerPage'
 
 const SPI_EXPLAINER_DESCRIPTION =
-  'SPI 是什麼？給想在日本求職的外國人求職者：說明 SPI 3 與 Web Test 的測驗內容、作答時間與準備方向。'
+  "SPIとは？日本で就職・転職を目指す外国人の方に向けて、SPI 3やWebテストの出題内容、試験時間、準備の進め方を解説します。"
 
 afterEach(() => {
   cleanup()

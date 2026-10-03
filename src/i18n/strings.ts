@@ -1,3 +1,4 @@
+import { jaLearningUi, zhTWLearningUi, type LearningUiStrings } from './learningUi'
 /**
  * i18n — typed, framework-free string module.
  * ---------------------------------------------------------------------
@@ -12,11 +13,12 @@
  */
 
 import { useMemo, useSyncExternalStore } from 'react'
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from './locales'
+import { DEFAULT_LOCALE, SUPPORTED_LOCALES, LAUNCHED_LOCALES, resolveLaunchedLocale, type Locale } from './locales'
 
 export { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from './locales'
 
 export interface AppStrings {
+  learningUi: LearningUiStrings
   reading: {
     eyebrow: string
     title: string
@@ -425,20 +427,21 @@ export interface AppStrings {
 }
 
 const ja: AppStrings = {
+  learningUi: jaLearningUi,
   reading: {
-    eyebrow: 'BUSINESS READING', title: '日本のビジネス資料を、文脈とともに読む',
+    eyebrow: 'ビジネス資料を読む', title: '日本のビジネス資料を、文脈とともに読む',
     lead: '日本語の資料を起点に、語彙・論点・仕事の背景を読み解きます。',
     categoryLabel: '資料の種類', allCategories: 'すべて',
     categories: { 'business-news': 'ビジネスニュース', 'company-ir': '企業・IR', 'industry-report': '業界レポート', 'government-report': '政府資料', 'business-document': 'ビジネス文書' },
     emptyCategory: 'この分類の記事はまだ公開されていません。',
-    plusUnavailableTitle: 'Plus の Reading 記事', plusUnavailableBody: 'Plus の記事は現在公開されていません。公開後、会員状態をサーバーで確認して配信します。',
+    plusUnavailableTitle: 'Plus の記事', plusUnavailableBody: 'Plus の記事は現在公開されていません。公開後、会員状態をサーバーで確認して配信します。',
     related: '次に学ぶ', source: '出典', sourceDate: '出典資料の日付', publishedOn: '記事公開日', japaneseMaterial: '日本語資料',
     explanation: '読み解き', vocabulary: '語彙', logic: '論点の流れ', businessContext: 'ビジネスの背景',
     davidCommentary: 'David の視点', booksTitle: '書籍と長文を読む',
-    booksBody: '長いテーマを順に読み進めたい方は、書籍と Reader をご利用ください。',
-    browseBooks: '書籍一覧を見る', openReader: 'Reader で読む', openArticle: '記事を読む', free: 'Free', plus: 'Plus',
-    sampleLabel: '著作権上問題のないオリジナル教材サンプル', notDated: '公開日なし',
-    backToRead: 'Reading 一覧へ戻る', unavailable: '記事を読み込めませんでした。時間をおいて再度お試しください。',
+    booksBody: '長いテーマを順に読み進めたい方は、書籍をご利用ください。',
+    browseBooks: '書籍一覧を見る', openReader: '本文を読む', openArticle: '記事を読む', free: 'Free', plus: 'Plus',
+    sampleLabel: 'オリジナル教材サンプル', notDated: '公開日なし',
+    backToRead: '記事一覧へ戻る', unavailable: '記事を読み込めませんでした。時間をおいて再度お試しください。',
     saveLabel: '保存した記事', saveSignIn: '保存するにはログインしてください。', savePlusRequired: '記事の保存は Plus 会員向けです。',
     saveCheckingMembership: '会員状態を確認しています。', saveLoading: '保存状態を確認しています。', saveReady: 'この記事を保存できます。',
     saveSaved: 'この記事を保存しました。', saveStale: '保存した版は現在公開されていません。', saveUnavailable: '保存状態を確認できません。',
@@ -447,18 +450,18 @@ const ja: AppStrings = {
   workplaceLearn: {
     title: '日本の職場で実践する', lead: '日本で働く場面を手がかりに、何を伝えるか、どう表現するかを学びます。',
     categories: { 'workplace-communication': '職場コミュニケーション', 'thinking-problem-solving': '思考と問題解決', 'documents-data': '文書・資料作成', 'meetings-projects': '会議とプロジェクト', 'workplace-vocabulary': '日本の職場語彙' },
-    categoryKicker: 'BROWSE BY CATEGORY', categoryTitle: '職場のテーマ', allCategories: 'すべて', filterLabel: 'カテゴリーで絞り込む', emptyCategory: 'このテーマの教材は準備中です。',
+    categoryKicker: 'テーマから探す', categoryTitle: '職場のテーマ', allCategories: 'すべて', filterLabel: 'カテゴリーで絞り込む', emptyCategory: 'このテーマの教材は準備中です。',
     lessonLabel: '職場の場面', vocabularyLabel: '職場語彙', openItem: '内容を読む', vocabularyIndexLink: '語彙一覧', vocabularyIndexTitle: '日本職場の語彙', vocabularyIndexLead: '語の意味に加えて、職場での使い方や注意点を確認します。',
-    backToLearn: 'Learn へ戻る', backToVocabulary: '職場語彙へ戻る', legacyLinkPrefix: '既存の Learn 講座：', situation: '場面', meaning: 'この場面での意味', objective: '学習目標', whatToDo: 'どう動くか', whatToSay: 'どう伝えるか', examples: '例文', caution: '表現と関係性への留意', relatedVocabulary: '関連語彙', takeaway: '次の場面に活かす',
+    backToLearn: '学ぶへ戻る', backToVocabulary: '職場語彙へ戻る', legacyLinkPrefix: 'その他の学習教材：', situation: '場面', meaning: 'この場面での意味', objective: '学習目標', whatToDo: 'どう動くか', whatToSay: 'どう伝えるか', examples: '例文', caution: '表現と関係性への留意', relatedVocabulary: '関連語彙', takeaway: '次の場面に活かす',
     termLabel: '語', reading: '読み方', meaningLabel: '意味', nuance: '職場でのニュアンス', usage: '使用場面', register: '語域', relationship: '相手との関係', example: '例文', related: '関連する教材', relatedUnavailable: 'この教材は現在利用できません。', sampleNote: '架空のオリジナル教材例です。すべての会社や職場での使い方を示すものではありません。',
     loading: '教材を読み込んでいます。', unavailable: '現在、教材を読み込めません。時間をおいて再度お試しください。', vocabularyEmpty: '公開中の職場語彙はありません。',
     selfPracticeTitle: '自分で言い換える', selfPracticePrompt: '例文を自分の職場で起こりそうな場面に置き換え、伝える事実、次の行動、相手に合った語調を選んで書き直してみましょう。', selfPracticeLabel: '自分の表現を書いてみる', selfPracticeNoSave: 'ここで入力した内容は保存も採点もされません。',
-    saveLabel: 'My Learning に保存', saveSignedOut: '教材を保存するにはログインしてください。保存内容は Plus 会員のみ利用できます。',
-    saveCheckingMembership: 'Plus 会員状態を確認しています。', saveNonMember: 'Workplace Learn の保存には Plus 会員資格が必要です。',
+    saveLabel: '学習記録に保存', saveSignedOut: '教材を保存するにはログインしてください。保存内容は Plus 会員のみ利用できます。',
+    saveCheckingMembership: 'Plus 会員状態を確認しています。', saveNonMember: '教材の保存には Plus 会員資格が必要です。',
     saveMembershipUnavailable: '会員状態を確認できません。', saveContentLoading: '教材を読み込んでいます。', saveLoading: '保存状態を確認しています。',
-    saveReady: 'この教材を My Learning に保存できます。', saveSaved: 'My Learning に保存しました。この保存は完了や習熟を示すものではありません。',
+    saveReady: 'この教材を学習記録に保存できます。', saveSaved: '学習記録に保存しました。この保存は完了や習熟を示すものではありません。',
     saveStale: '保存した教材の版は現在利用できません。保存を解除できます。', saveConflict: '今回の保存は受け付けられず、新しい保存記録は確認できませんでした。版を確認して再試行してください。', saveUnavailable: '保存状態を確認できません。',
-    saveAction: 'My Learning に保存', removeSave: '保存を解除', saveWorking: '処理中…', saveRetry: '再試行',
+    saveAction: '学習記録に保存', removeSave: '保存を解除', saveWorking: '処理中…', saveRetry: '再試行',
   },
   app: {
     name: 'ビジネス日本語ハブ',
@@ -547,7 +550,7 @@ const ja: AppStrings = {
     availabilityTitle: 'Early Access は準備中です',
     availabilityBody: '現在この画面から Plus の支払いはできません。実際に提供できる学習機能だけを表示し、確認できない会員状態では Plus コンテンツを解放しません。',
     audienceTitle: '対象となる方',
-    audienceBody: 'JLPT N2〜N1 前後で、日本での就職、企業資料の読解、入社後の職場日本語を必要とする中国語話者の学習者。',
+    audienceBody: 'JLPT N1 に合格し、日本での就職・転職、企業資料の読解、職場での日本語を学びたい方。母語を問わず利用できます。',
     journeyTitle: '日本での仕事につながる学び',
     journeySteps: ['日本での求職を準備する', '選考を通過する', '日本企業で働き始める', '職場の日本語を伸ばし続ける'],
     valueTitle: 'Free と Plus の役割',
@@ -555,23 +558,23 @@ const ja: AppStrings = {
     freeBody: '公開された入口と学習コンテンツで、サービスと自分の課題を確かめられます。',
     plusTitle: 'Plus',
     plusBody: '対象の学習コンテンツと練習に加え、学習状態を継続的につなぐメンバーシップです。記事を増やすだけのプランではありません。',
-    learningSystemTitle: 'Learning System を中心に',
+    learningSystemTitle: '学びの記録を、次の一歩に',
     learningSystemBody: '間違いと復習、保存した表現、進捗、根拠のある弱点シグナル、次の一歩を、説明可能な学習状態としてつなぎます。十分な記録がない場合は、足りない状態を正直に表示します。',
-    surfacesTitle: 'Plus の価値をつなぐ学習サーフェス',
+    surfacesTitle: 'Plus で続けられる学び',
     surfaces: [
-      { title: 'Practice', body: 'Web Test や練習の履歴を、後から振り返れる学習状態へつなげます。' },
-      { title: 'Read', body: '日本のビジネス情報や長文を、学習記録と結びつけます。' },
-      { title: 'Learn / Work in Japan', body: '入社後の報連相、会議、文書など、職場で必要な学びを継続させます。' },
-      { title: 'My Learning', body: 'それぞれの runtime が持つ本当の evidence だけを集約し、次の行動を示します。' },
+      { title: '練習', body: 'Web Test や練習の履歴を、後から振り返れる学習状態へつなげます。' },
+      { title: '読む', body: '日本のビジネス情報や長文を、学習記録と結びつけます。' },
+      { title: '学ぶ / 職場の日本語', body: '入社後の報連相、会議、文書など、職場で必要な学びを継続させます。' },
+      { title: '学習記録', body: '保存した解答や教材を振り返り、次に取り組む内容を選べます。' },
     ],
     accessTitle: 'アクセス状態を正直に表示',
-    accessBody: 'ブラウザのフラグではなく、サーバーが確認した会員状態だけで Plus のロックを解除します。確認できない場合は fail closed とし、会員状態を推測しません。',
+    accessBody: '会員資格を確認してから Plus の対象教材を表示します。確認できない場合は、時間をおいて再度お試しください。',
     previewTitle: 'Plus プレビュー',
     previewBody: 'ロック中でも、どの学習領域が Plus の対象かを確認できます。本文や非公開の問題はここには表示しません。',
     freeLabel: 'FREE',
     plusLabel: 'PLUS',
     freeAction: '無料の学習を始める',
-    memberAction: 'My Learning を見る',
+    memberAction: '学習記録を見る',
     states: {
       publicTitle: 'Free で使える領域',
       publicBody: '公開コンテンツと無料の入口はそのまま利用できます。',
@@ -596,40 +599,40 @@ const ja: AppStrings = {
     continueTitle: 'ほかのモードを見る',
     modes: {
       learn: {
-        title: 'Learn',
+        title: '学ぶ',
         summary: '実際の職場場面から、使える判断力を身につける。',
         lead: '日本の職場で必要な判断・表現・背景を学びます。',
       },
       read: {
-        title: 'Read',
+        title: '読む',
         summary: '日本のビジネス情報と長文コンテンツを文脈の中で読む。',
         lead: '既存のライブラリとリーダーを通じて、日本語のビジネス情報を直接読みます。',
       },
       practice: {
-        title: 'Practice',
+        title: '練習',
         summary: '言語を職場の行動につなげる反復練習に取り組む。',
         lead: '反復できる想起と判断の練習を、ここから整備していきます。',
       },
       'my-learning': {
-        title: 'My Learning',
+        title: '学習記録',
         summary: '実際の進捗・復習・保存項目・次の一歩に戻る。',
-        lead: '作られたスコアではなく、説明可能な実データから学習状態を育てます。',
+        lead: '解答と保存した教材を振り返り、次に取り組む内容を選べます。',
       },
       experience: {
-        title: 'Experience',
+        title: '体験',
         summary: '具体的な物語の中で職場の判断を試し、その結果を知る。',
-        lead: '独立してデプロイされる Career Game 職場シミュレーターへの入口です。',
+        lead: 'Career Game で職場の場面を体験し、判断とその結果を考えます。',
       },
     },
     read: {
       capabilityTitle: '長文を読む',
       capabilityLead:
-        '公開中の書籍を下の一覧から選び、Book の詳細から Reader で長文読書を始められます。個人の書籍と読書の進捗はマイライブラリで確認できます。',
+        '公開中の書籍を選び、詳細ページから本文を読めます。個人の書籍と読書の進捗はマイライブラリで確認できます。',
       browseLibrary: 'マイライブラリを開く',
     },
     experience: {
       capabilityTitle: 'Career Game',
-      capabilityLead: '独立した Experience ランタイムで、物語形式の職場ケースを通じて判断を試します。',
+      capabilityLead: '物語形式の職場ケースを通じて、場面に応じた判断を試します。',
       openCareerGame: 'Career Game を開く',
     },
   },
@@ -823,6 +826,7 @@ const ja: AppStrings = {
 }
 
 const en: AppStrings = {
+  learningUi: jaLearningUi,
   reading: {
     eyebrow: 'BUSINESS READING', title: 'Read Japanese business material in context',
     lead: 'Start with Japanese source material, then examine its vocabulary, argument, and workplace context.',
@@ -1221,6 +1225,7 @@ const en: AppStrings = {
 }
 
 const zhTW: AppStrings = {
+  learningUi: zhTWLearningUi,
   reading: {
     eyebrow: 'BUSINESS READING', title: '在脈絡中閱讀日本商業資料',
     lead: '從日文原文出發，理解詞彙、論點安排與職場背景。',
@@ -1806,14 +1811,16 @@ function readBrowserLocale(): Locale {
 }
 
 /**
- * Runtime presentation locale. Persisted user preference wins over browser
- * language. This value is presentation-only and must never be used to infer
+ * Runtime presentation locale. A persisted preference wins over browser
+ * language only after that locale launches. V1 is Japanese-only; this lookup
+ * never rewrites a dormant preference. This value is presentation-only and must never be used to infer
  * consumer jurisdiction, tax treatment, payment provider, or entitlement.
  */
 export function getActiveLocale(): Locale {
-  return volatileLocaleOverride !== undefined
+  const preferred = volatileLocaleOverride !== undefined
     ? volatileLocaleOverride ?? readBrowserLocale()
     : readPersistedLocale() ?? readBrowserLocale()
+  return resolveLaunchedLocale(preferred, LAUNCHED_LOCALES)
 }
 
 /**
