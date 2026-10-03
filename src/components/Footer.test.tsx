@@ -25,9 +25,11 @@ describe('footer', () => {
       '/legal/refunds',
     )
 
-    // merchant-of-record disclosure uses the pending placeholder
-    expect(screen.getByText(SELLER_DISCLOSURE.name)).toBeInTheDocument()
-    expect(screen.getByText('（登録名確認中）')).toBeInTheDocument()
+    // merchant-of-record disclosure shows only the localized pending state (#191 B5)
+    expect(SELLER_DISCLOSURE.pending).toBe(true)
+    expect(screen.getByText('登録名確認中')).toHaveClass('site-footer__seller-pending')
+    expect(screen.queryByText(SELLER_DISCLOSURE.name)).not.toBeInTheDocument()
+    expect(document.querySelector('.site-footer__seller')).toHaveTextContent(/^販売者：登録名確認中$/)
 
     // existing footer note is preserved
     expect(screen.getByText('© ビジネス日本語ハブ')).toBeInTheDocument()
