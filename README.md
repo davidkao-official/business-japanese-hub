@@ -1,12 +1,12 @@
 # Business Japanese Hub
 
-Business Japanese Hub 是一個 **web-first、subscription-based 的日本求職與日本職場日文學習服務**，核心服務已具備一定日文能力、特別是 **JLPT N2～N1 程度的華語學習者**。
+Business Japanese Hub 是一個 **web-first、subscription-based 的日本求職與日本職場日文學習服務**，核心服務**已通過 JLPT N1、不限母語的外國學習者**。**V1 以日文為主**（介面與解説皆為日文）；英文、中文、韓文等在地化於 launch 後逐步加入。
 
 產品要解決的 gap 是：
 
 > **從「考試日文」升級到「能用日文在日本求職、讀懂日本商業資料、進入日本企業並持續工作成長」。**
 
-Business Japanese Hub **不是 JLPT preparation service**。N2／N1 是主要 entry point，不是學習終點。
+Business Japanese Hub **不是 JLPT preparation service**。N1 合格是主要 entry point，不是學習終點。
 
 Canonical user journey：
 
@@ -39,7 +39,8 @@ Book / Universal Reader 是 `Read` 的 long-form editorial capability；Career G
 - **[`docs/shared-backend-and-identity.md`](docs/shared-backend-and-identity.md)** — Supabase identity、origin/session topology、client/server secret boundary 與 product data isolation。
 - **[`docs/learning-and-progress.md`](docs/learning-and-progress.md)** — 現有 shared skill/evidence seam、Library reading／Career Game progress isolation、version/reset 與 RLS contract。
 - **[`docs/content-model.md`](docs/content-model.md)** — `Book → Chapter → ContentBlock` 的 Library／long-form editorial content model；不是全平台 schema。
-- **[`docs/ui-ux-research.md`](docs/ui-ux-research.md)** — **視覺、Japanese typography、design tokens、Reader/editorial quality 與 accessibility 的 durable research/implementation guidance**。其中 2026-08 研究留下的 Storefront-first、Book-as-commerce-unit、`subscription-first` non-goal 或禁止 Practice/Progress IA 等產品假設已被 `docs/product-contract.md` 與 `docs/post-n1-learning-map.md` supersede，**不得再作為 current product IA / commerce authority**。
+- **[`docs/design-system.md`](docs/design-system.md)** — **視覺／互動設計 authority（Source & Gloss）**：identity、type roles、tokens、components、各 surface grammar、states 與 staged implementation sequence；reference compositions 在 [`docs/design/reference/`](docs/design/reference/)。
+- **[`docs/ui-ux-research.md`](docs/ui-ux-research.md)** — **Japanese typography、Reader 與 accessibility 的 durable research**；其視覺方向（Quiet Editorial）已由 `docs/design-system.md` supersede。其中 2026-08 研究留下的 Storefront-first、Book-as-commerce-unit、`subscription-first` non-goal 或禁止 Practice/Progress IA 等產品假設已被 `docs/product-contract.md` 與 `docs/post-n1-learning-map.md` supersede，**不得再作為 current product IA / commerce authority**。
 - **[`docs/authoring.md`](docs/authoring.md)** — Book/editorial authoring、validation、preview、publish、version/rollback workflow。
 - **[`docs/private-content-delivery.md`](docs/private-content-delivery.md)** — proprietary production content 的 private source、server-only import/delivery 與 disclosed legacy Book boundary。
 - **[`docs/deployment.md`](docs/deployment.md)** — Cloudflare Pages、production Supabase、secrets、migration/functions、smoke、rollback 與 observability runbook。

@@ -1,5 +1,7 @@
 # UI/UX 設計方向研究 — Business Japanese Hub
 
+> **2026-10-02 supersession notice：** 視覺與互動設計的 canonical authority 已改為 [`design-system.md`](design-system.md)（Source & Gloss）。本文件的 **Japanese typography 研究（§3）、Reader chrome／settings 行為、accessibility 要求，以及其他文件引用的行為契約（§4.2 Preview boundary、§4.4 resume-state、§8.3 entitlement CTA states）仍然有效**，並由 `design-system.md` §15 明列延續；本文件的視覺方向（Quiet Editorial Modernism、色彩、Storefront／Book Detail／Library 版面、book-as-commerce IA）**不再是 authority**。下方「單一 authority」字樣為歷史紀錄。
+
 > **狀態：** durable（長期有效）的 UI/UX 設計方向研究。是**設計層面的 canonical implementation contract（UI/UX 決策的單一 authority）**，也是 `docs/product-contract.md` §8（UI / Reader quality 是 P0）的具體化。
 >
 > **來源與版本：** 本文件是《Business Japanese Hub UI_UX 深度研究與實作設計簡報》（18 頁 PDF，2026-08，以下簡稱「研究簡報」）在 repository 內的 durable 落地形式。研究簡報是**有版本的 research provenance（2026-08 版）**，僅供追溯研究脈絡；**本文件才是 repository 內 UI/UX 實作決策的 canonical authority**。本文件忠實記錄研究結論與實作決策，**不另起一輪 competitive research，也不改寫其 design direction**。同步規則：當研究簡報後續版本與本文件不一致時，應更新本文件以反映新的研究結論，而不是以 PDF 覆寫 repository 內的實作 contract。

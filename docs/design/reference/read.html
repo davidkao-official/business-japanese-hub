@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Read article — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var d=document.documentElement;function tokens(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-').filter(Boolean);['state','open','theme'].forEach(function(k){if(q.get(k))h.push(q.get(k));});return h;}
+function apply(first){var h=tokens();var t=h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null;if(t)d.dataset.theme=t;if(!document.body)return;
+var els=[].slice.call(document.querySelectorAll('[data-st]'));if(els.length){var all=[];els.forEach(function(e){e.dataset.st.split(' ').forEach(function(x){if(all.indexOf(x)<0)all.push(x);});});var s=h.filter(function(x){return all.indexOf(x)>-1;})[0]||all[0];d.dataset.state=s;els.forEach(function(e){e.hidden=e.dataset.st.split(' ').indexOf(s)<0;});}
+[].slice.call(document.querySelectorAll('dialog.dlg')).forEach(function(g){if(h.indexOf(g.id)>-1&&!g.open)g.showModal();});if(!first)scrollTo(0,0);}
+apply(true);addEventListener('DOMContentLoaded',function(){apply(true);
+document.addEventListener('click',function(e){var o=e.target.closest('[data-open]');if(o){var g=document.getElementById(o.dataset.open);g.showModal();return;}
+var c=e.target.closest('[data-close]');if(c){c.closest('dialog').close();return;}if(e.target.tagName==='DIALOG')e.target.close();});});
+addEventListener('hashchange',function(){apply(false);});})();</script>
+<style>
+  .art-head { padding-block: var(--space-6) var(--space-6); max-width: 880px; }
+  .art-head h1 { margin-top: var(--space-3); }
+  .art-head .lead { margin-top: var(--space-3); }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin-top: var(--space-5); font-size: var(--size-small); color: var(--ink-2); }
+  .meta dt { font-size: var(--size-caption); color: var(--ink-3); }
+  .meta dl { display: flex; gap: 20px; margin: 0; }
+  .meta dd { margin: 0; }
+  .art { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: clamp(32px, 5vw, 64px); padding-bottom: var(--space-9); align-items: start; }
+  .source { position: sticky; top: calc(var(--header-h) + 24px); }
+  .srcseg { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; padding-block: 10px; }
+  .srcseg + .srcseg { border-top: 1px dashed var(--rule); }
+  .srcseg__tag { font-size: var(--size-caption); color: var(--ink-3); padding-top: 0.55em; line-height: 1.4; }
+  .srcseg__tag b { display: block; color: var(--ink); font-weight: var(--weight-bold); }
+  .srcseg .material { font-size: 1.1875rem; }
+  .source__foot { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--rule); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: var(--size-caption); color: var(--ink-3); }
+  .panel > section + section { margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--rule); }
+  .panel h2 { font-size: var(--size-title-3); margin-bottom: var(--space-3); }
+  .vocab { list-style: none; display: grid; gap: var(--space-4); }
+  .vocab li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; }
+  .vocab .gn { font-size: 1.05rem; vertical-align: 0; color: var(--ink); }
+  .vocab .t { font-weight: var(--weight-bold); }
+  .vocab .r { font-size: var(--size-caption); color: var(--ink-3); margin-left: 6px; font-weight: var(--weight-regular); }
+  .vocab .m { margin-top: 2px; }
+  .vocab .n { font-size: var(--size-small); color: var(--ink-2); margin-top: 2px; }
+  .logic { list-style: none; display: grid; gap: var(--space-4); }
+  .logic b { display: block; }
+  .logic .q { font-size: var(--size-small); color: var(--ink-2); margin-top: 2px; }
+  .next a { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 0; text-decoration: none; border-bottom: 1px solid var(--rule); }
+  .next a:first-child { border-top: 1px solid var(--rule); }
+  @media (max-width: 959px) {
+    .art { grid-template-columns: minmax(0, 1fr); }
+    .source { position: static; }
+    .srcseg { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    .srcseg__tag { padding-top: 0; }
+    .srcseg__tag b { display: inline; margin-right: 6px; }
+  }
+
+  .reserved { border: 1px dashed var(--rule-control); border-radius: var(--radius-sheet); padding: 14px 16px; font-size: var(--size-caption); color: var(--ink-3); line-height: 1.6; }
+  .reserved p + p { margin-top: 6px; }
+  .panel > .reserved { margin-top: var(--space-6); }
+  .panel > aside + section { margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--rule); }
+</style>
+</head>
+<body class="has-tabbar">
+<div class="proto-note" lang="en"><span>Design reference · Read article · a marked phrase opens its note: bottom sheet &lt; 960px, side drawer ≥ 960px · <a href="read.html#note1">long note open</a> · Japanese 解説 written for this reference</span><a href="index.html">All references</a></div>
+<header class="hdr">
+  <div class="wrap hdr__in">
+    <a class="brand" href="home.html" aria-label="Business Japanese Hub ホーム">
+      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg>
+      <span class="brand__word" lang="en">Business Japanese Hub</span>
+    </a>
+    <nav class="nav" aria-label="メインナビゲーション">
+      <a href="learn.html">学ぶ</a>
+      <a href="read.html" aria-current="page">読む</a>
+      <a href="practice.html">練習</a>
+      <a href="my-learning.html">学習記録</a>
+      <a href="#">体験</a>
+    </nav>
+    <div class="hdr__tools">
+      <a class="chip chip--plus" href="plus.html" lang="en">Plus</a>
+      <a class="btn btn--quiet btn--sm" href="#">ログイン</a>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <header class="art-head">
+    <p class="crumbs"><a href="#">読む</a><span aria-hidden="true">›</span><a href="#">ビジネス資料読解</a><span aria-hidden="true">›</span><span>社内文書</span></p>
+    <h1 class="t1"><span class="phrase">社内の提案書で読む、</span><span class="phrase">論点の組み立て方</span></h1>
+    <p class="lead">架空のオリジナル提案書の要旨で、現状・施策・期待される効果を見分ける練習をします。</p>
+    <div class="meta">
+      <span class="chip">無料</span>
+      <dl><div><dt>出典</dt><dd>架空のオリジナル社内文書（教材）</dd></div></dl>
+      <button class="btn btn--quiet btn--sm" type="button" style="margin-left:auto">保存する</button>
+    </div>
+  </header>
+
+  <div class="art">
+    <section class="sheet source" aria-labelledby="src-title">
+      <p class="sheet__label" id="src-title"><b>原文</b><span>社内提案書・要旨</span></p>
+      <div class="srcseg"><p class="srcseg__tag"><b>現状</b>課題</p><p class="material">現在、<button type="button" class="notebtn" data-open="note1" aria-haspopup="dialog" aria-label="問い合わせ（注1）"><mark>問い合わせ</mark><span class="gn" aria-hidden="true">①</span></button>への回答に平均三日を要している。</p></div>
+      <div class="srcseg"><p class="srcseg__tag"><b>施策</b></p><p class="material">まず質問の分類表を作成し、<button type="button" class="notebtn" data-open="note2" aria-haspopup="dialog" aria-label="担当部署（注2）"><mark>担当部署</mark><span class="gn" aria-hidden="true">②</span></button>を明確にする。</p></div>
+      <div class="srcseg"><p class="srcseg__tag"><b>効果</b>見込み</p><p class="material">これにより、回答時間を短縮し、顧客対応の質を<button type="button" class="notebtn" data-open="note3" aria-haspopup="dialog" aria-label="安定させる（注3）"><mark>安定させる</mark><span class="gn" aria-hidden="true">③</span></button>。</p></div>
+      <p class="source__foot"><span>オリジナル教材です。実在の企業や出版物は引用していません。</span></p>
+    </section>
+
+    <div class="panel">
+      <section aria-labelledby="exp">
+        <h2 id="exp">読み方</h2>
+        <p>まず現在の問題を示し、次に 2 つの施策を挙げ、最後に期待される効果を述べています。「現在」が現状を導き、「これにより」が施策と結果をつないでいる点に注目します。</p>
+      </section>
+      <section aria-labelledby="voc">
+        <h2 id="voc">語句</h2>
+        <ol class="vocab">
+          <li id="g1"><span class="gn" aria-hidden="true">①</span><div><p class="t">問い合わせ<span class="r">といあわせ</span></p><p class="m">顧客や他部署から寄せられる質問・照会。</p><p class="n">社外の顧客だけでなく、社内の他部署からの質問も指す。</p></div></li>
+          <li id="g2"><span class="gn" aria-hidden="true">②</span><div><p class="t">担当部署<span class="r">たんとうぶしょ</span></p><p class="m">その仕事を受け持つ部署。</p><p class="n">誰が対応するかを明確にする文脈で使われる。</p></div></li>
+          <li id="g3"><span class="gn" aria-hidden="true">③</span><div><p class="t">安定させる<span class="r">あんていさせる</span></p><p class="m">ばらつきをなくし、一定の水準に保つ。</p><p class="n">ここでは顧客対応の質をそろえることを指す。</p></div></li>
+        </ol>
+      </section>
+      <section aria-labelledby="logic">
+        <h2 id="logic">論点の構造</h2>
+        <ul class="logic">
+          <li><b>現状と課題</b><p class="q">「平均三日」という観察できる数字で問題を示し、改善の理由を具体的にしている。</p></li>
+          <li><b>施策と効果</b><p class="q">「これにより」が前の施策を受け、期待される効果につなげている。</p></li>
+        </ul>
+      </section>
+      <section aria-labelledby="ctx">
+        <h2 id="ctx">ビジネスの背景</h2>
+        <p class="muted">この架空の提案は、回答時間の短縮を目標にしています。実際の企業資料では、集計期間、責任分担、効果の測り方も書かれることが多くあります。</p>
+      </section>
+      <aside class="reserved" lang="en" aria-label="Reserved slot">
+        <p><b>Reserved: comprehension / application step (#122)</b></p>
+        <p>The engagement loop places a bounded comprehension or application activity here, before save and return. #122 selects the activity and decides whether it needs persisted evidence. Until then the slot is absent in the product, and S9 does not complete the Read loop. Saving is not comprehension evidence.</p>
+      </aside>
+      <section class="next" aria-labelledby="nx">
+        <h2 id="nx">次に学ぶ</h2>
+        <a href="learn.html"><span>会議で論点を受けて、つなぐ</span><span class="caption">学ぶ</span></a>
+      </section>
+    </div>
+  </div>
+</main>
+<nav class="tabbar" aria-label="メインナビゲーション">
+  <a href="learn.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5.5h7a2 2 0 0 1 2 2V19a1.5 1.5 0 0 0-1.5-1.5H4z"/><path d="M20 5.5h-5a2 2 0 0 0-2 2V19a1.5 1.5 0 0 1 1.5-1.5H20z"/></svg>学ぶ</a>
+  <a href="read.html" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M9 11h6M9 14h6M9 17h4"/></svg>読む</a>
+  <a href="practice.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>練習</a>
+  <a href="my-learning.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.5-5.5 3.5z"/></svg>学習記録</a>
+  <button type="button" data-open="more" aria-haspopup="dialog" aria-controls="more"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>その他</button>
+</nav>
+<dialog class="dlg dlg--sheet" id="more" aria-labelledby="more-title">
+  <div class="dlg__head"><h2 id="more-title">その他</h2><button type="button" class="icon-btn" data-close aria-label="閉じる" style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="dlg__body">
+    <ul class="menu-rows">
+      <li><a href="game.html"><span>体験 <span class="caption" lang="en">Career Game</span></span><span class="caption">別サイトで開きます</span></a></li>
+      <li><a href="plus.html"><span lang="en">Plus</span></a></li>
+      <li><a href="#">Business Japanese Hub について</a></li>
+    </ul>
+    <h3 class="caption" style="margin:20px 0 8px">外観</h3>
+    <div class="seg" role="group" aria-label="外観"><button type="button" aria-pressed="true">システム</button><button type="button" aria-pressed="false">ライト</button><button type="button" aria-pressed="false">ダーク</button></div>
+    <h3 class="caption" style="margin:20px 0 0">規約・ポリシー</h3>
+    <ul class="menu-rows">
+      <li><a href="#">利用規約</a></li><li><a href="#">プライバシーポリシー</a></li><li><a href="#">特定商取引法に基づく表記</a></li><li><a href="#">返金ポリシー</a></li>
+    </ul>
+  </div>
+</dialog>
+<dialog class="dlg dlg--side" id="note1" aria-labelledby="n1-title">
+  <div class="dlg__head"><h2 id="n1-title"><span class="gn" aria-hidden="true" style="vertical-align:0;font-size:1rem">①</span> 問い合わせ<span class="caption" style="margin-left:8px">といあわせ</span></h2><button type="button" class="icon-btn" data-close aria-label="閉じる" style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="dlg__body kaisetsu stack">
+    <p style="color:var(--ink)">顧客や他部署から寄せられる質問・照会。</p>
+    <p>社外の顧客だけでなく、社内の他部署からの質問も指す。この提案書では「回答に平均三日を要している」とあるので、受け付けてから回答するまでの業務全体を問題にしている。</p>
+    <p>ビジネス文書では「お問い合わせ」（顧客向けの丁寧な表現）と「問い合わせ」（社内文書・集計上の名詞）が使い分けられる。社内提案書のように件数や対応時間を扱う文脈では、敬語を付けない「問い合わせ」が一般的。</p>
+    <div class="sheet" style="padding:16px"><p class="sheet__label"><b>例文</b><span>社内報告</span></p><p class="material" style="font-size:1.0625rem">先月の問い合わせ件数は前月比で一割増加した。</p></div>
+    <div class="sheet" style="padding:16px"><p class="sheet__label"><b>例文</b><span>顧客向け</span></p><p class="material" style="font-size:1.0625rem">お問い合わせいただいた件について、担当者より改めてご連絡いたします。</p></div>
+    <p>関連：照会（より形式的。金融・行政の文書で多い）、問い合わせ窓口、一次対応。</p>
+    <p class="caption">この参考稿のための解説です。内容は内容審閱 lane で確認します。</p>
+  </div>
+</dialog>
+<dialog class="dlg dlg--side" id="note2" aria-labelledby="n2-title">
+  <div class="dlg__head"><h2 id="n2-title"><span class="gn" aria-hidden="true" style="vertical-align:0;font-size:1rem">②</span> 担当部署<span class="caption" style="margin-left:8px">たんとうぶしょ</span></h2><button type="button" class="icon-btn" data-close aria-label="閉じる" style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="dlg__body kaisetsu stack"><p style="color:var(--ink)">その仕事を受け持つ部署。</p><p>誰が対応するかを明確にする文脈で使われる。</p></div>
+</dialog>
+<dialog class="dlg dlg--side" id="note3" aria-labelledby="n3-title">
+  <div class="dlg__head"><h2 id="n3-title"><span class="gn" aria-hidden="true" style="vertical-align:0;font-size:1rem">③</span> 安定させる<span class="caption" style="margin-left:8px">あんていさせる</span></h2><button type="button" class="icon-btn" data-close aria-label="閉じる" style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="dlg__body kaisetsu stack"><p style="color:var(--ink)">ばらつきをなくし、一定の水準に保つ。</p><p>ここでは顧客対応の質をそろえることを指す。</p></div>
+</dialog>
+</body>
+</html>

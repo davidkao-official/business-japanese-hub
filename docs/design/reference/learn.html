@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learn lesson — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var d=document.documentElement;function tokens(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-').filter(Boolean);['state','open','theme'].forEach(function(k){if(q.get(k))h.push(q.get(k));});return h;}
+function apply(first){var h=tokens();var t=h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null;if(t)d.dataset.theme=t;if(!document.body)return;
+var els=[].slice.call(document.querySelectorAll('[data-st]'));if(els.length){var all=[];els.forEach(function(e){e.dataset.st.split(' ').forEach(function(x){if(all.indexOf(x)<0)all.push(x);});});var s=h.filter(function(x){return all.indexOf(x)>-1;})[0]||all[0];d.dataset.state=s;els.forEach(function(e){e.hidden=e.dataset.st.split(' ').indexOf(s)<0;});}
+[].slice.call(document.querySelectorAll('dialog.dlg')).forEach(function(g){if(h.indexOf(g.id)>-1&&!g.open)g.showModal();});if(!first)scrollTo(0,0);}
+apply(true);addEventListener('DOMContentLoaded',function(){apply(true);
+document.addEventListener('click',function(e){var o=e.target.closest('[data-open]');if(o){var g=document.getElementById(o.dataset.open);g.showModal();return;}
+var c=e.target.closest('[data-close]');if(c){c.closest('dialog').close();return;}if(e.target.tagName==='DIALOG')e.target.close();});});
+addEventListener('hashchange',function(){apply(false);});})();</script>
+<style>
+  .lesson { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: clamp(32px, 5vw, 72px); padding-block: var(--space-6) var(--space-9); }
+  .lesson__head .chips { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: var(--space-4); }
+  .lesson__head h1 { margin-top: var(--space-3); }
+  .lesson__head .ja-lead { margin-top: var(--space-3); font-size: 1.125rem; color: var(--ink-2); }
+  .objective { margin-top: var(--space-5); padding: 14px 16px; background: var(--sheet-sunk); border-radius: var(--radius-sheet); font-size: var(--size-small); }
+  .objective b { display: block; font-size: var(--size-caption); color: var(--ink-3); font-weight: var(--weight-medium); margin-bottom: 2px; }
+  .step { margin-top: var(--space-7); }
+  .step__h { display: flex; align-items: baseline; gap: 12px; margin-bottom: var(--space-4); }
+  .step__h h2 { font-size: var(--size-title-2); }
+  .step__h span { font-size: var(--size-caption); color: var(--ink-3); }
+  .step p + p { margin-top: 12px; }
+  .why { margin-top: var(--space-4); font-size: var(--size-small); color: var(--ink-2); }
+  .example + .example { margin-top: var(--space-3); }
+  .example .material { font-size: 1.0625rem; }
+  .example .gloss { margin-top: 10px; font-size: var(--size-small); color: var(--ink-2); }
+  .takeaway { margin-top: var(--space-7); padding: var(--space-5); border-top: 2px solid var(--ink); }
+  .takeaway p:first-child { font-size: var(--size-caption); color: var(--ink-3); }
+  .takeaway p:last-child { font-size: 1.125rem; font-weight: var(--weight-bold); margin-top: 6px; }
+  .rail { position: sticky; top: calc(var(--header-h) + 24px); align-self: start; display: grid; gap: var(--space-6); }
+  .rail h2 { font-size: var(--size-caption); color: var(--ink-3); font-weight: var(--weight-medium); margin-bottom: var(--space-3); }
+  .toc { list-style: none; display: grid; gap: 2px; border-left: 1px solid var(--rule); }
+  .toc a { display: flex; align-items: center; min-height: var(--tap-min); padding: 4px 0 4px 14px; text-decoration: none; font-size: var(--size-small); color: var(--ink-2); margin-left: -1px; border-left: 2px solid transparent; }
+  .toc a[aria-current="true"] { color: var(--ink); font-weight: var(--weight-bold); border-left-color: var(--ink); }
+  .vocab-card { display: block; text-decoration: none; padding: var(--space-4); background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-sheet); }
+  .vocab-card .term { font-family: var(--font-material); font-size: 1.5rem; line-height: 1.3; }
+  .vocab-card .reading { font-size: var(--size-caption); color: var(--ink-3); }
+  .vocab-card p:last-child { font-size: var(--size-small); color: var(--ink-2); margin-top: 6px; }
+  .save { display: grid; gap: 8px; }
+  @media (max-width: 959px) {
+    .lesson { grid-template-columns: 1fr; }
+    .rail { position: static; order: 2; }
+    .rail .toc-block, .rail .save { display: none; }
+    .mobile-save { display: flex !important; }
+  }
+  .mobile-save { display: none; margin-top: var(--space-4); }
+</style>
+</head>
+<body class="has-tabbar">
+<div class="proto-note" lang="en"><span>Design reference · Learn lesson · Japanese 解説 written for this reference (current data stores zh-TW explanations, see Q12)</span><a href="index.html">All references</a></div>
+<header class="hdr">
+  <div class="wrap hdr__in">
+    <a class="brand" href="home.html" aria-label="Business Japanese Hub ホーム">
+      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg>
+      <span class="brand__word" lang="en">Business Japanese Hub</span>
+    </a>
+    <nav class="nav" aria-label="メインナビゲーション">
+      <a href="learn.html" aria-current="page">学ぶ</a>
+      <a href="read.html">読む</a>
+      <a href="practice.html">練習</a>
+      <a href="my-learning.html">学習記録</a>
+      <a href="#">体験</a>
+    </nav>
+    <div class="hdr__tools">
+      <a class="chip chip--plus" href="plus.html" lang="en">Plus</a>
+      <a class="btn btn--quiet btn--sm" href="#">ログイン</a>
+    </div>
+  </div>
+</header>
+<main class="wrap lesson">
+  <article>
+    <header class="lesson__head">
+      <p class="crumbs"><a href="#">学ぶ</a><span aria-hidden="true">›</span><a href="#">職場の実践日本語</a><span aria-hidden="true">›</span><span>報連相</span></p>
+      <h1 class="t1">報告時に事実と次の対応を短く伝える</h1>
+      <p class="ja-lead">進捗に遅れが出たときは、状況・影響・次の対応を分けて共有します。</p>
+      <div class="chips"><span class="chip">無料</span><span class="caption">架空のオリジナル教材です。すべての職場が同じ言い方をするとは限りません。</span></div>
+      <p class="objective"><b>このレッスンのゴール</b>進捗が遅れたときに、事実・見込まれる影響・次の報告時刻を伝えられる。</p>
+      <div class="mobile-save actions"><button class="btn btn--quiet btn--sm" type="button">学習記録に保存</button><span class="chip chip--plus" lang="en">Plus</span></div>
+    </header>
+
+    <section class="step" id="situation" aria-labelledby="s1">
+      <div class="step__h"><h2 id="s1">場面</h2></div>
+      <p>社内プロジェクトで、資料の確認に想定より半日多くかかっている。今日送る予定だった草案は遅れそうだ。</p>
+      <p class="muted">確認できた事実を先に伝え、影響と次の報告時刻を添える。そうすれば、上司や同僚は予定を調整すべきか判断できる。</p>
+    </section>
+
+    <section class="step" id="judge" aria-labelledby="s2">
+      <div class="step__h"><h2 id="s2">まず判断する</h2></div>
+      <p>この遅れは、ほかの人の仕事に影響するか。<b>わかっている事実</b>と<b>まだ確認中のこと</b>を分ける。</p>
+      <p class="muted">関係者には早めに進捗を伝え、影響の可能性、暫定の次の一手、次の報告時刻を示す。影響が未確定なら、見込みであることをはっきりさせる。</p>
+    </section>
+
+    <section class="step" id="say" aria-labelledby="s3">
+      <div class="step__h"><h2 id="s3">こう言う</h2><span>上司へ・口頭またはチャット</span></div>
+      <div class="sheet">
+        <p class="sheet__label"><b>キーフレーズ</b><span>遅れの報告と次の一手</span></p>
+        <p class="material material--key">確認作業に想定より時間がかかっており、本日中に予定していた資料の共有が<mark>難しい見込み</mark><span class="gn">①</span>です。<mark>影響範囲を確認し</mark><span class="gn">②</span>、<mark>15時までに改めて状況をご報告します</mark><span class="gn">③</span>。</p>
+        <ol class="glosses kaisetsu" style="margin-top:20px; padding-top:20px; border-top:1px solid var(--rule)">
+          <li><span class="gn" aria-hidden="true">①</span><p><span class="term">見込み</span>：現時点の見通しであり、確定ではないことを示す。</p></li>
+          <li><span class="gn" aria-hidden="true">②</span><p>これから影響範囲を確認することを伝える。</p></li>
+          <li><span class="gn" aria-hidden="true">③</span><p>次に報告する時刻を約束する。</p></li>
+        </ol>
+      </div>
+      <p class="why">伝わる理由：原因を先に述べ、判断がまだ確定していないことを示したうえで、具体的な時刻で次の報告を約束しているから。</p>
+    </section>
+
+    <section class="step" id="examples" aria-labelledby="s4">
+      <div class="step__h"><h2 id="s4">別の場面</h2></div>
+      <div class="sheet example">
+        <p class="sheet__label"><b>例文</b><span>次の確認時刻を調整している同僚へ</span></p>
+        <p class="material">先方への確認がまだ終わっていません。回答を受け取り次第、今日の16時までに共有します。</p>
+        <p class="gloss">まだ終わっていない確認を伝え、次に共有する時刻とその条件をはっきりさせている。</p>
+      </div>
+    </section>
+
+    <section class="step" id="care" aria-labelledby="s5">
+      <div class="step__h"><h2 id="s5">言い方と相手との関係</h2></div>
+      <p>上司や、遅れの影響を受ける同僚には、確認できた情報を早めに共有する。チームで決まった報告の形や口調があれば、それを優先する。</p>
+      <p class="muted">未確認の影響を、確定したことのように言わない。緊急度や相手の役割に合わせて調整する。</p>
+    </section>
+
+    <section class="step" id="rewrite" aria-labelledby="s6">
+      <div class="step__h"><h2 id="s6">書いてみる</h2></div>
+      <p class="muted">例文を、自分の職場で起こりそうな場面に置き換えてみましょう。伝える事実、次の一手、相手に合った言い方を選びます。</p>
+      <div class="field" style="margin-top:16px"><label for="rw">あなたの表現</label><textarea id="rw" class="input" placeholder="例：…の確認に時間がかかっており、…"></textarea><p class="caption">ここに書いた内容は保存も採点もされません。</p></div>
+    </section>
+
+    <div class="takeaway">
+      <p>持ち帰る一文</p>
+      <p>進捗が変わったら、いまわかっている事実、起こりうる影響、そして次にいつ新しい情報を持って連絡するかを伝える。</p>
+    </div>
+  </article>
+
+  <aside class="rail" aria-label="このレッスンのツール">
+    <div class="save">
+      <h2>保存</h2>
+      <button class="btn btn--quiet" type="button">学習記録に保存</button>
+      <p class="caption">Plus メンバーはレッスンを保存し、学習記録からいつでも開けます。<span class="chip chip--plus" lang="en" style="margin-left:4px">Plus</span></p>
+    </div>
+    <nav class="toc-block" aria-label="このレッスンの構成">
+      <h2>このレッスン</h2>
+      <ol class="toc">
+        <li><a href="#situation">場面</a></li>
+        <li><a href="#judge">まず判断する</a></li>
+        <li><a href="#say" aria-current="true">こう言う</a></li>
+        <li><a href="#examples">別の場面</a></li>
+        <li><a href="#care">言い方と相手との関係</a></li>
+        <li><a href="#rewrite">書いてみる</a></li>
+      </ol>
+    </nav>
+    <div>
+      <h2>関連する語彙</h2>
+      <a class="vocab-card" href="#"><p class="term">見込み</p><p class="reading">みこみ</p><p>現時点の情報から予測される結果や進み具合。</p></a>
+    </div>
+  </aside>
+</main>
+<nav class="tabbar" aria-label="メインナビゲーション">
+  <a href="learn.html" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5.5h7a2 2 0 0 1 2 2V19a1.5 1.5 0 0 0-1.5-1.5H4z"/><path d="M20 5.5h-5a2 2 0 0 0-2 2V19a1.5 1.5 0 0 1 1.5-1.5H20z"/></svg>学ぶ</a>
+  <a href="read.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M9 11h6M9 14h6M9 17h4"/></svg>読む</a>
+  <a href="practice.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>練習</a>
+  <a href="my-learning.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.5-5.5 3.5z"/></svg>学習記録</a>
+  <button type="button" data-open="more" aria-haspopup="dialog" aria-controls="more"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>その他</button>
+</nav>
+<dialog class="dlg dlg--sheet" id="more" aria-labelledby="more-title">
+  <div class="dlg__head"><h2 id="more-title">その他</h2><button type="button" class="icon-btn" data-close aria-label="閉じる" style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="dlg__body">
+    <ul class="menu-rows">
+      <li><a href="game.html"><span>体験 <span class="caption" lang="en">Career Game</span></span><span class="caption">別サイトで開きます</span></a></li>
+      <li><a href="plus.html"><span lang="en">Plus</span></a></li>
+      <li><a href="#">Business Japanese Hub について</a></li>
+    </ul>
+    <h3 class="caption" style="margin:20px 0 8px">外観</h3>
+    <div class="seg" role="group" aria-label="外観"><button type="button" aria-pressed="true">システム</button><button type="button" aria-pressed="false">ライト</button><button type="button" aria-pressed="false">ダーク</button></div>
+    <h3 class="caption" style="margin:20px 0 0">規約・ポリシー</h3>
+    <ul class="menu-rows">
+      <li><a href="#">利用規約</a></li><li><a href="#">プライバシーポリシー</a></li><li><a href="#">特定商取引法に基づく表記</a></li><li><a href="#">返金ポリシー</a></li>
+    </ul>
+  </div>
+</dialog>
+</body>
+</html>

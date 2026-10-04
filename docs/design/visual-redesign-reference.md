@@ -1,5 +1,7 @@
 # Business Japanese Hub — Premium Editorial Visual Reference v1
 
+> **Superseded 2026-10-02** by [`../design-system.md`](../design-system.md) (Source & Gloss). Kept as historical record only; do not use as visual or sequencing authority.
+
 Issue: #74
 
 Canonical direction: `docs/ui-ux-research.md` / Quiet Editorial Modernism.
