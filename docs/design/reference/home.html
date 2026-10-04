@@ -23,7 +23,7 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
   .specimen .material { max-width: none; }
   .specimen .glosses { margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--rule); font-size: var(--size-small); }
   .specimen__src { margin-top: var(--space-5); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: var(--size-caption); color: var(--ink-3); }
-  @media (max-width: 959px) { .hero__grid { grid-template-columns: 1fr; } }
+  @media (max-width: 1023px) { .hero__grid { grid-template-columns: 1fr; } }
 
   /* Journey coverage: canonical stages × real destinations */
   .journey { margin-top: var(--space-7); }
@@ -37,8 +37,8 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
   .journey__mode { font-size: var(--size-caption); color: var(--ink-3); }
   .journey__name { font-weight: var(--weight-bold); margin-top: 2px; }
   .journey__span { position: relative; display: flex; align-items: center; padding-right: 16px; }
-  .journey__span p { width: 100%; font-size: var(--size-small); color: var(--marker-ink); background: var(--marker); padding: 8px 12px; line-height: 1.5; border-radius: 2px; }
-  @media (max-width: 959px) {
+  .journey__span p { width: 100%; font-size: var(--size-small); color: var(--role-accent-foreground); background: var(--role-accent-background); padding: 8px 12px; line-height: 1.5; border-radius: var(--radius-chip); }
+  @media (max-width: 1023px) {
     .journey__stages { display: none; }
     .journey__row { grid-template-columns: 1fr; padding-block: 16px; min-height: 0; }
     .journey__dest { padding: 0; }
@@ -52,7 +52,7 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
   .qs { list-style: none; counter-reset: q; display: grid; gap: var(--space-4); margin-top: var(--space-5); }
   .qs li { padding-left: 34px; position: relative; font-size: 1.0625rem; font-weight: var(--weight-medium); }
   .qs li::before { counter-increment: q; content: counter(q); position: absolute; left: 0; top: 2px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--rule-control); display: grid; place-items: center; font-size: 0.75rem; font-family: var(--font-en); color: var(--ink-2); }
-  @media (max-width: 959px) { .state-demo { grid-template-columns: 1fr; } }
+  @media (max-width: 1023px) { .state-demo { grid-template-columns: 1fr; } }
 
   .offer { display: grid; grid-template-columns: 1fr auto; gap: var(--space-6); align-items: center; padding: clamp(24px, 4vw, 40px); background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-sheet); }
   .offer__price { font-size: clamp(1.75rem, 1.4rem + 1.2vw, 2.5rem); font-weight: var(--weight-bold); font-family: var(--font-en); letter-spacing: -0.01em; }
@@ -71,7 +71,7 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
 <header class="hdr">
   <div class="wrap hdr__in">
     <a class="brand" href="home.html" aria-label="Business Japanese Hub ホーム">
-      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg>
+      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="bjh-prism" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse"><stop stop-color="#6AA8FF"/><stop offset=".5" stop-color="#7568E8"/><stop offset="1" stop-color="#8459DB"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="9" fill="url(#bjh-prism)"/><rect x="10" y="14" width="12" height="5" fill="#FFE35A"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="#fff"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="#fff"/></svg>
       <span class="brand__word" lang="en">Business Japanese Hub</span>
     </a>
     <nav class="nav" aria-label="メインナビゲーション">
@@ -208,7 +208,7 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
 <footer class="ftr">
   <div class="wrap">
     <div class="ftr__grid">
-      <div class="ftr__brand"><a class="brand" href="home.html"><svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg><span class="brand__word" lang="en">Business Japanese Hub</span></a><p style="margin-top:12px; max-width: 28em">試験の日本語から、仕事の日本語へ。</p></div>
+      <div class="ftr__brand"><a class="brand" href="home.html"><svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="bjh-prism" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse"><stop stop-color="#6AA8FF"/><stop offset=".5" stop-color="#7568E8"/><stop offset="1" stop-color="#8459DB"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="9" fill="url(#bjh-prism)"/><rect x="10" y="14" width="12" height="5" fill="#FFE35A"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="#fff"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="#fff"/></svg><span class="brand__word" lang="en">Business Japanese Hub</span></a><p style="margin-top:12px; max-width: 28em">試験の日本語から、仕事の日本語へ。</p></div>
       <div><h2>学習</h2><ul><li><a href="learn.html">学ぶ</a></li><li><a href="read.html">読む</a></li><li><a href="practice.html">練習</a></li><li><a href="my-learning.html">学習記録</a></li><li><a href="#">体験</a></li></ul></div>
       <div><h2>サービス</h2><ul><li><a href="plus.html" lang="en">Plus</a></li><li><a href="#">私たちについて</a></li></ul></div>
       <div><h2>規約・ポリシー</h2><ul><li><a href="#">利用規約</a></li><li><a href="#">プライバシーポリシー</a></li><li><a href="#">特定商取引法に基づく表記</a></li><li><a href="#">返金ポリシー</a></li></ul></div>

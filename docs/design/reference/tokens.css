@@ -1,101 +1,139 @@
 /*
- * Business Japanese Hub — "Source & Gloss" design tokens (reference draft v1)
+ * Business Japanese Hub — "Source & Gloss on Tachiko" token spec (v3.0, #206)
  *
- * Canonical authority: docs/design-system.md
- * This file is the token SPEC used by the static reference compositions in
- * this folder. Production adoption happens in src/styles/tokens.css through the
- * staged sequence in docs/design-system.md §12. Values here are verified for
- * WCAG 2.2 AA (see §6 of the design system for the measured pairs).
+ * Canonical authority: docs/design-system.md (§4). This file is the token SPEC
+ * used by the static reference compositions in this folder. Production adoption
+ * happens in src/styles/tokens.css through docs/design-system.md §12 (S2).
  *
- * Product premise (2026-10-02): V1 is Japanese-first for foreign learners who
- * have passed JLPT N1. Source material, commentary (解説) and interface are all
- * Japanese. Other locales are a later, key-based layer and must not shape V1.
+ * Four layers, each with one owner. A component consumes layers 1–3 through its
+ * own recipe; it never invents a colour.
  *
- * Naming: tokens describe ROLE, never appearance.
- *   desk   — the app background the learner works on
- *   sheet  — white paper that holds Japanese source material (原文)
- *   ink    — text and the primary action
- *   marker — the highlighter: "this Japanese matters"
- *   ok/ng  — result marks (〇 / ×); ng doubles as correction ink (赤入れ)
+ *   1. Tachiko foundation roles   --role-*   Tachiko Sheet Design System
+ *   2. Protected state recipes    --state-*  Tachiko family contract, product-owned
+ *   3. BJH product roles          --bjh-*    Source & Gloss (material plane, marks)
+ *   4. Compatibility aliases      --desk …   reference.css / migration only
+ *
+ * Layer 1 provenance (light values are copied, never fetched at runtime):
+ *   nurockplayer/tachiko-sheet#71 Foundations node 21:35588 (29 public roles),
+ *   border.control amended to #818798 by #70 node 32:75,
+ *   runtime mirror src/ui/interface-profile/profile.ts @ 3b1d72a (main 0e6a052).
+ * Role IDs keep Tachiko's names (`surface.chrome` → --role-surface-chrome) so a
+ * reader of either product recognises them. Dark values are a BJH-local
+ * derivation: Tachiko v1 is light-only. If Tachiko later approves a dark scheme,
+ * BJH reconciles to it (design-system §4.2).
  */
 
 :root {
   color-scheme: light;
 
-  /* ── Surfaces ───────────────────────────────────────────── */
-  --desk: #f4f4f1;
-  --desk-raised: #fafaf8;
-  --sheet: #ffffff;
-  --sheet-sunk: #edede8;
-  --overlay-scrim: rgb(20 21 25 / 40%);
+  /* ── 1. Tachiko foundation roles (Tachiko profile, porcelain chrome) ───── */
+  --role-surface-app: #ffffff;
+  --role-surface-chrome: #f8f8fc;        /* porcelain: header, desk, tab bar */
+  --role-surface-chrome-tint: #f0edfd;   /* porcelain head gradient start */
+  --role-surface-content: #ffffff;       /* white plane: sheets, dialogs */
+  --role-surface-inset: #f5f6f9;         /* recessed: working, tables */
+  --role-text-primary: #252735;
+  --role-text-secondary: #646879;        /* metadata, captions, inactive nav */
+  --role-text-on-tint: #5b6072;
+  --role-text-link: #5542b5;
+  --role-text-reference: #4f54ad;
+  --role-border-subtle: #dfe2ea;         /* decorative hairlines */
+  --role-border-control: #818798;        /* inputs, choices: ≥3:1 (1.4.11) */
+  --role-action-primary-background: #6350d2;
+  --role-action-primary-hover: #5541c2;
+  --role-action-primary-pressed: #4936ab;
+  --role-action-primary-foreground: #ffffff;
+  --role-accent-foreground: #5542b5;     /* current location, Plus chip text */
+  --role-accent-background: #f0edfd;     /* Plus chip, selected segment */
+  --role-grid-canvas: #ffffff;
+  --role-grid-line-horizontal: #e9ebf1;
+  --role-grid-line-vertical: #eef0f4;
+  --role-grid-header-background: #f7f8fb;
+  --role-grid-header-foreground: #5b6072;
+  --role-selection-row-background: #f6f4fe;   /* selected ChoiceRow wash */
+  --role-selection-header-background: #ece9fe;
+  --role-selection-header-foreground: #5542b5;
+  --role-selection-active-background: #ffffff;
+  --role-selection-active-border: #6551ce;    /* selected ChoiceRow border */
+  --role-focus-ring: #6551ce;
 
-  /* ── Ink ────────────────────────────────────────────────── */
-  --ink: #1b1d23;
-  --ink-2: #464a54;   /* secondary text, 8.9:1 on sheet */
-  --ink-3: #61666f;   /* captions / metadata, ≥4.5:1 on every surface */
-  --ink-inverse: #ffffff;
+  /* Tachiko geometry (porcelain chrome recipe) */
+  --radius-control: 7px;    /* buttons, fields, choices, sheets */
+  --radius-menu: 10px;      /* menus, popovers */
+  --radius-overlay: 12px;   /* dialogs, bottom-sheet top corners */
+  --radius-chip: 4px;
+  --focus-width: 3px;
+  --focus-gap: 2px;         /* clearance between control and ring */
+  --shadow-menu: 0 10px 30px -8px rgb(39 33 57 / 15%), 0 2px 6px rgb(39 33 57 / 5%);
+  --shadow-overlay: 0 16px 48px -12px rgb(37 39 53 / 24%);
+  --chrome-head: linear-gradient(108deg, var(--role-surface-chrome-tint) 0%, var(--role-surface-chrome) 35%, var(--role-surface-chrome) 100%);
 
-  /* ── Rules ──────────────────────────────────────────────── */
-  --rule: #dcdcd5;          /* decorative hairlines only */
-  --rule-control: #878a84;  /* input / choice boundaries, ≥3:1 (WCAG 1.4.11) */
+  /* ── 2. Protected state recipes (system feedback; never a profile value) ─ */
+  --state-success-fg: #206c4e;
+  --state-success-bg: #e9f6f0;
+  --state-warning-fg: #865015;
+  --state-warning-bg: #fff3dd;
+  --state-error-fg: #a02d42;
+  --state-error-bg: #fff0f3;
+  --state-disabled-fg: #8c949c;
+  --state-destructive-fg: #8a2f1c;
+  --state-destructive-border: #b4553f;
+  --state-scrim: rgb(37 39 53 / 28%);
 
-  /* ── Marks ──────────────────────────────────────────────── */
-  --marker: #ffe35a;          /* highlighter band behind Japanese that matters */
-  --marker-soft: #fff4b8;     /* Plus chip, selected-row wash */
-  --marker-ink: #1b1d23;      /* text on marker, 13:1 */
-  --ok: #1e7549;              /* ○ correct */
-  --ok-soft: #e6f2ea;
-  --ng: #be3219;              /* × incorrect · correction ink (赤入れ) */
-  --ng-soft: #fbe8e3;
+  /* ── 3. BJH product roles: the material plane and its marks ──────────── */
+  --bjh-text-gloss: #464a5c;    /* 解説 body: 8.3:1 on porcelain */
+  --bjh-marker: #ffe35a;        /* "this Japanese matters" — material only */
+  --bjh-marker-ink: #252735;    /* 11.5:1 on marker */
+  --bjh-mark-ok: #206c4e;       /* 〇 正解 (same hue as Tachiko success, own glyph) */
+  --bjh-mark-ok-soft: #e9f6f0;
+  --bjh-mark-ng: #be3219;       /* × 不正解 · 赤入れ (朱 red pen, not an error state) */
+  --bjh-mark-ng-soft: #fbe8e3;
 
-  /* ── Action ─────────────────────────────────────────────── */
-  --action: var(--ink);
-  --action-hover: #33363f;
-  --on-action: var(--ink-inverse);
-  --focus: var(--ink);
-  --focus-halo: var(--marker);
-
-  /* ── Type roles (system faces only; no CJK webfont, see design-system §4.3) ──
-     V1: three Japanese roles. Role, not language, separates them:
-       --font-material  原文  Mincho — the face Japanese business documents use
-       --font-ja        解説 + interface — Gothic
-     Latin follows the Japanese face (no separate Latin-first stack in V1). */
+  /* ── Type roles (local system faces only; no webfont download) ──────────
+     Tachiko policy: local faces, no font distribution. BJH order: Japanese
+     faces first because the root is lang="ja" (Tachiko "system-local" recipe,
+     Japanese-first). Traditional Chinese faces never appear in a ja stack.
+       --font-material  原文  Mincho — the document plane (BJH product role)
+       --font-ja        解説 + interface — Gothic */
   --font-ja: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic",
-    "Yu Gothic UI", "Yu Gothic", "Meiryo", "Noto Sans JP", system-ui, sans-serif;
+    "Yu Gothic UI", "Yu Gothic", "Meiryo", "Noto Sans JP", "Noto Sans CJK JP", system-ui, sans-serif;
   --font-material: "Hiragino Mincho ProN", "BIZ UDPMincho", "Yu Mincho", "YuMincho",
     "Noto Serif JP", "Noto Serif CJK JP", var(--font-ja);
-  --font-en: system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-en: system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   /* Post-V1 localization slots (support layer only; never used for 原文 or 解説) */
   --font-zh-hant: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
   --font-zh-hans: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
   --font-ko: "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
 
-  /* Scale — CJK-first, 16px root, letter-spacing always 0 for CJK */
-  --size-display: clamp(1.75rem, 1.1rem + 2.6vw, 2.75rem);
-  --size-title-1: clamp(1.625rem, 1.35rem + 1.1vw, 2.25rem);
-  --size-title-2: 1.375rem;
-  --size-title-3: 1.125rem;
-  --size-body: 1rem;
+  /* Scale: Tachiko hierarchy (28 / 20 / 18 / 14 / 12), adapted for Japanese
+     reading. Line heights ≥1.4 for kanji; caption floor 13px (Tachiko meta is
+     11px, too small for kanji). Body and material are BJH reading overrides. */
+  --size-display: clamp(1.75rem, 1.3rem + 1.6vw, 2.5rem); /* public hero only */
+  --size-title-1: 1.75rem;    /* 28 — Tachiko display */
+  --size-title-2: 1.25rem;    /* 20 — Tachiko section */
+  --size-title-3: 1.125rem;   /* 18 — Tachiko title */
+  --size-body: 1rem;          /* 16 — BJH override: 解説 and prose */
+  --size-ui: 0.875rem;        /* 14 — Tachiko body: controls, nav, rows */
   --size-small: 0.875rem;
-  --size-caption: 0.8125rem;
+  --size-caption: 0.8125rem;  /* 13 — label, status, metadata */
   --size-material-key: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
   --size-material: 1.125rem;
 
-  --leading-display: 1.3;
-  --leading-title: 1.4;
+  --leading-display: 1.35;
+  --leading-title: 1.45;
   --leading-ja: 1.8;          /* 解説・本文 */
-  --leading-ui: 1.6;
+  --leading-ui: 1.43;         /* 14/20 */
   --leading-material: 1.95;
   --leading-tight: 1.5;
 
   --weight-regular: 400;
   --weight-medium: 500;
-  --weight-bold: 700;
+  --weight-bold: 600;         /* Tachiko semibold; BIZ UD faces round to bold */
 
-  --measure-ja: 36em;      /* ≈36 字 at body size (JLREQ ≤ 40) */
+  --measure-ja: 36em;
   --measure-material: 34em;
 
-  /* ── Space (4-based) ────────────────────────────────────── */
+  /* ── Space: Tachiko 4 / 8 / 12 / 16 / 24 / 32, BJH page rhythm above ──── */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -109,16 +147,12 @@
   --gutter: clamp(16px, 4vw, 40px);
   --content-max: 1200px;
 
-  /* ── Shape ──────────────────────────────────────────────── */
-  --radius-sheet: 6px;
-  --radius-control: 8px;
-  --radius-chip: 4px;
-  --shadow-overlay: 0 12px 40px rgb(20 21 25 / 18%), 0 2px 6px rgb(20 21 25 / 8%);
-
-  /* ── Shell ──────────────────────────────────────────────── */
+  /* ── Shell and targets ──────────────────────────────────── */
   --header-h: 64px;
   --bottom-bar-h: 64px;
-  --tap-min: 44px;
+  --tap-min: 44px;            /* BJH touch floor (Tachiko desktop: 32/36) */
+  --control-h: 44px;          /* Button, Field */
+  --control-h-sm: 36px;       /* Tachiko comfortable; 44px hit area */
   --choice-min: 52px;
 
   /* ── Motion ─────────────────────────────────────────────── */
@@ -128,64 +162,145 @@
   --dur-mark: 260ms;
 }
 
-/* Dark: same roles, re-balanced. Applied for system dark unless the user
-   explicitly chose light, and always for an explicit dark choice. */
+/* ── Dark: BJH-local derivation of the same roles ─────────────────────────
+   Applied for system dark unless the user explicitly chose light, and always
+   for an explicit dark choice. Measured pairs: design-system §4.2. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --desk: #111215;
-    --desk-raised: #16171b;
-    --sheet: #1a1c21;
-    --sheet-sunk: #15171b;
-    --overlay-scrim: rgb(0 0 0 / 55%);
-    --ink: #ecece7;
-    --ink-2: #b9bbc1;
-    --ink-3: #8e919a;
-    --ink-inverse: #111215;
-    --rule: #2d3037;
-    --rule-control: #6e727c;
-    --marker: #6a5a12;
-    --marker-soft: #3a3418;
-    --marker-ink: #ecece7;
-    --ok: #58c793;
-    --ok-soft: #173326;
-    --ng: #ff8069;
-    --ng-soft: #3a1c17;
-    --action: #ecece7;
-    --action-hover: #ffffff;
-    --on-action: #111215;
-    --focus: #ecece7;
-    --focus-halo: #b59a1f;
-    --shadow-overlay: 0 12px 40px rgb(0 0 0 / 50%);
+    --role-surface-app: #121319;
+    --role-surface-chrome: #17181f;
+    --role-surface-chrome-tint: #1f1c33;
+    --role-surface-content: #1b1c24;
+    --role-surface-inset: #15161d;
+    --role-text-primary: #ececf3;
+    --role-text-secondary: #a0a3b5;
+    --role-text-on-tint: #b4b7c8;
+    --role-text-link: #b1a6ff;
+    --role-text-reference: #a9aeff;
+    --role-border-subtle: #2e303c;
+    --role-border-control: #737891;
+    --role-action-primary-background: #6b5ae0;
+    --role-action-primary-hover: #5e4dd6;
+    --role-action-primary-pressed: #5243c4;
+    --role-action-primary-foreground: #ffffff;
+    --role-accent-foreground: #c2b9ff;
+    --role-accent-background: #25213f;
+    --role-grid-canvas: #1b1c24;
+    --role-grid-line-horizontal: #2a2c37;
+    --role-grid-line-vertical: #262833;
+    --role-grid-header-background: #20212b;
+    --role-grid-header-foreground: #b4b7c8;
+    --role-selection-row-background: #211e36;
+    --role-selection-header-background: #2c2750;
+    --role-selection-header-foreground: #c2b9ff;
+    --role-selection-active-background: #1b1c24;
+    --role-selection-active-border: #9c8fff;
+    --role-focus-ring: #9c8fff;
+    --shadow-menu: 0 10px 30px -8px rgb(0 0 0 / 50%);
+    --shadow-overlay: 0 16px 48px -12px rgb(0 0 0 / 60%);
+    --chrome-head: var(--role-surface-chrome);
+    --state-success-fg: #6fd3a5;
+    --state-success-bg: #12301f;
+    --state-warning-fg: #f2b66b;
+    --state-warning-bg: #3a2a12;
+    --state-error-fg: #ff9aae;
+    --state-error-bg: #3b1820;
+    --state-disabled-fg: #6b6f80;
+    --state-destructive-fg: #ff9a86;
+    --state-destructive-border: #c46450;
+    --state-scrim: rgb(0 0 0 / 55%);
+    --bjh-text-gloss: #c3c5d2;
+    --bjh-marker: #6a5a12;
+    --bjh-marker-ink: #ececf3;
+    --bjh-mark-ok: #5cc895;
+    --bjh-mark-ok-soft: #173326;
+    --bjh-mark-ng: #ff8069;
+    --bjh-mark-ng-soft: #3a1c17;
   }
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --desk: #111215;
-  --desk-raised: #16171b;
-  --sheet: #1a1c21;
-  --sheet-sunk: #15171b;
-  --overlay-scrim: rgb(0 0 0 / 55%);
-  --ink: #ecece7;
-  --ink-2: #b9bbc1;
-  --ink-3: #8e919a;
-  --ink-inverse: #111215;
-  --rule: #2d3037;
-  --rule-control: #6e727c;
-  --marker: #6a5a12;
-  --marker-soft: #3a3418;
-  --marker-ink: #ecece7;
-  --ok: #58c793;
-  --ok-soft: #173326;
-  --ng: #ff8069;
-  --ng-soft: #3a1c17;
-  --action: #ecece7;
-  --action-hover: #ffffff;
-  --on-action: #111215;
-  --focus: #ecece7;
-  --focus-halo: #b59a1f;
-  --shadow-overlay: 0 12px 40px rgb(0 0 0 / 50%);
+  --role-surface-app: #121319;
+  --role-surface-chrome: #17181f;
+  --role-surface-chrome-tint: #1f1c33;
+  --role-surface-content: #1b1c24;
+  --role-surface-inset: #15161d;
+  --role-text-primary: #ececf3;
+  --role-text-secondary: #a0a3b5;
+  --role-text-on-tint: #b4b7c8;
+  --role-text-link: #b1a6ff;
+  --role-text-reference: #a9aeff;
+  --role-border-subtle: #2e303c;
+  --role-border-control: #737891;
+  --role-action-primary-background: #6b5ae0;
+  --role-action-primary-hover: #5e4dd6;
+  --role-action-primary-pressed: #5243c4;
+  --role-action-primary-foreground: #ffffff;
+  --role-accent-foreground: #c2b9ff;
+  --role-accent-background: #25213f;
+  --role-grid-canvas: #1b1c24;
+  --role-grid-line-horizontal: #2a2c37;
+  --role-grid-line-vertical: #262833;
+  --role-grid-header-background: #20212b;
+  --role-grid-header-foreground: #b4b7c8;
+  --role-selection-row-background: #211e36;
+  --role-selection-header-background: #2c2750;
+  --role-selection-header-foreground: #c2b9ff;
+  --role-selection-active-background: #1b1c24;
+  --role-selection-active-border: #9c8fff;
+  --role-focus-ring: #9c8fff;
+  --shadow-menu: 0 10px 30px -8px rgb(0 0 0 / 50%);
+  --shadow-overlay: 0 16px 48px -12px rgb(0 0 0 / 60%);
+  --chrome-head: var(--role-surface-chrome);
+  --state-success-fg: #6fd3a5;
+  --state-success-bg: #12301f;
+  --state-warning-fg: #f2b66b;
+  --state-warning-bg: #3a2a12;
+  --state-error-fg: #ff9aae;
+  --state-error-bg: #3b1820;
+  --state-disabled-fg: #6b6f80;
+  --state-destructive-fg: #ff9a86;
+  --state-destructive-border: #c46450;
+  --state-scrim: rgb(0 0 0 / 55%);
+  --bjh-text-gloss: #c3c5d2;
+  --bjh-marker: #6a5a12;
+  --bjh-marker-ink: #ececf3;
+  --bjh-mark-ok: #5cc895;
+  --bjh-mark-ok-soft: #173326;
+  --bjh-mark-ng: #ff8069;
+  --bjh-mark-ng-soft: #3a1c17;
+}
+
+/* ── 4. Compatibility aliases (reference.css; production migration only) ──
+   Source & Gloss v2 names resolve to their new owners. New code uses the
+   layer 1–3 names directly; S12 removes these aliases from production. */
+:root {
+  --desk: var(--role-surface-chrome);
+  --desk-raised: var(--role-surface-content);
+  --sheet: var(--role-surface-content);
+  --sheet-sunk: var(--role-surface-inset);
+  --overlay-scrim: var(--state-scrim);
+  --ink: var(--role-text-primary);
+  --ink-2: var(--bjh-text-gloss);
+  --ink-3: var(--role-text-secondary);
+  --ink-inverse: var(--role-action-primary-foreground);
+  --rule: var(--role-border-subtle);
+  --rule-control: var(--role-border-control);
+  --marker: var(--bjh-marker);
+  --marker-ink: var(--bjh-marker-ink);
+  --ok: var(--bjh-mark-ok);
+  --ok-soft: var(--bjh-mark-ok-soft);
+  --ng: var(--bjh-mark-ng);
+  --ng-soft: var(--bjh-mark-ng-soft);
+  --action: var(--role-action-primary-background);
+  --action-hover: var(--role-action-primary-hover);
+  --on-action: var(--role-action-primary-foreground);
+  --focus: var(--role-focus-ring);
+  --radius-sheet: var(--radius-control);
+  /* retired in v3: --marker-soft (Plus chip → accent), --focus-halo (marker no
+     longer marks focus). Do not reintroduce. */
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -41,7 +41,7 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
   .never { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 32px; }
   .never li { padding-left: 22px; position: relative; color: var(--ink-2); }
   .never li::before { content: "×"; position: absolute; left: 0; color: var(--ng); font-weight: var(--weight-bold); }
-  @media (max-width: 959px) { .voices, .marks, .comp, .never { grid-template-columns: 1fr; } }
+  @media (max-width: 1023px) { .voices, .marks, .comp, .never { grid-template-columns: 1fr; } }
 
   .support { border: 1px dashed var(--rule-control); border-radius: var(--radius-sheet); padding: var(--space-4); margin-top: var(--space-3); }
   .support summary { cursor: pointer; font-size: var(--size-small); color: var(--ink-2); }
@@ -52,7 +52,7 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
 
 <main class="wrap" lang="en">
   <header class="ix-head">
-    <p class="kicker">Business Japanese Hub · Design system v2.3.1 · Japanese-first V1</p>
+    <p class="kicker">Business Japanese Hub · Design system v3.0 · Tachiko family · Japanese-first V1</p>
     <h1 class="display">Source &amp; Gloss</h1>
     <p class="lead">Every learning unit has the same shape: a piece of <b>Japanese source material</b> (what you must be able to use at work), a <b>Japanese commentary</b> (解説: why it works, what to watch), and <b>your own record</b> (attempts, mistakes, saves). V1 is written entirely in Japanese for people who have passed JLPT N1. The system's job is to keep those three layers distinct on every screen when all three are in the same language.</p>
   </header>
@@ -78,6 +78,23 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
     </ul>
   </section>
 
+  <section class="ix-sec" aria-labelledby="h-family">
+    <h2 id="h-family">Part of the Tachiko family</h2>
+    <p class="muted">Business Japanese Hub builds on the Tachiko Sheet Design System (tachiko-sheet#71). Chrome, actions, selection, focus, controls, dialogs and system feedback come from Tachiko. Japanese source material, 解説 and learning marks stay Business Japanese Hub's own, the way a Tachiko report canvas stays outside the application chrome.</p>
+    <div class="comp">
+      <div>
+        <h3>From Tachiko</h3>
+        <p class="small">Porcelain chrome and white plane · violet primary action, selection and 3px focus ring · 7 / 10 / 12px corners · labelled fields, checkbox, menus, tabs, dialogs · state notices · 600 / 1024 transitions and 320px reflow · forced colors · local fonts only</p>
+        <div class="actions" style="margin-top:16px" lang="ja"><a class="btn" href="#">復習を始める</a><a class="btn btn--quiet" href="#">Plus について</a><span class="chip chip--plus">Plus</span></div>
+        <div class="stack" style="margin-top:16px" lang="ja"><p class="notice notice--success">保存しました</p><p class="notice notice--warning">保存できたか確認できません。同じ解答で再試行できます。</p></div>
+      </div>
+      <div>
+        <h3>Business Japanese Hub's own</h3>
+        <p class="small">原文 sheet in the Mincho role · 解説 in the Gothic role · marker, ①②③, 赤入れ, 〇× · ChoiceRow result column · OutcomeVerdict · CheckpointLadder · truthful counts · Japanese mode labels, tab bar and focus mode · 44px touch floor · dark theme</p>
+        <div class="sheet" style="margin-top:16px" lang="ja"><p class="sheet__label"><b>例文</b>上司へ・チャット</p><p class="material">影響範囲を確認し、<mark>15時までに改めて</mark><span class="gn">①</span>ご報告します。</p></div>
+      </div>
+    </div>
+  </section>
   <section class="ix-sec" aria-labelledby="h-voices">
     <h2 id="h-voices">Three roles, one language</h2>
     <p class="muted">In V1 everything is Japanese, so language cannot separate the layers. Role does: typeface, surface and position. This follows the convention of Japanese textbooks and business books, which set 本文 or 例文 in Mincho and 解説 in Gothic.</p>
@@ -90,7 +107,7 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
       <div class="voice">
         <h3>解説 · Commentary</h3>
         <p class="kaisetsu">次に報告する時刻を自分から約束する。報連相で抜けやすい一言。</p>
-        <p class="rules" lang="en">Gothic role · 14–16px · ink-2 · linked to the source by ①②③</p>
+        <p class="rules" lang="en">Gothic role · 14–16px · bjh.text.gloss · linked to the source by ①②③</p>
       </div>
       <div class="voice">
         <h3>画面 · Interface and record</h3>
@@ -117,16 +134,20 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
 
   <section class="ix-sec" aria-labelledby="h-color">
     <h2 id="h-color">Color roles</h2>
-    <p class="muted">Desk, sheet, ink, marker, ok, ng. No category rainbow, no gradients, no brand orange.</p>
+    <p class="muted">Tachiko roles for chrome, action, selection and focus; protected Tachiko state recipes for system feedback; BJH roles only for the material plane and its marks. No category rainbow, no brand orange.</p>
     <div class="swatches">
-      <div class="swatch"><i style="background:var(--desk)"></i><div><b>desk</b><br><code>#F4F4F1</code></div></div>
-      <div class="swatch"><i style="background:var(--sheet)"></i><div><b>sheet</b><br><code>#FFFFFF</code></div></div>
-      <div class="swatch"><i style="background:var(--ink)"></i><div><b>ink · action</b><br><code>#1B1D23</code></div></div>
-      <div class="swatch"><i style="background:var(--ink-2)"></i><div><b>ink-2 · 解説</b><br><code>#464A54</code></div></div>
-      <div class="swatch"><i style="background:var(--ink-3)"></i><div><b>ink-3</b><br><code>#61666F</code></div></div>
-      <div class="swatch"><i style="background:var(--marker)"></i><div><b>marker</b><br><code>#FFE35A</code></div></div>
-      <div class="swatch"><i style="background:var(--ok)"></i><div><b>ok 〇</b><br><code>#1E7549</code></div></div>
-      <div class="swatch"><i style="background:var(--ng)"></i><div><b>ng × · 赤入れ</b><br><code>#BE3219</code></div></div>
+      <div class="swatch"><i style="background:var(--role-surface-chrome)"></i><div><b>surface.chrome · desk</b><br><code>Tachiko #F8F8FC</code></div></div>
+      <div class="swatch"><i style="background:var(--role-surface-content)"></i><div><b>surface.content · sheet</b><br><code>Tachiko #FFFFFF</code></div></div>
+      <div class="swatch"><i style="background:var(--role-surface-inset)"></i><div><b>surface.inset</b><br><code>Tachiko #F5F6F9</code></div></div>
+      <div class="swatch"><i style="background:var(--role-text-primary)"></i><div><b>text.primary</b><br><code>Tachiko #252735</code></div></div>
+      <div class="swatch"><i style="background:var(--role-text-secondary)"></i><div><b>text.secondary</b><br><code>Tachiko #646879</code></div></div>
+      <div class="swatch"><i style="background:var(--role-action-primary-background)"></i><div><b>action.primary · focus</b><br><code>Tachiko #6350D2 / #6551CE</code></div></div>
+      <div class="swatch"><i style="background:var(--role-accent-background)"></i><div><b>accent · Plus · current</b><br><code>Tachiko #F0EDFD / #5542B5</code></div></div>
+      <div class="swatch"><i style="background:var(--bjh-text-gloss)"></i><div><b>bjh.text.gloss · 解説</b><br><code>BJH #464A5C</code></div></div>
+      <div class="swatch"><i style="background:var(--bjh-marker)"></i><div><b>bjh.marker</b><br><code>BJH #FFE35A</code></div></div>
+      <div class="swatch"><i style="background:var(--bjh-mark-ok)"></i><div><b>bjh.mark.ok 〇</b><br><code>BJH #206C4E</code></div></div>
+      <div class="swatch"><i style="background:var(--bjh-mark-ng)"></i><div><b>bjh.mark.ng × · 赤入れ</b><br><code>BJH #BE3219</code></div></div>
+      <div class="swatch"><i style="background:var(--state-error-bg); box-shadow: inset 0 0 0 1px var(--state-error-fg)"></i><div><b>state.* (protected)</b><br><code>success · warning · error</code></div></div>
     </div>
   </section>
 
@@ -150,7 +171,7 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
       </div>
       <div>
         <h3 lang="en">State · insufficient data</h3>
-        <div class="state"><h3>まだ判断できません</h3><p class="small muted">この分野は、傾向を示せるだけの解答がまだありません。解答の記録はそのまま残ります。</p><a class="link small" href="#">この分野を続けて解く</a></div>
+        <div class="state state--insufficient"><h3>まだ判断できません</h3><p class="small muted">この分野は、傾向を示せるだけの解答がまだありません。解答の記録はそのまま残ります。</p><a class="link small" href="#">この分野を続けて解く</a></div>
       </div>
       <div>
         <h3 lang="en">State · membership required</h3>
@@ -164,12 +185,14 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
     <ul class="never">
       <li>Uppercase mono English eyebrows (BUSINESS / CONTEXT)</li>
       <li>“01 / 02 / 03” numbered feature cards</li>
-      <li>Floating hero cards, glass, gradients, glow</li>
+      <li>Floating hero cards, glass, glow, decorative gradients (the Tachiko porcelain head and family glyph are the only gradients)</li>
       <li>Torii, sakura, hanko, wave, indigo-dye or vermilion “Japan” motifs</li>
       <li>Copy that assumes one shared native language among learners</li>
       <li>Furigana on common kanji (the audience has passed N1)</li>
       <li>Progress rings, mastery %, streaks, XP, invented stats</li>
       <li>〇×, 正解／不正解 or ok／ng colours on Career Game outcomes</li>
+      <li>The marker on navigation, focus, selection or Plus (it marks Japanese only)</li>
+      <li>〇× or answer colours for system save / access states (use the state notice)</li>
       <li>English labels or internal terms (evidence, runtime) in the Japanese UI</li>
     </ul>
   </section>

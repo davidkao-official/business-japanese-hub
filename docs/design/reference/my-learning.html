@@ -19,7 +19,7 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
   .ml-head .lead { margin-top: 10px; }
   .next {
     display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-5); align-items: center;
-    padding: clamp(20px, 3vw, 28px); background: var(--sheet); border: 1px solid var(--rule); border-left: 6px solid var(--marker); border-radius: var(--radius-sheet);
+    padding: clamp(20px, 3vw, 28px); background: var(--sheet); border: 1px solid var(--rule); border-left: 4px solid var(--role-action-primary-background); border-radius: var(--radius-sheet);
   }
   .next__label { font-size: var(--size-caption); color: var(--ink-3); }
   .next__title { font-size: var(--size-title-2); font-weight: var(--weight-bold); margin-top: 2px; }
@@ -33,7 +33,7 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
   .attempts li { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: var(--size-small); }
   .attempts .rm::before { width: 14px; height: 14px; border-width: 2px; }
   .attempts .rm--ng::before { border: 0; }
-  @media (max-width: 959px) {
+  @media (max-width: 1023px) {
     .ml-grid { grid-template-columns: 1fr; }
     .next { grid-template-columns: 1fr; }
   }
@@ -44,7 +44,7 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
 <header class="hdr">
   <div class="wrap hdr__in">
     <a class="brand" href="home.html" aria-label="Business Japanese Hub ホーム">
-      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg>
+      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="bjh-prism" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse"><stop stop-color="#6AA8FF"/><stop offset=".5" stop-color="#7568E8"/><stop offset="1" stop-color="#8459DB"/></linearGradient></defs><rect x="1" y="1" width="30" height="30" rx="9" fill="url(#bjh-prism)"/><rect x="10" y="14" width="12" height="5" fill="#FFE35A"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="#fff"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="#fff"/></svg>
       <span class="brand__word" lang="en">Business Japanese Hub</span>
     </a>
     <nav class="nav" aria-label="メインナビゲーション">

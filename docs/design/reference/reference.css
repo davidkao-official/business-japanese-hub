@@ -2,6 +2,8 @@
  * Reference-composition component styles for docs/design-system.md.
  * These are design references, not production CSS. Production components are
  * rebuilt in src/ through the staged sequence in docs/design-system.md §12.
+ * v3.0 (#206): component recipes consume Tachiko roles (--role-*), protected
+ * state recipes (--state-*) and BJH product roles (--bjh-*); see tokens.css.
  */
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -17,6 +19,7 @@ body {
 }
 img, svg { display: block; max-width: 100%; }
 a { color: inherit; }
+p a:not([class]) { color: var(--role-text-link); }
 p, figure, blockquote { margin: 0; }
 h1, h2, h3, h4 { margin: 0; font-weight: var(--weight-bold); letter-spacing: 0; text-wrap: balance; word-break: auto-phrase; line-break: strict; }
 ul, ol { margin: 0; padding: 0; }
@@ -26,9 +29,9 @@ ul, ol { margin: 0; padding: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 
 :focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 5px var(--focus-halo);
+  /* Tachiko focus: 3px ring with 2px clearance, drawn on the visible element. */
+  outline: var(--focus-width) solid var(--role-focus-ring);
+  outline-offset: var(--focus-gap);
   border-radius: 2px;
 }
 
@@ -57,30 +60,32 @@ ul, ol { margin: 0; padding: 0; }
 /* ── Shell: header ──────────────────────────────────────── */
 .hdr {
   position: sticky; top: 0; z-index: 20;
-  background: color-mix(in srgb, var(--desk) 92%, transparent);
-  backdrop-filter: saturate(1.2) blur(8px);
+  /* Tachiko porcelain chrome: tint → porcelain head, flat, hairline below. */
+  background: var(--chrome-head);
   border-bottom: 1px solid var(--rule);
 }
 .hdr__in { height: var(--header-h); display: flex; align-items: center; gap: var(--space-6); }
 .brand { display: inline-flex; align-items: center; gap: 10px; min-height: var(--tap-min); min-width: 0; text-decoration: none; white-space: nowrap; flex-shrink: 1; }
-.brand__glyph { width: 30px; height: 30px; }
+.brand__glyph { width: 30px; height: 30px; flex-shrink: 0; }
 .brand__word { font-family: var(--font-en); font-weight: var(--weight-bold); font-size: 1rem; letter-spacing: -0.01em; }
 .nav { display: flex; gap: var(--space-1); margin-inline-start: var(--space-2); }
 .nav a {
   position: relative; isolation: isolate; display: inline-flex; align-items: center; height: var(--header-h);
-  padding-inline: 12px; text-decoration: none; color: var(--ink-2); white-space: nowrap; font-size: 0.9375rem;
+  padding-inline: 12px; text-decoration: none; color: var(--role-text-secondary); white-space: nowrap; font-size: 0.9375rem;
 }
 .nav a:hover { color: var(--ink); }
-.nav a[aria-current="page"] { color: var(--ink); font-weight: var(--weight-bold); }
+/* Current mode: Tachiko View-tab grammar (accent text + 2px underline). The
+   marker is reserved for Japanese material and never marks navigation. */
+.nav a[aria-current="page"] { color: var(--role-accent-foreground); font-weight: var(--weight-bold); }
 .nav a[aria-current="page"]::after {
-  content: ""; position: absolute; left: 12px; right: 12px; bottom: 14px; height: 6px;
-  background: var(--marker); z-index: -1;
+  content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px;
+  background: var(--role-selection-active-border);
 }
 .hdr__tools { margin-inline-start: auto; display: flex; align-items: center; gap: var(--space-3); white-space: nowrap; flex-shrink: 0; }
 .locale { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); font-size: var(--size-small); text-decoration: none; padding: 8px; }
 .menu-btn { display: none; }
 
-@media (max-width: 959px) {
+@media (max-width: 1023px) {
   .nav, .hdr__tools .locale, .hdr__tools .chip--plus { display: none; }
   .hdr__in { height: 56px; gap: var(--space-3); }
 }
@@ -99,32 +104,33 @@ ul, ol { margin: 0; padding: 0; }
 
 /* ── Shell: mobile bottom bar ───────────────────────────── */
 .tabbar { display: none; }
-@media (max-width: 959px) {
+@media (max-width: 1023px) {
   body.has-tabbar { padding-bottom: calc(var(--bottom-bar-h) + env(safe-area-inset-bottom)); }
   .tabbar {
     display: grid; grid-template-columns: repeat(5, 1fr);
     position: fixed; inset: auto 0 0 0; z-index: 30;
     height: calc(var(--bottom-bar-h) + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
-    background: var(--desk-raised); border-top: 1px solid var(--rule);
+    background: var(--role-surface-chrome); border-top: 1px solid var(--rule);
   }
   .tabbar a, .tabbar button {
     border: 0; background: none; font: inherit; cursor: pointer;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    text-decoration: none; color: var(--ink-3); font-size: 0.6875rem; line-height: 1.2; min-height: var(--tap-min);
+    text-decoration: none; color: var(--role-text-secondary); font-size: 0.6875rem; line-height: 1.2; min-height: var(--tap-min);
+    position: relative;
   }
   .tabbar svg { width: 22px; height: 22px; }
-  .tabbar a[aria-current="page"] { color: var(--ink); font-weight: var(--weight-bold); }
-  .tabbar a[aria-current="page"] svg { background: var(--marker); border-radius: 4px; }
+  .tabbar a[aria-current="page"] { color: var(--role-accent-foreground); font-weight: var(--weight-bold); }
+  .tabbar a[aria-current="page"]::before { content: ""; position: absolute; top: -1px; left: 28%; right: 28%; height: 2px; background: var(--role-selection-active-border); }
 }
 
 /* ── Shell: focus mode bar (runner / reader / rehearsal) ── */
-.focusbar { position: sticky; top: 0; z-index: 20; background: var(--desk); border-bottom: 1px solid var(--rule); }
+.focusbar { position: sticky; top: 0; z-index: 20; background: var(--role-surface-chrome); border-bottom: 1px solid var(--rule); }
 .focusbar__in { height: 56px; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--space-4); }
 .focusbar__title { font-size: var(--size-small); color: var(--ink-2); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .focusbar__meta { font-size: var(--size-small); color: var(--ink-2); white-space: nowrap; }
 .progress { height: 3px; background: var(--rule); }
-.progress > span { display: block; height: 100%; background: var(--ink); }
+.progress > span { display: block; height: 100%; background: var(--role-action-primary-background); }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   min-width: var(--tap-min); min-height: var(--tap-min); padding: 0 8px; margin-inline-start: -8px;
@@ -146,7 +152,7 @@ ul, ol { margin: 0; padding: 0; }
 .seg button { border: 0; background: none; color: var(--ink-2); font: inherit; font-size: var(--size-caption); padding: 6px 12px; min-height: 32px; cursor: pointer; position: relative; }
 .seg button:first-child { border-radius: 7px 0 0 7px; }
 .seg button:last-child { border-radius: 0 7px 7px 0; }
-.seg button[aria-pressed="true"] { background: var(--ink); color: var(--ink-inverse); }
+.seg button[aria-pressed="true"] { background: var(--role-accent-background); color: var(--role-accent-foreground); font-weight: var(--weight-bold); }
 @media (max-width: 759px) { .ftr__grid { grid-template-columns: 1fr 1fr; } .ftr__brand { grid-column: 1 / -1; } }
 
 /* ── Type helpers ───────────────────────────────────────── */
@@ -154,7 +160,7 @@ ul, ol { margin: 0; padding: 0; }
 .t1 { font-size: var(--size-title-1); line-height: var(--leading-title); }
 .t2 { font-size: var(--size-title-2); line-height: var(--leading-title); }
 .t3 { font-size: var(--size-title-3); line-height: var(--leading-tight); }
-.lead { font-size: 1.0625rem; color: var(--ink-2); max-width: var(--measure-ja); }
+.lead { font-size: 1.0625rem; color: var(--bjh-text-gloss); max-width: var(--measure-ja); }
 .muted { color: var(--ink-2); }
 .caption { font-size: var(--size-caption); color: var(--ink-3); line-height: var(--leading-tight); }
 .small { font-size: var(--size-small); }
@@ -167,15 +173,18 @@ ul, ol { margin: 0; padding: 0; }
 /* ── Buttons & links ────────────────────────────────────── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 48px; padding: 0 22px; border-radius: var(--radius-control);
-  background: var(--action); color: var(--on-action); border: 1px solid var(--action);
+  min-height: var(--control-h); padding: 0 20px; border-radius: var(--radius-control);
+  background: var(--role-action-primary-background); color: var(--role-action-primary-foreground); border: 1px solid var(--role-action-primary-background);
   font: inherit; font-weight: var(--weight-bold); font-size: 0.9375rem; white-space: nowrap; flex-shrink: 0;
   text-decoration: none; cursor: pointer; transition: background var(--dur-fast) var(--ease);
 }
-.btn:hover { background: var(--action-hover); }
-.btn--quiet { background: transparent; color: var(--ink); border-color: var(--rule-control); }
-.btn--quiet:hover { background: var(--sheet); }
-.btn--sm { min-height: 36px; padding: 0 14px; font-size: var(--size-small); position: relative; }
+.btn:hover { background: var(--role-action-primary-hover); border-color: var(--role-action-primary-hover); }
+.btn:active { background: var(--role-action-primary-pressed); border-color: var(--role-action-primary-pressed); }
+.btn[aria-disabled="true"], .btn:disabled { background: var(--role-surface-inset); border-color: var(--rule); color: var(--state-disabled-fg); cursor: not-allowed; }
+/* Secondary command (Tachiko .ts-button): white plane, control border. */
+.btn--quiet { background: var(--role-surface-content); color: var(--ink); border-color: var(--rule-control); font-weight: var(--weight-medium); }
+.btn--quiet:hover { background: var(--role-surface-inset); border-color: var(--rule-control); }
+.btn--sm { min-height: var(--control-h-sm); padding: 0 14px; font-size: var(--size-small); position: relative; }
 /* Hit-area extension (§10): controls drawn smaller than 44px keep a 44px target.
    The pseudo-element is transparent and never overlaps a neighbouring target
    because .actions / .seg / header spacing leave at least the extension free. */
@@ -184,7 +193,7 @@ ul, ol { margin: 0; padding: 0; }
 }
 .btn--block { width: 100%; }
 .btn svg { width: 18px; height: 18px; }
-.link { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; font-weight: var(--weight-medium); }
+.link { color: var(--role-text-link); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; font-weight: var(--weight-medium); }
 /* .link is the standalone TextLink (44px target). Links inside running prose stay
    plain inline <a> (WCAG 2.5.8 inline exception) and do not use this class. */
 .link { display: inline-flex; align-items: center; min-height: var(--tap-min); }
@@ -199,8 +208,9 @@ ul, ol { margin: 0; padding: 0; }
   font-size: 0.75rem; line-height: 1; color: var(--ink-2); white-space: nowrap; font-weight: var(--weight-medium);
 }
 a.chip { position: relative; text-decoration: none; }
-.chip--plus { background: var(--marker-soft); border-color: transparent; color: var(--marker-ink); }
-.chip--plus::before { content: ""; width: 6px; height: 6px; background: var(--marker-ink); border-radius: 1px; transform: rotate(45deg); }
+/* Plus is an access/offer label, not "important Japanese": Tachiko accent, never marker. */
+.chip--plus { background: var(--role-accent-background); border-color: transparent; color: var(--role-accent-foreground); }
+.chip--plus::before { content: ""; width: 6px; height: 6px; background: currentColor; border-radius: 1px; transform: rotate(45deg); }
 .chip--solid { background: var(--ink); color: var(--ink-inverse); border-color: var(--ink); }
 
 /* ── Sheet: Japanese source material on paper ───────────── */
@@ -217,7 +227,7 @@ a.chip { position: relative; text-decoration: none; }
 }
 .sheet__label b { color: var(--ink); font-weight: var(--weight-bold); }
 .sheet__label::before { content: ""; width: 14px; height: 2px; background: var(--ink); }
-.sheet--sunk { background: var(--sheet-sunk); border-color: transparent; }
+.sheet--sunk { background: var(--sheet-sunk); border-color: var(--rule); }
 
 .material { font-size: var(--size-material); max-width: var(--measure-material); }
 .material--key { font-size: var(--size-material-key); line-height: 1.85; }
@@ -240,7 +250,7 @@ button.mk { border: 0; font: inherit; color: inherit; cursor: pointer; border-bo
   color: var(--ink-2); vertical-align: 0.35em; line-height: 1; margin-inline: 1px;
 }
 .glosses { list-style: none; display: grid; gap: var(--space-4); }
-.kaisetsu { font-size: var(--size-small); color: var(--ink-2); }
+.kaisetsu { font-size: var(--size-small); color: var(--bjh-text-gloss); }
 .glosses li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: baseline; }
 .glosses .gn { vertical-align: 0; font-size: 1.05rem; margin: 0; color: var(--ink); }
 .glosses .term { font-weight: var(--weight-bold); }
@@ -285,15 +295,15 @@ a.row:hover .row__title { text-decoration: underline; text-underline-offset: 3px
   background: var(--sheet); border: 1px solid var(--rule-control); border-radius: var(--radius-control);
   cursor: pointer; transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
-.choice:hover { border-color: var(--ink); }
+.choice:hover { border-color: var(--role-text-secondary); }
 .choice input { position: absolute; opacity: 0; pointer-events: none; }
 /* Keyboard focus is drawn on the visible row, never only on the hidden native
    input. It is an outline + halo outside the border, so it stays distinguishable
    from the 2px selected border and from ok/ng/outcome states. */
-.choice:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 3px; box-shadow: 0 0 0 6px var(--focus-halo); }
+.choice:has(input:focus-visible) { outline: var(--focus-width) solid var(--role-focus-ring); outline-offset: var(--focus-gap); }
 .choice input:focus-visible { outline: 0; box-shadow: none; }
 button.choice { width: 100%; text-align: start; font: inherit; color: inherit; }
-button.choice:focus-visible { outline-offset: 3px; box-shadow: 0 0 0 6px var(--focus-halo); border-radius: var(--radius-control); }
+button.choice:focus-visible { outline-offset: var(--focus-gap); border-radius: var(--radius-control); }
 .choice[aria-disabled="true"], .choice:has(input:disabled), button.choice:disabled { cursor: not-allowed; color: var(--ink-3); border-style: dashed; }
 .choice__key {
   width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%;
@@ -302,9 +312,11 @@ button.choice:focus-visible { outline-offset: 3px; box-shadow: 0 0 0 6px var(--f
 .choice__text { font-size: 1.0625rem; }
 /* multi-select (checkbox) key is square; declared after .choice__key so it wins the cascade */
 .choice__key.choice__key--box { border-radius: 4px; }
-.choice.is-checked .choice__key.choice__key--box { background: var(--ink); color: var(--ink-inverse); border-color: var(--ink); }
-.choice.is-selected { border-color: var(--ink); border-width: 2px; padding: 9px 13px; }
-.choice.is-selected .choice__key { background: var(--ink); color: var(--ink-inverse); border-color: var(--ink); }
+/* Selected = Tachiko selection roles (2px active border + row wash). Result
+   states below (ok/ng) are BJH marks and replace selection after grading. */
+.choice.is-checked .choice__key.choice__key--box { background: var(--role-action-primary-background); color: var(--role-action-primary-foreground); border-color: var(--role-action-primary-background); }
+.choice.is-selected { border-color: var(--role-selection-active-border); background: var(--role-selection-row-background); border-width: 2px; padding: 9px 13px; }
+.choice.is-selected .choice__key { background: var(--role-action-primary-background); color: var(--role-action-primary-foreground); border-color: var(--role-action-primary-background); }
 .choice.is-correct { border-color: var(--ok); background: var(--ok-soft); }
 .choice.is-correct .choice__key { background: var(--ok); border-color: var(--ok); color: var(--sheet); }
 .choice.is-wrong { border-color: var(--ng); background: var(--ng-soft); }
@@ -342,10 +354,26 @@ button.choice:focus-visible { outline-offset: 3px; box-shadow: 0 0 0 6px var(--f
 .bar > span { position: absolute; inset: 0 auto 0 0; background: var(--ink-2); }
 
 /* ── State panel ────────────────────────────────────────── */
+/* Solid inset for empty / sign-in / Plus / error-recovery panels. Dashed only
+   for "not established" (データ不足, 未確認): the Tachiko dotted-cue grammar for
+   values that are derived or not yet known. */
 .state {
-  border: 1px dashed var(--rule-control); border-radius: var(--radius-sheet);
+  background: var(--role-surface-inset); border: 1px solid var(--rule); border-radius: var(--radius-control);
   padding: var(--space-5); display: grid; gap: var(--space-3); justify-items: start;
 }
+.state--insufficient { background: transparent; border: 1px dashed var(--rule-control); }
+
+/* ── Notice: Tachiko feedback bar for system state (save, access, version) ─
+   Protected recipe: tinted background + icon + text. Never used for answer
+   correctness — that is ResultMark (〇×). */
+.notice { display: flex; gap: 10px; align-items: flex-start; padding: 12px 16px; border-radius: var(--radius-control); font-size: var(--size-small); line-height: var(--leading-tight); }
+.notice::before { flex-shrink: 0; font-weight: var(--weight-bold); width: 1em; text-align: center; }
+.notice--success { background: var(--state-success-bg); color: var(--state-success-fg); }
+.notice--success::before { content: "✓"; }
+.notice--warning { background: var(--state-warning-bg); color: var(--state-warning-fg); }
+.notice--warning::before { content: "!"; }
+.notice--error { background: var(--state-error-bg); color: var(--state-error-fg); }
+.notice--error::before { content: "!"; }
 .state h3 { font-size: var(--size-title-3); }
 
 /* ── Disclosure / tabs ──────────────────────────────────── */
@@ -354,8 +382,8 @@ button.choice:focus-visible { outline-offset: 3px; box-shadow: 0 0 0 6px var(--f
   border: 0; background: none; font: inherit; font-size: var(--size-small); color: var(--ink-2);
   padding: 12px 12px; white-space: nowrap; cursor: pointer; position: relative; min-height: var(--tap-min);
 }
-.tabs button[aria-selected="true"] { color: var(--ink); font-weight: var(--weight-bold); }
-.tabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; background: var(--ink); }
+.tabs button[aria-selected="true"] { color: var(--role-accent-foreground); font-weight: var(--weight-bold); }
+.tabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; background: var(--role-selection-active-border); }
 
 /* ── Dialog: the one modal primitive (§6 Dialog) ────────────
    Reference uses native <dialog>.showModal() (modal, inert page, Escape closes,
@@ -363,24 +391,24 @@ button.choice:focus-visible { outline-offset: 3px; box-shadow: 0 0 0 6px var(--f
    placement: sheet (bottom, < 960px) / side (right drawer, ≥ 960px). */
 html:has(dialog[open]) { overflow: hidden; }
 dialog.dlg {
-  margin: 0; padding: 0; border: 0; color: var(--ink); background: var(--sheet);
+  margin: 0; padding: 0; border: 1px solid var(--rule); color: var(--ink); background: var(--sheet);
   box-shadow: var(--shadow-overlay); max-width: none; max-height: none;
   display: none; flex-direction: column;
 }
 dialog.dlg[open] { display: flex; }
-dialog.dlg::backdrop { background: rgb(17 18 21 / 45%); }
+dialog.dlg::backdrop { background: var(--state-scrim); }
 .dlg__head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: 8px 8px 8px var(--space-5); border-bottom: 1px solid var(--rule); flex-shrink: 0; }
 .dlg__head h2 { font-size: var(--size-title-3); }
 .dlg__body { overflow-y: auto; overscroll-behavior: contain; padding: var(--space-5); }
 .dlg__foot { flex-shrink: 0; padding: 12px var(--space-5) calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--rule); }
 /* sheet: bottom, full width, ≤ 85dvh, content scrolls inside */
-dialog.dlg--sheet { inset: auto 0 0 0; width: 100%; max-height: 85dvh; border-radius: 14px 14px 0 0; }
+dialog.dlg--sheet { inset: auto 0 0 0; width: 100%; max-height: 85dvh; border-radius: var(--radius-overlay) var(--radius-overlay) 0 0; }
 dialog.dlg--sheet .dlg__body { padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom)); }
-@media (min-width: 960px) {
+@media (min-width: 1024px) {
   dialog.dlg--side { inset: 0 0 0 auto; width: min(440px, 100%); height: 100dvh; max-height: none; border-radius: 0; }
-  dialog.dlg--sheet:not(.dlg--side) { inset: 0; margin: auto; width: min(520px, 100% - 32px); max-height: min(85dvh, 720px); border-radius: var(--radius-sheet); }
+  dialog.dlg--sheet:not(.dlg--side) { inset: 0; margin: auto; width: min(520px, 100% - 32px); max-height: min(85dvh, 720px); border-radius: var(--radius-overlay); }
 }
-@media (max-width: 959px) { dialog.dlg--side { inset: auto 0 0 0; width: 100%; max-height: 85dvh; border-radius: 14px 14px 0 0; } }
+@media (max-width: 1023px) { dialog.dlg--side { inset: auto 0 0 0; width: 100%; max-height: 85dvh; border-radius: var(--radius-overlay) var(--radius-overlay) 0 0; } }
 @media (prefers-reduced-motion: no-preference) {
   dialog.dlg--sheet[open], dialog.dlg--side[open] { animation: dlg-in var(--dur) var(--ease); }
 }
@@ -392,7 +420,7 @@ dialog.dlg--sheet .dlg__body { padding-bottom: calc(var(--space-5) + env(safe-ar
 /* Read: a marked source phrase that opens its note. The <button> keeps the
    phrase in the reading flow and is reachable by keyboard. */
 .notebtn { all: unset; cursor: pointer; border-radius: 2px; }
-.notebtn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; box-shadow: 0 0 0 5px var(--focus-halo); }
+.notebtn:focus-visible { outline: var(--focus-width) solid var(--role-focus-ring); outline-offset: var(--focus-gap); }
 .notebtn:hover mark { background: var(--marker); }
 
 /* ── Career Game outcome verdict: authored strong / mixed / risky ──────────
@@ -403,11 +431,17 @@ dialog.dlg--sheet .dlg__body { padding-bottom: calc(var(--space-5) + env(safe-ar
 .verdict__label::before { content: ""; width: 4px; height: 1.4em; background: var(--ink); border-radius: 1px; }
 .verdict__effect { font-size: var(--size-small); color: var(--ink-2); font-variant-numeric: tabular-nums; border: 1px solid var(--rule-control); border-radius: var(--radius-chip); padding: 2px 8px; }
 
-/* ── Status line inside a fixed mobile action bar (persistence, §7.3) ── */
-.statusline { font-size: var(--size-small); color: var(--ink-2); }
-.statusline--ok { display: flex; align-items: center; gap: 8px; }
-.statusline--alert { color: var(--ng); font-weight: var(--weight-medium); }
-.statusline--ok::before { content: ""; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--ok); flex-shrink: 0; }
+/* ── Status line inside a fixed mobile action bar (persistence, §7.3) ──
+   System save state uses the protected state recipes and a check / alert
+   glyph — never the 〇× answer marks. Saving is not grading. */
+.statusline { font-size: var(--size-small); color: var(--role-text-secondary); display: flex; align-items: center; gap: 8px; }
+.statusline::before { flex-shrink: 0; font-weight: var(--weight-bold); }
+.statusline--ok { color: var(--state-success-fg); }
+.statusline--ok::before { content: "✓"; }
+.statusline--unknown { color: var(--state-warning-fg); font-weight: var(--weight-medium); }
+.statusline--unknown::before { content: "?"; }
+.statusline--alert { color: var(--state-error-fg); font-weight: var(--weight-medium); }
+.statusline--alert::before { content: "!"; }
 
 /* ── Representations (equation / table / diagram / elimination / logic grid) ── */
 .rep { margin-top: var(--space-4); }
@@ -418,8 +452,8 @@ dialog.dlg--sheet .dlg__body { padding-bottom: calc(var(--space-5) + env(safe-ar
 .rep__scroll { overflow-x: auto; max-width: 100%; min-width: 0; overscroll-behavior-x: contain; }
 .rep__scroll:focus-visible { outline-offset: 2px; }
 .rep table { border-collapse: collapse; font-size: var(--size-small); min-width: 100%; }
-.rep th, .rep td { border: 1px solid var(--rule-control); padding: 8px 10px; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.rep th { background: var(--sheet-sunk); font-weight: var(--weight-medium); }
+.rep th, .rep td { border: 1px solid var(--rule); padding: 8px 10px; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rep th { background: var(--role-grid-header-background); color: var(--role-grid-header-foreground); font-weight: var(--weight-medium); }
 .rep td.grid-yes, .rep td.grid-no { font-weight: var(--weight-bold); color: var(--ink); }
 .order-rows { list-style: none; display: grid; gap: var(--space-2); counter-reset: ord; }
 .order-rows li { display: grid; grid-template-columns: 28px 1fr auto auto; gap: 8px; align-items: center; min-height: var(--choice-min); padding: 4px 4px 4px 14px; background: var(--sheet); border: 1px solid var(--rule-control); border-radius: var(--radius-control); counter-increment: ord; }
@@ -432,9 +466,13 @@ dialog.dlg--sheet .dlg__body { padding-bottom: calc(var(--space-5) + env(safe-ar
 .field { display: grid; gap: 6px; }
 .field label { font-size: var(--size-small); font-weight: var(--weight-medium); }
 .input, textarea.input {
-  width: 100%; min-height: 48px; padding: 12px 14px; border-radius: var(--radius-control);
+  width: 100%; min-height: var(--control-h); padding: 10px 12px; border-radius: var(--radius-control);
   border: 1px solid var(--rule-control); background: var(--sheet); color: var(--ink); font: inherit;
 }
+.input:hover { border-color: var(--role-text-secondary); }
+.input:disabled { background: var(--role-surface-inset); color: var(--state-disabled-fg); }
+.input[aria-invalid="true"] { border-color: var(--state-error-fg); }
+.field__error { font-size: var(--size-caption); color: var(--state-error-fg); }
 textarea.input { min-height: 120px; resize: vertical; }
 
 /* ── Specimen helpers (index page) ──────────────────────── */
@@ -443,3 +481,14 @@ textarea.input { min-height: 120px; resize: vertical; }
 .swatch i { display: block; height: 56px; }
 .swatch div { padding: 8px 10px; }
 .swatch code { color: var(--ink-3); }
+
+/* ── Forced colors (Tachiko contract): system colours, real borders and
+   outlines, visible labels. Marks keep their text and numerals. ─────────── */
+@media (forced-colors: active) {
+  .sheet, .choice, .state, .notice, dialog.dlg, .input, .btn, .chip { border: 1px solid CanvasText; forced-color-adjust: auto; }
+  .btn { background: ButtonFace; color: ButtonText; }
+  .choice.is-selected, .choice.is-correct, .choice.is-wrong { border: 2px solid Highlight; }
+  :focus-visible, .choice:has(input:focus-visible) { outline-color: Highlight; }
+  mark, .mk { background: Mark; color: MarkText; forced-color-adjust: none; }
+  .nav a[aria-current="page"]::after, .tabs button[aria-selected="true"]::after, .tabbar a[aria-current="page"]::before { background: Highlight; }
+}
