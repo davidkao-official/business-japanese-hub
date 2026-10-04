@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Career Game — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var d=document.documentElement;function tokens(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-').filter(Boolean);['state','open','theme'].forEach(function(k){if(q.get(k))h.push(q.get(k));});return h;}
+function apply(first){var h=tokens();var t=h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null;if(t)d.dataset.theme=t;if(!document.body)return;
+var els=[].slice.call(document.querySelectorAll('[data-st]'));if(els.length){var all=[];els.forEach(function(e){e.dataset.st.split(' ').forEach(function(x){if(all.indexOf(x)<0)all.push(x);});});var s=h.filter(function(x){return all.indexOf(x)>-1;})[0]||all[0];d.dataset.state=s;els.forEach(function(e){e.hidden=e.dataset.st.split(' ').indexOf(s)<0;});}
+[].slice.call(document.querySelectorAll('dialog.dlg')).forEach(function(g){if(h.indexOf(g.id)>-1&&!g.open)g.showModal();});if(!first)scrollTo(0,0);}
+apply(true);addEventListener('DOMContentLoaded',function(){apply(true);
+document.addEventListener('click',function(e){var o=e.target.closest('[data-open]');if(o){var g=document.getElementById(o.dataset.open);g.showModal();return;}
+var c=e.target.closest('[data-close]');if(c){c.closest('dialog').close();return;}if(e.target.tagName==='DIALOG')e.target.close();});});
+addEventListener('hashchange',function(){apply(false);});})();</script>
+<style>
+  .g-hdr { border-bottom: 1px solid var(--rule); background: var(--desk); }
+  .g-hdr__in { height: 56px; display: flex; align-items: center; gap: var(--space-4); }
+  .g-hdr__title { font-size: var(--size-small); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .g-hdr .hdr__tools { margin-inline-start: auto; }
+  .stage { padding-block: var(--space-6) var(--space-9); }
+  .g-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr); gap: clamp(24px, 4vw, 56px); align-items: start; }
+  .g-context { font-size: var(--size-caption); color: var(--ink-3); margin-bottom: var(--space-3); }
+  .g-main h1 { margin-bottom: var(--space-4); }
+  .narr { color: var(--ink); max-width: var(--measure-ja); }
+  .dialogue { margin-top: var(--space-5); }
+  .speaker { font-size: var(--size-caption); color: var(--ink-3); margin-bottom: 6px; }
+  .speaker b { color: var(--ink); }
+  .decision { margin-top: var(--space-6); border: 0; padding: 0; }
+  .decision legend { font-size: var(--size-caption); color: var(--ink-3); padding: 0; }
+  .decision .prompt { font-weight: var(--weight-bold); font-size: 1.0625rem; margin: 6px 0 var(--space-4); }
+  .decision .choice__text, .g-side .choice__text { font-size: 1rem; }
+  .meter { display: flex; gap: 12px; align-items: baseline; font-size: var(--size-small); color: var(--ink-2); padding-bottom: var(--space-3); border-bottom: 1px solid var(--rule); margin-bottom: var(--space-4); }
+  .meter b { font-variant-numeric: tabular-nums; color: var(--ink); }
+  .out-sec { margin-top: var(--space-6); }
+  .out-sec h2 { font-size: var(--size-title-3); margin-bottom: var(--space-3); }
+  .lead-ink { font-size: 1.0625rem; max-width: var(--measure-ja); }
+  .kaisetsu-body { color: var(--ink-2); max-width: var(--measure-ja); }
+  .alts { margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--rule); }
+  .alts .material { font-size: 1.0625rem; margin-top: 6px; }
+  .g-next { margin-top: var(--space-7); }
+  .g-side .choices { margin-top: var(--space-3); }
+  .g-side .choice { cursor: default; }
+  @media (max-width: 959px) {
+    .g-layout { grid-template-columns: 1fr; }
+    .g-side { order: -1; }
+    .g-next .btn { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="proto-note" lang="en"><span>Design reference · Career Game (体験) · <a href="game.html#decision">decision</a> / <a href="game.html#strong">strong</a> / <a href="game.html#mixed">mixed</a> / <a href="game.html#risky">risky</a> · real content: upward-disagreement v1, scene upward-one-on-one</span><a href="index.html">All references</a></div>
+
+<header class="g-hdr">
+  <div class="wrap g-hdr__in">
+    <a class="icon-btn" href="#" aria-label="ケース一覧に戻る"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></a>
+    <p class="g-hdr__title"><span lang="en">Career Game</span>・上司の案に異議を伝える</p>
+    <div class="hdr__tools"><a class="btn btn--quiet btn--sm" href="#">アカウント</a></div>
+  </div>
+</header>
+
+<main class="wrap stage">
+  <div class="g-layout" data-st="decision">
+    <article class="g-main">
+      <p class="g-context">ファイル 1／5・月曜日 09:30｜部長席の前</p>
+      <h1 class="t2">会議の前に懸念を相談する</h1>
+      <p class="narr">武田部長は、新サービスの公開日を当初の予定より一週間前倒ししたいと考えている。あなたの手元には、まだ解消していない高影響の不具合三件と、品質確認に必要な日数の見積もりがある。午後の会議で決まる前に、部長へ相談できる時間は十分にない。</p>
+      <div class="sheet dialogue">
+        <p class="sheet__label"><b>台詞</b><span>武田・事業開発部長</span></p>
+        <p class="material">午後の会議では、公開を一週間前倒しする案を出します。木戸さん、現場の感触はどうですか。</p>
+      </div>
+      <fieldset class="decision">
+        <legend>あなたの判断</legend>
+        <p class="prompt">上司の狙いを尊重しながら、最初にどう切り出す？</p>
+        <div class="choices">
+          <button type="button" class="choice" onclick="location.hash='strong'"><span class="choice__key">1</span><span class="choice__text">目的への賛意を示し、根拠と代案を短く相談する</span><span aria-hidden="true">→</span></button>
+          <button type="button" class="choice" onclick="location.hash='mixed'"><span class="choice__key">2</span><span class="choice__text">その場ではうなずき、後で詳細なデータをメールする</span><span aria-hidden="true">→</span></button>
+          <button type="button" class="choice" onclick="location.hash='risky'"><span class="choice__key">3</span><span class="choice__text">「その日程は無理です」と結論だけを伝える</span><span aria-hidden="true">→</span></button>
+        </div>
+      </fieldset>
+    </article>
+    <aside class="g-side" aria-label="ケースの状態">
+      <div class="meter"><span>信頼</span><b>0</b><span class="caption">（−5〜5）</span></div>
+      <p class="caption">選ぶと、その場で結果が表示されます。</p>
+    </aside>
+  </div>
+
+  <div class="g-layout" data-st="strong">
+    <article class="g-main">
+      <p class="g-context">月曜日 09:30｜部長席の前</p>
+      <div class="verdict" role="status"><p class="verdict__label">効果的な判断</p><span class="verdict__effect">信頼 +1</span></div>
+      <section class="out-sec"><h2>その場で起きたこと</h2><p class="lead-ink">部長は前倒しの目的を保ったまま、限定公開と追加検証を組み合わせる案を会議で検討すると約束した。</p></section>
+      <section class="out-sec"><h2>なぜそうなるか</h2><p class="kaisetsu-body">上司の意図を認めたうえで、数字と代案を短く出すと、異議が「反対」ではなく「成功条件の相談」になる。一対一で先に共有するのは、会議を驚かせない配慮でもある。</p></section>
+      <section class="out-sec">
+        <h2>この場面で使える表現</h2>
+        <div class="sheet"><p class="sheet__label"><b>例文</b><span>部長へ・一対一の相談</span></p><p class="material material--key">「前倒しの目的には賛成です。一方、未解消の不具合三件があり、全体公開には追加三営業日が必要です。まず限定公開を二週間後に行い、確認結果で全体公開を判断する案をご相談できますでしょうか。」</p><div class="alts"><p class="caption">別の言い方</p><p class="material">「目的は維持したいのですが、品質条件を満たすための選択肢を二つ整理しました。午後の会議で共有してもよろしいでしょうか。」</p></div></div>
+      </section>
+      <section class="out-sec"><h2>関連する内容</h2><a class="link" href="#">関連する内容を読む</a></section>
+      <div class="g-next"><a class="btn" href="game.html#decision">次の場面へ</a></div>
+    </article>
+    <aside class="g-side" aria-label="この場面での判断">
+      <h2 class="caption">あなたの判断</h2>
+      <ul class="choices" aria-label="選んだ判断"><li class="choice is-selected"><span class="choice__key">1</span><span class="choice__text">目的への賛意を示し、根拠と代案を短く相談する</span><span class="choice__flag">あなたの判断</span></li><li class="choice"><span class="choice__key">2</span><span class="choice__text">その場ではうなずき、後で詳細なデータをメールする</span><span class="choice__flag"></span></li><li class="choice"><span class="choice__key">3</span><span class="choice__text">「その日程は無理です」と結論だけを伝える</span><span class="choice__flag"></span></li></ul>
+      <p class="caption" style="margin-top:12px">判断の結果は「効果的な判断」「状況次第の判断」「リスクのある判断」の 3 つで示します。正誤の採点ではありません。</p>
+    </aside>
+  </div>
+  <div class="g-layout" data-st="mixed">
+    <article class="g-main">
+      <p class="g-context">月曜日 09:30｜部長席の前</p>
+      <div class="verdict" role="status"><p class="verdict__label">状況次第の判断</p></div>
+      <section class="out-sec"><h2>その場で起きたこと</h2><p class="lead-ink">データは残ったが、会議の前提は変わらず、部長は懸念を共有されていないまま前倒し案を進めることになった。</p></section>
+      <section class="out-sec"><h2>なぜそうなるか</h2><p class="kaisetsu-body">詳細なメールが悪いわけではないが、重要な異論を後から一方的に送ると、相談ではなく差し戻しに見えやすい。まず要点を口頭で伝え、資料で補強すると伝わり方が安定する。</p></section>
+      <section class="out-sec">
+        <h2>この場面で使える表現</h2>
+        <div class="sheet"><p class="sheet__label"><b>例文</b><span>部長へ・一対一の相談</span></p><p class="material material--key">「一点、公開条件について懸念があります。概要だけ先にご相談し、根拠のデータはこの後お送りします。」</p></div>
+      </section>
+      
+      <div class="g-next"><a class="btn" href="game.html#decision">次の場面へ</a></div>
+    </article>
+    <aside class="g-side" aria-label="この場面での判断">
+      <h2 class="caption">あなたの判断</h2>
+      <ul class="choices" aria-label="選んだ判断"><li class="choice"><span class="choice__key">1</span><span class="choice__text">目的への賛意を示し、根拠と代案を短く相談する</span><span class="choice__flag"></span></li><li class="choice is-selected"><span class="choice__key">2</span><span class="choice__text">その場ではうなずき、後で詳細なデータをメールする</span><span class="choice__flag">あなたの判断</span></li><li class="choice"><span class="choice__key">3</span><span class="choice__text">「その日程は無理です」と結論だけを伝える</span><span class="choice__flag"></span></li></ul>
+      <p class="caption" style="margin-top:12px">判断の結果は「効果的な判断」「状況次第の判断」「リスクのある判断」の 3 つで示します。正誤の採点ではありません。</p>
+    </aside>
+  </div>
+  <div class="g-layout" data-st="risky">
+    <article class="g-main">
+      <p class="g-context">月曜日 09:30｜部長席の前</p>
+      <div class="verdict" role="status"><p class="verdict__label">リスクのある判断</p><span class="verdict__effect">信頼 −1</span></div>
+      <section class="out-sec"><h2>その場で起きたこと</h2><p class="lead-ink">制約は伝わったが、部長の目的や成立条件を確認する前に案を退けたため、協力して調整する入口を狭めた。</p></section>
+      <section class="out-sec"><h2>なぜそうなるか</h2><p class="kaisetsu-body">上司に率直に伝えること自体は問題ではない。ただし「無理です」だけでは判断材料がなく、能力や意欲を否定したようにも響く。目的、根拠、代案を分けると建設的になる。</p></section>
+      <section class="out-sec">
+        <h2>この場面で使える表現</h2>
+        <div class="sheet"><p class="sheet__label"><b>例文</b><span>部長へ・一対一の相談</span></p><p class="material material--key">「現行の確認体制のままでは難しいと考えます。目的を保つために、限定公開と追加検証を組み合わせる案をご相談させてください。」</p></div>
+      </section>
+      
+      <div class="g-next"><a class="btn" href="game.html#decision">次の場面へ</a></div>
+    </article>
+    <aside class="g-side" aria-label="この場面での判断">
+      <h2 class="caption">あなたの判断</h2>
+      <ul class="choices" aria-label="選んだ判断"><li class="choice"><span class="choice__key">1</span><span class="choice__text">目的への賛意を示し、根拠と代案を短く相談する</span><span class="choice__flag"></span></li><li class="choice"><span class="choice__key">2</span><span class="choice__text">その場ではうなずき、後で詳細なデータをメールする</span><span class="choice__flag"></span></li><li class="choice is-selected"><span class="choice__key">3</span><span class="choice__text">「その日程は無理です」と結論だけを伝える</span><span class="choice__flag">あなたの判断</span></li></ul>
+      <p class="caption" style="margin-top:12px">判断の結果は「効果的な判断」「状況次第の判断」「リスクのある判断」の 3 つで示します。正誤の採点ではありません。</p>
+    </aside>
+  </div>
+</main>
+</body>
+</html>

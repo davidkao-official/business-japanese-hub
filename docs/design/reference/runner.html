@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice runner — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var d=document.documentElement;function tokens(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-').filter(Boolean);['state','open','theme'].forEach(function(k){if(q.get(k))h.push(q.get(k));});return h;}
+function apply(first){var h=tokens();var t=h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null;if(t)d.dataset.theme=t;if(!document.body)return;
+var els=[].slice.call(document.querySelectorAll('[data-st]'));if(els.length){var all=[];els.forEach(function(e){e.dataset.st.split(' ').forEach(function(x){if(all.indexOf(x)<0)all.push(x);});});var s=h.filter(function(x){return all.indexOf(x)>-1;})[0]||all[0];d.dataset.state=s;els.forEach(function(e){e.hidden=e.dataset.st.split(' ').indexOf(s)<0;});}
+[].slice.call(document.querySelectorAll('dialog.dlg')).forEach(function(g){if(h.indexOf(g.id)>-1&&!g.open)g.showModal();});if(!first)scrollTo(0,0);}
+apply(true);addEventListener('DOMContentLoaded',function(){apply(true);
+document.addEventListener('click',function(e){var o=e.target.closest('[data-open]');if(o){var g=document.getElementById(o.dataset.open);g.showModal();return;}
+var c=e.target.closest('[data-close]');if(c){c.closest('dialog').close();return;}if(e.target.tagName==='DIALOG')e.target.close();});});
+addEventListener('hashchange',function(){apply(false);});})();</script>
+<style>
+  .stage { padding-block: var(--space-6) var(--space-9); }
+  .q-layout { max-width: 760px; margin-inline: auto; }
+  .fb-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); align-items: start; }
+  .prompt { font-size: 1.1875rem; }
+  .choices { margin-top: var(--space-5); }
+  .submitbar { margin-top: var(--space-5); display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); }
+  .result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding-bottom: var(--space-4); margin-bottom: var(--space-5); border-bottom: 1px solid var(--rule); }
+  .result .rm { font-size: 1.125rem; }
+  .explain > section + section { margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--rule); }
+  .explain h2 { font-size: var(--size-title-3); margin-bottom: var(--space-3); }
+  .calc { display: grid; gap: 6px; font-size: 1.0625rem; }
+  .calc div { display: grid; grid-template-columns: 1fr auto; gap: 16px; padding: 8px 0; border-bottom: 1px dashed var(--rule); }
+  .calc div:last-child { border-bottom: 0; font-weight: var(--weight-bold); }
+  .misread { border-left: 3px solid var(--ng); padding: 4px 0 4px 14px; }
+  .misread p:first-child { font-weight: var(--weight-bold); color: var(--ng); font-size: var(--size-small); }
+  .nextbar { display: flex; justify-content: space-between; align-items: center; gap: var(--space-4); margin-top: var(--space-6); padding-top: var(--space-5); border-top: 1px solid var(--rule); }
+  @media (max-width: 959px) {
+    .fb-layout { grid-template-columns: minmax(0, 1fr); }
+    .stage { padding-bottom: 120px; }
+    .submitbar, .nextbar { position: fixed; inset: auto 0 0 0; z-index: 25; margin: 0; padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom)); background: var(--desk-raised); border-top: 1px solid var(--rule); }
+    .submitbar, .nextbar { flex-direction: column; align-items: stretch; gap: 8px; }
+    .submitbar .btn, .nextbar .btn { width: 100%; }
+    /* only the instructional hint is dropped on mobile; persistence status stays visible */
+    .submitbar .hint, .nextbar .hint { display: none; }
+  }
+
+  .cp { margin-top: var(--space-4); }
+  .cp__h { display: flex; align-items: baseline; gap: 12px; }
+  .cp__h .caption { margin-left: auto; }
+  .cp .choices { margin-top: var(--space-3); }
+  .cp .choice__text { font-family: var(--font-ja-sans); }
+</style>
+</head>
+<body>
+<div class="proto-note" lang="en"><span>Design reference · Practice runner · <a href="runner.html#question">question</a> / <a href="runner.html#checkpoint">checkpoint</a> / <a href="runner.html#feedback">saved</a> · all input types and save states: <a href="runner-states.html">runner-states</a> · original sample item (not product content)</span><a href="index.html">All references</a></div>
+
+<div class="focusbar">
+  <div class="wrap focusbar__in">
+    <a class="icon-btn" href="practice.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>終了</a>
+    <p class="focusbar__title">SPI・非言語・割合と損益</p>
+    <p class="focusbar__meta num">2／5 問</p>
+  </div>
+  <div class="progress" role="progressbar" aria-label="進み具合" aria-valuemin="0" aria-valuemax="5" aria-valuenow="2"><span style="width:40%"></span></div>
+</div>
+
+<main class="wrap stage">
+  <div class="q-layout" data-st="question">
+    <section class="sheet" aria-labelledby="q-title">
+      <p class="sheet__label"><b>問題</b><span>時間制限なし・サンプル問題</span></p>
+      <h1 id="q-title" class="material prompt">ある商品を定価の2割引で売ったところ、仕入れ値の1割の利益が出た。仕入れ値が1,200円のとき、この商品の定価はいくらか。</h1>
+    </section>
+    <fieldset class="choices" style="margin-top:20px">
+      <legend class="sr-only">答えを選ぶ</legend>
+      <label class="choice"><input type="radio" name="a"><span class="choice__key">A</span><span class="choice__text num">1,440円</span><span></span></label>
+      <label class="choice is-selected"><input type="radio" name="a" checked><span class="choice__key">B</span><span class="choice__text num">1,584円</span><span></span></label>
+      <label class="choice"><input type="radio" name="a"><span class="choice__key">C</span><span class="choice__text num">1,650円</span><span></span></label>
+      <label class="choice"><input type="radio" name="a"><span class="choice__key">D</span><span class="choice__text num">1,700円</span><span></span></label>
+      <label class="choice"><input type="radio" name="a"><span class="choice__key">E</span><span class="choice__text num">1,800円</span><span></span></label>
+    </fieldset>
+    <div class="submitbar">
+      <p class="caption hint">選んで解答すると、解説が表示されます。この問題には確認問題が 3 つあります。</p>
+      <a class="btn" href="runner.html#checkpoint">解答する</a>
+    </div>
+  </div>
+
+  <div class="fb-layout" data-st="checkpoint feedback">
+    <div>
+      <div class="result" role="status">
+        <p class="rm rm--ng">不正解</p>
+        <p class="small muted">あなたの解答 <span class="num">B 1,584円</span>・正解 <b class="num">C 1,650円</b></p>
+      </div>
+      <section class="sheet" aria-labelledby="q2-title">
+        <p class="sheet__label"><b>問題</b><span>解くために必要な条件</span></p>
+        <h1 id="q2-title" class="material prompt">ある商品を<mark>定価の2割引</mark><span class="gn">①</span>で売ったところ、<mark>仕入れ値の1割の利益</mark><span class="gn">②</span>が出た。仕入れ値が1,200円のとき、この商品の<mark>定価</mark><span class="gn">③</span>はいくらか。</h1>
+        <ol class="glosses kaisetsu" style="margin-top:20px; padding-top:20px; border-top:1px solid var(--rule)">
+          <li><span class="gn" aria-hidden="true">①</span><p><span class="term">定価の2割引</span>：定価 × 0.8 が売値になる。</p></li>
+          <li><span class="gn" aria-hidden="true">②</span><p><span class="term">仕入れ値の1割の利益</span>：利益 ＝ 仕入れ値 × 0.1。</p></li>
+          <li><span class="gn" aria-hidden="true">③</span><p>求めるのは<span class="term">定価</span>。実際の売値ではない。</p></li>
+        </ol>
+      </section>
+      <ul class="choices" style="margin-top:20px" aria-label="選択肢の結果">
+        <li class="choice is-wrong"><span class="choice__key">B</span><span class="choice__text num">1,584円</span><span class="choice__flag">あなたの解答</span></li>
+        <li class="choice is-correct"><span class="choice__key">C</span><span class="choice__text num">1,650円</span><span class="choice__flag">正解</span></li>
+      </ul>
+    </div>
+
+    <div class="explain">
+      <section aria-labelledby="ask-title">
+        <h2 id="ask-title">何を求める問題か</h2>
+        <p>仕入れ値は <span class="num">1,200</span> 円。定価の 2 割引で売ると、仕入れ値の 1 割の利益が出た。このときの<b>定価</b>を求める。</p>
+      </section>
+      <section aria-labelledby="solve-title">
+        <h2 id="solve-title">式の立て方</h2>
+        <div class="sheet sheet--sunk calc">
+          <div><span>売値 ＝ 1,200 × 1.1</span><span class="num">1,320円</span></div>
+          <div><span>定価 × 0.8 ＝ 1,320</span><span></span></div>
+          <div><span>定価 ＝ 1,320 ÷ 0.8</span><span class="num">1,650円</span></div>
+        </div>
+      </section>
+      <section class="misread" aria-label="よくある読み違い">
+        <p>よくある読み違い</p>
+        <p class="small" style="margin-top:4px">「2割引」を「2割増し」の逆と考え、売値に 1.2 を掛けて定価に戻すと <span class="num">1,584円</span> になります。</p>
+      </section>
+
+      <section aria-labelledby="ladder-title" data-st="checkpoint">
+        <h2 id="ladder-title">理解の確認</h2>
+        <p class="small muted">この問題に用意された確認問題です。答え終わると、解答とあわせて保存します。</p>
+        <ol class="ladder" style="margin-top:12px">
+          <li><div><p class="ladder__name">題意</p><p class="ladder__q">何を求める問題か</p></div><p class="rm rm--ok rm--sm">正解</p></li>
+          <li class="is-current" aria-current="step"><div><p class="ladder__name">整理</p><p class="ladder__q">条件を式に表す</p></div><p class="rm rm--na rm--sm">回答中</p></li>
+          <li><div><p class="ladder__name">処理</p><p class="ladder__q">答えを出す</p></div><p class="rm rm--na rm--sm">未回答</p></li>
+        </ol>
+        <fieldset class="cp sheet" aria-labelledby="cp-title">
+          <div class="cp__h"><h3 id="cp-title" class="t3">確認問題 <span class="num">2／3</span></h3><span class="caption">整理</span></div>
+          <p class="material" style="margin-top:8px">売値と定価の関係を表す式はどれか。</p>
+          <div class="choices">
+            <label class="choice"><input type="radio" name="cp"><span class="choice__key">A</span><span class="choice__text">定価 × 0.8 ＝ 1,320</span><span></span></label>
+            <label class="choice is-selected"><input type="radio" name="cp" checked><span class="choice__key">B</span><span class="choice__text">定価 × 1.2 ＝ 1,320</span><span></span></label>
+            <label class="choice"><input type="radio" name="cp"><span class="choice__key">C</span><span class="choice__text">定価 ＝ 1,320 × 0.8</span><span></span></label>
+          </div>
+        </fieldset>
+      </section>
+
+      <section aria-labelledby="ladder-title-2" data-st="feedback">
+        <h2 id="ladder-title-2">理解の確認</h2>
+        <ol class="ladder" style="margin-top:12px">
+          <li><div><p class="ladder__name">題意</p><p class="ladder__q">何を求める問題か</p></div><p class="rm rm--ok rm--sm">正解</p></li>
+          <li><div><p class="ladder__name">整理</p><p class="ladder__q">条件を式に表す</p></div><p class="rm rm--ng rm--sm">不正解</p></li>
+          <li><div><p class="ladder__name">処理</p><p class="ladder__q">答えを出す</p></div><p class="rm rm--ok rm--sm">正解</p></li>
+        </ol>
+        <p class="caption" style="margin-top:12px">確認問題の結果です。原因の判定ではありません。</p>
+      </section>
+
+      <div class="nextbar" data-st="checkpoint">
+        <p class="statusline" role="status">確認問題 <span class="num">2／3</span>・すべて答えると保存します</p>
+        <a class="btn" href="runner.html#feedback">確認問題に答える</a>
+      </div>
+      <div class="nextbar" data-st="feedback">
+        <div>
+          <p class="statusline statusline--ok" role="status">保存しました</p>
+          <p class="caption hint" style="margin-top:4px">この問題は復習リストに入り、次に正解すると外れます。</p>
+        </div>
+        <a class="btn" href="runner.html#question">次の問題</a>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

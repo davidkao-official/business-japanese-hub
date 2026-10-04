@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice hub — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var d=document.documentElement;function tokens(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-').filter(Boolean);['state','open','theme'].forEach(function(k){if(q.get(k))h.push(q.get(k));});return h;}
+function apply(first){var h=tokens();var t=h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null;if(t)d.dataset.theme=t;if(!document.body)return;
+var els=[].slice.call(document.querySelectorAll('[data-st]'));if(els.length){var all=[];els.forEach(function(e){e.dataset.st.split(' ').forEach(function(x){if(all.indexOf(x)<0)all.push(x);});});var s=h.filter(function(x){return all.indexOf(x)>-1;})[0]||all[0];d.dataset.state=s;els.forEach(function(e){e.hidden=e.dataset.st.split(' ').indexOf(s)<0;});}
+[].slice.call(document.querySelectorAll('dialog.dlg')).forEach(function(g){if(h.indexOf(g.id)>-1&&!g.open)g.showModal();});if(!first)scrollTo(0,0);}
+apply(true);addEventListener('DOMContentLoaded',function(){apply(true);
+document.addEventListener('click',function(e){var o=e.target.closest('[data-open]');if(o){var g=document.getElementById(o.dataset.open);g.showModal();return;}
+var c=e.target.closest('[data-close]');if(c){c.closest('dialog').close();return;}if(e.target.tagName==='DIALOG')e.target.close();});});
+addEventListener('hashchange',function(){apply(false);});})();</script>
+<style>
+  .intro { padding-block: clamp(32px, 5vw, 64px) var(--space-6); display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: var(--space-7); align-items: end; }
+  .intro .lead { margin-top: 12px; }
+  .resume { background: var(--sheet); border: 1px solid var(--rule); border-radius: var(--radius-sheet); padding: var(--space-5); }
+  .resume__label { font-size: var(--size-caption); color: var(--ink-3); }
+  .resume__title { font-weight: var(--weight-bold); margin-top: 4px; }
+  .resume__why { font-size: var(--size-small); color: var(--ink-2); margin-top: 4px; }
+  .resume .btn { margin-top: var(--space-4); }
+  .domains { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-7); padding-bottom: var(--space-8); }
+  .domain h2 { display: flex; align-items: baseline; gap: 12px; margin-bottom: var(--space-3); }
+  .domain h2 .caption { font-weight: var(--weight-regular); }
+  .domain p.muted { font-size: var(--size-small); margin-bottom: var(--space-4); }
+  .disclaimer { border-top: 1px solid var(--rule); padding-block: var(--space-5) var(--space-8); }
+  @media (max-width: 959px) {
+    .intro { grid-template-columns: 1fr; gap: var(--space-5); }
+    .domains { grid-template-columns: 1fr; gap: var(--space-6); }
+  }
+</style>
+</head>
+<body class="has-tabbar">
+<div class="proto-note" lang="en"><span>Design reference · Practice / 就活 Web テスト対策 (signed-in member)</span><a href="index.html">All references</a></div>
+<header class="hdr">
+  <div class="wrap hdr__in">
+    <a class="brand" href="home.html" aria-label="Business Japanese Hub ホーム">
+      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg>
+      <span class="brand__word" lang="en">Business Japanese Hub</span>
+    </a>
+    <nav class="nav" aria-label="メインナビゲーション">
+      <a href="learn.html">学ぶ</a>
+      <a href="read.html">読む</a>
+      <a href="practice.html" aria-current="page">練習</a>
+      <a href="my-learning.html">学習記録</a>
+      <a href="#">体験</a>
+    </nav>
+    <div class="hdr__tools">
+      <a class="chip chip--plus" href="plus.html" lang="en">Plus</a>
+      <a class="btn btn--quiet btn--sm" href="#">アカウント</a>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <section class="intro">
+    <div>
+      <p class="crumbs"><a href="#">練習</a><span aria-hidden="true">›</span><span>就活 Web テスト</span></p>
+      <h1 class="t1" style="margin-top:8px">就活 Web テスト対策</h1>
+      <p class="lead">SPI から始めます。オリジナルの日本語問題と解説で、日本企業の選考で問われる読解と推論を練習します。確認問題がある問題では、解答後に、どの段階でつまずいたかを記録できます。</p>
+      <p style="margin-top:16px"><a class="link" href="#">はじめての方は「SPI とは」へ</a></p>
+    </div>
+    <aside class="resume" aria-labelledby="resume-title">
+      <p class="resume__label">次の一歩</p>
+      <p class="resume__title" id="resume-title">間違えた問題の復習：割合と損益</p>
+      <p class="resume__why">前回間違えた 2 問を、まだ解き直していません。</p>
+      <a class="btn btn--block" href="runner.html">復習を始める</a>
+    </aside>
+  </section>
+
+  <section class="domains" aria-label="SPI の分野">
+    <div class="domain">
+      <h2 class="t2">非言語 <span class="caption num">4 分野・20 問</span></h2>
+      <p class="muted">割合、速さ、集合、条件推論。計算そのものより、条件を正確に読むことが鍵になります。</p>
+      <ul class="rows">
+        <li><div class="row"><div><p class="row__title">割合と損益</p><p class="row__meta"><span>5 問</span><span>時間制限なし</span><span>前回 3／5 正解</span></p></div><div class="row__end"><a class="btn btn--sm" href="runner.html">練習する</a></div></div></li>
+        <li><div class="row"><div><p class="row__title">速さと仕事算</p><p class="row__meta"><span>5 問</span><span>時間制限なし</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習する</a></div></div></li>
+        <li><div class="row"><div><p class="row__title">集合と場合の数</p><p class="row__meta"><span>5 問</span><span>時間制限なし</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習する</a></div></div></li>
+        <li><div class="row"><div><p class="row__title">推論（条件と順序）</p><p class="row__meta"><span>5 問</span><span>時間制限なし</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習する</a></div></div></li>
+      </ul>
+    </div>
+    <div class="domain">
+      <h2 class="t2">言語 <span class="caption num">4 分野・20 問</span></h2>
+      <p class="muted">語句の意味、二語の関係、文の論理、長文。母語に訳さず、日本語のまま判断する練習です。</p>
+      <ul class="rows">
+        <li><div class="row"><div><p class="row__title">文脈と語句の意味</p><p class="row__meta"><span>5 問</span><span>時間制限なし</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習する</a></div></div></li>
+        <li><div class="row"><div><p class="row__title">二語の関係</p><p class="row__meta"><span>5 問</span><span>時間制限なし</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習する</a></div></div></li>
+        <li><div class="row"><div><p class="row__title">文の論理</p><p class="row__meta"><span>5 問</span><span>時間制限なし</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習する</a></div></div></li>
+        <li><div class="row"><div><p class="row__title">長文の推論</p><p class="row__meta"><span>5 問</span><span>時間制限なし</span></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">練習する</a></div></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="disclaimer">
+    <p class="caption" style="max-width:52em">本サービスは独立した就活 Web テスト対策サービスです。SPI、玉手箱、その他の出題・試験提供機関とは関係がなく、公式の問題は提供していません。</p>
+  </section>
+</main>
+<nav class="tabbar" aria-label="メインナビゲーション">
+  <a href="learn.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5.5h7a2 2 0 0 1 2 2V19a1.5 1.5 0 0 0-1.5-1.5H4z"/><path d="M20 5.5h-5a2 2 0 0 0-2 2V19a1.5 1.5 0 0 1 1.5-1.5H20z"/></svg>学ぶ</a>
+  <a href="read.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M9 11h6M9 14h6M9 17h4"/></svg>読む</a>
+  <a href="practice.html" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>練習</a>
+  <a href="my-learning.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.5-5.5 3.5z"/></svg>学習記録</a>
+  <button type="button" data-open="more" aria-haspopup="dialog" aria-controls="more"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>その他</button>
+</nav>
+<dialog class="dlg dlg--sheet" id="more" aria-labelledby="more-title">
+  <div class="dlg__head"><h2 id="more-title">その他</h2><button type="button" class="icon-btn" data-close aria-label="閉じる" style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="dlg__body">
+    <ul class="menu-rows">
+      <li><a href="game.html"><span>体験 <span class="caption" lang="en">Career Game</span></span><span class="caption">別サイトで開きます</span></a></li>
+      <li><a href="plus.html"><span lang="en">Plus</span></a></li>
+      <li><a href="#">Business Japanese Hub について</a></li>
+    </ul>
+    <h3 class="caption" style="margin:20px 0 8px">外観</h3>
+    <div class="seg" role="group" aria-label="外観"><button type="button" aria-pressed="true">システム</button><button type="button" aria-pressed="false">ライト</button><button type="button" aria-pressed="false">ダーク</button></div>
+    <h3 class="caption" style="margin:20px 0 0">規約・ポリシー</h3>
+    <ul class="menu-rows">
+      <li><a href="#">利用規約</a></li><li><a href="#">プライバシーポリシー</a></li><li><a href="#">特定商取引法に基づく表記</a></li><li><a href="#">返金ポリシー</a></li>
+    </ul>
+  </div>
+</dialog>
+</body>
+</html>

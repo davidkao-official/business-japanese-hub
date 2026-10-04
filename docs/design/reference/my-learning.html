@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Learning — Source &amp; Gloss reference</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="reference.css">
+<script>(function(){var d=document.documentElement;function tokens(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-').filter(Boolean);['state','open','theme'].forEach(function(k){if(q.get(k))h.push(q.get(k));});return h;}
+function apply(first){var h=tokens();var t=h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null;if(t)d.dataset.theme=t;if(!document.body)return;
+var els=[].slice.call(document.querySelectorAll('[data-st]'));if(els.length){var all=[];els.forEach(function(e){e.dataset.st.split(' ').forEach(function(x){if(all.indexOf(x)<0)all.push(x);});});var s=h.filter(function(x){return all.indexOf(x)>-1;})[0]||all[0];d.dataset.state=s;els.forEach(function(e){e.hidden=e.dataset.st.split(' ').indexOf(s)<0;});}
+[].slice.call(document.querySelectorAll('dialog.dlg')).forEach(function(g){if(h.indexOf(g.id)>-1&&!g.open)g.showModal();});if(!first)scrollTo(0,0);}
+apply(true);addEventListener('DOMContentLoaded',function(){apply(true);
+document.addEventListener('click',function(e){var o=e.target.closest('[data-open]');if(o){var g=document.getElementById(o.dataset.open);g.showModal();return;}
+var c=e.target.closest('[data-close]');if(c){c.closest('dialog').close();return;}if(e.target.tagName==='DIALOG')e.target.close();});});
+addEventListener('hashchange',function(){apply(false);});})();</script>
+<style>
+  .ml-head { padding-block: clamp(32px, 5vw, 56px) var(--space-6); }
+  .ml-head .lead { margin-top: 10px; }
+  .next {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-5); align-items: center;
+    padding: clamp(20px, 3vw, 28px); background: var(--sheet); border: 1px solid var(--rule); border-left: 6px solid var(--marker); border-radius: var(--radius-sheet);
+  }
+  .next__label { font-size: var(--size-caption); color: var(--ink-3); }
+  .next__title { font-size: var(--size-title-2); font-weight: var(--weight-bold); margin-top: 2px; }
+  .next__why { color: var(--ink-2); margin-top: 4px; font-size: var(--size-small); }
+  .ml-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: clamp(32px, 5vw, 64px); padding-block: var(--space-7) var(--space-9); }
+  .block + .block { margin-top: var(--space-7); }
+  .block__h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: var(--space-3); }
+  .block__h h2 { font-size: var(--size-title-3); }
+  .block__note { font-size: var(--size-caption); color: var(--ink-3); margin-top: var(--space-3); }
+  .attempts { list-style: none; }
+  .attempts li { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--rule); font-size: var(--size-small); }
+  .attempts .rm::before { width: 14px; height: 14px; border-width: 2px; }
+  .attempts .rm--ng::before { border: 0; }
+  @media (max-width: 959px) {
+    .ml-grid { grid-template-columns: 1fr; }
+    .next { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body class="has-tabbar">
+<div class="proto-note" lang="en"><span>Design reference · 学習記録 / My Learning (Plus member · illustrative data · 理解の確認 block shown only after its roll-up rule is approved, Q7)</span><a href="index.html">All references</a></div>
+<header class="hdr">
+  <div class="wrap hdr__in">
+    <a class="brand" href="home.html" aria-label="Business Japanese Hub ホーム">
+      <svg class="brand__glyph" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--ink)"/><rect x="10" y="14" width="12" height="5" fill="var(--marker)"/><path d="M8 7h7v2.6h-4.4V16H8z" fill="var(--sheet)"/><path d="M24 25h-7v-2.6h4.4V16H24z" fill="var(--sheet)"/></svg>
+      <span class="brand__word" lang="en">Business Japanese Hub</span>
+    </a>
+    <nav class="nav" aria-label="メインナビゲーション">
+      <a href="learn.html">学ぶ</a>
+      <a href="read.html">読む</a>
+      <a href="practice.html">練習</a>
+      <a href="my-learning.html" aria-current="page">学習記録</a>
+      <a href="#">体験</a>
+    </nav>
+    <div class="hdr__tools">
+      <a class="chip chip--plus" href="plus.html" lang="en">Plus</a>
+      <a class="btn btn--quiet btn--sm" href="#">アカウント</a>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <header class="ml-head">
+    <h1 class="t1">学習記録</h1>
+    <p class="lead">実際の解答と保存だけにもとづいています。保存しただけで身についたことにはなりません。データが足りないときは、そう表示します。</p>
+  </header>
+
+  <section class="next" aria-labelledby="next-title">
+    <div>
+      <p class="next__label">次の一歩</p>
+      <p class="next__title" id="next-title">間違えた問題の復習：割合と損益</p>
+      <p class="next__why">最近間違えた <span class="num">2</span> 問を、まだ解き直していません。正解するとリストから外れます。</p>
+    </div>
+    <a class="btn" href="runner.html">復習を始める</a>
+  </section>
+
+  <div class="ml-grid">
+    <div>
+      <section class="block" aria-labelledby="rv">
+        <div class="block__h"><h2 id="rv">間違えた問題</h2><span class="caption num">2 問</span></div>
+        <ul class="rows">
+          <li><div class="row"><div><p class="row__title">割合と損益</p><p class="row__meta"><span>SPI・非言語</span><time class="num">9/28</time></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">復習する</a></div></div></li>
+          <li><div class="row"><div><p class="row__title">割合と損益</p><p class="row__meta"><span>SPI・非言語</span><time class="num">9/28</time></p></div><div class="row__end"><a class="btn btn--quiet btn--sm" href="runner.html">復習する</a></div></div></li>
+        </ul>
+      </section>
+
+      <section class="block" aria-labelledby="sv">
+        <div class="block__h"><h2 id="sv">保存した内容</h2></div>
+        <div class="tabs" role="tablist" aria-label="保存した内容の種類">
+          <button role="tab" aria-selected="true" type="button">レッスン・語彙 <span class="num">2</span></button>
+          <button role="tab" aria-selected="false" type="button">記事 <span class="num">1</span></button>
+        </div>
+        <ul class="rows" style="border-top:0">
+          <li><a class="row" href="learn.html"><div><p class="row__title">報告時に事実と次の対応を短く伝える</p><p class="row__meta"><span>職場の実践日本語・報連相</span><time class="num">9/27 保存</time></p></div><span class="caption">レッスン</span></a></li>
+          <li><a class="row" href="#"><div><p class="row__title">見込み<span class="caption" style="font-weight:400; margin-left:6px">みこみ</span></p><p class="row__meta"><span>現時点での見通し</span><time class="num">9/27 保存</time></p></div><span class="caption">語彙</span></a></li>
+        </ul>
+      </section>
+    </div>
+
+    <div>
+      <section class="block" aria-labelledby="ob">
+        <div class="block__h"><h2 id="ob">観察</h2><span class="caption">直近 50 回の解答</span></div>
+        <table class="obs">
+          <thead><tr><th scope="col">分野</th><th scope="col">正解／解答</th><th scope="col"><span class="sr-only">メモ</span></th></tr></thead>
+          <tbody>
+            <tr><td>割合と損益</td><td class="n"><span class="frac">3<small>／5</small></span></td><td class="caption">要確認</td></tr>
+            <tr><td>速さと仕事算</td><td class="n"><span class="frac">4<small>／5</small></span></td><td></td></tr>
+            <tr><td>文脈と語句の意味</td><td class="n"><span class="frac">2<small>／3</small></span></td><td><em class="insufficient">データ不足</em></td></tr>
+          </tbody>
+        </table>
+        <p class="block__note">これは解答の記録で、能力のスコアではありません。「要確認」は、同じ分野で一定数以上の解答と間違いがあったときだけ表示されます。</p>
+      </section>
+
+      <section class="block" aria-labelledby="cp">
+        <div class="block__h"><h2 id="cp">理解の確認</h2><span class="caption">確認問題のある問題</span></div>
+        <table class="obs">
+          <thead><tr><th scope="col">段階</th><th scope="col">不正解／確認回数</th></tr></thead>
+          <tbody>
+            <tr><td>題意<span class="caption" style="margin-left:6px">求めるものを読む</span></td><td class="n"><span class="frac">1<small>／6</small></span></td></tr>
+            <tr><td>整理<span class="caption" style="margin-left:6px">条件を表す</span></td><td class="n"><span class="frac">3<small>／5</small></span></td></tr>
+            <tr><td>処理<span class="caption" style="margin-left:6px">答えを出す</span></td><td class="n"><span class="frac">0<small>／4</small></span></td></tr>
+          </tbody>
+        </table>
+        <p class="block__note">段階ごとの記録です。原因の判定ではありません。</p>
+      </section>
+
+      <section class="block" aria-labelledby="ra">
+        <div class="block__h"><h2 id="ra">最近の解答</h2></div>
+        <ul class="attempts">
+          <li><span class="rm rm--ng"><span class="sr-only">不正解</span></span><span>割合と損益</span><time class="caption num">9/28</time></li>
+          <li><span class="rm rm--ok"><span class="sr-only">正解</span></span><span>割合と損益</span><time class="caption num">9/28</time></li>
+          <li><span class="rm rm--ok"><span class="sr-only">正解</span></span><span>速さと仕事算</span><time class="caption num">9/27</time></li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</main>
+<nav class="tabbar" aria-label="メインナビゲーション">
+  <a href="learn.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 5.5h7a2 2 0 0 1 2 2V19a1.5 1.5 0 0 0-1.5-1.5H4z"/><path d="M20 5.5h-5a2 2 0 0 0-2 2V19a1.5 1.5 0 0 1 1.5-1.5H20z"/></svg>学ぶ</a>
+  <a href="read.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3.5h8l4 4V20.5H6z"/><path d="M9 11h6M9 14h6M9 17h4"/></svg>読む</a>
+  <a href="practice.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>練習</a>
+  <a href="my-learning.html" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-3.5-5.5 3.5z"/></svg>学習記録</a>
+  <button type="button" data-open="more" aria-haspopup="dialog" aria-controls="more"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>その他</button>
+</nav>
+<dialog class="dlg dlg--sheet" id="more" aria-labelledby="more-title">
+  <div class="dlg__head"><h2 id="more-title">その他</h2><button type="button" class="icon-btn" data-close aria-label="閉じる" style="margin:0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+  <div class="dlg__body">
+    <ul class="menu-rows">
+      <li><a href="game.html"><span>体験 <span class="caption" lang="en">Career Game</span></span><span class="caption">別サイトで開きます</span></a></li>
+      <li><a href="plus.html"><span lang="en">Plus</span></a></li>
+      <li><a href="#">Business Japanese Hub について</a></li>
+    </ul>
+    <h3 class="caption" style="margin:20px 0 8px">外観</h3>
+    <div class="seg" role="group" aria-label="外観"><button type="button" aria-pressed="true">システム</button><button type="button" aria-pressed="false">ライト</button><button type="button" aria-pressed="false">ダーク</button></div>
+    <h3 class="caption" style="margin:20px 0 0">規約・ポリシー</h3>
+    <ul class="menu-rows">
+      <li><a href="#">利用規約</a></li><li><a href="#">プライバシーポリシー</a></li><li><a href="#">特定商取引法に基づく表記</a></li><li><a href="#">返金ポリシー</a></li>
+    </ul>
+  </div>
+</dialog>
+</body>
+</html>
