@@ -4,11 +4,11 @@ import App from './App'
 import { CANONICAL_CAREER_GAME_ORIGIN } from './lib/cross-product/careerGame'
 
 const CANONICAL_MODES = [
-  { label: 'Learn', href: '/learn' },
-  { label: 'Read', href: '/read' },
-  { label: 'Practice', href: '/practice' },
-  { label: 'My Learning', href: '/my-learning' },
-  { label: 'Experience', href: '/experience' },
+  { label: '学ぶ', href: '/learn' },
+  { label: '読む', href: '/read' },
+  { label: '練習', href: '/practice' },
+  { label: '学習記録', href: '/my-learning' },
+  { label: '体験', href: '/experience' },
 ] as const
 
 function renderAt(path: string) {
@@ -25,7 +25,7 @@ afterEach(() => {
 })
 
 describe('Issue #108 — canonical learning-service IA', () => {
-  it('exposes Learn / Read / Practice / My Learning / Experience as the primary navigation', () => {
+  it('exposes Japanese labels for the five canonical learning modes in primary navigation', () => {
     renderAt('/')
 
     const navigation = within(screen.getByRole('banner')).getByRole('navigation')

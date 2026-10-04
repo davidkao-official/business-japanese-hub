@@ -25,9 +25,9 @@ describe('PlusPage', () => {
     renderWithAppProviders(<PlusPage />)
 
     expect(screen.getByText('Plus プレビュー')).toBeInTheDocument()
-    expect(screen.getAllByText('Practice').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('Read').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('My Learning').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('練習').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('読む').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('学習記録').length).toBeGreaterThan(0)
     expect(await screen.findByText('ログインして会員状態を確認')).toBeInTheDocument()
     expect(screen.queryByText('Unlocked Plus content')).not.toBeInTheDocument()
   })

@@ -53,7 +53,7 @@ export function WorkplaceLearnLandingPage({ catalogEntries = workplaceLearnCatal
   return (
     <section className="page workplace-learn" aria-labelledby="workplace-learn-title">
       <div className="workplace-learn__intro">
-        <p className="workplace-learn__eyebrow">LEARN · WORK IN JAPAN</p>
+        <p className="workplace-learn__eyebrow">{strings.learningModes.modes.learn.title} · {strings.learningUi.workplaceLabel}</p>
         <h1 className="page__title" id="workplace-learn-title">{strings.workplaceLearn.title}</h1>
         <p className="page__lead">{strings.workplaceLearn.lead}</p>
         <div className="workplace-learn__browse-links">
@@ -79,13 +79,13 @@ export function WorkplaceLearnLandingPage({ catalogEntries = workplaceLearnCatal
 
 export function WorkplaceVocabularyIndexPage({ catalogEntries = workplaceLearnCatalog }: { catalogEntries?: readonly WorkplaceLearnCatalogEntry[] }) {
   const strings = useStrings()
-  useDocumentTitle(`${strings.workplaceLearn.vocabularyIndexTitle} — Learn — ${strings.app.name}`)
+  useDocumentTitle(`${strings.workplaceLearn.vocabularyIndexTitle} — ${strings.learningModes.modes.learn.title} — ${strings.app.name}`)
   const entries = catalogEntries.filter((entry) => entry.kind === 'vocabulary')
   return (
     <section className="page workplace-learn" aria-labelledby="workplace-vocabulary-index-title">
       <Link className="workplace-learn__back" to="/learn">← {strings.workplaceLearn.backToLearn}</Link>
       <div className="workplace-learn__intro workplace-learn__intro--compact">
-        <p className="workplace-learn__eyebrow">WORKPLACE VOCABULARY</p>
+        <p className="workplace-learn__eyebrow">{strings.workplaceLearn.vocabularyLabel}</p>
         <h1 className="page__title" id="workplace-vocabulary-index-title">{strings.workplaceLearn.vocabularyIndexTitle}</h1>
         <p className="page__lead">{strings.workplaceLearn.vocabularyIndexLead}</p>
       </div>
@@ -104,7 +104,7 @@ export function WorkplaceLessonPage({ catalogEntries = workplaceLearnCatalog, pu
   const { slug = '' } = useParams()
   const strings = useStrings()
   const entry = useMemo(() => catalogEntries.find((candidate) => candidate.kind === 'lesson' && candidate.slug === slug), [catalogEntries, slug])
-  useDocumentTitle(entry ? `${entry.title} — Learn — ${strings.app.name}` : `Learn — ${strings.app.name}`)
+  useDocumentTitle(entry ? `${entry.title} — ${strings.learningModes.modes.learn.title} — ${strings.app.name}` : `${strings.learningModes.modes.learn.title} — ${strings.app.name}`)
   if (!entry) return <NotFoundPage />
   return <WorkplaceDetail entry={entry} catalogEntries={catalogEntries} publicItems={publicItems} loadPayload={loadPayload} />
 }
@@ -117,7 +117,7 @@ export function WorkplaceVocabularyPage({ catalogEntries = workplaceLearnCatalog
   const { slug = '' } = useParams()
   const strings = useStrings()
   const entry = useMemo(() => catalogEntries.find((candidate) => candidate.kind === 'vocabulary' && candidate.slug === slug), [catalogEntries, slug])
-  useDocumentTitle(entry ? `${entry.title} — ${strings.workplaceLearn.vocabularyIndexTitle} — ${strings.app.name}` : `Learn — ${strings.app.name}`)
+  useDocumentTitle(entry ? `${entry.title} — ${strings.workplaceLearn.vocabularyIndexTitle} — ${strings.app.name}` : `${strings.learningModes.modes.learn.title} — ${strings.app.name}`)
   if (!entry) return <NotFoundPage />
   return <WorkplaceDetail entry={entry} catalogEntries={catalogEntries} publicItems={publicItems} loadPayload={loadPayload} />
 }

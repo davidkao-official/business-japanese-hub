@@ -1,3 +1,10 @@
+// Dormant resources remain testable for future fully launched locales.
+// The unmocked V1 contract is covered in i18n/v1Locale.test.tsx.
+vi.mock('../i18n/locales', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../i18n/locales')>()
+  return { ...actual, LAUNCHED_LOCALES: actual.SUPPORTED_LOCALES }
+})
+
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -46,7 +53,7 @@ describe('Workplace Learn routes and details', () => {
   })
 
   it.each([
-    ['ja', '場面', '自分で言い換える', '例文を自分の職場で起こりそうな場面に置き換え、伝える事実、次の行動、相手に合った語調を選んで書き直してみましょう。', '自分の表現を書いてみる', 'My Learning に保存'],
+    ['ja', '場面', '自分で言い換える', '例文を自分の職場で起こりそうな場面に置き換え、伝える事実、次の行動、相手に合った語調を選んで書き直してみましょう。', '自分の表現を書いてみる', '学習記録に保存'],
     ['en', 'Situation', 'Try a rewrite', 'Adapt the example to a plausible situation of your own. Choose the facts to share, your next action, and a tone that fits the person you are addressing.', 'Write your own version', 'Save to My Learning'],
     ['zh-CN', '情境', '自己改写看看', '把例句换成自己职场中可能遇到的情境，选择要传达的事实、下一步行动，以及适合对方的语气，再重新写一次。', '写下自己的表达', '保存到 My Learning'],
   ] as const)('keeps %s interface labels in the interface language and marks authored content explicitly', (locale, situationLabel, practiceTitle, prompt, practiceLabel, saveLabel) => {
@@ -64,6 +71,9 @@ describe('Workplace Learn routes and details', () => {
     expect(screen.getByText(practiceLabel)).not.toHaveAttribute('lang')
     expect(screen.getByRole('region', { name: saveLabel })).toBeInTheDocument()
     expect(screen.getByRole('textbox')).toHaveAttribute('lang', 'ja')
+    const ui = getStrings(locale)
+    expect(document.title).toBe(`${entry.title} — ${ui.learningModes.modes.learn.title} — ${ui.app.name}`)
+    if (locale === 'ja') expect(document.title).not.toMatch(/Learn/)
   })
 
   it('keeps the Book-projected Learn slug available on its original route', () => {

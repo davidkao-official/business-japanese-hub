@@ -241,7 +241,6 @@ export function Header() {
             <>
               <Navigation />
               <AccountControl open={desktopAccountOpen} onOpenChange={setDesktopAccountOpen} />
-              <LanguageControl />
             </>
           )}
         </div>

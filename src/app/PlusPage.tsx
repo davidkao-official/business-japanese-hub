@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom'
 import { PlusAccessBoundary } from '../components/PlusAccessBoundary'
-import { useStrings } from '../i18n/strings'
+import { useLocale, useStrings } from '../i18n/strings'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { PRODUCT_MODES } from './productModes'
 
 export function PlusPage() {
+  const locale = useLocale()
   const strings = useStrings()
   const plus = strings.plus
   useDocumentTitle(`${strings.app.name} Plus`)
@@ -77,7 +78,7 @@ export function PlusPage() {
         <nav className="plus-free-links" aria-label={strings.learningModes.navigationLabel}>
           {PRODUCT_MODES.map((mode) => (
             <Link key={mode.id} to={mode.href}>
-              <span lang="en">{mode.label}</span>
+              <span lang={strings.learningModes.modes[mode.id].title === mode.label ? 'en' : locale}>{strings.learningModes.modes[mode.id].title}</span>
               <span>{strings.learningModes.modes[mode.id].summary}</span>
             </Link>
           ))}
@@ -100,6 +101,7 @@ export function PlusPage() {
 }
 
 function PlusSurfaceList({ title, body }: { title: string; body: string }) {
+  const locale = useLocale()
   const plus = useStrings().plus
 
   return (
@@ -109,7 +111,7 @@ function PlusSurfaceList({ title, body }: { title: string; body: string }) {
       <ul>
         {plus.surfaces.map((surface) => (
           <li key={surface.title}>
-            <strong lang="en">{surface.title}</strong>
+            <strong lang={locale}>{surface.title}</strong>
             <span>{surface.body}</span>
           </li>
         ))}

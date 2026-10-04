@@ -1,3 +1,10 @@
+// Dormant resources remain testable for future fully launched locales.
+// The unmocked V1 contract is covered in i18n/v1Locale.test.tsx.
+vi.mock('./locales', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./locales')>()
+  return { ...actual, LAUNCHED_LOCALES: actual.SUPPORTED_LOCALES }
+})
+
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import {

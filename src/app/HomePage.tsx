@@ -197,8 +197,8 @@ function LearningModes() {
         {PRODUCT_MODES.map((mode) => (
           <li className="learning-modes__item" key={mode.id}>
             <Link className="learning-modes__link" to={mode.href}>
-              <span className="learning-modes__link-label" lang="en">
-                {mode.label}
+              <span className="learning-modes__link-label" lang={strings.learningModes.modes[mode.id].title === mode.label ? 'en' : locale}>
+                {strings.learningModes.modes[mode.id].title}
               </span>
               <span className="learning-modes__link-summary">
                 {strings.learningModes.modes[mode.id].summary}

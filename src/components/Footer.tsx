@@ -1,3 +1,4 @@
+import { LanguageControl } from './LanguageControl'
 import { Link } from 'react-router-dom'
 import { useLocale, useStrings } from '../i18n/strings'
 import { legalContentLocaleFor, listLegalDocuments, SELLER_DISCLOSURE } from '../legal-content'
@@ -35,16 +36,18 @@ export function Footer() {
         <div className="site-footer__details">
           <p className="site-footer__seller">
             {strings.legal.sellerDisclosureLabel}
-            <span>{SELLER_DISCLOSURE.name}</span>
-            {SELLER_DISCLOSURE.pending && (
-              <span className="site-footer__seller-pending">
-                （{strings.legal.sellerDisclosurePending}）
-              </span>
+            {/* The pending model value is an internal English placeholder; show
+             * only the localized pending state until the seller is confirmed. */}
+            {SELLER_DISCLOSURE.pending ? (
+              <span className="site-footer__seller-pending">{strings.legal.sellerDisclosurePending}</span>
+            ) : (
+              <span>{SELLER_DISCLOSURE.name}</span>
             )}
           </p>
           <p className="site-footer__copyright">{strings.footer.note}</p>
         </div>
       </div>
+      <LanguageControl />
     </footer>
   )
 }

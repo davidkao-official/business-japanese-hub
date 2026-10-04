@@ -1,3 +1,4 @@
+import { useStrings, getActiveLocale } from '../i18n/strings'
 import { useRef, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -5,7 +6,6 @@ import {
   createCrossProductMovementDeduper,
   type ValidationAnalytics,
 } from '@business-japanese-hub/validation-analytics'
-import { useStrings } from '../i18n/strings'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { careerGameHomeHref } from '../lib/cross-product/careerGame'
 import { BookCover } from '../components/BookCover'
@@ -55,11 +55,11 @@ export function ProductModePage({ mode, analytics = browserValidationAnalytics }
   return (
     <section className="page product-mode-page" aria-labelledby={`${content.id}-title`}>
       <div className="product-mode-page__intro">
-        <p className="product-mode-page__eyebrow" lang="en">
-          {content.label}
+        <p className="product-mode-page__eyebrow">
+          {modeStrings.title}
         </p>
         <h1 className="page__title" id={`${content.id}-title`}>
-          <span lang="en">{modeStrings.title}</span>
+          {modeStrings.title}
         </h1>
         <p className="page__lead">{modeStrings.lead}</p>
       </div>
@@ -75,7 +75,7 @@ export function ProductModePage({ mode, analytics = browserValidationAnalytics }
           {PRODUCT_MODES.filter((candidate) => candidate.id !== mode).map((candidate) => (
             <li key={candidate.id}>
               <Link to={candidate.href}>
-                <span lang="en">{candidate.label}</span>
+                <span>{strings.learningModes.modes[candidate.id].title}</span>
                 <span>{strings.learningModes.modes[candidate.id].summary}</span>
               </Link>
             </li>
@@ -87,12 +87,14 @@ export function ProductModePage({ mode, analytics = browserValidationAnalytics }
 }
 
 function PracticeModeLink() {
+  const ui = useStrings().learningUi
+
   return (
-    <section className="product-mode-page__capability" lang="zh-TW" aria-labelledby="practice-web-test-title">
-      <h2 id="practice-web-test-title">日本求職網路測驗刷題</h2>
-      <p>從 SPI 的言語與非言語類別開始，選擇已發布的練習範圍。</p>
+    <section className="product-mode-page__capability" lang={getActiveLocale()} aria-labelledby="practice-web-test-title">
+      <h2 id="practice-web-test-title">{ui.webTitle}</h2>
+      <p>{ui.practiceModeBody}</p>
       <div className="product-mode-page__actions">
-        <Link className="btn btn--primary" to="/practice/web-test">前往 Web Test 練習入口</Link>
+        <Link className="btn btn--primary" to="/practice/web-test">{ui.webOpenPractice}</Link>
       </div>
     </section>
   )
@@ -105,7 +107,7 @@ function LearnModeLinks() {
   return (
     <section
       className="product-mode-page__capability learn-module-list"
-      lang="zh-TW"
+      lang={getActiveLocale()}
       aria-labelledby="learn-module-title"
     >
       <div>
