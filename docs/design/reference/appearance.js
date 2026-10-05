@@ -1,3 +1,4 @@
+/* global document */
 /* Reference-only wiring for the Appearance radio group (design-system §5.5).
    Selecting an option changes application appearance only. The static
    references have no preference store, so nothing is persisted here. */
