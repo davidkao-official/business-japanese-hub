@@ -45,6 +45,7 @@ export interface LearningUnitRouteData {
   readonly practiceSlug: string
   readonly title: string
   readonly courseLabel: string
+  readonly courseLabelLanguage: LearningTextLanguage
   readonly gateway: {
     readonly title: LearningText
     readonly summary: LearningTextBlock
@@ -117,13 +118,6 @@ function mixedPivotText(text: string): LearningTextBlock {
     asText('Pivot', 'en'),
     asText(text.slice(pivotIndex + 'Pivot'.length), 'zh-TW'),
   ]
-}
-
-function titleCaseSlug(slug: string): string {
-  return slug
-    .split('-')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
 }
 
 const ENGLISH_RUN_PATTERN = /[A-Za-z][A-Za-z0-9]*(?:['’/-][A-Za-z0-9]+)*/g
@@ -235,7 +229,8 @@ function createAdmittedLearningUnit(): LearningUnitRouteData | undefined {
     learnSlug: `${admittedBook.slug}-${admittedChapter.slug}`,
     practiceSlug: admittedChapter.slug,
     title: admittedChapter.title,
-    courseLabel: titleCaseSlug(admittedChapter.slug),
+    courseLabel: admittedChapter.title,
+    courseLabelLanguage: language,
     gateway: {
       title: asText(admittedChapter.title, language),
       summary: asBlock(admittedChapter.summary, language),

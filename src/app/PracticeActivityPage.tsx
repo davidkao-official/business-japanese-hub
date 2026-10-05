@@ -1,8 +1,9 @@
 import { useStrings, getActiveLocale } from '../i18n/strings'
 import { Fragment, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { useAuth } from '@business-japanese-hub/platform-auth'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
-import { useBookState } from '../lib/persistence/useBookState'
+import { LegacyLearningAccessNotice, useLegacyLearningAccess } from './LegacyLearningAccess'
 import { NotFoundPage } from './NotFoundPage'
 import {
   getLearningUnitByPracticeSlug,
@@ -15,12 +16,20 @@ import {
  * scoring, and attempt history remain outside this bounded issue.
  */
 export function PracticeActivityPage() {
+  const { slug } = useParams()
+  const { sessionVersion } = useAuth()
+  // A refresh of the same session retains local work. A new account/session
+  // destroys all response, submission and reveal state before it can render.
+  return <SessionPracticeActivity key={JSON.stringify([slug, sessionVersion])} />
+}
+
+function SessionPracticeActivity() {
   const ui = useStrings().learningUi
 
   const { slug } = useParams()
   const learningUnit = getLearningUnitByPracticeSlug(slug)
   const strings = useStrings()
-  const { owned, loading, error } = useBookState(learningUnit?.bookId ?? '')
+  const access = useLegacyLearningAccess(learningUnit?.bookId ?? '')
   const [responses, setResponses] = useState<Record<string, string>>({})
   const [submitted, setSubmitted] = useState<Record<string, boolean>>({})
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
@@ -28,13 +37,13 @@ export function PracticeActivityPage() {
 
   if (!learningUnit) return <NotFoundPage />
 
-  const canRenderBody = owned && !loading && !error
+  const canRenderBody = access.kind === 'owned'
 
   return (
     <section className="page practice-activity-page" lang={getActiveLocale()} aria-labelledby="practice-activity-title">
       <div className="practice-activity-page__intro">
         <p className="product-mode-page__eyebrow" lang={getActiveLocale()}>
-          {ui.practicePrefix} <span lang="en">{learningUnit.courseLabel}</span>
+          {ui.practicePrefix} <span lang={learningUnit.courseLabelLanguage}>{learningUnit.courseLabel}</span>
         </p>
         <h1 className="page__title" id="practice-activity-title">
           <span lang="ja">{learningUnit.title}</span> · {ui.practiceLabel}
@@ -44,6 +53,8 @@ export function PracticeActivityPage() {
         </p>
         {canRenderBody && <p className="page__lead">{renderLearningText(learningUnit.practice.lead)}</p>}
       </div>
+
+      <LegacyLearningAccessNotice kind={access.kind} />
 
       {canRenderBody && <div className="practice-activity-grid">
         {learningUnit.practice.exercises.map((exercise, index) => {
