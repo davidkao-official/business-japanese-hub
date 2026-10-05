@@ -1,6 +1,6 @@
 # Business Japanese Hub — Design System「Source & Gloss on Tachiko」
 
-> **狀態：canonical / 視覺與互動設計 authority（v3.0，2026-10-05）。**
+> **狀態：canonical / 視覺與互動設計 authority（v3.0.1，2026-10-05）。**
 >
 > 本文件定義 Business Japanese Hub 整個產品（main frontend 與 Career Game）的視覺識別、typography、色彩、marks、shell／navigation、components、各 surface 的 presentation grammar、states 與 implementation sequence。
 >
@@ -138,6 +138,8 @@ Tachiko Sheet 自己就區分兩種系統：**application chrome** 與**使用�
 4. Compatibility aliases      --desk …   只供 migration；S12 刪除
 ```
 
+Alias 必須保持**原本的配對語意**：`--ink-inverse`（ink 底上的文字）對應 `surface.content`，**不是** `action.primary.foreground`（violet 上的白字）。兩者在 light 剛好都是白色，但在 dark 會變成白底白字（v3.0 的 R3）。新的 recipe 一律寫完整的 foreground／background 配對。
+
 - Component 只透過自己的 recipe 使用 1–3 層；不得直接寫 hex（S12 raw-hex lint）。
 - Role 名稱沿用 Tachiko 的 ID（`surface.chrome` → `--role-surface-chrome`），兩個產品的讀者看得懂同一個名字。Tachiko 的 `--ts-*` 是它的 private 名稱，BJH 不使用。
 - BJH 不消費的 Tachiko roles（`grid.line.vertical`、`selection.header.*` 等）照樣保留在 token 檔中但不使用，以維持 role set 完整。
@@ -204,11 +206,11 @@ V1 根元素 `lang="ja"`。**字體跟著 `lang`，不跟著頁面 locale**（`:
 | 角色 | 用途 | Stack | Owner |
 | --- | --- | --- | --- |
 | **原文**（`.material`） | キーフレーズ、例文、商業原文、問題文、Reader 正文預設 | Hiragino Mincho ProN → BIZ UDPMincho → Yu Mincho → Noto Serif JP／CJK JP → 退回黑體 | BJH（material plane） |
-| **解説・介面・紀錄**（`:lang(ja)`） | 解説、標題、按鈕、紀錄、所有 UI | Hiragino Sans → Hiragino Kaku Gothic ProN → BIZ UDPGothic → Yu Gothic UI → Meiryo → Noto Sans JP／CJK JP → system-ui | Tachiko `system-local` recipe，日文字型優先 |
+| **解説・介面・紀錄**（`:lang(ja)`） | 解説、標題、按鈕、紀錄、所有 UI | Hiragino Sans → Hiragino Kaku Gothic ProN → BIZ UDPGothic → Yu Gothic UI → Meiryo → Noto Sans JP／CJK JP → system-ui | **BJH**（stack 與順序是 BJH 自己的；與 Tachiko 共用的只有「只用本機字型」的政策） |
 | English（`:lang(en)`） | 品牌字、專有名詞 | system-ui → Segoe UI → Helvetica Neue | Tachiko |
 | **Post-V1 support slots** | 只用於 support language 層 | `--font-zh-hant`、`--font-zh-hans`、`--font-ko` 已預留；**不得**用於原文或解説 | BJH |
 
-- **不採用 Tachiko 預設 stack 的順序**（Inter → Hiragino Sans → **Noto Sans TC**）：在 `lang="ja"` 的文字前面放繁中字型會造成 B2 的字形錯誤；Inter 也很少安裝在使用者裝置上，會讓同一頁在不同機器上混用兩種拉丁字形。BJH 使用 Tachiko 已核准的 `system-local` 類型（系統 UI 字型＋本機 CJK），把日文字型放在最前面（D35）。
+- **字體 stack 是 BJH override，不是 Tachiko recipe。** Tachiko 的兩個 typography 選項都把繁中字型放進同一個 stack：`tachiko-local` 為 Inter → ui-sans-serif → system-ui → -apple-system → Hiragino Sans → Noto Sans TC → Microsoft JhengHei；`system-local` 為 system-ui → -apple-system → Hiragino Sans → Noto Sans CJK JP → Noto Sans TC → Microsoft JhengHei（tachiko-sheet `src/ui/sheet-shell.css` @ `0e6a052`）。BJH 不採用任何一個：`lang="ja"` 的文字只用日文字型（避免 B2 的字形錯誤），拉丁字形跟隨日文字型（Inter 很少安裝，會讓不同機器混用兩種拉丁字形），繁中只出現在 post-V1 support slot。**與 Tachiko 共用的只有政策**：只用本機字型、不下載、不合成字重、數字 tabular（D35）。
 - **為什麼原文用明朝、解説用黑體：** 三層都是日文時，字體角色是最清楚、也最符合讀者既有習慣的區分方式。**標題與介面永遠不用明朝。**
 
 Scale：**採用 Tachiko 的階層**（28 display／20 section／18 title／14 body／12 label），**為日文閱讀調整行高、caption 下限與長文字級**（16px root，字距 0）：
@@ -221,7 +223,7 @@ Scale：**採用 Tachiko 的階層**（28 display／20 section／18 title／14 b
 | `size-title-3` | 18px / 1.5 / 600 | 小標 | Tachiko title 18 |
 | `size-body` | 16px / 1.8 | 解説段落、長文 | BJH override（日文長文） |
 | `size-ui` | 14px / 20px | 按鈕、導覽、rows、表格 | Tachiko body 14/20 |
-| `size-caption` | 13px / 1.5（最小資訊字級） | label、狀態、metadata | Tachiko label 12／meta 11 → BJH 13（漢字可讀下限） |
+| `size-caption` | 13px / 1.5（最小資訊字級） | label、狀態、metadata、**tab bar label、`AccessChip`** | Tachiko label 12／meta 11 → BJH 13（漢字可讀下限）；**任何承載資訊的文字都不得小於 13px**（唯一例外：原文中上標的丸数字，其大小相對原文且 ≥13px） |
 | `size-material-key` | clamp(20px → 26px) / 1.85 | キーフレーズ | BJH |
 | `size-material` | 18px / 1.95 | 原文、問題文、例文 | BJH |
 
@@ -244,7 +246,7 @@ Scale：**採用 Tachiko 的階層**（28 display／20 section／18 title／14 b
 | **〇 ×** | 日本的〇×表、答案用紙 | 正解／不正解 | 永遠附文字；「未確認」用虛線圓。**只用於有正誤的作答**（Practice 與其確認問題）；不用於 Career Game 的判斷結果（D25），**也不用於系統狀態**（保存、access、版本：用 §6 `Notice`／狀態列，D33）。logic-grid 等資料表中的〇×是資料，用 ink、不用 ok／ng 色。 |
 | **Genre label** | 文件種類 | 告訴讀者這是哪一種日文 | sheet 左上：`例文`、`原文`、`問題`、`キーフレーズ` ＋ 場面（「上司へ・口頭またはチャット」）。 |
 
-Tachiko 的 dotted cue（計算值、參照值、warning 值「保留虛線」）在 BJH 對應為「尚未成立」：**データ不足**與**未確認**用虛線；其他 StatePanel 用實線（D36）。
+**虛線（BJH 自己的語意，D36）：** 在 BJH，虛線／點線只表示「**尚未成立**」——データ不足、未確認（`ResultMark`）、以及尚未提供的保留位置（#122 的理解・応用、post-V1 support slot）。這是 BJH 的定義：Tachiko 的 dotted cue 標示的是計算值、參照值與 warning 值，概念相近（「這個值不是直接、確定的事實」）但**不是同一個語意**，BJH 不宣稱沿用。其他所有狀態——空、ログイン、Plus、エラー、**disabled**——都用實線；分隔線與 NoteTrigger 的底線也是實線。
 
 ### 4.5 Shape、space、density、elevation、motion
 
@@ -273,7 +275,7 @@ Tachiko 的線性 icon 風格（約 1.5px stroke、24px grid），只用於 tab 
 
 - 64px，Tachiko porcelain head（§4.1）＋下緣 1px `border.subtle`；不使用半透明或 blur。
 - 目前 mode：Tachiko View tab 的文法——`accent.foreground` 粗體文字＋2px `selection.active.border` 底線（`aria-current="page"`）。**不用 marker**（D32）。
-- Plus 用 `AccessChip`（accent），ログイン用 primary `Button` sm（視覺 36px、點擊區 44px）；アカウント用 secondary。
+- Plus 用 `AccessChip`（accent）；ログイン與アカウント都用 **secondary** `Button` sm（視覺 36px、點擊區 44px）。Header 是全域 chrome，不佔用頁面的 primary：**「一個畫面最多一個 primary」指的是頁面內容（含 focus mode 的 action bar）**，所以首頁 hero 的「SPI の問題を試す」與 header 的ログイン不衝突（R4）。
 - **V1 沒有語言切換器**（D18）：V1 只開放 `ja`。#156 的 locale 架構、persistence、鍵盤行為保留在程式中；當某個 locale 完整上線時，切換器出現在 footer 與「その他」，**不放回 header**。
 
 ### 5.2 Mode labels（D8）
@@ -299,7 +301,7 @@ Breakpoints 採用 Tachiko 的 600／1024 轉換點與 320px reflow（§11）。
   - < 360px（含 320px reflow）：只顯示 30px glyph，連結保留 accessible name「Business Japanese Hub ホーム」，且連結本身仍是 **44×44px** 點擊區。
   - 驗收：320／360／390 × 未ログイン（ログイン）／已登入（アカウント）× 至少兩種字型環境（Apple 系統字型，以及 Windows 或 Linux 的 fallback），皆無水平捲動。參考：`narrow-320-*`、`narrow-360-*` 截圖。
 - **底部 tab bar**：`学ぶ／読む／練習／学習記録／その他`。「その他」是 `<button aria-haspopup="dialog">`，開啟 `Dialog`（sheet placement，§6）：体験（Career Game，另一個 origin，標示「別サイトで開きます」）、Plus、Business Japanese Hub について、外観、規約・ポリシー（post-V1 才加入表示言語）。參考：`practice.html#more`。
-- Tab bar 底色 `surface.chrome`＋上緣 hairline（Tachiko 底部 Views 列的文法）；safe-area、44px 點擊區；目前 tab 為 `accent.foreground` 粗體＋上緣 2px `selection.active.border`（不用 marker）；專注模式中隱藏。
+- Tab bar 底色 `surface.chrome`＋上緣 hairline（Tachiko 底部 Views 列的文法）；safe-area、44px 點擊區；label 13px（`size-caption`，不得更小）；目前 tab 為 `accent.foreground` 粗體＋上緣 2px `selection.active.border`（不用 marker）；專注模式中隱藏。
 
 ### 5.4 Focus mode（runner、Reader、書いてみる）
 
@@ -312,7 +314,7 @@ Breakpoints 採用 Tachiko 的 600／1024 轉換點與 320px reflow（§11）。
 
 品牌一句話、mode 連結、Plus／について、規約・ポリシー、外観、販売事業者表示（post-V1 加入表示言語）。
 
-**外観（System／Light／Dark）：** 位置維持 footer 與「その他」（#155；BJH header 已有 5 個 mode＋Plus＋帳號，不仿照 Tachiko 把 Appearance 放進 header）。互動採用 Tachiko Appearance 的契約：一組 single-choice radio group（視覺為 segmented，選取＝`accent.background`＋`accent.foreground`），方向鍵在組內移動；選擇只改變 application appearance；**偏好寫入失敗時保留本次 session 的外觀並告知「保存できませんでした」**；讀取失敗或資料損壞時回到 System 並告知，**不阻擋頁面**；作答或輸入中不因其他分頁的變更而自動切換外觀（D39）。
+**外観（System／Light／Dark）：** 位置維持 footer 與「その他」（#155；BJH header 已有 5 個 mode＋Plus＋帳號，不仿照 Tachiko 把 Appearance 放進 header）。互動採用 Tachiko Appearance 的契約：一組 single-choice **radio group**——原生 `<fieldset>`＋`<legend>外観</legend>`＋三個 `<input type="radio">`（或等價的 `role="radiogroup"`／`role="radio"`＋`aria-checked`＋roving tabindex），**不是** `aria-pressed` 的按鈕組；視覺為 segmented（選取＝`accent.background`＋`accent.foreground`，focus ring 畫在可見的 segment 上），方向鍵在組內移動並選取；選擇只改變 application appearance；**偏好寫入失敗時保留本次 session 的外觀並告知「保存できませんでした」**；讀取失敗或資料損壞時回到 System 並告知，**不阻擋頁面**；作答或輸入中不因其他分頁的變更而自動切換外觀（D39）。
 
 ---
 
@@ -322,15 +324,15 @@ Reference CSS：[`docs/design/reference/reference.css`](design/reference/referen
 
 | Component | Owner | 職責 | 關鍵規則 |
 | --- | --- | --- | --- |
-| `Button` | Tachiko | primary（violet）／secondary／quiet | Tachiko recipe：primary＝`action.primary.*`（hover／pressed）；secondary＝白底＋1px `border.control`（Tachiko `.ts-button`）；quiet＝無框文字 command；disabled＝`surface.inset`＋`state.disabled`；busy＝顯示「…中」標籤並抑制重複送出（Tachiko）。44px（sm：視覺 36px，點擊區 44px）；radius 7px；label 不換行；一個畫面最多一個 primary |
+| `Button` | Tachiko | primary（violet）／secondary／quiet | Tachiko recipe：primary＝`action.primary.*`（hover／pressed）；secondary＝白底＋1px `border.control`（Tachiko `.ts-button`）；quiet＝無框文字 command；pressed：primary＝`action.primary.pressed`＋白字，secondary＝Tachiko `.ts-button:active` 的填色（`--recipe-secondary-pressed`）＋`text.primary`——**每個 variant 的每個狀態都是完整的前景／背景配對**，pressed 不得從另一個 variant 繼承（R2；以「指標在按鈕外、按住 Space」驗收）；disabled＝`surface.inset`＋`state.disabled`，優先於所有狀態；busy＝顯示「…中」標籤並抑制重複送出（Tachiko）。44px（sm：視覺 36px，點擊區 44px）；radius 7px；label 不換行；頁面內容最多一個 primary（header 不計，§5.1） |
 | `TextLink` | Tachiko | 次要導向 | `text.link`；永遠有底線；獨立使用時點擊區 44px；句中的行內連結除外（§10） |
-| `AccessChip` | Tachiko 外觀／BJH 語意 | 無料／Plus／ログインが必要 | 4px radius chip。Plus＝`accent.background`＋`accent.foreground`；無料／ログインが必要＝中性（`border.control` 框、`text.secondary`）。**不用 marker**（D32）；access 由 server 判定 |
+| `AccessChip` | Tachiko 外觀／BJH 語意 | 無料／Plus／ログインが必要 | 4px radius、高 24px、13px 文字。Plus＝`accent.background`＋`accent.foreground`；無料／ログインが必要＝中性（`border.control` 框、`text.secondary`）。**不用 marker**（D32）；access 由 server 判定 |
 | `Sheet` | BJH | 原文容器 | genre label 必填 |
 | `Material` | BJH | 原文文字 | 明朝角色；`--key` 用於キーフレーズ |
 | `Mark` | BJH | marker | 只接受 authored range 或 exact match |
 | `Kaisetsu`／`GlossList` | BJH | 日文解説（含 ①②③ 清單） | 黑體、`bjh.text.gloss`、與原文同號 |
 | `SupportNote`（post-V1） | BJH | 母語補足 | 收合、在解説之下、該語言字體；V1 不實作 |
-| `ChoiceRow` | BJH（Tachiko selection／focus） | 選項的**外觀與互動** | ≥52px；row、key、文字、狀態（default／hover／focus／selected／disabled）與一個結果欄位。兩種 mode：**select**（radio／checkbox；Practice；另有送出動作；key 為 A, B, C…，數量依資料）與 **commit**（`<button>`；Career Game；按下即是決定；key 為 1, 2, 3…）。選取＝2px `selection.active.border`＋`selection.row.background`，key 填 `action.primary`（Tachiko active cell 的文法：選取邊框與 focus ring 各自獨立）；**focus 畫在可見的 row 上**（`:has(:focus-visible)`：3px ring＋2px clearance，以位置與間隙和選取邊框區分）；評分後 ok／ng 取代選取外觀。**結果欄位的意義由產品提供**：Practice 用 `ResultMark`，Career Game 用 `OutcomeVerdict`；ChoiceRow 本身不定義正誤 |
+| `ChoiceRow` | BJH（Tachiko selection／focus） | 選項的**外觀與互動** | ≥52px；row、key、文字、狀態（default／hover／focus／selected／disabled）與一個結果欄位。兩種 mode：**select**（radio／checkbox；Practice；另有送出動作；key 為 A, B, C…，數量依資料）與 **commit**（`<button>`；Career Game；按下即是決定；key 為 1, 2, 3…）。選取＝2px `selection.active.border`＋`selection.row.background`，key 填 `action.primary`（Tachiko active cell 的文法：選取邊框與 focus ring 各自獨立）；**focus 畫在可見的 row 上**（`:has(:focus-visible)`：3px ring＋2px clearance，以位置與間隙和選取邊框區分）；評分後 ok／ng 取代選取外觀；disabled＝實線 `border.subtle`＋`surface.inset`＋`state.disabled`（不用虛線，D36）。**結果欄位的意義由產品提供**：Practice 用 `ResultMark`，Career Game 用 `OutcomeVerdict`；ChoiceRow 本身不定義正誤 |
 | `ResultMark` | BJH | 〇／×／未確認 | 必附文字；只用於有正誤的作答 |
 | `OutcomeVerdict` | BJH | Career Game 的判斷結果 | 作者設定的 `strong`／`mixed`／`risky`，以產品既有標籤顯示（効果的な判断／状況次第の判断／リスクのある判断）；三者同一中性樣式；不用〇×、ok／ng、赤入れ；meter 變化以文字 chip（「信頼 +1」）（D25） |
 | `CheckpointLadder` | BJH | 作者設定的確認問題 | 0..n 題，依作者順序；標籤依 `dimension`（meaning＝題意、representation＝整理、execution＝処理）；每步：作者的 prompt＋`ResultMark` 或「回答中／未回答」；附「原因の判定ではありません」；沒有確認問題時不顯示（§7.3 C） |
@@ -344,7 +346,7 @@ Reference CSS：[`docs/design/reference/reference.css`](design/reference/referen
 | `NoteTrigger` | BJH | Read 原文中的 marked phrase | `<button>`，accessible name＝語句＋「注n」；Enter／Space／點擊開啟對應注的 `Dialog`；行內元素，不改變原文的斷行 |
 | `Tabs` | Tachiko | 區塊切換 | Tachiko tab 外觀（選取＝`accent.foreground`＋2px `selection.active.border` 底線）；ARIA tabs pattern（左右鍵、roving tabindex）；每個 tab 44px |
 | `Field` | Tachiko | 文字、數值輸入 | Tachiko labeled field：label 永遠在上方；1px `border.control`、hover、focus-visible（3px ring）、disabled、invalid（`state.error` 邊框＋相鄰並以 `aria-describedby` 連結的錯誤文字）、invalid＋focus；focus 不提交草稿；IME 組字中不驗證。44px；數值用 `inputmode="decimal"` |
-| `Notice` | Tachiko | 系統狀態回饋 | Tachiko feedback bar：`state.*` 底色＋icon（✓／?／!）＋文字，永遠以文字說明；放在結果發生的位置附近（Tachiko「feedback lands near consequence」）；`role="status"`／`alert`。**不用於作答正誤**（D33） |
+| `Notice` | Tachiko | 系統狀態回饋 | Tachiko feedback bar：`state.*` 底色＋icon＋文字。Icon 固定對應：success＝✓、warning＝?、error＝!；**BJH 只把 warning 用於 unknown 的結果**（例：保存できたか確認できません），所以 warning 的 glyph 是 ?，不是 !。永遠以文字說明；放在結果發生的位置附近（Tachiko「feedback lands near consequence」）；`role="status"`／`alert`。**不用於作答正誤**（D33） |
 | `Checkbox`／`Radio`／`Select`／`Menu` | Tachiko | 一般表單與選單 | Tachiko 外觀與鍵盤：checkbox 選取＝`action.primary`；select／menu 10px radius＋`shadow-menu`；menu 方向鍵移動、Enter 執行、Escape 回到觸發元素、**不在 menu 內 trap focus**。BJH 的作答選項不用這些，用 `ChoiceRow` |
 
 所有元件的文字來自 i18n keys；版面需容納比日文長約 1.5–2 倍的字串（未來 en／ko）而不破版——這是唯一允許在地化影響 V1 的地方：**不寫死寬度**。
@@ -532,7 +534,7 @@ WCAG 2.2 AA（§4.2 實測值）；marker、顏色、〇×、outcome 皆不單�
 - **Dialog：** 依 §6 `Dialog`。
 - **Reflow 與縮放：** 320 CSS px 寬（相當於 1280px 視窗 400% zoom）無水平捲動，帳號控制項可用；200% zoom；text spacing override 不截斷。
 - `prefers-reduced-motion`、System／Light／Dark。
-- **Forced colors（Tachiko contract，v2 未定義）：** 使用系統色、真實的 border 與 outline、可見的 label；所有 role 色被系統色取代；focus 用 `Highlight`；`ChoiceRow` 的選取／正誤以 2px `Highlight` 邊框＋既有文字區分；marker 用 `Mark`／`MarkText`，①②③ 與文字保留；系統狀態與 〇× 依其文字與 glyph 仍可辨識（D41）。
+- **Forced colors（Tachiko contract，v2 未定義）：** 使用系統色、真實的 border 與 outline、可見的 label；所有 role 色被系統色取代；focus 用 `Highlight`；`ChoiceRow` 的選取／正誤以 2px `Highlight` 邊框＋既有文字區分；`ResultMark` 的 × 在 forced colors 下改用真正的字元（✕），因為漸層會被移除——在文字被視覺隱藏的位置（学習記録 的最近の解答）也必須仍看得到正誤；外觀 radio 的選取用 `Highlight`／`HighlightText`；marker 用 `Mark`／`MarkText`，①②③ 與文字保留；系統狀態與 〇× 依其文字與 glyph 仍可辨識（D41）。
 
 ---
 
@@ -610,8 +612,8 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | **D32** | **Marker 只標日文**：不用於導覽目前位置、tab bar、focus halo、選取底色、Plus chip、資料長條 | v2 的 reference 在五個地方把 marker 當介面狀態，違反 D6「意義必須單一」；這些角色在 Tachiko 都有既有的 role |
 | **D33** | **系統狀態與作答正誤分開**：保存／access／版本用 Tachiko `Notice`／狀態列（success／warning／error），unknown 是 warning 而非 error；〇× 只用於作答；重試只在既有 idempotency key 下允許 | v2 用〇與 ng 色表示保存狀態，把「保存成功」與「正解」混為一談；Tachiko 要求 pending／saved／failed／unknown 不混淆、unknown 不盲目重試 |
 | **D34** | **`mark.ng` 保留朱色紅筆，不改為 Tachiko error 的 rose**；`mark.ok` 與 Tachiko success 同色相 | 答錯是學習訊號，不是系統錯誤；赤入れ的文化意義需要朱色；〇與 success 同為「肯定」，以 glyph 區分 |
-| **D35** | **介面字體採 Tachiko `system-local` 類型、日文字型優先**；不採用 Tachiko 預設 stack 的 Inter → 繁中順序；只用本機字型 | `lang="ja"` 前面放繁中字型會重現 B2；Inter 很少安裝；本機字型政策兩邊一致 |
-| **D36** | **虛線只表示「尚未成立」**（データ不足、未確認）；其他 StatePanel 用實線 `surface.inset` | 與 Tachiko 的 dotted cue（計算／參照／warning 值）同一語法；v2 對所有狀態都用虛線，稀釋了它的意義 |
+| **D35** | **介面字體 stack 是 BJH override**：日文字型優先、`lang="ja"` 不含繁中字型、不放 Inter；不採用 Tachiko 的 `tachiko-local` 或 `system-local` stack。**與 Tachiko 共用的只有政策**：只用本機字型、不下載、tabular 數字 | 兩個 Tachiko stack 都含繁中字型，用於 `lang="ja"` 會重現 B2；Inter 很少安裝 |
+| **D36** | **虛線只表示「尚未成立」**（データ不足、未確認、尚未提供的保留位置）；其他狀態（含 disabled）、分隔線與 NoteTrigger 底線都用實線。**這是 BJH 自己的語意**，與 Tachiko 的 dotted cue（計算／參照／warning 值）概念相近但不相同 | v2 對所有狀態都用虛線，稀釋了它的意義 |
 | **D37** | **Tachiko 的 comfortable 視覺密度＋BJH 44px 觸控下限**；Button／Field 由 48px 改為 44px | Tachiko 32／36px 是桌機試算表密度；BJH 是通勤手機優先的消費者產品（D9、D28） |
 | **D38** | **家族 glyph**：Tachiko 的圓角 prism 方塊＋BJH 的「 」與 marker；不加「by Tachiko」 | 容器表示家族、內容表示產品；命名屬產品決策；正式 logo 仍是 D24 的後續資產工作 |
 | **D39** | **外觀維持 footer／その他**，採用 Tachiko Appearance 的 radio group 與偏好真實性規則（寫入失敗告知、讀取失敗不阻擋） | BJH header 已滿；#155 的位置決定仍成立；互動語法與家族一致 |
@@ -686,6 +688,7 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | **v2.3**（PR #192 獨立審查） | Career Game 結果寫成〇×；runner 以單一計算題為準；ChoiceRow focus 不可見；窄 header 溢出；overlay 只有名稱 | Career Game 保留 strong／mixed／risky（D25）；runner 依既有輸入／確認問題／保存矩陣（D26）；`Dialog` 與 `NoteTrigger` 的互動 contract（D27）；focus 與 44px 點擊區（D28）；窄 header 與 320 reflow QA（D29）；Read 為 #122 保留位置（D30）；新增 `runner-states.html`、`game.html` 與 overlay／focus／窄螢幕截圖 |
 | **v2.3.1**（`0389757` 的再審查 R1–R3） | 寬表格／logic-grid 撐開整頁；multi-select 的方形 key 被圓形規則覆蓋；< 360px glyph-only 連結只有 30×44 | Representation 的 min-width 鏈與可鍵盤捲動的區域（§7.3 B）；方形 key 的 cascade 修正；glyph-only 連結 44×44（§5.3）；新增寬表／6×6 grid fixture 與 `narrow-320-runner-states-table` 截圖 |
 | **v3.0**（#206，2026-10-05） | 獨立的 Source & Gloss foundation（ink 按鈕、暖灰 desk、marker 兼任導覽／focus／Plus／選取、〇與 ng 兼任保存狀態、全部虛線 StatePanel、無 forced colors、960px） | **Tachiko family foundation**（§4.0）：Tachiko roles／geometry／type ladder／controls／overlays／protected states／forced colors／600–1024；Source & Gloss 只擁有 material plane 與 marks；marker 只標日文（D32）；系統狀態與〇×分開（D33）；dark 為 BJH 推導、不引入 Interface Profiles（D41）；家族 glyph（D38）；reference tokens／CSS／截圖全部重產；§18 reconciliation ledger |
+| **v3.0.1**（PR #207 兩份獨立審查 @ `e50aa0f`） | dark 的 ink 底提示條白底白字；secondary 按鈕 pressed 繼承 violet（1.69:1）；forced colors 下 × 消失；tab bar 11px、chip 12px；warning 用 !；disabled 用虛線；外觀用 `aria-pressed`；header ログイン的 primary 規則互相矛盾；字體與虛線的來源寫得過度概括 | `--ink-inverse` → `surface.content`；每個 button variant 的完整狀態配對；forced colors 的 ✕ 字元；13px 下限套用到 tab bar 與 chip；warning＝?；disabled 實線；原生 radio group；header 的帳號控制項為 secondary、primary 規則限定頁面內容；D35／D36 明確標示為 BJH override。只修正 recipe 與一致性，不改 §4.0 的分界與任何產品語意 |
 | **v2.3.2**（#192／#196／#199 integration review，#190） | §12 的 S0 含 B5、S3 含日文 mode labels 與切換器移除；B1 的結構修正與 Dialog 的 reader tokens 未列入驗收 | S0＝B1、B3；B5、B6 與桌機切換器移除歸 S1（#194 實作）；S2 加入 Reader palette 單一定義與實際 cascade 的 B1 test；S3 移除 mobile menu 的切換器；S4 的 `Dialog` 預設 app role tokens。只修正 stage 歸屬與驗收，不改設計決策 |
 
 ---
@@ -698,7 +701,7 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | [`home.html`](design/reference/home.html)、[`practice.html`](design/reference/practice.html)（`#more`：その他 sheet）、[`runner.html`](design/reference/runner.html)（`#question`／`#checkpoint`／`#feedback`）、[`learn.html`](design/reference/learn.html)、[`read.html`](design/reference/read.html)（`#note1`：長い注）、[`my-learning.html`](design/reference/my-learning.html)、[`plus.html`](design/reference/plus.html) | 主要 surfaces（responsive；`#dark` 或 `?theme=dark`） |
 | [`runner-states.html`](design/reference/runner-states.html)（`#signin`） | 練習 runner 的輸入類型、representation、確認問題狀態、保存狀態、完了（§7.3） |
 | [`game.html`](design/reference/game.html)（`#decision`／`#strong`／`#mixed`／`#risky`） | Career Game：commit choices 與三種判斷結果（§7.12），使用已公開的實際內容 |
-| [`tokens.css`](design/reference/tokens.css)、[`reference.css`](design/reference/reference.css) | Token 規格與參考 component CSS |
+| [`tokens.css`](design/reference/tokens.css)、[`reference.css`](design/reference/reference.css)、[`appearance.js`](design/reference/appearance.js)（外觀 radio group 的參考接線，不保存偏好） | Token 規格與參考 component CSS |
 | [`screenshots/`](design/reference/screenshots/) | 1440 桌機、390 手機（2x）、dark 樣本；`narrow-320-*`／`narrow-360-*`（窄 header；`narrow-320-runner-states-table`：寬表在自己的區域內捲動）、`focus-*`（ChoiceRow focus）、`*-more-sheet`／`*-read-note`／`*-runner-signin`（Dialog 開啟狀態）、`*-game-*`（三種判斷結果）；以及 `audit-live-*` 現況證據 |
 
 參考稿只使用已公開的 `non-proprietary-teaching-sample` 內容（日文原文部分）、Career Game 已公開的 `upward-disagreement` 內容（`game.html`），與為本參考原創、標示「サンプル」的範例；Learn／Read 的日文解説為本參考撰寫（現行資料為繁中）。学習記録與結果畫面的數字是版面用示意資料。
@@ -732,18 +735,18 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | Button（primary／secondary／quiet／busy）、labeled Field 的六種狀態、Checkbox、Select／Menu、Tabs、Notice、ListRow、Dialog 外觀 | 「同一個意義產生同一種互動期待」（Tachiko ui-quality-contract §1.10） |
 | 互動契約：label 在上、錯誤相鄰、menu 不 trap focus、Escape 回到觸發元素、busy 抑制重複、unknown 不盲目重試、回饋靠近結果 | BJH 的 runner 與表單都直接受益 |
 | 600／1024 轉換點與 320px reflow | 一套 responsive 詞彙（D40） |
-| 本機字型政策、tabular 數字 | 與 BJH D4 一致 |
+| 本機字型**政策**（不下載、不合成字重）、tabular 數字 | 與 BJH D4 一致；字體 stack 本身是 BJH override（D35） |
 
 **Adapt（採用文法，調整值或範圍）**
 
 | 項目 | Tachiko | BJH | 理由 |
 | --- | --- | --- | --- |
-| 字體 stack | Inter → Hiragino Sans → Noto Sans TC | Tachiko `system-local` 類型、日文字型優先 | B2；`lang="ja"`（D35） |
+| 字體 | 政策：只用本機字型；stack：`tachiko-local`（Inter 起頭）／`system-local`，兩者都含繁中字型 | **政策照用；stack 是 BJH override**（日文字型優先、ja 不含繁中、不放 Inter） | B2；`lang="ja"`（D35） |
 | Type scale | 28／20／18／14／12／11，行高約 1.3 | 同階層；日文行高 ≥1.4；解説 16／1.8、原文 18／1.95；caption 下限 13 | 日文長文與漢字可讀性 |
 | Density | compact 32／comfortable 36 | comfortable 視覺＋44px 觸控下限；ChoiceRow ≥52 | 手機優先的消費者產品（D37） |
 | Color scheme | light-only | System／Light／Dark，dark 為 BJH 推導 | 既有使用者行為（D41） |
 | Appearance 控制 | header 的 nonmodal popover（profile＋density） | footer／その他 的 System／Light／Dark radio group，沿用偏好真實性規則 | header 空間；#155（D39） |
-| Dotted cue | 計算／參照／warning 值 | データ不足／未確認 | 同一個「尚未成立」的意思（D36） |
+| 虛線 | dotted cue 標示計算／參照／warning 值 | **BJH 自己的語意**：只表示「尚未成立」（データ不足、未確認、保留位置）；disabled 與其他狀態用實線 | 概念相近、語意不同，不宣稱沿用（D36） |
 | Selection | active cell 白底＋2px border，focus 獨立 | ChoiceRow 2px border＋row wash，focus ring 獨立 | 同一文法用在作答選項 |
 | Table 文法 | grid header／lines | Representation、ObservationTable | 唯讀資料表，不是試算表 |
 | Brand mark | Tachiko Sheet 的 prism 方塊＋芽 | prism 方塊＋「 」與 marker | 容器＝家族，內容＝產品（D38） |

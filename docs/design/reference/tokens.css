@@ -67,6 +67,9 @@
   --shadow-menu: 0 10px 30px -8px rgb(39 33 57 / 15%), 0 2px 6px rgb(39 33 57 / 5%);
   --shadow-overlay: 0 16px 48px -12px rgb(37 39 53 / 24%);
   --chrome-head: linear-gradient(108deg, var(--role-surface-chrome-tint) 0%, var(--role-surface-chrome) 35%, var(--role-surface-chrome) 100%);
+  /* Secondary-command pressed fill: Tachiko .ts-button:active recipe value
+     (private --ts-surface-head @ 0e6a052), not a public role. */
+  --recipe-secondary-pressed: #eceef4;
 
   /* ── 2. Protected state recipes (system feedback; never a profile value) ─ */
   --state-success-fg: #206c4e;
@@ -200,6 +203,7 @@
     --shadow-menu: 0 10px 30px -8px rgb(0 0 0 / 50%);
     --shadow-overlay: 0 16px 48px -12px rgb(0 0 0 / 60%);
     --chrome-head: var(--role-surface-chrome);
+    --recipe-secondary-pressed: #262833;
     --state-success-fg: #6fd3a5;
     --state-success-bg: #12301f;
     --state-warning-fg: #f2b66b;
@@ -254,6 +258,7 @@
   --shadow-menu: 0 10px 30px -8px rgb(0 0 0 / 50%);
   --shadow-overlay: 0 16px 48px -12px rgb(0 0 0 / 60%);
   --chrome-head: var(--role-surface-chrome);
+  --recipe-secondary-pressed: #262833;
   --state-success-fg: #6fd3a5;
   --state-success-bg: #12301f;
   --state-warning-fg: #f2b66b;
@@ -285,7 +290,9 @@
   --ink: var(--role-text-primary);
   --ink-2: var(--bjh-text-gloss);
   --ink-3: var(--role-text-secondary);
-  --ink-inverse: var(--role-action-primary-foreground);
+  /* Inverse of ink = the content surface (dark text in dark mode). Not the
+     primary-action foreground, which stays white on violet in both themes. */
+  --ink-inverse: var(--role-surface-content);
   --rule: var(--role-border-subtle);
   --rule-control: var(--role-border-control);
   --marker: var(--bjh-marker);

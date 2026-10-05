@@ -116,7 +116,7 @@ ul, ol { margin: 0; padding: 0; }
   .tabbar a, .tabbar button {
     border: 0; background: none; font: inherit; cursor: pointer;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    text-decoration: none; color: var(--role-text-secondary); font-size: 0.6875rem; line-height: 1.2; min-height: var(--tap-min);
+    text-decoration: none; color: var(--role-text-secondary); font-size: var(--size-caption); line-height: 1.2; min-height: var(--tap-min);
     position: relative;
   }
   .tabbar svg { width: 22px; height: 22px; }
@@ -147,12 +147,17 @@ ul, ol { margin: 0; padding: 0; }
 .ftr li a, .ftr__brand .brand { display: inline-flex; align-items: center; min-height: var(--tap-min); min-width: var(--tap-min); }
 .ftr a:hover { text-decoration: underline; }
 .ftr__base { margin-top: var(--space-7); padding-top: var(--space-4); border-top: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: var(--space-4); justify-content: space-between; align-items: center; color: var(--ink-3); font-size: var(--size-caption); }
-.seg { display: inline-flex; border: 1px solid var(--rule-control); border-radius: var(--radius-control); overflow: hidden; }
-.seg { overflow: visible; }
-.seg button { border: 0; background: none; color: var(--ink-2); font: inherit; font-size: var(--size-caption); padding: 6px 12px; min-height: 32px; cursor: pointer; position: relative; }
-.seg button:first-child { border-radius: 7px 0 0 7px; }
-.seg button:last-child { border-radius: 0 7px 7px 0; }
-.seg button[aria-pressed="true"] { background: var(--role-accent-background); color: var(--role-accent-foreground); font-weight: var(--weight-bold); }
+/* Appearance: a native single-choice radio group drawn as a segmented
+   control (design-system §5.5). Arrow keys move and select within the group;
+   focus is drawn on the visible segment. */
+.seg { display: inline-flex; margin: 0; padding: 0; border: 1px solid var(--rule-control); border-radius: var(--radius-control); min-inline-size: 0; }
+.seg label { position: relative; display: inline-flex; align-items: center; color: var(--role-text-secondary); font-size: var(--size-caption); padding: 6px 12px; min-height: 32px; cursor: pointer; }
+.seg label:first-of-type { border-radius: 6px 0 0 6px; }
+.seg label:last-of-type { border-radius: 0 6px 6px 0; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; margin: 0; }
+.seg label:has(input:checked) { background: var(--role-accent-background); color: var(--role-accent-foreground); font-weight: var(--weight-bold); }
+.seg label:has(input:focus-visible) { outline: var(--focus-width) solid var(--role-focus-ring); outline-offset: var(--focus-gap); z-index: 1; }
+.seg input:focus-visible { outline: 0; }
 @media (max-width: 759px) { .ftr__grid { grid-template-columns: 1fr 1fr; } .ftr__brand { grid-column: 1 / -1; } }
 
 /* ── Type helpers ───────────────────────────────────────── */
@@ -180,15 +185,19 @@ ul, ol { margin: 0; padding: 0; }
 }
 .btn:hover { background: var(--role-action-primary-hover); border-color: var(--role-action-primary-hover); }
 .btn:active { background: var(--role-action-primary-pressed); border-color: var(--role-action-primary-pressed); }
-.btn[aria-disabled="true"], .btn:disabled { background: var(--role-surface-inset); border-color: var(--rule); color: var(--state-disabled-fg); cursor: not-allowed; }
-/* Secondary command (Tachiko .ts-button): white plane, control border. */
+/* Secondary command (Tachiko .ts-button): white plane, control border. Every
+   state is a complete foreground/background pair, so keyboard activation
+   (Space held with the pointer elsewhere) never inherits the primary fill. */
 .btn--quiet { background: var(--role-surface-content); color: var(--ink); border-color: var(--rule-control); font-weight: var(--weight-medium); }
-.btn--quiet:hover { background: var(--role-surface-inset); border-color: var(--rule-control); }
+.btn--quiet:hover { background: var(--role-surface-inset); color: var(--ink); border-color: var(--rule-control); }
+.btn--quiet:active { background: var(--recipe-secondary-pressed); color: var(--ink); border-color: var(--rule-control); }
+/* Disabled wins over every variant and interaction state. */
+.btn.btn[aria-disabled="true"], .btn.btn:disabled { background: var(--role-surface-inset); border-color: var(--rule); color: var(--state-disabled-fg); cursor: not-allowed; }
 .btn--sm { min-height: var(--control-h-sm); padding: 0 14px; font-size: var(--size-small); position: relative; }
 /* Hit-area extension (§10): controls drawn smaller than 44px keep a 44px target.
    The pseudo-element is transparent and never overlaps a neighbouring target
    because .actions / .seg / header spacing leave at least the extension free. */
-.btn--sm::before, .seg button::before, a.chip::after {
+.btn--sm::before, .seg label::before, a.chip::after {
   content: ""; position: absolute; left: 0; right: 0; top: 50%; height: var(--tap-min); transform: translateY(-50%);
 }
 .btn--block { width: 100%; }
@@ -203,9 +212,9 @@ ul, ol { margin: 0; padding: 0; }
 
 /* ── Chips ──────────────────────────────────────────────── */
 .chip {
-  display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px;
+  display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px;
   border: 1px solid var(--rule-control); border-radius: var(--radius-chip);
-  font-size: 0.75rem; line-height: 1; color: var(--ink-2); white-space: nowrap; font-weight: var(--weight-medium);
+  font-size: var(--size-caption); line-height: 1; color: var(--ink-2); white-space: nowrap; font-weight: var(--weight-medium);
 }
 a.chip { position: relative; text-decoration: none; }
 /* Plus is an access/offer label, not "important Japanese": Tachiko accent, never marker. */
@@ -241,7 +250,7 @@ mark, .mk {
   box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
 .mk--full { background: var(--marker); }
-button.mk { border: 0; font: inherit; color: inherit; cursor: pointer; border-bottom: 1px dashed var(--ink-3); }
+button.mk { border: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: var(--ink-3); text-underline-offset: 4px; }
 
 /* Gloss numerals ①②③ (丸数字) link a marked phrase to its note. They are real
    characters, so Japanese line-breaking (kinsoku) still applies around them. */
@@ -304,7 +313,10 @@ a.row:hover .row__title { text-decoration: underline; text-underline-offset: 3px
 .choice input:focus-visible { outline: 0; box-shadow: none; }
 button.choice { width: 100%; text-align: start; font: inherit; color: inherit; }
 button.choice:focus-visible { outline-offset: var(--focus-gap); border-radius: var(--radius-control); }
-.choice[aria-disabled="true"], .choice:has(input:disabled), button.choice:disabled { cursor: not-allowed; color: var(--ink-3); border-style: dashed; }
+/* Disabled: solid Tachiko disabled recipe. Dashed is reserved for "not
+   established" (データ不足, 未確認), so it never marks unavailability. */
+.choice[aria-disabled="true"], .choice:has(input:disabled), button.choice:disabled { cursor: not-allowed; color: var(--state-disabled-fg); background: var(--role-surface-inset); border-color: var(--rule); }
+.choice[aria-disabled="true"] .choice__key, .choice:has(input:disabled) .choice__key, button.choice:disabled .choice__key { color: var(--state-disabled-fg); border-color: var(--rule); }
 .choice__key {
   width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%;
   border: 1px solid var(--rule-control); font-family: var(--font-en); font-size: var(--size-small); font-weight: var(--weight-bold); color: var(--ink-2);
@@ -347,7 +359,7 @@ button.choice:focus-visible { outline-offset: var(--focus-gap); border-radius: v
 .obs th { font-weight: var(--weight-medium); color: var(--ink-3); font-size: var(--size-caption); }
 .obs td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .frac { font-variant-numeric: tabular-nums; font-weight: var(--weight-bold); }
-.frac small { font-weight: var(--weight-regular); color: var(--ink-3); font-size: 0.8em; }
+.frac small { font-weight: var(--weight-regular); color: var(--ink-3); font-size: max(0.8em, var(--size-caption)); }
 .insufficient { color: var(--ink-3); font-style: normal; display: inline-flex; align-items: center; gap: 6px; }
 .insufficient::before { content: ""; width: 18px; border-top: 2px dotted currentColor; }
 .bar { display: inline-block; width: 64px; height: 6px; background: var(--rule); vertical-align: middle; position: relative; margin-left: 6px; }
@@ -355,8 +367,9 @@ button.choice:focus-visible { outline-offset: var(--focus-gap); border-radius: v
 
 /* ── State panel ────────────────────────────────────────── */
 /* Solid inset for empty / sign-in / Plus / error-recovery panels. Dashed only
-   for "not established" (データ不足, 未確認): the Tachiko dotted-cue grammar for
-   values that are derived or not yet known. */
+   for "not established" (データ不足, 未確認, reserved slots): a BJH-owned meaning,
+   analogous to — not the same as — Tachiko's dotted cue for calculated,
+   referenced and warning values (design-system D36). */
 .state {
   background: var(--role-surface-inset); border: 1px solid var(--rule); border-radius: var(--radius-control);
   padding: var(--space-5); display: grid; gap: var(--space-3); justify-items: start;
@@ -371,7 +384,8 @@ button.choice:focus-visible { outline-offset: var(--focus-gap); border-radius: v
 .notice--success { background: var(--state-success-bg); color: var(--state-success-fg); }
 .notice--success::before { content: "✓"; }
 .notice--warning { background: var(--state-warning-bg); color: var(--state-warning-fg); }
-.notice--warning::before { content: "!"; }
+/* BJH uses the warning tone only for unknown outcomes, so its glyph is "?". */
+.notice--warning::before { content: "?"; }
 .notice--error { background: var(--state-error-bg); color: var(--state-error-fg); }
 .notice--error::before { content: "!"; }
 .state h3 { font-size: var(--size-title-3); }
@@ -490,5 +504,15 @@ textarea.input { min-height: 120px; resize: vertical; }
   .choice.is-selected, .choice.is-correct, .choice.is-wrong { border: 2px solid Highlight; }
   :focus-visible, .choice:has(input:focus-visible) { outline-color: Highlight; }
   mark, .mk { background: Mark; color: MarkText; forced-color-adjust: none; }
+  /* The × is painted with gradients, which forced colors removes. Replace it
+     with a real glyph so the incorrect state stays visible even where the
+     accompanying 不正解 text is visually hidden (My Learning recent answers). */
+  .rm--ng::before { content: "✕"; background: none; display: grid; place-items: center; font-size: 18px; line-height: 1; font-weight: var(--weight-bold); color: CanvasText; }
+  .rm--sm.rm--ng::before { font-size: 14px; }
+  .seg label:has(input:checked) { background: Highlight; color: HighlightText; forced-color-adjust: none; }
+  .seg label:has(input:focus-visible) { outline-color: Highlight; }
+  .btn--quiet { background: ButtonFace; color: ButtonText; }
+  .btn.btn[aria-disabled="true"], .btn.btn:disabled { color: GrayText; border-color: GrayText; }
+  .choice[aria-disabled="true"], .choice:has(input:disabled), button.choice:disabled { color: GrayText; border-color: GrayText; }
   .nav a[aria-current="page"]::after, .tabs button[aria-selected="true"]::after, .tabbar a[aria-current="page"]::before { background: Highlight; }
 }

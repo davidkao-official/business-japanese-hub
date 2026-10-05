@@ -6,6 +6,7 @@
 <title>Plus — Source &amp; Gloss reference</title>
 <link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="reference.css">
+<script src="appearance.js" defer></script>
 <script>(function(){var d=document.documentElement;function tokens(){var q=new URLSearchParams(location.search),h=location.hash.slice(1).split('-').filter(Boolean);['state','open','theme'].forEach(function(k){if(q.get(k))h.push(q.get(k));});return h;}
 function apply(first){var h=tokens();var t=h.indexOf('dark')>-1?'dark':h.indexOf('light')>-1?'light':null;if(t)d.dataset.theme=t;if(!document.body)return;
 var els=[].slice.call(document.querySelectorAll('[data-st]'));if(els.length){var all=[];els.forEach(function(e){e.dataset.st.split(' ').forEach(function(x){if(all.indexOf(x)<0)all.push(x);});});var s=h.filter(function(x){return all.indexOf(x)>-1;})[0]||all[0];d.dataset.state=s;els.forEach(function(e){e.hidden=e.dataset.st.split(' ').indexOf(s)<0;});}
@@ -124,7 +125,7 @@ addEventListener('hashchange',function(){apply(false);});})();</script>
       <li><a href="#">Business Japanese Hub について</a></li>
     </ul>
     <h3 class="caption" style="margin:20px 0 8px">外観</h3>
-    <div class="seg" role="group" aria-label="外観"><button type="button" aria-pressed="true">システム</button><button type="button" aria-pressed="false">ライト</button><button type="button" aria-pressed="false">ダーク</button></div>
+    <fieldset class="seg"><legend class="sr-only">外観</legend><label><input type="radio" name="appearance-1" value="system" checked>システム</label><label><input type="radio" name="appearance-1" value="light">ライト</label><label><input type="radio" name="appearance-1" value="dark">ダーク</label></fieldset>
     <h3 class="caption" style="margin:20px 0 0">規約・ポリシー</h3>
     <ul class="menu-rows">
       <li><a href="#">利用規約</a></li><li><a href="#">プライバシーポリシー</a></li><li><a href="#">特定商取引法に基づく表記</a></li><li><a href="#">返金ポリシー</a></li>
