@@ -93,9 +93,10 @@
   --bjh-mark-ng-soft: #fbe8e3;
 
   /* ── Type roles (local system faces only; no webfont download) ──────────
-     Tachiko policy: local faces, no font distribution. BJH order: Japanese
-     faces first because the root is lang="ja" (Tachiko "system-local" recipe,
-     Japanese-first). Traditional Chinese faces never appear in a ja stack.
+     Shared with Tachiko: the policy only (local faces, no font distribution).
+     The stacks are a BJH override (design-system D35), not a Tachiko recipe:
+     Japanese faces first because the root is lang="ja", no Inter, and no
+     Traditional Chinese face in a ja stack (both Tachiko stacks include one).
        --font-material  原文  Mincho — the document plane (BJH product role)
        --font-ja        解説 + interface — Gothic */
   --font-ja: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic",

@@ -341,7 +341,7 @@ Reference CSS：[`docs/design/reference/reference.css`](design/reference/referen
 | `ObservationTable` | BJH（Tachiko table 文法） | 分野 × 正解／解答 | Tachiko table 文法（`grid.header.*` 表頭、`border.subtle` 橫線、tabular 數字）；永遠只顯示計數；signal 欄依 learning authority 的規則顯示「要確認」或「データ不足」；不顯示比率或 bar，直到 learning authority 定義其門檻（§8.1） |
 | `NextStep` | BJH | 次の一歩 | 一句理由＋一個按鈕 |
 | `ListRow` | Tachiko | 分野、間違えた問題、保存 | `border.subtle` 規則線分隔（Tachiko Home 的 saved-copies rows）；整列為點擊區時 ≥44px |
-| `StatePanel` | Tachiko 外觀／BJH 文案 | 空、データ不足、ログイン、Plus、エラー、版が古い | `surface.inset` 實線面板、標題、一句、一動作；**只有「データ不足」「未確認」用虛線**（Tachiko dotted cue，D36）；保存失敗、版本過期等系統操作結果用 `Notice` |
+| `StatePanel` | Tachiko 外觀／BJH 文案 | 空、データ不足、ログイン、Plus、エラー、版が古い | `surface.inset` 實線面板、標題、一句、一動作；**只有「データ不足」「未確認」用虛線**（BJH 自己的「尚未成立」語意，D36；與 Tachiko 的 dotted cue 不同）；保存失敗、版本過期等系統操作結果用 `Notice` |
 | `Dialog` | Tachiko 外觀／BJH 行為 contract | 唯一的 modal primitive | 由 `src/reader/ReaderDialog.tsx` 一般化（D27）：外觀＝Tachiko modal（`surface.content`、1px `border.subtle`、12px radius、`shadow-overlay`、`state.scrim`；標題 20px；動作列 secondary 在前、primary 在後）。`role="dialog"`＋`aria-modal`＋accessible name；開啟時 focus 移到**有意義的欄位**（例如登入的 email；Tachiko 契約），沒有欄位時移到「閉じる」或第一個控制項、Tab 在內循環、背景不可操作；Escape、scrim、「閉じる」（44px）皆可關閉；關閉後 focus 回到觸發元素；開啟期間鎖定頁面捲動。placement：**sheet**（< 1024px 底部、最高 85dvh、內容在內部捲動、safe-area）、**side**（≥ 1024px 右側 drawer）、**center**。瀏覽器「上一頁」沿用 ReaderDialog：不建立 history entry，dialog 隨頁面離開而關閉。用於：その他、Read 的注、runner 內登入、Reader 既有 overlays |
 | `NoteTrigger` | BJH | Read 原文中的 marked phrase | `<button>`，accessible name＝語句＋「注n」；Enter／Space／點擊開啟對應注的 `Dialog`；行內元素，不改變原文的斷行 |
 | `Tabs` | Tachiko | 區塊切換 | Tachiko tab 外觀（選取＝`accent.foreground`＋2px `selection.active.border` 底線）；ARIA tabs pattern（左右鍵、roving tabindex）；每個 tab 44px |
@@ -484,7 +484,7 @@ About 需要日文主文案（#72 的已核准文案是繁中；日文版屬內�
 | 会員状態を確認できない | StatePanel＋再試行 | ローカルの情報で代用しない |
 | 読み込み中 | 與最終版面同尺寸的 skeleton | — |
 | 空 | StatePanel＋一個起點 | 「まだ…はありません」＋次の一歩 |
-| データ不足 | 虛線（Tachiko dotted cue）＋「データ不足」；不用 marker | 不自行計算門檻或「あと何問」；只有在 learning authority 的規則提供具體數字時才顯示 |
+| データ不足 | 虛線（BJH「尚未成立」，D36）＋「データ不足」；不用 marker | 不自行計算門檻或「あと何問」；只有在 learning authority 的規則提供具體數字時才顯示 |
 | 版が古い | StatePanel＋再読み込み | 「問題の版が更新されました」 |
 | 保存しました | `Notice`／狀態列 success（✓＋文字） | 「保存しました」；不用〇 |
 | 保存できたか不明 | `Notice`／狀態列 **warning**（?＋文字）＋再試行 | 「保存できたか確認できません」；**unknown 不是 failure**，不推測成功也不推測失敗 |
@@ -701,7 +701,7 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | [`home.html`](design/reference/home.html)、[`practice.html`](design/reference/practice.html)（`#more`：その他 sheet）、[`runner.html`](design/reference/runner.html)（`#question`／`#checkpoint`／`#feedback`）、[`learn.html`](design/reference/learn.html)、[`read.html`](design/reference/read.html)（`#note1`：長い注）、[`my-learning.html`](design/reference/my-learning.html)、[`plus.html`](design/reference/plus.html) | 主要 surfaces（responsive；`#dark` 或 `?theme=dark`） |
 | [`runner-states.html`](design/reference/runner-states.html)（`#signin`） | 練習 runner 的輸入類型、representation、確認問題狀態、保存狀態、完了（§7.3） |
 | [`game.html`](design/reference/game.html)（`#decision`／`#strong`／`#mixed`／`#risky`） | Career Game：commit choices 與三種判斷結果（§7.12），使用已公開的實際內容 |
-| [`tokens.css`](design/reference/tokens.css)、[`reference.css`](design/reference/reference.css)、[`appearance.js`](design/reference/appearance.js)（外觀 radio group 的參考接線，不保存偏好） | Token 規格與參考 component CSS |
+| [`tokens.css`](design/reference/tokens.css)、[`reference.css`](design/reference/reference.css)、[`appearance.js`](design/reference/appearance.js)（外觀 radio group 的參考接線，不保存偏好；`<html data-theme>` 是唯一的實際設定來源，radio 與 URL `#dark`／`#light` 兩種路徑之後都由它重新同步，顯示的選取永遠等於實際 theme） | Token 規格與參考 component CSS |
 | [`screenshots/`](design/reference/screenshots/) | 1440 桌機、390 手機（2x）、dark 樣本；`narrow-320-*`／`narrow-360-*`（窄 header；`narrow-320-runner-states-table`：寬表在自己的區域內捲動）、`focus-*`（ChoiceRow focus）、`*-more-sheet`／`*-read-note`／`*-runner-signin`（Dialog 開啟狀態）、`*-game-*`（三種判斷結果）；以及 `audit-live-*` 現況證據 |
 
 參考稿只使用已公開的 `non-proprietary-teaching-sample` 內容（日文原文部分）、Career Game 已公開的 `upward-disagreement` 內容（`game.html`），與為本參考原創、標示「サンプル」的範例；Learn／Read 的日文解説為本參考撰寫（現行資料為繁中）。学習記録與結果畫面的數字是版面用示意資料。

@@ -402,7 +402,7 @@ button.choice:focus-visible { outline-offset: var(--focus-gap); border-radius: v
 /* ── Dialog: the one modal primitive (§6 Dialog) ────────────
    Reference uses native <dialog>.showModal() (modal, inert page, Escape closes,
    focus returns to the trigger). Production generalises src/reader/ReaderDialog.
-   placement: sheet (bottom, < 960px) / side (right drawer, ≥ 960px). */
+   placement: sheet (bottom, < 1024px) / side (right drawer, ≥ 1024px; D40). */
 html:has(dialog[open]) { overflow: hidden; }
 dialog.dlg {
   margin: 0; padding: 0; border: 1px solid var(--rule); color: var(--ink); background: var(--sheet);
