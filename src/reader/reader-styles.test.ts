@@ -151,21 +151,45 @@ describe('Reader/app theme cascade (B1)', () => {
 })
 
 describe('Reader design contract', () => {
-  it('preserves Japanese material Mincho and Reader serif/sans inheritance through nested markup', () => {
+  it('preserves Japanese material and lets explicit language descendants select their own stacks', () => {
     const style = installAppCascade()
     const root = document.documentElement
     root.lang = 'ja'
     const fixture = document.createElement('div')
-    fixture.innerHTML = `<main class="material"><p>原文 <em>強調</em></p></main>
+    fixture.innerHTML = `<main class="material"><p>原文 <em>強調</em></p>
+        <span lang="en" class="material-english">English <span lang="zh-TW" class="material-traditional">繁體中文 <span lang="ja" class="material-japanese-return">日本語 <span lang="zh-CN" class="material-simplified">简体中文 <span lang="ko" class="material-korean">한국어</span></span></span></span></span>
+      </main>
       <span lang="en" class="english-ui">English <span lang="zh-TW" class="traditional-ui">漢字 <span lang="ja" class="japanese-ui">日本語</span></span></span>
       <section class="reader-shell" data-reader-font="serif"><article class="reader-main"><p>文章 <em lang="en">English</em></p></article></section>
       <section class="reader-shell" data-reader-font="sans"><article class="reader-main"><p>文章 <em lang="en">English</em></p></article></section>`
     document.body.append(fixture)
+    let oldRule: HTMLStyleElement | undefined
     try {
       const material = fixture.querySelector('.material')!
       expect(getComputedStyle(material).fontFamily).toBe('var(--font-material)')
       expect(getComputedStyle(material.querySelector('em')!).fontFamily)
         .toBe(getComputedStyle(material).fontFamily)
+      expect(getComputedStyle(fixture.querySelector('.material-english')!).fontFamily).toBe('var(--font-en)')
+      expect(getComputedStyle(fixture.querySelector('.material-traditional')!).fontFamily).toBe('var(--font-zh-hant)')
+      expect(getComputedStyle(fixture.querySelector('.material-japanese-return')!).fontFamily).toBe('var(--font-material)')
+      expect(getComputedStyle(fixture.querySelector('.material-simplified')!).fontFamily).toBe('var(--font-zh-hans)')
+      expect(getComputedStyle(fixture.querySelector('.material-korean')!).fontFamily).toBe('var(--font-ko)')
+
+      // Falsify the former late blanket rule in the same DOM/CSS oracle: it
+      // overrode equal-specificity :lang() declarations inside .material.
+      oldRule = document.createElement('style')
+      oldRule.textContent = '.material * { font-family: inherit; }'
+      document.head.append(oldRule)
+      expect(getComputedStyle(fixture.querySelector('.material-english')!).fontFamily)
+        .toBe(getComputedStyle(material).fontFamily)
+      expect(getComputedStyle(fixture.querySelector('.material-traditional')!).fontFamily)
+        .toBe(getComputedStyle(material).fontFamily)
+      expect(getComputedStyle(fixture.querySelector('.material-simplified')!).fontFamily)
+        .toBe(getComputedStyle(material).fontFamily)
+      expect(getComputedStyle(fixture.querySelector('.material-korean')!).fontFamily)
+        .toBe(getComputedStyle(material).fontFamily)
+      oldRule.remove()
+
       expect(getComputedStyle(fixture.querySelector('.english-ui')!).fontFamily).toBe('var(--font-en)')
       expect(getComputedStyle(fixture.querySelector('.traditional-ui')!).fontFamily)
         .toBe('var(--font-zh-hant)')
@@ -180,7 +204,10 @@ describe('Reader design contract', () => {
       expect(getComputedStyle(serifReader).fontFamily).not.toBe(getComputedStyle(sansReader).fontFamily)
       expect(getComputedStyle(serifReader.querySelector('em')!).fontFamily).toBe('var(--font-reader-serif)')
       expect(getComputedStyle(sansReader.querySelector('em')!).fontFamily).toBe('var(--font-reader-sans)')
+      expect(tokensCss).toMatch(/\.material:lang\(ja\),\s*\.material :lang\(ja\)\s*\{[^}]*font-family:\s*var\(--font-material\)[^}]*line-height:\s*var\(--leading-material\)/s)
+      expect(tokensCss).not.toMatch(/\.material\s*\*\s*\{\s*font-family:\s*inherit/)
     } finally {
+      oldRule?.remove()
       fixture.remove()
       style.remove()
     }

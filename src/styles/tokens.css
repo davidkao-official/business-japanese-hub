@@ -372,8 +372,10 @@
 :lang(zh-Hant), :lang(zh-TW) { --font-ui: var(--font-zh-hant); --font-sans: var(--font-zh-hant); font-family: var(--font-zh-hant); }
 :lang(zh-Hans), :lang(zh-CN) { --font-ui: var(--font-zh-hans); --font-sans: var(--font-zh-hans); font-family: var(--font-zh-hans); }
 :lang(ko) { --font-ui: var(--font-ko); --font-sans: var(--font-ko); font-family: var(--font-ko); }
-.material { font-family: var(--font-material); }
-.material * { font-family: inherit; }
+.material:lang(ja), .material :lang(ja) {
+  font-family: var(--font-material);
+  line-height: var(--leading-material);
+}
 
 :root[data-reader-theme='sepia'] {
   --reader-bg: var(--reader-sepia-bg);
