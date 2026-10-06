@@ -155,7 +155,7 @@
 }
 
 .plus-free-links a:hover {
-  color: var(--color-accent-hover);
+  color: var(--role-text-link);
 }
 
 .plus-free-links a span:first-child {

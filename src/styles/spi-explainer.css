@@ -75,7 +75,7 @@
 
 .spi-explainer__david .spi-explainer__label {
   margin-bottom: var(--space-3);
-  color: var(--color-accent);
+  color: var(--role-accent-foreground);
 }
 
 .spi-explainer__source-note {

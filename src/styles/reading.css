@@ -43,7 +43,7 @@
 .reading-eyebrow,
 .reading-kicker {
   margin: 0 0 var(--space-3);
-  color: var(--color-accent);
+  color: var(--role-accent-foreground);
   font-family: var(--font-sans, sans-serif);
   font-size: var(--text-xs);
   font-weight: 700;
@@ -171,7 +171,7 @@
 
 .reading-access--plus {
   border-color: var(--color-accent);
-  color: var(--color-accent);
+  color: var(--role-accent-foreground);
 }
 
 .reading-card h3 {
@@ -197,7 +197,7 @@
 .reading-books__links a:hover,
 .reading-related a:hover,
 .reading-back:hover {
-  color: var(--color-accent);
+  color: var(--role-text-link);
 }
 
 .reading-card > p {

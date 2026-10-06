@@ -1137,6 +1137,6 @@ html[data-reader-theme] {
 }
 
 .reader-notfound__link {
-  color: var(--color-accent);
+  color: var(--role-text-link);
   font-weight: var(--font-weight-semibold);
 }

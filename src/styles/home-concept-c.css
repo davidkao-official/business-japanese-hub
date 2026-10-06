@@ -60,7 +60,7 @@
 }
 
 .concept-home-hero__accent {
-  color: var(--color-accent);
+  color: var(--role-accent-foreground);
 }
 
 .concept-home-hero__support {
@@ -118,7 +118,7 @@
 
 .concept-home-hero__action--secondary:hover {
   border-color: var(--color-accent);
-  color: var(--color-accent);
+  color: var(--role-text-link);
 }
 
 .concept-home-hero__visual {
@@ -270,7 +270,7 @@
   border: 1px solid var(--color-border-strong);
   border-radius: 50%;
   background: var(--color-surface);
-  color: var(--color-accent);
+  color: var(--role-accent-foreground);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: var(--font-weight-semibold);
@@ -337,7 +337,7 @@
 .concept-pillar__index {
   display: inline-block;
   margin-bottom: 1.25rem;
-  color: var(--color-accent);
+  color: var(--role-accent-foreground);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   font-weight: var(--font-weight-bold);

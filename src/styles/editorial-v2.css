@@ -1195,7 +1195,7 @@
 }
 
 .storefront-feature__number {
-  color: var(--color-accent);
+  color: var(--role-accent-foreground);
   font-family: var(--font-mono);
   font-size: var(--text-2xl);
   line-height: 1;
