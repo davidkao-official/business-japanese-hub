@@ -865,7 +865,7 @@ html[data-reader-theme] {
   --reader-border-strong: var(--role-border-control);
   --reader-accent: var(--role-action-primary-background);
   --reader-accent-soft: var(--role-accent-background);
-  --reader-accent-ink: var(--role-action-primary-foreground);
+  --reader-accent-ink: var(--role-accent-foreground);
   background: var(--role-surface-content);
   color: var(--role-text-primary);
   border: var(--stroke-thin) solid var(--role-border-subtle);
@@ -970,7 +970,7 @@ html[data-reader-theme] {
 
 .reader-toc__link--current {
   background: var(--reader-accent-soft);
-  color: var(--reader-accent);
+  color: var(--reader-accent-ink);
   font-weight: var(--font-weight-semibold);
 }
 

@@ -11,6 +11,33 @@ const appCascade = appStyles.join('\n')
 const readerCss = readFileSync(join(process.cwd(), 'src/styles/reader.css'), 'utf8')
 const tokensCss = readFileSync(join(process.cwd(), 'src/styles/tokens.css'), 'utf8')
 
+function themeRoleValue(role: string, appTheme: string) {
+  const dark = appTheme === 'dark'
+  const themeBlock = dark
+    ? tokensCss.match(/:root\[data-theme='dark'\]\s*\{([^}]*)\}/)?.[1]
+    : undefined
+  const declarations = [tokensCss.match(/:root\s*\{([^}]*)\}/)?.[1] ?? '', themeBlock ?? '']
+  const property = `--${role}`
+  let value: string | undefined
+  for (const declaration of declarations) {
+    const match = declaration.match(new RegExp(`${property}:\\s*([^;]+);`))
+    if (match) value = match[1].trim()
+  }
+  if (!value || !/^#[\da-f]{6}$/i.test(value)) throw new Error(`Could not resolve ${property} for ${appTheme}`)
+  return value
+}
+
+function relativeLuminance(hex: string) {
+  const channels = hex.slice(1).match(/.{2}/g)!.map((channel) => parseInt(channel, 16) / 255)
+  const linear = channels.map((channel) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4)
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+}
+
+function contrastRatio(foreground: string, background: string) {
+  const values = [relativeLuminance(foreground), relativeLuminance(background)].sort((a, b) => b - a)
+  return (values[0] + 0.05) / (values[1] + 0.05)
+}
+
 function installAppCascade() {
   const style = document.createElement('style')
   style.textContent = appCascade
@@ -45,6 +72,7 @@ describe('Reader/app theme cascade (B1)', () => {
             <div class="reader-dialog__body"><span class="reader-settings__label">文字サイズ</span>
               <button class="reader-settings__option">標準</button>
               <nav class="reader-toc"><a class="reader-toc__link"><span class="reader-toc__order">01</span>章</a>
+                <a class="reader-toc__link reader-toc__link--current">現在の章</a>
                 <a class="reader-toc__section-link">節</a></nav>
               <div class="reader-vocab-detail"><span class="reader-vocab-detail__reading">よみ</span>
                 <span class="reader-vocab-detail__pos">名詞</span></div>
@@ -95,6 +123,12 @@ describe('Reader/app theme cascade (B1)', () => {
           expect(readerCss).toMatch(/\.reader-dialog__panel\s*\{[^}]*--reader-text:\s*var\(--role-text-primary\)/s)
           expect(readerCss).toMatch(/\.reader-dialog__panel\s*\{[^}]*--reader-muted:\s*var\(--role-text-secondary\)/s)
           expect(readerCss).toMatch(/\.reader-dialog__panel\s*\{[^}]*--reader-surface:\s*var\(--role-surface-content\)/s)
+          expect(readerCss).toMatch(/\.reader-dialog__panel\s*\{[^}]*--reader-accent-soft:\s*var\(--role-accent-background\)/s)
+          expect(readerCss).toMatch(/\.reader-dialog__panel\s*\{[^}]*--reader-accent-ink:\s*var\(--role-accent-foreground\)/s)
+          expect(readerCss).toMatch(/\.reader-toc__link--current\s*\{[^}]*background:\s*var\(--reader-accent-soft\)[^}]*color:\s*var\(--reader-accent-ink\)/s)
+          const accentForeground = themeRoleValue('role-accent-foreground', appTheme)
+          const accentBackground = themeRoleValue('role-accent-background', appTheme)
+          expect(contrastRatio(accentForeground, accentBackground)).toBeGreaterThanOrEqual(4.5)
           expect(readerCss).toMatch(/\.reader-toc__link\s*\{[^}]*color:\s*var\(--reader-text\)/s)
           expect(readerCss).toMatch(/\.reader-toc__order\s*\{[^}]*color:\s*var\(--reader-muted\)/s)
           expect(readerCss).toMatch(/\.reader-toc__section-link\s*\{[^}]*color:\s*var\(--reader-muted\)/s)

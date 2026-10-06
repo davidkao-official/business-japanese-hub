@@ -408,7 +408,7 @@
 .concept-c-home a:focus-visible,
 .concept-c-home button:focus-visible {
   outline: 3px solid var(--color-focus);
-  outline-offset: 3px;
+  outline-offset: var(--focus-gap);
 }
 
 @media (max-width: 68rem) {

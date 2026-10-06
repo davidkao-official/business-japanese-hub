@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const tokensCss = readFileSync(join(process.cwd(), 'src/styles/tokens.css'), 'utf8')
+const conceptHomeCss = readFileSync(join(process.cwd(), 'src/styles/home-concept-c.css'), 'utf8')
 
 describe('landing-page token extensions', () => {
   it('keeps the LP-specific values scoped beside the shared foundation', () => {
@@ -17,6 +18,11 @@ describe('landing-page token extensions', () => {
   it('defines the constrained reveal treatment for later LP composition PRs', () => {
     expect(tokensCss).toContain('--lp-reveal-distance: 1rem')
     expect(tokensCss).toContain('--lp-reveal-duration: 600ms')
+  })
+
+  it('uses the shared focus gap token for the landing-page focus ring', () => {
+    expect(conceptHomeCss).toMatch(/\.concept-c-home a:focus-visible,[\s\S]*?\{[^}]*outline-offset:\s*var\(--focus-gap\)/s)
+    expect(tokensCss).toContain('--focus-gap: 2px')
   })
 })
 
