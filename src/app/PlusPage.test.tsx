@@ -1,14 +1,24 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { getStrings, SUPPORTED_LOCALES } from '../i18n/strings'
 import { renderWithAppProviders } from '../test/appProviders'
 import { PlusPage } from './PlusPage'
 
+const shopCss = readFileSync(join(process.cwd(), 'src/styles/shop.css'), 'utf8')
+
 describe('PlusPage', () => {
   it('presents Early Access as NT$299 per month without an active NT$399 or annual offer', () => {
     renderWithAppProviders(<PlusPage />)
 
-    expect(screen.getByText('NT$299')).toBeInTheDocument()
+    const priceAmount = screen.getByText('NT$299')
+    expect(priceAmount).toBeInTheDocument()
+    expect(priceAmount).toHaveClass('price')
+    expect(priceAmount).not.toHaveAttribute('lang')
+    expect(priceAmount.closest('[lang="en"]')).toBeNull()
+    expect(priceAmount.parentElement).toHaveClass('plus-price__amount')
+    expect(shopCss).toMatch(/\.price\s*\{[^}]*font-variant-numeric:\s*tabular-nums/s)
     expect(screen.getByText('/ 月')).toBeInTheDocument()
     expect(screen.getByText(/年額プランは現在購入できません/)).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/NT\$399|NT\$3,990/)
