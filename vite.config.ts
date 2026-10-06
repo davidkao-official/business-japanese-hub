@@ -13,10 +13,17 @@ import { deploymentIdentityPlugin } from './vite.deployment-identity.ts'
  */
 function extractBackgroundColors(): { light: string; dark: string } {
   const css = readFileSync(new URL('./src/styles/tokens.css', import.meta.url), 'utf8')
-  const light = /:root\s*\{([^}]*)\}/.exec(css)?.[1]?.match(/--color-bg:\s*([^;]+);/)?.[1]?.trim()
-  const dark = /:root\[data-theme='dark'\]\s*\{([^}]*)\}/.exec(css)?.[1]?.match(
-    /--color-bg:\s*([^;]+);/,
-  )?.[1]?.trim()
+  const lightRoot = /:root\s*\{([^}]*)\}/.exec(css)?.[1]
+  const darkRoot = /:root\[data-theme='dark'\]\s*\{([^}]*)\}/.exec(css)?.[1]
+  const read = (block: string | undefined, name: string) =>
+    block?.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1]?.trim()
+  const resolve = (block: string | undefined) => {
+    const alias = read(block, '--color-bg') ?? read(lightRoot, '--color-bg')
+    const role = alias?.match(/^var\((--[\w-]+)\)$/)?.[1]
+    return alias && role ? read(block, role) ?? read(lightRoot, role) : alias
+  }
+  const light = resolve(lightRoot)
+  const dark = resolve(darkRoot)
   if (!light || !dark) {
     throw new Error(
       'theme-color plugin: could not extract --color-bg (light/dark) from src/styles/tokens.css',

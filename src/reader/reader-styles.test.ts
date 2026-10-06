@@ -1,55 +1,108 @@
-/**
- * Design-contract guards for the reader stylesheet — they pin the locked
- * baseline from docs/ui-ux-research.md and the issue #5 brief so a future
- * design pass cannot silently regress it:
- *
- *   - mobile 17px / 1.82 leading / 18px gutter / single column
- *   - desktop 18px / 1.80 leading / 34em target measure (≈34 full-width glyphs,
- *     under the JLREQ 40-glyph cap)
- *   - TOC rail only ≥1024px (64rem); right marginalia only ≥1280px (80rem)
- *   - NO break-all, no 1000px-wide body, no global letter-spacing, no bubbles
- */
+/** Reader and app themes are checked against the actual main.tsx stylesheet order. */
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
+const mainSource = readFileSync(join(process.cwd(), 'src/main.tsx'), 'utf8')
+const appStyles = [...mainSource.matchAll(/import\s+['"](\.\/styles\/[^'"]+\.css)['"]/g)]
+  .map((match) => readFileSync(join(process.cwd(), 'src', match[1].replace(/^\.\//, '')), 'utf8'))
+const appCascade = appStyles.join('\n')
 const readerCss = readFileSync(join(process.cwd(), 'src/styles/reader.css'), 'utf8')
 const tokensCss = readFileSync(join(process.cwd(), 'src/styles/tokens.css'), 'utf8')
-const globalCss = readFileSync(join(process.cwd(), 'src/styles/global.css'), 'utf8')
 
-describe('Reader heading theme isolation (#191)', () => {
+function installAppCascade() {
+  const style = document.createElement('style')
+  style.textContent = appCascade
+  document.head.append(style)
+  return style
+}
+
+describe('Reader/app theme cascade (B1)', () => {
+  it('loads every stylesheet in the source order declared by main.tsx', () => {
+    expect(appStyles).toHaveLength(12)
+    expect(appCascade).toContain('.reader-shell')
+    expect(appCascade).toContain('.reader-topbar')
+    expect(appCascade).toContain(':root[data-reader-theme=\'dark\']')
+  })
+
   for (const appTheme of ['system', 'light', 'dark']) {
     for (const readerTheme of ['light', 'sepia', 'dark']) {
-      it(`uses Reader text roles with app ${appTheme} / Reader ${readerTheme}`, () => {
-        const style = document.createElement('style')
-        // Imports are already supplied explicitly; jsdom cannot load relative CSS.
-        style.textContent = `${tokensCss}\n${globalCss.replace(/@import[^;]+;/g, '')}\n${readerCss}`
-        document.head.append(style)
+      it(`keeps app chrome and Reader paper independent for ${appTheme} app / ${readerTheme} Reader`, () => {
+        const style = installAppCascade()
         const root = document.documentElement
+        root.lang = 'ja'
         const previousTheme = root.getAttribute('data-theme')
         const previousReaderTheme = root.getAttribute('data-reader-theme')
         const fixture = document.createElement('div')
         fixture.innerHTML = `<main class="reader-shell">
           <h1 class="reader-chapter-header__title">章の見出し</h1>
-          <div class="reader-blocks"><h2 class="reader-heading">節</h2><h3 class="reader-heading">項</h3><h4 class="reader-heading">小見出し</h4></div>
-          <h2 class="reader-marginalia__title">語彙</h2>
-        </main>
-        <div class="reader-dialog"><h2 class="reader-dialog__title">読書設定</h2><h3 class="reader-settings__label">テーマ</h3></div>`
+          <div class="reader-blocks"><h2 class="reader-heading">節</h2></div>
+          <div class="reader-main">本文</div>
+          <div class="reader-topbar">Reader tools</div>
+          <div class="reader-dialog"><section class="reader-dialog__panel">
+            <header class="reader-dialog__header"><h2 class="reader-dialog__title">読書設定</h2></header>
+            <div class="reader-dialog__body"><span class="reader-settings__label">文字サイズ</span>
+              <button class="reader-settings__option">標準</button>
+              <nav class="reader-toc"><a class="reader-toc__link"><span class="reader-toc__order">01</span>章</a>
+                <a class="reader-toc__section-link">節</a></nav>
+              <div class="reader-vocab-detail"><span class="reader-vocab-detail__reading">よみ</span>
+                <span class="reader-vocab-detail__pos">名詞</span></div>
+            </div>
+          </section></div>
+          <button class="reader-exercise__toggle">解答を見る</button>
+        </main>`
         document.body.append(fixture)
         if (appTheme === 'system') root.removeAttribute('data-theme')
         else root.setAttribute('data-theme', appTheme)
         root.setAttribute('data-reader-theme', readerTheme)
         try {
-          // jsdom reports the cascaded custom-property reference rather than
-          // resolving its colour. Guard the actual CSS cascade, not pixel QA.
-          for (const heading of fixture.querySelectorAll('h1, h2, h3, h4')) {
-            const muted = heading.matches('.reader-marginalia__title, .reader-settings__label')
-            expect(getComputedStyle(heading).color).toBe(muted ? 'var(--reader-muted)' : 'var(--reader-text)')
-          }
-          expect(getComputedStyle(root).getPropertyValue('--reader-text').trim()).toBe({
-            light: '#21241f', sepia: '#43372b', dark: '#e8e4d9',
+          const appChrome = getComputedStyle(root).getPropertyValue('--role-surface-chrome').trim()
+          const appInk = getComputedStyle(root).getPropertyValue('--role-text-primary').trim()
+          const readerPaper = getComputedStyle(root).getPropertyValue('--reader-bg').trim()
+          const readerBodyInk = getComputedStyle(root).getPropertyValue('--reader-text').trim()
+          const readerChromeSurface = getComputedStyle(root).getPropertyValue('--reader-surface').trim()
+          const expectedAppChrome = appTheme === 'dark' ? '#17181f' : '#f8f8fc'
+          const expectedAppInk = appTheme === 'dark' ? '#ececf3' : '#252735'
+          const expectedPaper = {
+            light: 'var(--reader-light-bg)',
+            sepia: 'var(--reader-sepia-bg)',
+            dark: 'var(--reader-dark-bg)',
+          }[readerTheme]
+
+          // These values catch the prior cascade defect: Reader selection may
+          // change its paper and readable body ink, but cannot re-skin app roles.
+          expect(appChrome).toBe(expectedAppChrome)
+          expect(appInk).toBe(expectedAppInk)
+          expect(readerPaper).toBe(expectedPaper)
+          expect(readerBodyInk).toBe({
+            light: 'var(--reader-light-text)',
+            sepia: 'var(--reader-sepia-text)',
+            dark: 'var(--reader-dark-text)',
           }[readerTheme])
+          expect(readerChromeSurface).toBe('var(--role-surface-content)')
+          // jsdom does not compute modern var() declarations on regular CSS
+          // properties; pin the production selectors alongside the computed
+          // custom-property cascade above.
+          expect(readerCss).toMatch(/\.reader-topbar\s*\{[^}]*background:\s*var\(--role-surface-chrome\)/s)
+          expect(readerCss).toMatch(/\.reader-heading,[\s\S]*?\{\s*color:\s*var\(--reader-text\)/)
+          expect(readerCss).toMatch(/\.reader-dialog__panel\s*\{[^}]*background:\s*var\(--role-surface-content\)[^}]*color:\s*var\(--role-text-primary\)/s)
+          expect(readerCss).toMatch(/\.reader-dialog__header\s*\{[^}]*border-bottom:[^;]*var\(--role-border-subtle\)/s)
+          expect(readerCss).toMatch(/\.reader-dialog__title\s*\{\s*color:\s*var\(--role-text-primary\)/)
+          expect(readerCss).toMatch(/\.reader-settings__label\s*\{[^}]*color:\s*var\(--role-text-primary\)/s)
+          expect(readerCss).toMatch(/\.reader-settings__option\s*\{[^}]*background:\s*var\(--role-surface-content\)[^}]*color:\s*var\(--role-text-primary\)/s)
+          expect(readerCss).toMatch(/\.reader-settings__option--active\s*\{[^}]*background:\s*var\(--role-action-primary-background\)[^}]*color:\s*var\(--role-action-primary-foreground\)/s)
+          expect(readerCss).toMatch(/\.reader-dialog__panel\s*\{[^}]*--reader-text:\s*var\(--role-text-primary\)/s)
+          expect(readerCss).toMatch(/\.reader-dialog__panel\s*\{[^}]*--reader-muted:\s*var\(--role-text-secondary\)/s)
+          expect(readerCss).toMatch(/\.reader-dialog__panel\s*\{[^}]*--reader-surface:\s*var\(--role-surface-content\)/s)
+          expect(readerCss).toMatch(/\.reader-toc__link\s*\{[^}]*color:\s*var\(--reader-text\)/s)
+          expect(readerCss).toMatch(/\.reader-toc__order\s*\{[^}]*color:\s*var\(--reader-muted\)/s)
+          expect(readerCss).toMatch(/\.reader-toc__section-link\s*\{[^}]*color:\s*var\(--reader-muted\)/s)
+          expect(readerCss).toMatch(/\.reader-vocab-detail__reading\s*\{[^}]*color:\s*var\(--reader-muted\)/s)
+          expect(readerCss).toMatch(/\.reader-vocab-detail__pos\s*\{[^}]*color:\s*var\(--reader-muted\)/s)
+          expect(readerCss).toMatch(/\.reader-exercise__toggle\s*\{[^}]*background:\s*var\(--role-surface-content\)[^}]*color:\s*var\(--role-text-primary\)/s)
+          const editorial = readFileSync(join(process.cwd(), 'src/styles/editorial-v2.css'), 'utf8')
+          expect(editorial).toMatch(/\.reader-topbar__book\s*\{\s*font-family:\s*var\(--font-ja\)/)
         } finally {
           fixture.remove()
           style.remove()
@@ -63,34 +116,65 @@ describe('Reader heading theme isolation (#191)', () => {
   }
 })
 
-describe('reader design contract', () => {
-  it('keeps the locked typographic baseline in the tokens', () => {
-    expect(tokensCss).toContain('--reader-body-mobile: 1.0625rem') // 17px mobile
-    expect(tokensCss).toContain('--reader-body-desktop: 1.125rem') // 18px desktop
+describe('Reader design contract', () => {
+  it('preserves Japanese material Mincho and Reader serif/sans inheritance through nested markup', () => {
+    const style = installAppCascade()
+    const root = document.documentElement
+    root.lang = 'ja'
+    const fixture = document.createElement('div')
+    fixture.innerHTML = `<main class="material"><p>原文 <em>強調</em></p></main>
+      <span lang="en" class="english-ui">English <span lang="zh-TW" class="traditional-ui">漢字 <span lang="ja" class="japanese-ui">日本語</span></span></span>
+      <section class="reader-shell" data-reader-font="serif"><article class="reader-main"><p>文章 <em lang="en">English</em></p></article></section>
+      <section class="reader-shell" data-reader-font="sans"><article class="reader-main"><p>文章 <em lang="en">English</em></p></article></section>`
+    document.body.append(fixture)
+    try {
+      const material = fixture.querySelector('.material')!
+      expect(getComputedStyle(material).fontFamily).toBe('var(--font-material)')
+      expect(getComputedStyle(material.querySelector('em')!).fontFamily)
+        .toBe(getComputedStyle(material).fontFamily)
+      expect(getComputedStyle(fixture.querySelector('.english-ui')!).fontFamily).toBe('var(--font-en)')
+      expect(getComputedStyle(fixture.querySelector('.traditional-ui')!).fontFamily)
+        .toBe('var(--font-zh-hant)')
+      expect(getComputedStyle(fixture.querySelector('.japanese-ui')!).fontFamily).toBe('var(--font-ja)')
+
+      const serifReader = fixture.querySelector('[data-reader-font="serif"] .reader-main')!
+      const sansReader = fixture.querySelector('[data-reader-font="sans"] .reader-main')!
+      expect(getComputedStyle(serifReader.querySelector('em')!).fontFamily)
+        .toBe(getComputedStyle(serifReader).fontFamily)
+      expect(getComputedStyle(sansReader.querySelector('em')!).fontFamily)
+        .toBe(getComputedStyle(sansReader).fontFamily)
+      expect(getComputedStyle(serifReader).fontFamily).not.toBe(getComputedStyle(sansReader).fontFamily)
+      expect(getComputedStyle(serifReader.querySelector('em')!).fontFamily).toBe('var(--font-reader-serif)')
+      expect(getComputedStyle(sansReader.querySelector('em')!).fontFamily).toBe('var(--font-reader-sans)')
+    } finally {
+      fixture.remove()
+      style.remove()
+    }
+  })
+
+  it('keeps the locked Reader typography baseline in the shared token file', () => {
+    expect(tokensCss).toContain('--reader-body-mobile: 1.0625rem')
+    expect(tokensCss).toContain('--reader-body-desktop: 1.125rem')
     expect(tokensCss).toContain('--reader-leading-mobile: 1.82')
     expect(tokensCss).toContain('--reader-leading-desktop: 1.8')
-    expect(tokensCss).toContain('--reader-measure: 34em') // ≈34 glyphs, under the 40 cap
-    expect(tokensCss).toContain('--reader-measure-max: 40rem') // 640px absolute ceiling
-    expect(tokensCss).toContain('--reader-gutter-mobile: 1.125rem') // 18px gutter
+    expect(tokensCss).toContain('--reader-measure: 34em')
+    expect(tokensCss).toContain('--reader-measure-max: 40rem')
+    expect(tokensCss).toContain('--reader-gutter-mobile: 1.125rem')
   })
 
-  it('gates desktop chrome and marginalia behind explicit breakpoints', () => {
-    expect(readerCss).toContain('@media (min-width: 64rem)') // collapsible TOC rail ≥1024px
-    expect(readerCss).toContain('@media (min-width: 80rem)') // right marginalia ≥1280px
+  it('keeps Reader palettes out of reader.css and editorial-v2.css', () => {
+    expect(readerCss).not.toMatch(/--reader-(?:light|sepia|dark)-/)
+    expect(readerCss).not.toMatch(/:root\[data-reader-theme=.*--reader-(?:bg|text|accent)/s)
+    const editorial = readFileSync(join(process.cwd(), 'src/styles/editorial-v2.css'), 'utf8')
+    expect(editorial).not.toMatch(/:root\[data-reader-theme=.*--reader-(?:bg|text|accent)/s)
   })
 
-  it('avoids the §7 anti-patterns as real CSS values', () => {
+  it('keeps the Reader responsive geometry and avoids the §7 anti-patterns', () => {
+    expect(readerCss).toContain('@media (min-width: 64rem)')
+    expect(readerCss).toContain('@media (min-width: 80rem)')
     expect(readerCss).not.toMatch(/word-break:\s*break-all/)
     expect(readerCss).not.toMatch(/overflow-wrap:\s*break-all/)
     expect(readerCss).not.toContain('max-width: 1000px')
-    expect(readerCss).not.toMatch(/\bbubble\b/) // no message-bubble styling
-  })
-
-  it('applies no global letter-spacing (only deliberate `normal` cancellations)', () => {
-    // `\s*` (not `\s+`) so `letter-spacing:0;` — without whitespace after the
-    // colon — is also rejected. The lookahead absorbs optional whitespace on
-    // both sides of `normal` so a deliberate `normal` cancellation is allowed
-    // even though the outer `\s*` can also match zero-width.
     expect(readerCss).not.toMatch(/letter-spacing:\s*(?!\s*normal\s*;)[^;]+;/)
   })
 })

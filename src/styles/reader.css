@@ -14,58 +14,6 @@
  *   NO break-all, natural start alignment, no global letter-spacing
  * ===================================================================== */
 
-/* ---------------------------------------------------------------
- * Reader color palettes — explicit themes, user-selected. Applied on
- * <html> (via `data-reader-theme`) so overscroll matches the surface.
- * --------------------------------------------------------------- */
-:root {
-  --reader-bg: #ffffff;
-  --reader-surface: #ffffff;
-  --reader-text: #21241f;
-  --reader-muted: #5f655d;
-  --reader-border: #e4e1d8;
-  --reader-border-strong: #c8c2b3;
-  --reader-accent: #b5472f;
-  --reader-accent-soft: #f3e2da;
-  --reader-accent-ink: #ffffff;
-}
-
-:root[data-reader-theme='light'] {
-  --reader-bg: #ffffff;
-  --reader-surface: #ffffff;
-  --reader-text: #21241f;
-  --reader-muted: #5f655d;
-  --reader-border: #e4e1d8;
-  --reader-border-strong: #c8c2b3;
-  --reader-accent: #b5472f;
-  --reader-accent-soft: #f3e2da;
-  --reader-accent-ink: #ffffff;
-}
-
-:root[data-reader-theme='sepia'] {
-  --reader-bg: #f6efdf;
-  --reader-surface: #f6efdf;
-  --reader-text: #43372b;
-  --reader-muted: #6f6455;
-  --reader-border: #e0d4bd;
-  --reader-border-strong: #cbbfa6;
-  --reader-accent: #a05a2c;
-  --reader-accent-soft: #e9dcc0;
-  --reader-accent-ink: #ffffff;
-}
-
-:root[data-reader-theme='dark'] {
-  --reader-bg: #181817;
-  --reader-surface: #1e1e1c;
-  --reader-text: #e8e4d9;
-  --reader-muted: #a5a196;
-  --reader-border: #34342f;
-  --reader-border-strong: #45453f;
-  --reader-accent: #e08a70;
-  --reader-accent-soft: #3a2b24;
-  --reader-accent-ink: #181817;
-}
-
 html[data-reader-theme] {
   background-color: var(--reader-bg);
 }
@@ -134,6 +82,28 @@ html[data-reader-theme] {
   font-family: var(--font-reader-sans);
 }
 
+/* Language stacks follow `lang`; Reader's explicit typeface preference has
+   precedence throughout its body, including nested language and markup. */
+.reader-shell[data-reader-font='serif'] .reader-main :lang(ja),
+.reader-shell[data-reader-font='serif'] .reader-main :lang(en),
+.reader-shell[data-reader-font='serif'] .reader-main :lang(zh-Hant),
+.reader-shell[data-reader-font='serif'] .reader-main :lang(zh-TW),
+.reader-shell[data-reader-font='serif'] .reader-main :lang(zh-Hans),
+.reader-shell[data-reader-font='serif'] .reader-main :lang(zh-CN),
+.reader-shell[data-reader-font='serif'] .reader-main :lang(ko) {
+  font-family: var(--font-reader-serif);
+}
+
+.reader-shell[data-reader-font='sans'] .reader-main :lang(ja),
+.reader-shell[data-reader-font='sans'] .reader-main :lang(en),
+.reader-shell[data-reader-font='sans'] .reader-main :lang(zh-Hant),
+.reader-shell[data-reader-font='sans'] .reader-main :lang(zh-TW),
+.reader-shell[data-reader-font='sans'] .reader-main :lang(zh-Hans),
+.reader-shell[data-reader-font='sans'] .reader-main :lang(zh-CN),
+.reader-shell[data-reader-font='sans'] .reader-main :lang(ko) {
+  font-family: var(--font-reader-sans);
+}
+
 /* Deliberate Japanese punctuation / wrapping behavior (no break-all, natural
  * start alignment, no global letter-spacing). */
 .reader-main p,
@@ -181,9 +151,9 @@ html[data-reader-theme] {
   z-index: 150;
   display: flex;
   align-items: center;
-  background: var(--reader-surface);
-  color: var(--reader-text);
-  border-bottom: var(--stroke-thin) solid var(--reader-border);
+  background: var(--role-surface-chrome);
+  color: var(--role-text-primary);
+  border-bottom: var(--stroke-thin) solid var(--role-border-subtle);
   transition:
     transform var(--duration-base) var(--ease-standard),
     visibility var(--duration-base) var(--ease-standard);
@@ -213,7 +183,7 @@ html[data-reader-theme] {
   display: inline-flex;
   align-items: center;
   gap: 0.35em;
-  color: var(--reader-accent);
+  color: var(--role-text-link);
   text-decoration: none;
   font-weight: var(--font-weight-semibold);
   white-space: nowrap;
@@ -245,7 +215,7 @@ html[data-reader-theme] {
 
 .reader-topbar__chapter {
   font-size: 0.8em;
-  color: var(--reader-muted);
+  color: var(--role-text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -260,9 +230,9 @@ html[data-reader-theme] {
 .reader-topbar__action {
   min-width: var(--control-min-h);
   min-height: var(--control-min-h);
-  border: var(--stroke-thin) solid var(--reader-border);
-  background: var(--reader-surface);
-  color: var(--reader-text);
+  border: var(--stroke-thin) solid var(--role-border-control);
+  background: var(--role-surface-content);
+  color: var(--role-text-primary);
   border-radius: var(--radius-pill);
   padding: 0.45em 0.9em;
   cursor: pointer;
@@ -271,7 +241,7 @@ html[data-reader-theme] {
 }
 
 .reader-topbar__action:hover {
-  border-color: var(--reader-border-strong);
+  border-color: var(--role-text-link);
 }
 
 .reader-topbar__action--toc {
@@ -295,10 +265,10 @@ html[data-reader-theme] {
   height: var(--control-min-h);
   display: grid;
   place-items: center;
-  border: var(--stroke-thin) solid var(--reader-border);
+  border: var(--stroke-thin) solid var(--role-border-control);
   border-radius: 50%;
-  background: var(--reader-surface);
-  color: var(--reader-text);
+  background: var(--role-surface-content);
+  color: var(--role-text-primary);
   box-shadow: var(--shadow-md);
   cursor: pointer;
 }
@@ -312,11 +282,11 @@ html[data-reader-theme] {
   top: var(--reader-topbar-h);
   z-index: 1000;
   padding: var(--space-3) var(--space-4);
-  background: var(--reader-surface);
-  border: var(--stroke-thin) solid var(--reader-border-strong);
+  background: var(--role-surface-content);
+  border: var(--stroke-thin) solid var(--role-border-control);
   border-radius: var(--radius-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--reader-text);
+  color: var(--role-text-primary);
 }
 
 .reader-skip:focus {
@@ -763,9 +733,9 @@ html[data-reader-theme] {
 
 .reader-exercise__toggle {
   margin-top: 1em;
-  border: var(--stroke-thin) solid var(--reader-border-strong);
-  background: var(--reader-surface);
-  color: var(--reader-text);
+  border: var(--stroke-thin) solid var(--role-border-control);
+  background: var(--role-surface-content);
+  color: var(--role-text-primary);
   border-radius: var(--radius-sm);
   padding: 0.5em 1em;
   font-weight: var(--font-weight-semibold);
@@ -876,7 +846,7 @@ html[data-reader-theme] {
   height: 100%;
   border: 0;
   padding: 0;
-  background: rgb(15 18 14 / 0.45);
+  background: var(--state-scrim);
   cursor: default;
 }
 
@@ -885,9 +855,20 @@ html[data-reader-theme] {
   display: flex;
   flex-direction: column;
   max-height: 100dvh;
-  background: var(--reader-surface);
-  color: var(--reader-text);
-  border: var(--stroke-thin) solid var(--reader-border);
+  /* The dialog is app chrome layered above Reader paper. Local aliases keep
+     all existing Reader-specific children paired against app surfaces. */
+  --reader-bg: var(--role-surface-content);
+  --reader-surface: var(--role-surface-content);
+  --reader-text: var(--role-text-primary);
+  --reader-muted: var(--role-text-secondary);
+  --reader-border: var(--role-border-subtle);
+  --reader-border-strong: var(--role-border-control);
+  --reader-accent: var(--role-action-primary-background);
+  --reader-accent-soft: var(--role-accent-background);
+  --reader-accent-ink: var(--role-action-primary-foreground);
+  background: var(--role-surface-content);
+  color: var(--role-text-primary);
+  border: var(--stroke-thin) solid var(--role-border-subtle);
   box-shadow: var(--shadow-lg);
   outline: none;
 }
@@ -898,10 +879,11 @@ html[data-reader-theme] {
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-4);
-  border-bottom: var(--stroke-thin) solid var(--reader-border);
+  border-bottom: var(--stroke-thin) solid var(--role-border-subtle);
 }
 
 .reader-dialog__title {
+  color: var(--role-text-primary);
   font-size: 1.125rem;
   letter-spacing: normal;
 }
@@ -911,10 +893,10 @@ html[data-reader-theme] {
   place-items: center;
   width: var(--control-min-h);
   height: var(--control-min-h);
-  border: var(--stroke-thin) solid var(--reader-border);
+  border: var(--stroke-thin) solid var(--role-border-control);
   border-radius: 50%;
-  background: var(--reader-surface);
-  color: var(--reader-text);
+  background: var(--role-surface-content);
+  color: var(--role-text-primary);
   cursor: pointer;
   font-size: 1.1rem;
 }
@@ -1035,7 +1017,7 @@ html[data-reader-theme] {
 
 .reader-settings__label {
   font-size: 0.9em;
-  color: var(--reader-muted);
+  color: var(--role-text-primary);
   margin-bottom: 0.5em;
 }
 
@@ -1046,23 +1028,23 @@ html[data-reader-theme] {
 }
 
 .reader-settings__option {
-  border: var(--stroke-thin) solid var(--reader-border);
+  border: var(--stroke-thin) solid var(--role-border-control);
   border-radius: var(--radius-pill);
   padding: 0.5em 1em;
-  background: var(--reader-surface);
-  color: var(--reader-text);
+  background: var(--role-surface-content);
+  color: var(--role-text-primary);
   cursor: pointer;
   font-size: 0.95em;
 }
 
 .reader-settings__option:hover {
-  border-color: var(--reader-border-strong);
+  border-color: var(--role-text-link);
 }
 
 .reader-settings__option--active {
-  background: var(--reader-accent);
-  border-color: var(--reader-accent);
-  color: var(--reader-accent-ink);
+  background: var(--role-action-primary-background);
+  border-color: var(--role-action-primary-background);
+  color: var(--role-action-primary-foreground);
 }
 
 .reader-vocab-detail {
