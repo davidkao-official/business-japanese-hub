@@ -36,6 +36,44 @@ function roleValue(role: string, theme: 'light' | 'dark') {
   return value
 }
 
+function tokenDeclaration(name: string, theme: 'light' | 'dark') {
+  const root = tokensCss.match(/:root\s*\{([^}]*)\}/)?.[1] ?? ''
+  const dark = theme === 'dark'
+    ? tokensCss.match(/:root\[data-theme='dark'\]\s*\{([^}]*)\}/)?.[1] ?? ''
+    : ''
+  let value: string | undefined
+  for (const declaration of [root, dark]) {
+    const match = declaration.match(new RegExp(`--${name}:\\s*([^;]+);`))
+    if (match) value = match[1].trim()
+  }
+  if (!value) throw new Error(`Could not resolve --${name} for ${theme}`)
+  return value
+}
+
+function resolveValue(value: string, theme: 'light' | 'dark') {
+  let resolved = value.trim()
+  for (let depth = 0; depth < 8; depth += 1) {
+    const variable = resolved.match(/^var\(--([\w-]+)\)$/)
+    if (!variable) break
+    resolved = tokenDeclaration(variable[1], theme)
+  }
+  if (!/^#[\da-f]{6}$/i.test(resolved)) throw new Error(`Could not resolve CSS color ${value} for ${theme}`)
+  return resolved
+}
+
+function declarationValue(css: string, selector: string, property: string) {
+  const block = declarationBlock(css, selector)
+  const value = block?.match(new RegExp(`(?:^|\\n)\\s*${property}:\\s*([^;]+);`))?.[1].trim()
+  if (!value) throw new Error(`Could not find ${property} in ${selector}`)
+  return value
+}
+
+function replaceDeclaration(css: string, selector: string, property: string, value: string) {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const rule = new RegExp(`(${escaped}\\s*\\{[^}]*?(?:^|\\n)\\s*${property}:\\s*)[^;]+`, 's')
+  return css.replace(rule, `$1${value}`)
+}
+
 function luminance(hex: string) {
   const [red, green, blue] = hex.slice(1).match(/.{2}/g)!.map((channel) => parseInt(channel, 16) / 255)
   const linearize = (channel: number) => channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
@@ -70,14 +108,30 @@ const foregrounds = [
 ] as const
 
 describe('S2 compatibility accent text contrast', () => {
-  it('rejects the former Home hover foreground on its dark content surface', () => {
+  it('rejects the former Home hover foreground through the unchanged source background chain', () => {
     const home = styles.get('home')!
-    const hover = declarationBlock(home, '.concept-home-hero__action--secondary:hover')!
-    const oldForeground = roleValue('role-action-primary-background', 'dark')
-    const darkSurface = roleValue('role-surface-content', 'dark')
-    expect(hover).not.toMatch(/(?:^|\n)\s*color:\s*var\(--color-accent\)/)
-    expect(contrast(oldForeground, darkSurface)).toBeCloseTo(3.363, 2)
-    expect(contrast(oldForeground, darkSurface)).toBeLessThan(4.5)
+    const baseSelector = '.concept-home-hero__action--secondary'
+    const hoverSelector = '.concept-home-hero__action--secondary:hover'
+    const backgroundSource = declarationValue(home, baseSelector, 'background')
+    const hoverColorSource = declarationValue(home, hoverSelector, 'color')
+    expect(backgroundSource).toBe('var(--color-surface)')
+    expect(hoverColorSource).toBe('var(--role-text-link)')
+
+    // Reconstruct the previous source declaration in memory, then run both
+    // versions through the exact same selector and token-alias resolution.
+    const oldHome = replaceDeclaration(home, hoverSelector, 'color', 'var(--color-accent)')
+    expect(declarationValue(oldHome, baseSelector, 'background')).toBe(backgroundSource)
+    expect(declarationValue(oldHome, hoverSelector, 'color')).toBe('var(--color-accent)')
+    for (const theme of ['light', 'dark'] as const) {
+      const background = resolveValue(declarationValue(home, baseSelector, 'background'), theme)
+      const repairedForeground = resolveValue(declarationValue(home, hoverSelector, 'color'), theme)
+      const oldForeground = resolveValue(declarationValue(oldHome, hoverSelector, 'color'), theme)
+      expect(contrast(repairedForeground, background), `${theme} repaired`).toBeGreaterThanOrEqual(4.5)
+      if (theme === 'dark') {
+        expect(contrast(oldForeground, background), 'dark old source').toBeCloseTo(3.363, 2)
+        expect(contrast(oldForeground, background), 'dark old source').toBeLessThan(4.5)
+      }
+    }
   })
 
   it('binds all 19 legacy accent foregrounds to semantic text roles and meets 4.5:1', () => {
