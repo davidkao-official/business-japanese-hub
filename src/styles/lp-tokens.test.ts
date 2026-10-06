@@ -64,10 +64,15 @@ describe('S2 Source & Gloss foundation', () => {
     expect(tokensCss).toContain('prefers-reduced-motion: reduce')
     expect(tokensCss).toContain('font-synthesis: none')
     expect(tokensCss).toContain('Components 21:35816')
+    expect(tokensCss).toMatch(/:where\(\[lang\]:lang\(ja\)\)[^{]*\{[^}]*font-family:\s*var\(--font-ja\)/s)
+    expect(tokensCss).toMatch(/:where\(\[lang\]:lang\(en\)\)[^{]*\{[^}]*font-family:\s*var\(--font-en\)/s)
+    expect(tokensCss).not.toMatch(/(?:^|\})\s*:lang\(en\)\s*\{[^}]*font-family:/s)
   })
 
   it('retires Concept C palette definitions and chains its remaining styles through aliases', () => {
     expect(tokensCss).not.toMatch(/--home-[\w-]+\s*:/)
-    expect(tokensCss).toContain('--color-bg: var(--role-surface-app)')
+    expect(tokensCss).toContain('--color-bg: var(--role-surface-chrome)')
+    expect(tokensCss).toContain('--role-surface-chrome: #f8f8fc')
+    expect(tokensCss).toContain('--role-surface-chrome: #17181f')
   })
 })

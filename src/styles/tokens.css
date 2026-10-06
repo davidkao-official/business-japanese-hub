@@ -86,7 +86,7 @@
   --bjh-mark-ng-soft: #fbe8e3;
 
   /* Compatibility aliases retained while legacy surfaces migrate. */
-  --color-bg: var(--role-surface-app);
+  --color-bg: var(--role-surface-chrome);
   --color-bg-elevated: var(--role-surface-chrome);
   --color-surface: var(--role-surface-content);
   --color-surface-muted: var(--role-surface-inset);
@@ -367,11 +367,13 @@
   --reader-accent-ink: var(--reader-light-accent-ink);
 }
 
-:lang(ja) { --font-ui: var(--font-ja); --font-sans: var(--font-ja); font-family: var(--font-ja); }
-:lang(en) { --font-ui: var(--font-en); --font-sans: var(--font-en); font-family: var(--font-en); }
-:lang(zh-Hant), :lang(zh-TW) { --font-ui: var(--font-zh-hant); --font-sans: var(--font-zh-hant); font-family: var(--font-zh-hant); }
-:lang(zh-Hans), :lang(zh-CN) { --font-ui: var(--font-zh-hans); --font-sans: var(--font-zh-hans); font-family: var(--font-zh-hans); }
-:lang(ko) { --font-ui: var(--font-ko); --font-sans: var(--font-ko); font-family: var(--font-ko); }
+/* Set language defaults only at explicit boundaries. Zero specificity lets
+   component type roles win even when Vite deduplicates this import later. */
+:where([lang]:lang(ja)) { --font-ui: var(--font-ja); --font-sans: var(--font-ja); font-family: var(--font-ja); }
+:where([lang]:lang(en)) { --font-ui: var(--font-en); --font-sans: var(--font-en); font-family: var(--font-en); }
+:where([lang]:lang(zh-Hant)), :where([lang]:lang(zh-TW)) { --font-ui: var(--font-zh-hant); --font-sans: var(--font-zh-hant); font-family: var(--font-zh-hant); }
+:where([lang]:lang(zh-Hans)), :where([lang]:lang(zh-CN)) { --font-ui: var(--font-zh-hans); --font-sans: var(--font-zh-hans); font-family: var(--font-zh-hans); }
+:where([lang]:lang(ko)) { --font-ui: var(--font-ko); --font-sans: var(--font-ko); font-family: var(--font-ko); }
 .material:lang(ja), .material :lang(ja) {
   font-family: var(--font-material);
   line-height: var(--leading-material);

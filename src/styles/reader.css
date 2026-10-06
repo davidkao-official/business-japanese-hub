@@ -82,28 +82,6 @@ html[data-reader-theme] {
   font-family: var(--font-reader-sans);
 }
 
-/* Language stacks follow `lang`; Reader's explicit typeface preference has
-   precedence throughout its body, including nested language and markup. */
-.reader-shell[data-reader-font='serif'] .reader-main :lang(ja),
-.reader-shell[data-reader-font='serif'] .reader-main :lang(en),
-.reader-shell[data-reader-font='serif'] .reader-main :lang(zh-Hant),
-.reader-shell[data-reader-font='serif'] .reader-main :lang(zh-TW),
-.reader-shell[data-reader-font='serif'] .reader-main :lang(zh-Hans),
-.reader-shell[data-reader-font='serif'] .reader-main :lang(zh-CN),
-.reader-shell[data-reader-font='serif'] .reader-main :lang(ko) {
-  font-family: var(--font-reader-serif);
-}
-
-.reader-shell[data-reader-font='sans'] .reader-main :lang(ja),
-.reader-shell[data-reader-font='sans'] .reader-main :lang(en),
-.reader-shell[data-reader-font='sans'] .reader-main :lang(zh-Hant),
-.reader-shell[data-reader-font='sans'] .reader-main :lang(zh-TW),
-.reader-shell[data-reader-font='sans'] .reader-main :lang(zh-Hans),
-.reader-shell[data-reader-font='sans'] .reader-main :lang(zh-CN),
-.reader-shell[data-reader-font='sans'] .reader-main :lang(ko) {
-  font-family: var(--font-reader-sans);
-}
-
 /* Deliberate Japanese punctuation / wrapping behavior (no break-all, natural
  * start alignment, no global letter-spacing). */
 .reader-main p,

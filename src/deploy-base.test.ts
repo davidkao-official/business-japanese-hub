@@ -442,8 +442,10 @@ describe('deployment base contract', () => {
         const role = alias?.match(/^var\((--[\w-]+)\)$/)?.[1]
         return alias && role ? read(block, role) ?? read(lightRoot, role) : alias
       }
-      expect(lightColor).toBe(resolve(lightRoot))
-      expect(darkColor).toBe(resolve(darkRoot))
+      expect(resolve(lightRoot)).toBe('#f8f8fc')
+      expect(resolve(darkRoot)).toBe('#17181f')
+      expect(lightColor).toBe('#f8f8fc')
+      expect(darkColor).toBe('#17181f')
     } finally {
       rmSync(outDir, { recursive: true, force: true })
     }
