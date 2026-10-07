@@ -217,7 +217,7 @@ function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCa
       activeRequest.current?.abort()
       activeRequest.current = null
     }
-  }, [contentReady, entry, getAccessToken, membership.kind, retryKey, user?.id])
+  }, [contentReady, entry, getAccessToken, membership.kind, retryKey, user, user?.id])
 
   const mutate = async (action: 'save' | 'remove') => {
     if (!user?.id || membership.kind !== 'active-member' || state.kind === 'busy' || !contentReady) return
