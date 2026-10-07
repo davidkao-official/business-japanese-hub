@@ -187,21 +187,50 @@ type WorkplaceSaveControlState =
   | { kind: 'conflict' }
   | { kind: 'busy'; action: 'save' | 'remove' }
 
+type ActiveWorkplaceSaveMutation = {
+  controller: AbortController
+  userId: string
+  user: NonNullable<ReturnType<typeof useAuth>['user']>
+  membershipKind: string
+  contentReady: boolean
+  entry: WorkplaceLearnCatalogEntry
+  getAccessToken: () => Promise<string | null>
+  refreshAfterSettling: boolean
+}
+
 function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCatalogEntry; contentReady: boolean }) {
   const strings = useStrings()
   const { user, getAccessToken } = useAuth()
   const { state: membership, retry: retryMembership } = useMembershipAccess()
   const [state, setState] = useState<WorkplaceSaveControlState>({ kind: 'loading' })
   const [retryKey, setRetryKey] = useState(0)
-  const activeRequest = useRef<AbortController | null>(null)
+  const activeReadRequest = useRef<AbortController | null>(null)
+  const activeMutation = useRef<ActiveWorkplaceSaveMutation | null>(null)
   const revision = entry.access === 'free' ? null : entry.releaseReference?.revision ?? null
 
   useEffect(() => {
     const controller = new AbortController()
-    activeRequest.current = controller
+    const mutation = activeMutation.current
+    if (mutation) {
+      const sameContext = mutation.userId === user?.id
+        && mutation.membershipKind === membership.kind
+        && mutation.contentReady === contentReady
+        && mutation.entry === entry
+        && mutation.getAccessToken === getAccessToken
+      if (sameContext) {
+        if (mutation.user !== user && user) {
+          mutation.user = user
+          mutation.refreshAfterSettling = true
+        }
+        return () => controller.abort()
+      }
+      mutation.controller.abort()
+      if (activeMutation.current === mutation) activeMutation.current = null
+    }
     if (!user?.id || membership.kind !== 'active-member' || !contentReady || (entry.access === 'plus' && !entry.releaseReference)) {
       return () => controller.abort()
     }
+    activeReadRequest.current = controller
     void fetchWorkplaceSave(entry.id, getAccessToken, user.id, controller.signal).then((result) => {
       if (controller.signal.aborted) return
       if (result.kind !== 'ok') {
@@ -214,21 +243,38 @@ function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCa
     }).catch(() => { if (!controller.signal.aborted) setState({ kind: 'unavailable' }) })
     return () => {
       controller.abort()
-      activeRequest.current?.abort()
-      activeRequest.current = null
+      if (activeReadRequest.current === controller) activeReadRequest.current = null
     }
   }, [contentReady, entry, getAccessToken, membership.kind, retryKey, user, user?.id])
 
+  useEffect(() => () => {
+    activeMutation.current?.controller.abort()
+    activeMutation.current = null
+  }, [])
+
   const mutate = async (action: 'save' | 'remove') => {
     if (!user?.id || membership.kind !== 'active-member' || state.kind === 'busy' || !contentReady) return
-    activeRequest.current?.abort()
+    activeReadRequest.current?.abort()
+    activeReadRequest.current = null
     const controller = new AbortController()
-    activeRequest.current = controller
+    const mutation: ActiveWorkplaceSaveMutation = {
+      controller,
+      userId: user.id,
+      user,
+      membershipKind: membership.kind,
+      contentReady,
+      entry,
+      getAccessToken,
+      refreshAfterSettling: false,
+    }
+    activeMutation.current = mutation
     setState({ kind: 'busy', action })
     try {
       const result = action === 'save'
         ? await saveWorkplaceItem(entry.id, revision, getAccessToken, user.id, controller.signal)
         : await removeWorkplaceSave(entry.id, getAccessToken, user.id, controller.signal)
+      const reconcileAfterSettling = mutation.refreshAfterSettling
+      if (activeMutation.current === mutation) activeMutation.current = null
       if (controller.signal.aborted) return
       if (result.kind === 'stale') setState(action === 'save' ? { kind: 'conflict' } : { kind: 'unavailable' })
       else if (result.kind === 'signed-out') setState({ kind: 'signed-out' })
@@ -236,7 +282,9 @@ function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCa
       else if (action === 'remove') setState({ kind: 'ready', save: null })
       else if (result.save) setState({ kind: 'ready', save: result.save })
       else setState({ kind: 'unavailable' })
+      if (reconcileAfterSettling && result.kind !== 'unavailable') setRetryKey((key) => key + 1)
     } catch {
+      if (activeMutation.current === mutation) activeMutation.current = null
       if (!controller.signal.aborted) setState({ kind: 'unavailable' })
     }
   }
