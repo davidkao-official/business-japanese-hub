@@ -275,7 +275,7 @@ function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCa
         const mutationIsUncertain = uncertainMutation.current !== null
           && sameWorkplaceSaveIdentity(uncertainMutation.current, currentIdentity)
         setState(mutationIsUncertain ? { kind: 'unavailable' } : result.kind === 'signed-out' ? { kind: 'signed-out' } : { kind: 'unavailable' })
-        if (request.refreshAfterSettling && request.purpose !== 'manual') {
+        if (request.refreshAfterSettling && !mutationIsUncertain) {
           setReadRequest((current) => ({ key: current.key + 1, purpose: 'refresh' }))
         }
         return
@@ -290,7 +290,9 @@ function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCa
       if (controller.signal.aborted) return
       if (activeReadRequest.current === request) activeReadRequest.current = null
       setState({ kind: 'unavailable' })
-      if (request.refreshAfterSettling && request.purpose !== 'manual') {
+      const mutationIsUncertain = uncertainMutation.current !== null
+        && sameWorkplaceSaveIdentity(uncertainMutation.current, currentIdentity)
+      if (request.refreshAfterSettling && !mutationIsUncertain) {
         setReadRequest((current) => ({ key: current.key + 1, purpose: 'refresh' }))
       }
     })
@@ -318,7 +320,7 @@ function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCa
 
     const activeRead = activeReadRequest.current
     if (activeRead) {
-      if (activeRead.purpose !== 'manual') activeRead.refreshAfterSettling = true
+      activeRead.refreshAfterSettling = true
       return
     }
     if (membership.kind === 'active-member' && contentReady && !(entry.access === 'plus' && !entry.releaseReference)) {

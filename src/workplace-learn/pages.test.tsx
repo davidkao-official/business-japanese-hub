@@ -340,6 +340,75 @@ describe('Workplace Learn routes and details', () => {
     },
   )
 
+  it.each([
+    ['lesson', sampleWorkplaceLearnItem],
+    ['vocabulary', sampleWorkplaceVocabularyItem],
+  ] as const)(
+    'recovers an ordinary Free %s manual retry when its held 401 follows same-user refresh',
+    async (kind, item) => {
+      setLocalePreference('zh-TW')
+      vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+      const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+      const methods: string[] = []
+      const authorizationHeaders: string[] = []
+      const requestUrls: string[] = []
+      const readSignals: AbortSignal[] = []
+      let resolveManualRead!: (response: Response) => void
+      const pendingManualRead = new Promise<Response>((resolve) => { resolveManualRead = resolve })
+      const savedRow = { itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true }
+      vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const method = init?.method ?? 'GET'
+        methods.push(method)
+        authorizationHeaders.push(new Headers(init?.headers).get('Authorization') ?? '')
+        requestUrls.push(String(input))
+        if (init?.signal) readSignals.push(init.signal as AbortSignal)
+        if (method === 'GET') {
+          if (methods.length === 1) return Promise.resolve(new Response('{}', { status: 503 }))
+          if (methods.length === 2) return pendingManualRead
+          if (methods.length === 3) return Promise.resolve(new Response(JSON.stringify({ items: [savedRow] }), { status: 200 }))
+        }
+        throw new Error(`Unexpected save request: ${method}`)
+      }))
+      const route = kind === 'lesson' ? `/learn/workplace/${entry.slug}` : `/learn/vocabulary/${entry.slug}`
+      const Page = kind === 'lesson' ? WorkplaceLessonPage : WorkplaceVocabularyPage
+      const view = renderWithAppProviders(
+        <Routes><Route path={kind === 'lesson' ? '/learn/workplace/:slug' : '/learn/vocabulary/:slug'} element={
+          <Page catalogEntries={[entry]} publicItems={[item]} />
+        } /></Routes>,
+        { initialEntries: [route], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      )
+
+      expect(await screen.findByText('目前無法確認儲存狀態。')).toBeInTheDocument()
+      expect(methods).toEqual(['GET'])
+      const oldToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'ordinary-manual-old' }))}.signature`
+      const freshToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'ordinary-manual-fresh' }))}.signature`
+      let currentToken = oldToken
+      vi.spyOn(view.authClient, 'getAccessToken').mockImplementation(async () => currentToken)
+      fireEvent.click(screen.getByRole('button', { name: '重試' }))
+      await waitFor(() => expect(methods).toEqual(['GET', 'GET']))
+      expect(authorizationHeaders[1]).toBe(`Bearer ${oldToken}`)
+
+      currentToken = freshToken
+      await act(async () => {
+        view.authClient.emitAuthStateChange({ id: 'member-1', email: 'member@example.com' })
+        for (let i = 0; i < 12; i += 1) await Promise.resolve()
+      })
+      expect(methods).toEqual(['GET', 'GET'])
+      expect(readSignals[1]?.aborted).toBe(false)
+
+      await act(async () => {
+        resolveManualRead(new Response('{}', { status: 401 }))
+        for (let i = 0; i < 12; i += 1) await Promise.resolve()
+      })
+      expect(await screen.findByRole('button', { name: '移除儲存' })).toBeEnabled()
+      expect(methods).toEqual(['GET', 'GET', 'GET'])
+      expect(authorizationHeaders[2]).toBe(`Bearer ${freshToken}`)
+      expect(requestUrls.every((url) => new URL(url).searchParams.get('itemId') === item.id)).toBe(true)
+      expect(screen.queryByRole('button', { name: '儲存到 My Learning' })).not.toBeInTheDocument()
+      expect(screen.getByRole('region', { name: '儲存到 My Learning' })).not.toHaveTextContent('登入後可儲存教材；此功能提供 Plus 會員使用。')
+    },
+  )
+
   it('queues a fresh-token read when the initial save-state GET returns 401 after same-user refresh', async () => {
     setLocalePreference('zh-TW')
     vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
