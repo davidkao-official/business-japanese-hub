@@ -485,7 +485,8 @@ function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHea
   }
   if (state.kind !== 'ready' || !question) return null
   const answer = question.answer
-  const overlay = supportOverlay(state.payload, question)
+  // V1 uses the Japanese core explanation; native-language support stays dormant.
+  const overlay = getActiveLocale() === 'ja' ? undefined : supportOverlay(state.payload, question)
   const retryNotice = canRetryPersist && persistence === 'failed' ? <p role="alert">{ui.webSaveUncertain}<button type="button" onClick={onRetryPersist}>{ui.webRetrySave}</button></p>
     : canRetryPersist && persistence === 'signed-out' ? <p role="alert">{ui.webSessionExpired}<button type="button" onClick={onRetryPersist}>{ui.webRetrySave}</button></p>
       : canRetryPersist && persistence === 'forbidden' ? <p role="alert">{ui.webSaveMembershipUnavailable}<button type="button" onClick={onRetryPersist}>{ui.webRetrySave}</button></p>

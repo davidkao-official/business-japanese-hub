@@ -10,6 +10,7 @@ import {
 } from './WebTestHubPage'
 import { preparePrivatePracticeQuestionBankRelease } from '../content-delivery/privatePracticeQuestionBank'
 import { nonProprietaryPracticeQuestionBankFixture } from '../practice-web-test/fixtures/nonProprietaryPracticeFixture'
+import { getActiveLocale, LOCALE_STORAGE_KEY, setLocalePreference } from '../i18n/strings'
 
 const fetchPracticePayloadMock = vi.hoisted(() => vi.fn().mockResolvedValue({ kind: 'signed-out' }))
 const submitPracticeAttemptMock = vi.hoisted(() => vi.fn().mockResolvedValue({ kind: 'ok' }))
@@ -17,6 +18,7 @@ vi.mock('../practice-web-test/client', () => ({ fetchPracticePayload: fetchPract
 
 afterEach(() => {
   cleanup()
+  setLocalePreference(null)
   submitPracticeAttemptMock.mockClear()
   document.querySelector('meta[data-test-web-test-description]')?.remove()
   vi.unstubAllGlobals()
@@ -146,8 +148,10 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByText("問題が更新された可能性があります。学習記録に戻り、最新の記録を確認してください。")).toBeInTheDocument()
   })
 
-  it('runs a synthetic member flow with ordering, authored feedback, and truthful category results', async () => {
+  it.each(['matching', 'absent', 'mismatched-version'] as const)('keeps V1 feedback Japanese with %s support overlays through the member flow', async (overlayCase) => {
     fetchPracticePayloadMock.mockClear()
+    setLocalePreference('zh-TW')
+    expect(getActiveLocale()).toBe('ja')
     const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', nonProprietaryPracticeQuestionBankFixture)
     if (!release.ok) throw new Error(release.reason)
     const sourceQuestion = release.value.payload.questionBank.questions[0]!
@@ -175,9 +179,9 @@ describe('Web Test discovery and runner-entry routes', () => {
         ...release.value.payload,
         questionBank: { ...release.value.payload.questionBank, questions: [first, second] },
         checkpointRegistry: { version: 1, checkpoints: [{ id: 'synthetic-checkpoint-01', version: 1, questionId: first.id, questionVersion: first.version, dimension: 'meaning' as const, promptJa: '請輸入三。', answer: { input: { kind: 'number' as const }, expectedAnswer: { kind: 'number' as const, value: 3 }, scoring: { kind: 'numeric' as const } } }, { id: 'synthetic-checkpoint-02', version: 1, questionId: first.id, questionVersion: first.version, dimension: 'execution' as const, promptJa: '請輸入四。', answer: { input: { kind: 'number' as const }, expectedAnswer: { kind: 'number' as const, value: 4 }, scoring: { kind: 'numeric' as const } } }] },
-        supportOverlays: [
-          { questionId: first.id, questionVersion: first.version, version: 1, byLocale: { 'zh-Hant': { concise: '合成提示。', whatIsAsked: '請依序排列。', representationExplanation: '這是合成表示。', commonMisread: '不要倒置順序。', keyTerms: [{ termId: 'term-choice', surface: '選択', meaning: '選擇', note: '合成備註' }] } } },
-          { questionId: second.id, questionVersion: second.version, version: 1, byLocale: { 'zh-Hant': { whatIsAsked: '請選擇第二個選項。' } } },
+        supportOverlays: overlayCase === 'absent' ? [] : [
+          { questionId: first.id, questionVersion: first.version + (overlayCase === 'mismatched-version' ? 1 : 0), version: 1, byLocale: { 'zh-Hant': { concise: '合成提示。', whatIsAsked: '請依序排列。', representationExplanation: '這是合成表示。', commonMisread: '不要倒置順序。', keyTerms: [{ termId: 'term-choice', surface: '選択', meaning: '選擇', note: '合成備註' }] } } },
+          { questionId: second.id, questionVersion: second.version + (overlayCase === 'mismatched-version' ? 1 : 0), version: 1, byLocale: { 'zh-Hant': { whatIsAsked: '請選擇第二個選項。' } } },
         ],
       },
     })
@@ -196,12 +200,15 @@ describe('Web Test discovery and runner-entry routes', () => {
     nowSpy.mockReturnValue(9000)
     expect(screen.getByText('二番、一番')).toHaveAttribute('lang', 'ja')
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: "解答と解説" }))
-    expect(screen.getByText('這是合成表示。')).toBeInTheDocument()
-    expect(screen.getByText('不要倒置順序。')).toBeInTheDocument()
+    expect(screen.getByText('順序を確認します。')).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText('二番を先にすることが求められています。')).toHaveAttribute('lang', 'ja')
+    for (const text of ['合成提示。', '請依序排列。', '這是合成表示。', '不要倒置順序。']) {
+      expect(screen.queryByText(text)).not.toBeInTheDocument()
+    }
+    expect(screen.queryByText(/選擇|合成備註/)).not.toBeInTheDocument()
     expect(screen.getByRole('rowheader', { name: '甲' })).toBeInTheDocument()
     expect(screen.getByText('該当')).toBeInTheDocument()
-    expect(screen.getByText('這是合成表示。')).toHaveAttribute('lang', 'zh-TW')
-    expect(screen.getByText('不要倒置順序。')).toHaveAttribute('lang', 'zh-TW')
+    expect(localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('zh-TW')
     expect(screen.getByText('請輸入三。')).toHaveAttribute('lang', 'ja')
     rendered.authClient.emitAuthStateChange({ id: 'synthetic-member', email: 'refreshed@example.com' })
     await Promise.resolve()
@@ -224,6 +231,9 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: '二番を選んでください。' }))
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
     fireEvent.click(screen.getByRole('button', { name: "解答する" }))
+    expect(screen.getByText(sourceQuestion.coreExplanation.concise)).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText(sourceQuestion.coreExplanation.whatIsAskedJa)).toHaveAttribute('lang', 'ja')
+    expect(screen.queryByText('請選擇第二個選項。')).not.toBeInTheDocument()
     await waitFor(() => expect(screen.getByText("解答を保存しました。")).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: "次の問題へ" }))
     expect(screen.getByText('正解 2／2 問（正答率 100%） · 解答を保存しました。')).toBeInTheDocument()
