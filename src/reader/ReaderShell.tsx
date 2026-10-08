@@ -5,8 +5,8 @@
  * overlays, and the reading-position wiring. It is deliberately the only place
  * that knows about overlays and settings, so `ReaderPage` stays a thin resolver.
  *
- * The `store` prop is the #7 persistence seam: the shell loads on mount and
- * saves settled anchors through the store supplied by ReaderPage.
+ * `ReaderPage` supplies validated restore anchors and the current-user store;
+ * the shell saves settled anchors through that store.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
@@ -50,6 +50,8 @@ export interface ReaderShellProps {
   previewBoundary?: PreviewBoundary
   /** Validated, readable saved anchor for this one Continue entry. */
   restoreAnchor?: ReadingAnchor
+  /** Current semantic viewport to restore only when a paid pending state remounts the shell. */
+  liveRestoreAnchor?: ReadingAnchor
   /** Stable identity of the Continue navigation, retained when its marker is consumed. */
   restoreEntryKey?: string
   /** Owner identity bound to the local, one-entry consumed marker. */
@@ -96,6 +98,7 @@ export function ReaderShell({
   owned = false,
   previewBoundary,
   restoreAnchor,
+  liveRestoreAnchor,
   restoreEntryKey,
   resumeOwnerId = null,
   resetInitialViewport = false,
@@ -109,12 +112,29 @@ export function ReaderShell({
   const { hash, key: locationKey } = location
   const navigate = useNavigate()
   const appliedRestoreKeyRef = useRef<string | null>(null)
-  const shouldResetInitialViewportRef = useRef(resetInitialViewport && !restoreAnchor && !hash)
 
   const [settings, setSettings] = useState<ReaderSettings>(initialReaderSettings)
   const [tocOpen, setTocOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [vocabBlock, setVocabBlock] = useState<VocabularyBlock | null>(null)
+  // Capture a live position only on mount. A save from this still-mounted shell
+  // must never turn into a late restore and jump the reader backwards.
+  const currentEntryKey = restoreEntryKey ?? locationKey
+  const [initialLiveRestore] = useState(() =>
+    liveRestoreAnchor
+      ? { anchor: liveRestoreAnchor, entryKey: currentEntryKey, chapterId: chapter.id }
+      : undefined,
+  )
+  const liveRestoreForEntry =
+    initialLiveRestore &&
+    initialLiveRestore.entryKey === currentEntryKey &&
+    initialLiveRestore.chapterId === chapter.id
+      ? initialLiveRestore.anchor
+      : undefined
+  const restoreAnchorForEntry = restoreAnchor ?? liveRestoreForEntry
+  const shouldResetInitialViewportRef = useRef(
+    resetInitialViewport && !restoreAnchorForEntry && !hash,
+  )
 
   const chrome = useChromeVisibility(isDesktop)
 
@@ -151,11 +171,11 @@ export function ReaderShell({
     contentRef,
     onAnchorChange,
     {
-      restore: restoreAnchor
-        ? { anchor: restoreAnchor, key: restoreEntryKey ?? locationKey }
+      restore: restoreAnchorForEntry
+        ? { anchor: restoreAnchorForEntry, key: currentEntryKey }
         : undefined,
       canPersist: canPersistPosition,
-      entryKey: restoreEntryKey ?? locationKey,
+      entryKey: currentEntryKey,
       skipInitialPersistence: skipInitialPositionSave,
     },
   )
@@ -163,25 +183,25 @@ export function ReaderShell({
   useLayoutEffect(() => {
     if (!shouldResetInitialViewportRef.current) return
     shouldResetInitialViewportRef.current = false
-    window.scrollTo(0, 0)
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
   }, [book.id])
 
-  // Apply a validated saved anchor once for this route entry. This runs before
-  // position measurement so reflow/settings/session rerenders cannot replace
-  // the restored block with a transient opening anchor.
+  // Apply an explicit Continue anchor or mount-captured live remount anchor
+  // once for this route entry. This runs before position measurement so
+  // reflow/settings/session rerenders cannot replace it with an opening anchor.
   useLayoutEffect(() => {
     const stableRestoreKey = restoreEntryKey ?? locationKey
-    if (!restoreAnchor || hash || appliedRestoreKeyRef.current === stableRestoreKey) return
+    if (!restoreAnchorForEntry || hash || appliedRestoreKeyRef.current === stableRestoreKey) return
     appliedRestoreKeyRef.current = stableRestoreKey
 
-    if (restoreAnchor.chapterId !== chapter.id) return
-    if (!restoreAnchor.blockId) {
-      window.scrollTo(0, 0)
+    if (restoreAnchorForEntry.chapterId !== chapter.id) return
+    if (!restoreAnchorForEntry.blockId) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
     } else {
-      const targetId = `block-${restoreAnchor.blockId}`
+      const targetId = `block-${restoreAnchorForEntry.blockId}`
       const target = document.getElementById(targetId)
       if (!target || !contentRef.current?.contains(target)) return
-      target.scrollIntoView({ block: 'start' })
+      target.scrollIntoView({ behavior: 'instant', block: 'start' })
       target.focus({ preventScroll: true })
     }
 
@@ -208,7 +228,7 @@ export function ReaderShell({
       )
     }
   }, [
-    restoreAnchor,
+    restoreAnchorForEntry,
     locationKey,
     hash,
     chapter.id,
@@ -238,7 +258,7 @@ export function ReaderShell({
 
     const target = document.getElementById(targetId)
     if (!target || !contentRef.current?.contains(target)) return
-    target.scrollIntoView({ block: 'start' })
+    target.scrollIntoView({ behavior: 'instant', block: 'start' })
     target.focus({ preventScroll: true })
   }, [hash, book.id, chapter.id, visibleBlocks])
 

@@ -130,7 +130,9 @@ export function useReadingPosition(
     if (restoringThisEntry) detectedRestoreKeyRef.current = appliedRestoreKey
     if (lastChapterRef.current !== chapter.id) {
       lastChapterRef.current = chapter.id
-      if (!restoringThisEntry) window.scrollTo(0, 0)
+      if (!restoringThisEntry) {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+      }
     }
     if (!restoringThisEntry) {
       if (skipInitialDetectionRef.current) skipInitialDetectionRef.current = false

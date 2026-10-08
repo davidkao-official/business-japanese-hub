@@ -50,6 +50,7 @@ function blockIdFromHash(hash: string): string | undefined {
 
 interface ReaderPositionSnapshot {
   ownerId: string | null
+  ownerEpoch: number
   bookId: string
   entryKey: string
   anchor: ReadingAnchor
@@ -97,12 +98,41 @@ export function ReaderPage() {
       ? navigationState.readerResumeEntryKey
       : location.key
   const [positionSnapshot, setPositionSnapshot] = useState<ReaderPositionSnapshot | null>(null)
+  const currentOwnerId = user?.id ?? null
+  const [ownerObservation, setOwnerObservation] = useState(() => ({
+    initialized: !authLoading,
+    ownerId: authLoading ? null : currentOwnerId,
+    generation: 0,
+    transitioned: false,
+  }))
+  let ownerTransition = false
+  if (!authLoading) {
+    if (!ownerObservation.initialized) {
+      setOwnerObservation({
+        initialized: true,
+        ownerId: currentOwnerId,
+        generation: ownerObservation.generation,
+        transitioned: false,
+      })
+    } else if (ownerObservation.ownerId !== currentOwnerId) {
+      ownerTransition = true
+      setOwnerObservation({
+        initialized: true,
+        ownerId: currentOwnerId,
+        generation: ownerObservation.generation + 1,
+        transitioned: true,
+      })
+    } else {
+      ownerTransition = ownerObservation.transitioned
+    }
+  }
 
   const { owned, readingState, loading, error } = useBookState(book?.id ?? '')
   const saveState = useSaveReadingState()
 
   // Bind the current user-scoped reading state to the Reader's save callback.
-  // Restoration is resolved below only for an explicit Continue intent.
+  // Continue restoration and same-owner remount snapshots are resolved below;
+  // live snapshots never become late restores in an already-mounted shell.
   const store = useMemo<ReadingPositionStore>(
     () => ({
       load: () =>
@@ -116,11 +146,17 @@ export function ReaderPage() {
       save: (bookId, anchor) => {
         if (bookId !== book?.id) return
         setPositionSnapshot({
-          ownerId: user?.id ?? null,
+          ownerId: currentOwnerId,
+          ownerEpoch: ownerObservation.generation,
           bookId,
           entryKey: resumeEntryKey,
           anchor,
         })
+        setOwnerObservation((previous) =>
+          previous.ownerId === currentOwnerId && previous.transitioned
+            ? { ...previous, transitioned: false }
+            : previous,
+        )
         if (loading || error) return
         saveState({
           bookId,
@@ -130,7 +166,16 @@ export function ReaderPage() {
         })
       },
     }),
-    [readingState, saveState, loading, error, user?.id, book?.id, resumeEntryKey],
+    [
+      readingState,
+      saveState,
+      loading,
+      error,
+      currentOwnerId,
+      ownerObservation.generation,
+      book?.id,
+      resumeEntryKey,
+    ],
   )
 
   const chapter = book && chapterSlug ? book.chapters.find((c) => c.slug === chapterSlug) : undefined
@@ -180,10 +225,10 @@ export function ReaderPage() {
     (consumedState.bookId !== book?.id || consumedState.userId !== (user?.id ?? null))
   let resumeViewportAnchor: ReadingAnchor | undefined
   if (
-    resumeEntryConsumed &&
     !location.hash &&
     chapter &&
-    positionSnapshot?.ownerId === (user?.id ?? null) &&
+    positionSnapshot?.ownerId === currentOwnerId &&
+    positionSnapshot.ownerEpoch === ownerObservation.generation &&
     positionSnapshot.bookId === book?.id &&
     positionSnapshot.entryKey === resumeEntryKey &&
     positionSnapshot.anchor.chapterId === chapter.id &&
@@ -215,6 +260,9 @@ export function ReaderPage() {
     }
   }
   const resumeIntent = resumeCandidate && !resumeEntryConsumed
+  const previousBookViewport = Boolean(
+    book && positionSnapshot && positionSnapshot.bookId !== book.id,
+  )
   const identityPending = repository !== null && authLoading
   const ownershipPending =
     repository !== null && tier !== 'free' && tier !== 'preview' && loading
@@ -312,12 +360,19 @@ export function ReaderPage() {
           store={store}
           owned={owned}
           previewBoundary={previewBoundary}
-          restoreAnchor={restoreAnchor ?? resumeViewportAnchor}
+          restoreAnchor={restoreAnchor}
+          liveRestoreAnchor={resumeViewportAnchor}
           restoreEntryKey={resumeEntryKey}
-          resumeOwnerId={user?.id ?? null}
-          resetInitialViewport={consumedMarkerIsStale}
+          resumeOwnerId={currentOwnerId}
+          resetInitialViewport={ownerTransition || previousBookViewport || consumedMarkerIsStale}
           canPersistPosition={!loading && !error}
-          skipInitialPositionSave={consumedMarkerIsStale || resumeEntryConsumed}
+          skipInitialPositionSave={
+            ownerTransition ||
+            previousBookViewport ||
+            consumedMarkerIsStale ||
+            resumeEntryConsumed ||
+            Boolean(resumeViewportAnchor)
+          }
         />
       </>
     )

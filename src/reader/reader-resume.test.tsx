@@ -30,19 +30,50 @@ const maybeMeetingBook = getBookBySlug('meeting-japanese')
 if (!maybeMeetingBook) throw new Error('meeting-japanese released Book is required by reader resume tests')
 const meetingBook: Book = maybeMeetingBook
 const originalScrollIntoView = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView')
+const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect
+const originalGetBoundingClientRectDescriptor = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  'getBoundingClientRect',
+)
+const originalScrollHeightDescriptor = Object.getOwnPropertyDescriptor(
+  document.documentElement,
+  'scrollHeight',
+)
+const measuredTopByBlockId = new Map<string, number>()
+const measuredRectReadCountByBlockId = new Map<string, number>()
 
 afterEach(() => {
   vi.restoreAllMocks()
+  measuredTopByBlockId.clear()
+  measuredRectReadCountByBlockId.clear()
   if (originalScrollIntoView) {
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScrollIntoView)
   } else {
     delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView
   }
+  if (originalGetBoundingClientRectDescriptor) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      'getBoundingClientRect',
+      originalGetBoundingClientRectDescriptor,
+    )
+  } else {
+    delete (HTMLElement.prototype as { getBoundingClientRect?: unknown }).getBoundingClientRect
+  }
+  if (originalScrollHeightDescriptor) {
+    Object.defineProperty(document.documentElement, 'scrollHeight', originalScrollHeightDescriptor)
+  } else {
+    delete (document.documentElement as { scrollHeight?: unknown }).scrollHeight
+  }
 })
 
 function LocationProbe() {
   const location = useLocation()
-  return <output data-testid="location">{location.pathname}{location.search}{location.hash}</output>
+  return (
+    <output data-testid="location" data-entry-key={location.key}>
+      {location.pathname}{location.search}{location.hash}
+    </output>
+  )
 }
 
 function SnapshotHashLink() {
@@ -87,13 +118,66 @@ function ReaderRoutes() {
   )
 }
 
-function installScrollIntoViewSpy() {
-  const scrollIntoView = vi.fn()
+function installScrollIntoViewSpy(
+  onScroll?: (target: HTMLElement, options?: ScrollIntoViewOptions) => void,
+) {
+  const scrollIntoView = vi.fn(function (this: HTMLElement, options?: ScrollIntoViewOptions) {
+    onScroll?.(this, options)
+  })
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
     configurable: true,
     value: scrollIntoView,
   })
   return scrollIntoView
+}
+
+function setMeasuredBlockTops(currentBlockId: string) {
+  const blockIds = [...document.querySelectorAll<HTMLElement>('[data-block-anchor]')]
+    .map((block) => block.dataset.blockId)
+    .filter((blockId): blockId is string => Boolean(blockId))
+  setMeasuredBlockTopsForIds(blockIds, currentBlockId)
+}
+
+function setMeasuredBlockTopsForIds(blockIds: readonly string[], currentBlockId: string) {
+  const currentIndex = blockIds.indexOf(currentBlockId)
+  if (currentIndex === -1) throw new Error(`Missing test block ${currentBlockId}`)
+
+  for (const [index, blockId] of blockIds.entries()) {
+    const top = index < currentIndex ? (index - currentIndex) * 100 : index === currentIndex ? 0 : 600 + index * 100
+    measuredTopByBlockId.set(blockId, top)
+  }
+
+  // A dynamic prototype model is keyed by semantic block id, so replacement
+  // DOM nodes after a ReaderShell owner remount inherit the measured viewport.
+  Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: function (this: HTMLElement) {
+      const blockId = this.dataset.blockId
+      const top = blockId ? measuredTopByBlockId.get(blockId) : undefined
+      if (blockId) {
+        measuredRectReadCountByBlockId.set(
+          blockId,
+          (measuredRectReadCountByBlockId.get(blockId) ?? 0) + 1,
+        )
+      }
+      if (top === undefined) return originalGetBoundingClientRect.call(this)
+      return {
+        x: 0,
+        y: top,
+        top,
+        left: 0,
+        right: 600,
+        bottom: top + 40,
+        width: 600,
+        height: 40,
+        toJSON: () => ({}),
+      } as DOMRect
+    },
+  })
+}
+
+function measuredBlockRectReadCount(blockId: string) {
+  return measuredRectReadCountByBlockId.get(blockId) ?? 0
 }
 
 function deferred<T>() {
@@ -345,6 +429,70 @@ describe('reader resume intent', () => {
     )
   })
 
+  it('saves, leaves, and restores through the actual BookPage Continue action', async () => {
+    const scrollIntoView = installScrollIntoViewSpy()
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    let persisted: ReadingState | null = null
+    const entitlement = {
+      bookId: meetingBook.id,
+      provider: 'manual' as const,
+      grantedAt: '2026-10-01T00:00:00.000Z',
+    }
+    const base = createMockRepository({ entitlements: { [meetingBook.id]: entitlement } })
+    const repository = {
+      ...base,
+      getReadingState: vi.fn(async () => persisted),
+      saveReadingState: vi.fn(async (state: {
+        bookId: string
+        chapterId: string
+        blockId?: string | null
+        offset?: number | null
+      }) => {
+        persisted = { ...state, updatedAt: '2026-10-08T05:00:00.000Z' }
+      }),
+    }
+    renderWithAppProviders(<ReaderRoutes />, {
+      initialEntries: ['/books/meeting-japanese'],
+      session: user,
+      repository,
+    })
+
+    fireEvent.click(await screen.findByRole('link', { name: '読み始める' }))
+    const firstChapter = meetingBook.chapters[0]
+    const savedBlockId = 'mj-ch01-blk-03'
+    if (!firstChapter || !firstChapter.blocks.some((block) => block.id === savedBlockId)) {
+      throw new Error('meeting-japanese first chapter with block 03 is required')
+    }
+    expect(await screen.findByRole('heading', { name: firstChapter.title })).toBeInTheDocument()
+    setMeasuredBlockTops(savedBlockId)
+    fireEvent.scroll(window)
+    await waitFor(() =>
+      expect(repository.saveReadingState).toHaveBeenCalledWith(
+        expect.objectContaining({ chapterId: firstChapter.id, blockId: savedBlockId }),
+      ),
+    )
+    expect(persisted).toMatchObject({ chapterId: firstChapter.id, blockId: savedBlockId })
+
+    fireEvent.click(screen.getByRole('link', { name: '書籍へ戻る' }))
+    expect(await screen.findByRole('heading', { name: meetingBook.title })).toBeInTheDocument()
+    const continueLink = await screen.findByRole('link', { name: '続きを読む' })
+    scrollIntoView.mockClear()
+    vi.mocked(repository.saveReadingState).mockClear()
+    fireEvent.click(continueLink)
+
+    expect(await screen.findByRole('heading', { name: firstChapter.title })).toBeInTheDocument()
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+    const restoredBlock = document.getElementById(`block-${savedBlockId}`)
+    expect(scrollIntoView.mock.contexts).toContain(restoredBlock)
+    expect(restoredBlock).toHaveFocus()
+    await waitFor(() =>
+      expect(vi.mocked(repository.saveReadingState).mock.calls[0]?.[0]).toMatchObject({
+        chapterId: firstChapter.id,
+        blockId: savedBlockId,
+      }),
+    )
+  })
+
   it('does not restore a saved block over a deliberate chapter URL', async () => {
     const scrollIntoView = installScrollIntoViewSpy()
     const repository = createMockRepository({ readingStates: { [secondBook.id]: savedPosition() } })
@@ -415,6 +563,190 @@ describe('reader resume intent', () => {
     expect(savedAfterSwitch.some((state) => state.blockId?.startsWith('bm-'))).toBe(false)
   })
 
+  it.each([
+    { entry: 'direct chapter A → B', startsOnContinue: false, navigateVia: 'none', signOutFirst: false },
+    { entry: 'direct chapter A → signed out → B', startsOnContinue: false, navigateVia: 'none', signOutFirst: true },
+    { entry: 'Continue → Next A → B', startsOnContinue: true, navigateVia: 'next', signOutFirst: false },
+    { entry: 'Continue → Next A → signed out → B', startsOnContinue: true, navigateVia: 'next', signOutFirst: true },
+    { entry: 'Continue → TOC A → B', startsOnContinue: true, navigateVia: 'toc', signOutFirst: false },
+    { entry: 'Continue → TOC A → signed out → B', startsOnContinue: true, navigateVia: 'toc', signOutFirst: true },
+  ] as const)(
+    'does not persist owner A’s later viewport as owner B after $entry',
+    async ({ startsOnContinue, navigateVia, signOutFirst }) => {
+      const scrollIntoView = installScrollIntoViewSpy()
+      const nextOwnerRead = deferred<ReadingState | null>()
+      const startPosition = savedPosition({ chapterId: 'bm-ch-1', blockId: 'bm-ch1-blk-02' })
+      let stateReads = 0
+      let resetEventBlockId: string | null = null
+      let inheritedViewportBlockId = 'bm-ch2-blk-03'
+      let resetWasInstant = false
+      const base = createMockRepository()
+      const repository = {
+        ...base,
+        getReadingState: vi.fn((bookId: string) => {
+          if (bookId !== secondBook.id) return Promise.resolve(null)
+          stateReads += 1
+          return stateReads === 1
+            ? Promise.resolve(startsOnContinue ? startPosition : null)
+            : nextOwnerRead.promise
+        }),
+      }
+      const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(
+        (arg0?: ScrollToOptions | number, y?: number) => {
+          void y
+          if (!resetEventBlockId) return
+          const options = typeof arg0 === 'object' && arg0 !== null ? arg0 : undefined
+          resetWasInstant = options?.behavior === 'instant'
+          // An omitted/auto reset emits an early smooth-scroll event while the
+          // window still measures A's later block. An instant reset lands at the
+          // new owner's opening block before emitting its event.
+          setMeasuredBlockTops(resetWasInstant ? resetEventBlockId : inheritedViewportBlockId)
+          queueMicrotask(() => fireEvent.scroll(window))
+        },
+      )
+      const initialEntry = startsOnContinue
+        ? '/books/email-manners/read/email-basics?resume=1'
+        : '/books/email-manners/read/subject-and-opening'
+      const rendered = renderWithAppProviders(<ReaderRoutes />, {
+        initialEntries: [initialEntry],
+        session: user,
+        repository,
+      })
+
+      const startHeading = startsOnContinue ? 'メールの基本構成' : '件名と冒頭の作法'
+      expect(await screen.findByRole('heading', { name: startHeading })).toBeInTheDocument()
+      if (navigateVia !== 'none') {
+        if (navigateVia === 'next') {
+          fireEvent.click(screen.getByRole('link', { name: /件名と冒頭の作法/ }))
+        } else {
+          fireEvent.click(screen.getByRole('button', { name: '目次' }))
+          fireEvent.click(
+            within(screen.getByRole('dialog', { name: '目次' })).getByRole('link', {
+              name: /件名と冒頭の作法/,
+            }),
+          )
+        }
+        expect(await screen.findByRole('heading', { name: '件名と冒頭の作法' })).toBeInTheDocument()
+      }
+
+      setMeasuredBlockTops('bm-ch2-blk-03')
+      fireEvent.scroll(window)
+      await waitFor(() =>
+        expect(repository.saveReadingState).toHaveBeenCalledWith(
+          expect.objectContaining({ chapterId: 'bm-ch-2', blockId: 'bm-ch2-blk-03' }),
+        ),
+      )
+      expect(document.getElementById('block-bm-ch2-blk-03')?.getBoundingClientRect().top).toBe(0)
+      vi.mocked(repository.saveReadingState).mockClear()
+
+      // A's browser viewport is later in chapter 2. A remount/reset scroll
+      // emits an asynchronous scroll event at the new owner's opening block.
+      resetEventBlockId = 'bm-ch2-blk-01'
+      if (signOutFirst) {
+        act(() => rendered.authClient.emitAuthStateChange(null))
+        expect(await screen.findByRole('heading', { name: '件名と冒頭の作法' })).toBeInTheDocument()
+        await act(async () => Promise.resolve())
+        if (!resetWasInstant) {
+          const resetMeasureCount = measuredBlockRectReadCount('bm-ch2-blk-01')
+          setMeasuredBlockTops('bm-ch2-blk-01')
+          fireEvent.scroll(window)
+          await waitFor(() =>
+            expect(measuredBlockRectReadCount('bm-ch2-blk-01')).toBeGreaterThan(resetMeasureCount),
+          )
+        }
+        inheritedViewportBlockId = 'bm-ch2-blk-04'
+        const anonymousMeasureCount = measuredBlockRectReadCount(inheritedViewportBlockId)
+        setMeasuredBlockTops(inheritedViewportBlockId)
+        fireEvent.scroll(window)
+        await waitFor(() =>
+          expect(measuredBlockRectReadCount(inheritedViewportBlockId)).toBeGreaterThan(
+            anonymousMeasureCount,
+          ),
+        )
+      }
+      const readsBeforeOwnerB = vi.mocked(repository.getReadingState).mock.calls.length
+      const inheritedMeasureCount = measuredBlockRectReadCount(inheritedViewportBlockId)
+      act(() =>
+        rendered.authClient.emitAuthStateChange({ id: 'owner-b', email: 'owner-b@example.com' }),
+      )
+      await waitFor(() =>
+        expect(vi.mocked(repository.getReadingState).mock.calls.length).toBe(readsBeforeOwnerB + 1),
+      )
+      await act(async () => Promise.resolve())
+      if (!resetWasInstant) {
+        await waitFor(() =>
+          expect(measuredBlockRectReadCount(inheritedViewportBlockId)).toBeGreaterThan(
+            inheritedMeasureCount,
+          ),
+        )
+      }
+      expect(screen.getByRole('heading', { name: '件名と冒頭の作法' })).toBeInTheDocument()
+      expect(
+        document
+          .getElementById(`block-${resetWasInstant ? 'bm-ch2-blk-01' : inheritedViewportBlockId}`)
+          ?.getBoundingClientRect().top,
+      ).toBe(0)
+      expect(repository.saveReadingState).not.toHaveBeenCalled()
+
+      await act(async () => {
+        nextOwnerRead.resolve(savedPosition({ chapterId: 'bm-ch-2', blockId: 'bm-ch2-blk-02' }))
+        await nextOwnerRead.promise
+      })
+      await waitFor(() => expect(repository.getReadingState).toHaveBeenCalled())
+      if (!resetWasInstant) {
+        // Finish the modeled reset after the held owner read has settled.
+        const resetMeasureCount = measuredBlockRectReadCount('bm-ch2-blk-01')
+        setMeasuredBlockTops('bm-ch2-blk-01')
+        fireEvent.scroll(window)
+        await waitFor(() =>
+          expect(measuredBlockRectReadCount('bm-ch2-blk-01')).toBeGreaterThan(resetMeasureCount),
+        )
+        expect(document.getElementById('block-bm-ch2-blk-01')?.getBoundingClientRect().top).toBe(0)
+      }
+      expect(repository.saveReadingState).not.toHaveBeenCalled()
+
+      // A returning account must not reactivate its pre-transition snapshot
+      // when the intervening owner never made a reading action.
+      if (navigateVia === 'none' && !signOutFirst) {
+        const readsBeforeReturningOwner = vi.mocked(repository.getReadingState).mock.calls.length
+        act(() => rendered.authClient.emitAuthStateChange(user))
+        await waitFor(() =>
+          expect(vi.mocked(repository.getReadingState).mock.calls.length).toBe(
+            readsBeforeReturningOwner + 1,
+          ),
+        )
+        await act(async () => Promise.resolve())
+        expect(screen.getByRole('heading', { name: '件名と冒頭の作法' })).toBeInTheDocument()
+        expect(scrollIntoView.mock.contexts).not.toContain(
+          document.getElementById('block-bm-ch2-blk-03'),
+        )
+        expect(repository.saveReadingState).not.toHaveBeenCalled()
+
+        const readsBeforeBReturns = vi.mocked(repository.getReadingState).mock.calls.length
+        act(() =>
+          rendered.authClient.emitAuthStateChange({ id: 'owner-b', email: 'owner-b@example.com' }),
+        )
+        await waitFor(() =>
+          expect(vi.mocked(repository.getReadingState).mock.calls.length).toBe(
+            readsBeforeBReturns + 1,
+          ),
+        )
+        await act(async () => Promise.resolve())
+        expect(repository.saveReadingState).not.toHaveBeenCalled()
+      }
+
+      // A later scroll performed after B's state is ready is a genuine B action.
+      setMeasuredBlockTops('bm-ch2-blk-04')
+      fireEvent.scroll(window)
+      await waitFor(() =>
+        expect(repository.saveReadingState).toHaveBeenCalledWith(
+          expect.objectContaining({ chapterId: 'bm-ch-2', blockId: 'bm-ch2-blk-04' }),
+        ),
+      )
+      expect(scrollTo).toHaveBeenCalled()
+    },
+  )
+
   it('gives a readable block hash priority over a saved Continue position', async () => {
     const scrollIntoView = installScrollIntoViewSpy()
     const repository = createMockRepository({ readingStates: { [secondBook.id]: savedPosition() } })
@@ -447,6 +779,63 @@ describe('reader resume intent', () => {
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1))
     expect(scrollIntoView.mock.contexts).toContain(document.getElementById('block-bm-ch3-blk-01'))
     expect(scrollIntoView.mock.contexts).not.toContain(document.getElementById('block-bm-ch3-blk-02'))
+  })
+
+  it('does not persist an intermediate position while a programmatic resume scroll is in flight', async () => {
+    const scrollIntoView = installScrollIntoViewSpy()
+    const repository = createMockRepository({ readingStates: { [secondBook.id]: savedPosition() } })
+    Object.defineProperty(document.documentElement, 'scrollHeight', {
+      configurable: true,
+      value: 5000,
+    })
+    renderWithAppProviders(<ReaderRoutes />, {
+      initialEntries: ['/books/email-manners/read?resume=1'],
+      session: user,
+      repository,
+    })
+
+    expect(await screen.findByRole('heading', { name: '依頼と締めの表現' })).toBeInTheDocument()
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1))
+    const scrollOptions = scrollIntoView.mock.calls[0]?.[0]
+    const restoredProgress = Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'))
+    vi.mocked(repository.saveReadingState).mockClear()
+
+    if (scrollOptions?.behavior === 'instant') {
+      // The harness completes an instant scroll at the requested anchor before
+      // the detector can observe any intermediate position.
+      setMeasuredBlockTops('bm-ch3-blk-02')
+      expect(document.getElementById('block-bm-ch3-blk-02')?.getBoundingClientRect().top).toBe(0)
+    } else {
+      // CSSOM `auto` follows computed smooth scrolling. Model a mid-animation
+      // event at the chapter opening, before the saved target is reached. The
+      // detector may measure this transient geometry, but must not regress the
+      // visible progress or persist it as the restored location.
+      const openingReadCount = measuredBlockRectReadCount('bm-ch3-blk-01')
+      setMeasuredBlockTops('bm-ch3-blk-01')
+      fireEvent.scroll(window)
+      await waitFor(() =>
+        expect(measuredBlockRectReadCount('bm-ch3-blk-01')).toBeGreaterThan(openingReadCount),
+      )
+      expect(repository.saveReadingState).not.toHaveBeenCalledWith(
+        expect.objectContaining({ chapterId: 'bm-ch-3', blockId: 'bm-ch3-blk-01' }),
+      )
+      expect(Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'))).toBe(restoredProgress)
+      const targetReadCount = measuredBlockRectReadCount('bm-ch3-blk-02')
+      setMeasuredBlockTops('bm-ch3-blk-02')
+      fireEvent.scroll(window)
+      await waitFor(() =>
+        expect(measuredBlockRectReadCount('bm-ch3-blk-02')).toBeGreaterThan(targetReadCount),
+      )
+    }
+    expect(
+      vi.mocked(repository.saveReadingState).mock.calls.some(
+        ([state]) => state.chapterId === 'bm-ch-3' && state.blockId === 'bm-ch3-blk-01',
+      ),
+    ).toBe(false)
+    if (scrollOptions?.behavior === 'instant') {
+      expect(Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'))).toBe(restoredProgress)
+      expect(repository.saveReadingState).not.toHaveBeenCalled()
+    }
   })
 
   it('does not restore a consumed live anchor after paid access is revoked', async () => {
@@ -510,7 +899,7 @@ describe('reader resume intent', () => {
     })
 
     expect(await screen.findByRole('heading', { name: '依頼と締めの表現' })).toBeInTheDocument()
-    expect(scrollTo).toHaveBeenCalledWith(0, 0)
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'instant' })
     const progress = screen.getByRole('progressbar')
     expect(Number(progress.getAttribute('aria-valuenow'))).toBeGreaterThan(0)
     await waitFor(() =>
@@ -666,6 +1055,226 @@ describe('reader resume intent', () => {
     )
     expect(vi.mocked(repository.saveReadingState).mock.calls).toEqual([])
   })
+
+  it.each(['next', 'toc'] as const)(
+    'preserves the latest same-owner paid semantic anchor across Continue → %s → held refresh',
+    async (navigation) => {
+      vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+      const scrollIntoView = installScrollIntoViewSpy((target) => {
+        const blockId = target.dataset.blockId
+        if (blockId) setMeasuredBlockTops(blockId)
+      })
+      const currentChapter = meetingBook.chapters.find((chapter) => chapter.id === 'mj-ch-02')
+      const destination = meetingBook.chapters.find((chapter) => chapter.id === 'mj-ch-03')
+      if (!currentChapter || !destination || destination.blocks.length < 5) {
+        throw new Error('meeting-japanese chapter 2 and 3 with five blocks are required')
+      }
+      const destinationBlock = destination.blocks[2]
+      const olderBlock = destination.blocks[0]
+      const entitlement = {
+        bookId: meetingBook.id,
+        provider: 'manual' as const,
+        grantedAt: '2026-10-01T00:00:00.000Z',
+      }
+      const refreshedEntitlement = deferred<typeof entitlement | null>()
+      const refreshedReadingState = deferred<ReadingState | null>()
+      let entitlementReads = 0
+      let readingStateReads = 0
+      const base = createMockRepository({ entitlements: { [meetingBook.id]: entitlement } })
+      const repository = {
+        ...base,
+        getEntitlement: vi.fn(() =>
+          entitlementReads++ === 0 ? Promise.resolve(entitlement) : refreshedEntitlement.promise,
+        ),
+        getReadingState: vi.fn(() =>
+          readingStateReads++ === 0
+            ? Promise.resolve(meetingPosition({ blockId: 'mj-ch02-blk-11' }))
+            : refreshedReadingState.promise,
+        ),
+      }
+      const rendered = renderWithAppProviders(<ReaderRoutes />, {
+        initialEntries: [`/books/meeting-japanese/read/${currentChapter.slug}?resume=1`],
+        session: user,
+        repository,
+      })
+
+      expect(await screen.findByRole('heading', { name: currentChapter.title })).toBeInTheDocument()
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1))
+      if (navigation === 'next') {
+        fireEvent.click(screen.getByRole('link', { name: new RegExp(destination.title) }))
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: '目次' }))
+        fireEvent.click(
+          within(screen.getByRole('dialog', { name: '目次' })).getByRole('link', {
+            name: new RegExp(destination.title),
+          }),
+        )
+      }
+      expect(await screen.findByRole('heading', { name: destination.title })).toBeInTheDocument()
+
+      setMeasuredBlockTops(destinationBlock.id)
+      fireEvent.scroll(window)
+      await waitFor(() =>
+        expect(repository.saveReadingState).toHaveBeenCalledWith(
+          expect.objectContaining({ chapterId: destination.id, blockId: destinationBlock.id }),
+        ),
+      )
+      const progressBeforeRefresh = screen.getByRole('progressbar').getAttribute('aria-valuenow')
+      expect(progressBeforeRefresh).not.toBeNull()
+      expect(Number(progressBeforeRefresh)).toBeGreaterThan(0)
+      scrollIntoView.mockClear()
+      vi.mocked(repository.saveReadingState).mockClear()
+
+      act(() => rendered.authClient.emitAuthStateChange({ ...user }))
+      expect(await screen.findByText('確認中…')).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: destination.title })).not.toBeInTheDocument()
+      await waitFor(() => expect(repository.getEntitlement).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(repository.getReadingState).toHaveBeenCalledTimes(2))
+      // Removing paid DOM collapses the document and clamps the browser to the
+      // chapter opening. A correct semantic remount restores the live block.
+      setMeasuredBlockTopsForIds(
+        destination.blocks.map((block) => block.id),
+        olderBlock.id,
+      )
+      expect(measuredTopByBlockId.get(olderBlock.id)).toBe(0)
+      expect(measuredTopByBlockId.get(destinationBlock.id)).not.toBe(0)
+      await act(async () => {
+        refreshedEntitlement.resolve(entitlement)
+        refreshedReadingState.resolve(
+          meetingPosition({ chapterId: destination.id, blockId: olderBlock.id }),
+        )
+        await Promise.all([refreshedEntitlement.promise, refreshedReadingState.promise])
+      })
+
+      expect(await screen.findByRole('heading', { name: destination.title })).toBeInTheDocument()
+      expect(document.querySelector('.reader-shell')).toBeInTheDocument()
+      expect(document.getElementById(`block-${destinationBlock.id}`)?.getBoundingClientRect().top).toBe(0)
+      await waitFor(() =>
+        expect(screen.getByRole('progressbar')).toHaveAttribute(
+          'aria-valuenow',
+          String(progressBeforeRefresh),
+        ),
+      )
+      expect(repository.saveReadingState).not.toHaveBeenCalled()
+      expect(scrollIntoView.mock.contexts).toContain(document.getElementById(`block-${destinationBlock.id}`))
+      expect(scrollIntoView.mock.contexts).not.toContain(document.getElementById(`block-${olderBlock.id}`))
+
+      const laterBlock = destination.blocks[4]
+      if (!laterBlock) throw new Error('meeting-japanese destination later block is required')
+      setMeasuredBlockTops(laterBlock.id)
+      fireEvent.scroll(window)
+      await waitFor(() =>
+        expect(repository.saveReadingState).toHaveBeenCalledWith(
+          expect.objectContaining({ chapterId: destination.id, blockId: laterBlock.id }),
+        ),
+      )
+      const progressAfterUserScroll = screen.getByRole('progressbar').getAttribute('aria-valuenow')
+      expect(progressAfterUserScroll).not.toBeNull()
+      const priorEntryKey = screen.getByTestId('location').getAttribute('data-entry-key')
+      scrollIntoView.mockClear()
+      vi.mocked(repository.saveReadingState).mockClear()
+
+      fireEvent.click(screen.getByRole('button', { name: '目次' }))
+      fireEvent.click(
+        within(screen.getByRole('dialog', { name: '目次' })).getByRole('link', {
+          name: new RegExp(destination.title),
+        }),
+      )
+      await waitFor(() =>
+        expect(screen.getByTestId('location').getAttribute('data-entry-key')).not.toBe(priorEntryKey),
+      )
+      expect(document.getElementById(`block-${laterBlock.id}`)?.getBoundingClientRect().top).toBe(0)
+      expect(screen.getByRole('progressbar')).toHaveAttribute(
+        'aria-valuenow',
+        String(progressAfterUserScroll),
+      )
+      expect(
+        vi.mocked(repository.saveReadingState).mock.calls.every(
+          ([state]) => state.chapterId === destination.id && state.blockId === laterBlock.id,
+        ),
+      ).toBe(true)
+      expect(repository.saveReadingState).not.toHaveBeenCalledWith(
+        expect.objectContaining({ chapterId: destination.id, blockId: destinationBlock.id }),
+      )
+      expect(scrollIntoView.mock.contexts).not.toContain(document.getElementById(`block-${destinationBlock.id}`))
+    },
+  )
+
+  it.each(['next', 'toc'] as const)(
+    'denies a paid %s destination when the same-owner refresh revokes access',
+    async (navigation) => {
+      vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+      const scrollIntoView = installScrollIntoViewSpy()
+      const currentChapter = meetingBook.chapters.find((chapter) => chapter.id === 'mj-ch-02')
+      const destination = meetingBook.chapters.find((chapter) => chapter.id === 'mj-ch-03')
+      if (!currentChapter || !destination) throw new Error('meeting-japanese chapter 2 and 3 are required')
+      const entitlement = {
+        bookId: meetingBook.id,
+        provider: 'manual' as const,
+        grantedAt: '2026-10-01T00:00:00.000Z',
+      }
+      const refreshedEntitlement = deferred<typeof entitlement | null>()
+      const refreshedReadingState = deferred<ReadingState | null>()
+      let entitlementReads = 0
+      let readingStateReads = 0
+      const base = createMockRepository({ entitlements: { [meetingBook.id]: entitlement } })
+      const repository = {
+        ...base,
+        getEntitlement: vi.fn(() =>
+          entitlementReads++ === 0 ? Promise.resolve(entitlement) : refreshedEntitlement.promise,
+        ),
+        getReadingState: vi.fn(() =>
+          readingStateReads++ === 0
+            ? Promise.resolve(meetingPosition({ blockId: 'mj-ch02-blk-11' }))
+            : refreshedReadingState.promise,
+        ),
+      }
+      const rendered = renderWithAppProviders(<ReaderRoutes />, {
+        initialEntries: [`/books/meeting-japanese/read/${currentChapter.slug}?resume=1`],
+        session: user,
+        repository,
+      })
+
+      expect(await screen.findByRole('heading', { name: currentChapter.title })).toBeInTheDocument()
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1))
+      if (navigation === 'next') {
+        fireEvent.click(screen.getByRole('link', { name: new RegExp(destination.title) }))
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: '目次' }))
+        fireEvent.click(
+          within(screen.getByRole('dialog', { name: '目次' })).getByRole('link', {
+            name: new RegExp(destination.title),
+          }),
+        )
+      }
+      expect(await screen.findByRole('heading', { name: destination.title })).toBeInTheDocument()
+      const revokedBlock = destination.blocks[2]
+      setMeasuredBlockTops(revokedBlock.id)
+      fireEvent.scroll(window)
+      await waitFor(() =>
+        expect(repository.saveReadingState).toHaveBeenCalledWith(
+          expect.objectContaining({ chapterId: destination.id, blockId: revokedBlock.id }),
+        ),
+      )
+
+      act(() => rendered.authClient.emitAuthStateChange({ ...user }))
+      expect(await screen.findByText('確認中…')).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: destination.title })).not.toBeInTheDocument()
+      await waitFor(() => expect(repository.getEntitlement).toHaveBeenCalledTimes(2))
+      await waitFor(() => expect(repository.getReadingState).toHaveBeenCalledTimes(2))
+      await act(async () => {
+        refreshedEntitlement.resolve(null)
+        refreshedReadingState.resolve(meetingPosition({ chapterId: destination.id, blockId: revokedBlock.id }))
+        await Promise.all([refreshedEntitlement.promise, refreshedReadingState.promise])
+      })
+
+      expect(await screen.findByRole('heading', { name: meetingBook.title })).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: destination.title })).not.toBeInTheDocument()
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+      expect(document.querySelector('.reader-gate')).toBeInTheDocument()
+      expect(scrollIntoView.mock.contexts).not.toContain(document.getElementById(`block-${revokedBlock.id}`))
+    },
+  )
 
   it('does not carry the consumed owner viewport into a different account', async () => {
     const scrollIntoView = installScrollIntoViewSpy()
