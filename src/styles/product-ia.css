@@ -513,7 +513,7 @@
 }
 
 .web-test-hub__explainer-hint a {
-  color: var(--color-accent);
+  color: var(--role-text-link);
 }
 
 .practice-activity-grid {

@@ -22,7 +22,7 @@ export function PlusPage() {
         <div className="plus-price" aria-label={`${plus.priceLabel} ${plus.priceAmount} ${plus.pricePeriod}`}>
           <p className="plus-price__label">{plus.priceLabel}</p>
           <p className="plus-price__amount">
-            <span lang="en">{plus.priceAmount}</span>
+            <span className="price">{plus.priceAmount}</span>
             <span className="plus-price__period">{plus.pricePeriod}</span>
           </p>
           <p className="plus-price__disclosure">{plus.priceDisclosure}</p>

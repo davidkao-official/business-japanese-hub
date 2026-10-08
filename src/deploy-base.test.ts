@@ -433,14 +433,19 @@ describe('deployment base contract', () => {
       const darkColor = darkMeta!.match(/content="([^"]+)"/)![1]
 
       const tokens = readFileSync('src/styles/tokens.css', 'utf8')
-      const tokenLight = /:root\s*\{([^}]*)\}/.exec(tokens)?.[1]?.match(
-        /--color-bg:\s*([^;]+);/,
-      )?.[1]?.trim()
-      const tokenDark = /:root\[data-theme='dark'\]\s*\{([^}]*)\}/.exec(tokens)?.[1]?.match(
-        /--color-bg:\s*([^;]+);/,
-      )?.[1]?.trim()
-      expect(lightColor).toBe(tokenLight)
-      expect(darkColor).toBe(tokenDark)
+      const lightRoot = /:root\s*\{([^}]*)\}/.exec(tokens)?.[1]
+      const darkRoot = /:root\[data-theme='dark'\]\s*\{([^}]*)\}/.exec(tokens)?.[1]
+      const read = (block: string | undefined, name: string) =>
+        block?.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1]?.trim()
+      const resolve = (block: string | undefined) => {
+        const alias = read(block, '--color-bg') ?? read(lightRoot, '--color-bg')
+        const role = alias?.match(/^var\((--[\w-]+)\)$/)?.[1]
+        return alias && role ? read(block, role) ?? read(lightRoot, role) : alias
+      }
+      expect(resolve(lightRoot)).toBe('#f8f8fc')
+      expect(resolve(darkRoot)).toBe('#17181f')
+      expect(lightColor).toBe('#f8f8fc')
+      expect(darkColor).toBe('#17181f')
     } finally {
       rmSync(outDir, { recursive: true, force: true })
     }

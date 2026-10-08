@@ -501,45 +501,8 @@
 /* ---------------------------------------------------------------------
  * Universal Reader — typography is the product
  * --------------------------------------------------------------------- */
-:root,
-:root[data-reader-theme='light'] {
-  --reader-bg: var(--reader-light-bg);
-  --reader-surface: var(--reader-light-bg);
-  --reader-text: var(--reader-light-text);
-  --reader-muted: var(--reader-light-muted);
-  --reader-border: var(--reader-light-border);
-  --reader-border-strong: var(--reader-light-border-strong);
-  --reader-accent: var(--reader-light-accent);
-  --reader-accent-soft: var(--reader-light-accent-soft);
-  --reader-accent-ink: var(--reader-light-accent-ink);
-}
-
-:root[data-reader-theme='sepia'] {
-  --reader-bg: var(--reader-sepia-bg);
-  --reader-surface: var(--reader-sepia-bg);
-  --reader-text: var(--reader-sepia-text);
-  --reader-muted: var(--reader-sepia-muted);
-  --reader-border: var(--reader-sepia-border);
-  --reader-border-strong: var(--reader-sepia-border-strong);
-  --reader-accent: var(--reader-sepia-accent);
-  --reader-accent-soft: var(--reader-sepia-accent-soft);
-  --reader-accent-ink: var(--reader-sepia-accent-ink);
-}
-
-:root[data-reader-theme='dark'] {
-  --reader-bg: var(--reader-dark-bg);
-  --reader-surface: var(--reader-dark-bg);
-  --reader-text: var(--reader-dark-text);
-  --reader-muted: var(--reader-dark-muted);
-  --reader-border: var(--reader-dark-border);
-  --reader-border-strong: var(--reader-dark-border-strong);
-  --reader-accent: var(--reader-dark-accent);
-  --reader-accent-soft: var(--reader-dark-accent-soft);
-  --reader-accent-ink: var(--reader-dark-accent-ink);
-}
-
 .reader-topbar {
-  border-color: var(--reader-border);
+  border-color: var(--role-border-subtle);
 }
 
 .reader-topbar__inner {
@@ -548,13 +511,13 @@
 }
 
 .reader-topbar__back {
-  color: var(--reader-muted);
+  color: var(--role-text-link);
   font-size: var(--text-sm);
   font-weight: var(--font-weight-regular);
 }
 
 .reader-topbar__book {
-  font-family: var(--font-serif);
+  font-family: var(--font-ja);
   font-weight: var(--font-weight-medium);
 }
 
@@ -562,11 +525,11 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--reader-muted);
+  color: var(--role-text-secondary);
 }
 
 .reader-topbar__action:hover {
-  color: var(--reader-text);
+  color: var(--role-text-primary);
   border-color: transparent;
 }
 
@@ -1232,7 +1195,7 @@
 }
 
 .storefront-feature__number {
-  color: var(--color-accent);
+  color: var(--role-accent-foreground);
   font-family: var(--font-mono);
   font-size: var(--text-2xl);
   line-height: 1;

@@ -1,74 +1,111 @@
-/**
- * Design Tokens — Business Japanese Hub
- * =====================================================================
- * Centralized design decisions for the Library application shell.
- *
- * `docs/ui-ux-research.md` is the canonical visual authority. The current
- * values implement its Quiet Editorial Modernism direction: warm paper and
- * ink neutrals, one restrained accent, Japanese-first typography, subtle
- * elevation, and compact geometry. Components reference semantic tokens
- * rather than page-local palette/shadow literals.
- *
- * Naming convention: --<category>-<element>-<modifier>
- *
- * Theming is attribute-driven: `:root` is the warm paper Light theme and
- * `:root[data-theme='dark']` re-skins the same tokens for the editorial Dark
- * theme. The effective value of `data-theme` is resolved from the user's
- * System / Light / Dark preference before first paint (index.html inline
- * script) and kept in sync by src/lib/appearance (AppearanceProvider).
- * =====================================================================
- */
+/* Source & Gloss token adoption, S2. Light Tachiko roles are copied from
+ * #71 Foundations node 21:35588 (29 public roles) and Components 21:35816;
+ * border.control is #818798 per #70 node 32:75. Runtime mirror: tachiko-sheet profile.ts @ 3b1d72a
+ * (main 0e6a052). BJH dark values are local derivations; no runtime dependency.
+ * See docs/design-system.md §4.0 and §18. */
 
 :root {
   color-scheme: light;
+  font-synthesis: none;
 
-  /* ---------------------------------------------------------------
-   * Breakpoints — reference only.
-   * CSS custom properties are NOT usable inside media queries, so media
-   * queries use the literal values. These tokens document the scale for
-   * JS consumers and future reference.
-   * --------------------------------------------------------------- */
-  --bp-sm: 36rem; /* 576px */
-  --bp-md: 48rem; /* 768px */
-  --bp-lg: 64rem; /* 1024px */
-  --bp-xl: 80rem; /* 1280px */
+  /* Breakpoints are documentation/JS vocabulary; media queries use literals. */
+  --bp-sm: 37.5rem; /* 600px */
+  --bp-md: 64rem; /* 1024px */
+  --bp-lg: 64rem;
+  --bp-xl: 80rem;
   --bp-header: 80rem; /* 1280px: full desktop header controls fit above this width */
 
-  /* ---------------------------------------------------------------
-   * Color — Quiet Editorial Modernism paper / ink hierarchy
-   * --------------------------------------------------------------- */
-  --color-bg: #f5f1e8;
-  --color-bg-elevated: #f8f5ed;
-  --color-surface: #f8f5ed;
-  --color-surface-muted: #ece7dc;
-  --color-text: #1d1d1a;
-  --color-text-muted: #68645b;
-  --color-text-inverse: #f8f5ed;
-  --color-border: #d3cbbc;
-  --color-border-strong: #aaa191;
+  /* 1. Tachiko public foundation roles (exactly the 29-role set). */
+  --role-surface-app: #ffffff;
+  --role-surface-chrome: #f8f8fc;
+  --role-surface-chrome-tint: #f0edfd;
+  --role-surface-content: #ffffff;
+  --role-surface-inset: #f5f6f9;
+  --role-text-primary: #252735;
+  --role-text-secondary: #646879;
+  --role-text-on-tint: #5b6072;
+  --role-text-link: #5542b5;
+  --role-text-reference: #4f54ad;
+  --role-border-subtle: #dfe2ea;
+  --role-border-control: #818798;
+  --role-action-primary-background: #6350d2;
+  --role-action-primary-hover: #5541c2;
+  --role-action-primary-pressed: #4936ab;
+  --role-action-primary-foreground: #ffffff;
+  --role-accent-foreground: #5542b5;
+  --role-accent-background: #f0edfd;
+  --role-grid-canvas: #ffffff;
+  --role-grid-line-horizontal: #e9ebf1;
+  --role-grid-line-vertical: #eef0f4;
+  --role-grid-header-background: #f7f8fb;
+  --role-grid-header-foreground: #5b6072;
+  --role-selection-row-background: #f6f4fe;
+  --role-selection-header-background: #ece9fe;
+  --role-selection-header-foreground: #5542b5;
+  --role-selection-active-background: #ffffff;
+  --role-selection-active-border: #6551ce;
+  --role-focus-ring: #6551ce;
+  --radius-control: 7px;
+  --radius-menu: 10px;
+  --radius-overlay: 12px;
+  --radius-chip: 4px;
+  --tap-min: 44px;
+  --control-h: 44px;
+  --control-h-sm: 36px;
+  --choice-min: 52px;
+  --focus-width: 3px;
+  --focus-gap: 2px;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --dur-mark: 260ms;
+  --shadow-menu: 0 10px 30px -8px rgb(39 33 57 / 15%), 0 2px 6px rgb(39 33 57 / 5%);
+  --shadow-overlay: 0 16px 48px -12px rgb(37 39 53 / 24%);
+  --chrome-head: linear-gradient(108deg, var(--role-surface-chrome-tint) 0%, var(--role-surface-chrome) 35%, var(--role-surface-chrome) 100%);
+  --recipe-secondary-pressed: #eceef4;
 
-  /* ---------------------------------------------------------------
-   * Color — restrained editorial accent
-   * --------------------------------------------------------------- */
-  --color-accent: #5f6f63;
-  --color-accent-hover: #49584d;
-  --color-accent-soft: #e1e6df;
-  --color-accent-contrast: #f8f5ed;
+  /* 2. Protected system-state recipes. */
+  --state-success-fg: #206c4e;
+  --state-success-bg: #e9f6f0;
+  --state-warning-fg: #865015;
+  --state-warning-bg: #fff3dd;
+  --state-error-fg: #a02d42;
+  --state-error-bg: #fff0f3;
+  --state-disabled-fg: #8c949c;
+  --state-destructive-fg: #8a2f1c;
+  --state-destructive-border: #b4553f;
+  --state-scrim: rgb(37 39 53 / 28%);
 
-  /* ---------------------------------------------------------------
-   * Color — focus / interactive
-   * --------------------------------------------------------------- */
-  --color-focus: #2f6fb3;
-  --color-focus-inverse: #a8c6e8;
+  /* 3. BJH material plane and learning marks. */
+  --bjh-text-gloss: #464a5c;
+  --bjh-marker: #ffe35a;
+  --bjh-marker-ink: #252735;
+  --bjh-mark-ok: #206c4e;
+  --bjh-mark-ok-soft: #e9f6f0;
+  --bjh-mark-ng: #be3219;
+  --bjh-mark-ng-soft: #fbe8e3;
 
-  /* ---------------------------------------------------------------
-   * Color — semantic (minimal set for status messaging)
-   * --------------------------------------------------------------- */
-  --color-success: #3c6e4f;
-  --color-warning: #a9712a;
-  --color-warning-text: #7a4f12;
-  --color-danger: #b03a3a;
-  --color-info: #2f6fb3;
+  /* Compatibility aliases retained while legacy surfaces migrate. */
+  --color-bg: var(--role-surface-chrome);
+  --color-bg-elevated: var(--role-surface-chrome);
+  --color-surface: var(--role-surface-content);
+  --color-surface-muted: var(--role-surface-inset);
+  --color-text: var(--role-text-primary);
+  --color-text-muted: var(--role-text-secondary);
+  --color-text-inverse: var(--role-surface-content);
+  --color-border: var(--role-border-subtle);
+  --color-border-strong: var(--role-border-control);
+  --color-accent: var(--role-action-primary-background);
+  --color-accent-hover: var(--role-action-primary-hover);
+  --color-accent-soft: var(--role-accent-background);
+  --color-accent-contrast: var(--role-action-primary-foreground);
+  --color-focus: var(--role-focus-ring);
+  --color-focus-inverse: var(--role-action-primary-background);
+  --color-success: var(--state-success-fg);
+  --color-warning: var(--state-warning-fg);
+  --color-warning-text: var(--state-warning-fg);
+  --color-danger: var(--state-error-fg);
+  --color-info: var(--role-text-link);
 
   /* ---------------------------------------------------------------
    * Spacing scale — 4px base
@@ -124,57 +161,54 @@
   --lp-offer-cover-max-width: 16rem;
   --lp-menu-title-size: clamp(var(--text-2xl), 7vw, var(--text-3xl));
 
-  /* Concept C homepage only — warm learning-service palette */
-  --home-bg: #fffaf6;
-  --home-surface: #ffffff;
-  --home-surface-soft: #fff2e9;
-  --home-text: #211e1b;
-  --home-text-secondary: #625d59;
-  --home-text-muted: #716b66;
-  --home-accent: #c84b12;
-  --home-accent-hover: #a63c0d;
-  --home-accent-contrast: #ffffff;
-  --home-accent-label: #a63c0d;
-  --home-accent-soft: #ffede2;
-  --home-border: #eadfd7;
-  --home-border-strong: #d8c9be;
-  --home-purple: #7454aa;
-  --home-green: #397454;
-  --home-blue: #3d638f;
-  --home-radius-sm: 0.75rem;
-  --home-radius-md: 1rem;
-  --home-radius-lg: 1.25rem;
-  --home-radius-xl: 1.75rem;
-  --home-radius-pill: 999px;
-  --home-shadow-panel: 0 16px 40px rgb(59 37 22 / 10%);
-  --home-shadow-card: 0 8px 24px rgb(59 37 22 / 6%);
-  --home-font-sans: Inter, 'Noto Sans TC', 'Noto Sans JP', system-ui, sans-serif;
-
-  /* ---------------------------------------------------------------
-   * Typography — Japanese-first font stacks
-   * Noto Sans JP / Hiragino / Yu Gothic are the preferred Japanese faces;
-   * system-ui acts as the ultimate fallback for latin + UI glyphs.
-   * --------------------------------------------------------------- */
-  --font-sans:
-    'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans',
-    'Yu Gothic', 'YuGothic', 'Meiryo', system-ui, -apple-system, 'Segoe UI',
-    'Roboto', 'Helvetica Neue', 'Arial', sans-serif;
-  --font-serif:
-    'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', 'YuMincho',
-    'Georgia', 'Times New Roman', serif;
+  /* Typography: V1 Japanese UI is local Gothic; material is local Mincho. */
+  --font-ja: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic",
+    "Yu Gothic UI", "Yu Gothic", "Meiryo", "Noto Sans JP", "Noto Sans CJK JP", system-ui, sans-serif;
+  --font-material: "Hiragino Mincho ProN", "BIZ UDPMincho", "Yu Mincho", "YuMincho",
+    "Noto Serif JP", "Noto Serif CJK JP", var(--font-ja);
+  --font-en: system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-zh-hant: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+  --font-zh-hans: "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --font-ko: "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  --font-sans: var(--font-ja);
+  --font-serif: var(--font-material);
   --font-mono:
     'SF Mono', ui-monospace, 'Cascadia Code', 'JetBrains Mono', 'Consolas',
     'Liberation Mono', monospace;
 
   /* Type scale */
-  --text-xs: 0.75rem; /*  12px */
-  --text-sm: 0.875rem; /* 14px */
-  --text-base: 1rem; /*   16px */
-  --text-md: 1.125rem; /* 18px */
-  --text-lg: 1.25rem; /*  20px */
-  --text-xl: 1.5rem; /*   24px */
-  --text-2xl: 2rem; /*    32px */
-  --text-3xl: 2.75rem; /* 44px */
+  --size-display: clamp(1.75rem, 1.3rem + 1.6vw, 2.5rem);
+  --size-title-1: 1.75rem;
+  --size-title-2: 1.25rem;
+  --size-title-3: 1.125rem;
+  --size-body: 1rem;
+  --size-ui: 0.875rem;
+  --size-caption: 0.8125rem;
+  --size-material-key: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
+  --size-material: 1.125rem;
+  --leading-display: 1.35;
+  --leading-title: 1.45;
+  --leading-ja: 1.8;
+  --leading-ui: 1.43;
+  --leading-material: 1.95;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-bold: 600;
+  --measure-ja: 36em;
+  --measure-material: 34em;
+  --size-small: 0.875rem;
+  --gutter: clamp(16px, 4vw, 40px);
+  --content-max: 1200px;
+  --header-h: 64px;
+  --bottom-bar-h: 64px;
+  --text-xs: var(--size-caption);
+  --text-sm: var(--size-ui);
+  --text-base: var(--size-body);
+  --text-md: var(--size-title-3);
+  --text-lg: var(--size-title-2);
+  --text-xl: 1.5rem;
+  --text-2xl: var(--size-title-1);
+  --text-3xl: 2.5rem;
 
   /* Editorial display roles — #74 visual reference */
   --editorial-home-title-size: clamp(3rem, 7.2vw, 6.4rem);
@@ -220,9 +254,9 @@
   /* ---------------------------------------------------------------
    * Radius — compact editorial geometry
    * --------------------------------------------------------------- */
-  --radius-sm: 0.125rem;
-  --radius-md: 0.25rem;
-  --radius-lg: 0.5rem;
+  --radius-sm: var(--radius-chip);
+  --radius-md: var(--radius-control);
+  --radius-lg: var(--radius-menu);
   --radius-pill: 999px;
   /* Book covers sit near 0–2px (docs/ui-ux-research.md §6.2); never crop them. */
   --radius-cover: 0.125rem;
@@ -234,16 +268,16 @@
   /* ---------------------------------------------------------------
    * Shadows — reserved mainly for books and true overlays
    * --------------------------------------------------------------- */
-  --shadow-sm: 0 1px 2px rgb(31 28 22 / 0.06);
-  --shadow-md: 0 8px 24px rgb(31 28 22 / 0.08);
-  --shadow-lg: 0 22px 54px rgb(31 28 22 / 0.14);
+  --shadow-sm: 0 1px 2px rgb(37 39 53 / 6%);
+  --shadow-md: var(--shadow-menu);
+  --shadow-lg: var(--shadow-overlay);
 
   /* ---------------------------------------------------------------
    * Focus ring
    * --------------------------------------------------------------- */
-  --focus-ring-width: 2px;
-  --focus-ring-offset: 2px;
-  --focus-ring-color: var(--color-focus);
+  --focus-ring-width: var(--focus-width);
+  --focus-ring-offset: var(--focus-gap);
+  --focus-ring-color: var(--role-focus-ring);
 
   /* ---------------------------------------------------------------
    * Motion — duration / easing
@@ -294,7 +328,8 @@
   --reader-chapter-summary-size: 1.06em;
   --reader-quote-size: 1.18em;
 
-  /* Reader palettes — values are centralized here; reader.css maps roles. */
+  /* Reader palettes — one definition; only the paper and its legible document
+     ink follow this preference. App chrome consumes --role-* directly. */
   --reader-light-bg: #f8f4ea;
   --reader-light-text: #1d1d1a;
   --reader-light-muted: #716c62;
@@ -321,14 +356,60 @@
   --reader-dark-accent: #aebcaf;
   --reader-dark-accent-soft: #252b26;
   --reader-dark-accent-ink: #171816;
+  --reader-bg: var(--reader-light-bg);
+  --reader-surface: var(--role-surface-content);
+  --reader-text: var(--reader-light-text);
+  --reader-muted: var(--reader-light-muted);
+  --reader-border: var(--reader-light-border);
+  --reader-border-strong: var(--reader-light-border-strong);
+  --reader-accent: var(--reader-light-accent);
+  --reader-accent-soft: var(--reader-light-accent-soft);
+  --reader-accent-ink: var(--reader-light-accent-ink);
 }
 
-@media (min-width: 48rem) {
+/* Set language defaults only at explicit boundaries. Zero specificity lets
+   component type roles win even when Vite deduplicates this import later. */
+:where([lang]:lang(ja)) { --font-ui: var(--font-ja); --font-sans: var(--font-ja); font-family: var(--font-ja); }
+:where([lang]:lang(en)) { --font-ui: var(--font-en); --font-sans: var(--font-en); font-family: var(--font-en); }
+:where([lang]:lang(zh-Hant)), :where([lang]:lang(zh-TW)) { --font-ui: var(--font-zh-hant); --font-sans: var(--font-zh-hant); font-family: var(--font-zh-hant); }
+:where([lang]:lang(zh-Hans)), :where([lang]:lang(zh-CN)) { --font-ui: var(--font-zh-hans); --font-sans: var(--font-zh-hans); font-family: var(--font-zh-hans); }
+:where([lang]:lang(ko)) { --font-ui: var(--font-ko); --font-sans: var(--font-ko); font-family: var(--font-ko); }
+.material:lang(ja), .material :lang(ja) {
+  font-family: var(--font-material);
+  line-height: var(--leading-material);
+}
+
+:root[data-reader-theme='sepia'] {
+  --reader-bg: var(--reader-sepia-bg);
+  --reader-text: var(--reader-sepia-text);
+  --reader-muted: var(--reader-sepia-muted);
+  --reader-border: var(--reader-sepia-border);
+  --reader-border-strong: var(--reader-sepia-border-strong);
+  --reader-accent: var(--reader-sepia-accent);
+  --reader-accent-soft: var(--reader-sepia-accent-soft);
+  --reader-accent-ink: var(--reader-sepia-accent-ink);
+}
+
+:root[data-reader-theme='dark'] {
+  --reader-bg: var(--reader-dark-bg);
+  --reader-text: var(--reader-dark-text);
+  --reader-muted: var(--reader-dark-muted);
+  --reader-border: var(--reader-dark-border);
+  --reader-border-strong: var(--reader-dark-border-strong);
+  --reader-accent: var(--reader-dark-accent);
+  --reader-accent-soft: var(--reader-dark-accent-soft);
+  --reader-accent-ink: var(--reader-dark-accent-ink);
+}
+
+@media (min-width: 37.5rem) {
   :root {
     --container-padding: 2rem;
     --lp-section-gap: 7.5rem; /* 120px desktop */
   }
 }
+
+@media (min-width: 37.5rem) { :root { --responsive-compact: 0; } }
+@media (min-width: 64rem) { :root { --responsive-wide: 1; } }
 
 /* ---------------------------------------------------------------
  * Dark theme overrides — `data-theme='dark'` is set by the appearance
@@ -338,50 +419,136 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --color-bg: #171816;
-  --color-bg-elevated: #1d1e1b;
-  --color-surface: #1d1e1b;
-  --color-surface-muted: #252620;
-  --color-text: #eeeae0;
-  --color-text-muted: #aaa69b;
-  --color-text-inverse: #171816;
-  --color-border: #34352f;
-  --color-border-strong: #4a4b43;
+  --role-surface-app: #121319;
+  --role-surface-chrome: #17181f;
+  --role-surface-chrome-tint: #1f1c33;
+  --role-surface-content: #1b1c24;
+  --role-surface-inset: #15161d;
+  --role-text-primary: #ececf3;
+  --role-text-secondary: #a0a3b5;
+  --role-text-on-tint: #b4b7c8;
+  --role-text-link: #b1a6ff;
+  --role-text-reference: #a9aeff;
+  --role-border-subtle: #2e303c;
+  --role-border-control: #737891;
+  --role-action-primary-background: #6b5ae0;
+  --role-action-primary-hover: #5e4dd6;
+  --role-action-primary-pressed: #5243c4;
+  --role-action-primary-foreground: #ffffff;
+  --role-accent-foreground: #c2b9ff;
+  --role-accent-background: #25213f;
+  --role-grid-canvas: #1b1c24;
+  --role-grid-line-horizontal: #2a2c37;
+  --role-grid-line-vertical: #262833;
+  --role-grid-header-background: #20212b;
+  --role-grid-header-foreground: #b4b7c8;
+  --role-selection-row-background: #211e36;
+  --role-selection-header-background: #2c2750;
+  --role-selection-header-foreground: #c2b9ff;
+  --role-selection-active-background: #1b1c24;
+  --role-selection-active-border: #9c8fff;
+  --role-focus-ring: #9c8fff;
+  --shadow-menu: 0 10px 30px -8px rgb(0 0 0 / 50%);
+  --shadow-overlay: 0 16px 48px -12px rgb(0 0 0 / 60%);
+  --chrome-head: var(--role-surface-chrome);
+  --recipe-secondary-pressed: #262833;
+  --state-success-fg: #6fd3a5;
+  --state-success-bg: #12301f;
+  --state-warning-fg: #f2b66b;
+  --state-warning-bg: #3a2a12;
+  --state-error-fg: #ff9aae;
+  --state-error-bg: #3b1820;
+  --state-disabled-fg: #6b6f80;
+  --state-destructive-fg: #ff9a86;
+  --state-destructive-border: #c46450;
+  --state-scrim: rgb(0 0 0 / 55%);
+  --bjh-text-gloss: #c3c5d2;
+  --bjh-marker: #6a5a12;
+  --bjh-marker-ink: #ececf3;
+  --bjh-mark-ok: #5cc895;
+  --bjh-mark-ok-soft: #173326;
+  --bjh-mark-ng: #ff8069;
+  --bjh-mark-ng-soft: #3a1c17;
 
-  --color-accent: #aebcaf;
-  --color-accent-hover: #c2cec3;
-  --color-accent-soft: #29312b;
-  --color-accent-contrast: #171816;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 28%);
+  --shadow-md: var(--shadow-menu);
+  --shadow-lg: var(--shadow-overlay);
+}
 
-  --color-focus: #8ab4e8;
-  --color-focus-inverse: #2f6fb3;
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+  color-scheme: dark;
 
-  --color-success: #6fae83;
-  --color-warning: #d0a165;
-  --color-warning-text: #d0a165;
-  --color-danger: #e08585;
-  --color-info: #8ab4e8;
+  --role-surface-app: #121319;
+  --role-surface-chrome: #17181f;
+  --role-surface-chrome-tint: #1f1c33;
+  --role-surface-content: #1b1c24;
+  --role-surface-inset: #15161d;
+  --role-text-primary: #ececf3;
+  --role-text-secondary: #a0a3b5;
+  --role-text-on-tint: #b4b7c8;
+  --role-text-link: #b1a6ff;
+  --role-text-reference: #a9aeff;
+  --role-border-subtle: #2e303c;
+  --role-border-control: #737891;
+  --role-action-primary-background: #6b5ae0;
+  --role-action-primary-hover: #5e4dd6;
+  --role-action-primary-pressed: #5243c4;
+  --role-action-primary-foreground: #ffffff;
+  --role-accent-foreground: #c2b9ff;
+  --role-accent-background: #25213f;
+  --role-grid-canvas: #1b1c24;
+  --role-grid-line-horizontal: #2a2c37;
+  --role-grid-line-vertical: #262833;
+  --role-grid-header-background: #20212b;
+  --role-grid-header-foreground: #b4b7c8;
+  --role-selection-row-background: #211e36;
+  --role-selection-header-background: #2c2750;
+  --role-selection-header-foreground: #c2b9ff;
+  --role-selection-active-background: #1b1c24;
+  --role-selection-active-border: #9c8fff;
+  --role-focus-ring: #9c8fff;
+  --shadow-menu: 0 10px 30px -8px rgb(0 0 0 / 50%);
+  --shadow-overlay: 0 16px 48px -12px rgb(0 0 0 / 60%);
+  --chrome-head: var(--role-surface-chrome);
+  --recipe-secondary-pressed: #262833;
+  --state-success-fg: #6fd3a5;
+  --state-success-bg: #12301f;
+  --state-warning-fg: #f2b66b;
+  --state-warning-bg: #3a2a12;
+  --state-error-fg: #ff9aae;
+  --state-error-bg: #3b1820;
+  --state-disabled-fg: #6b6f80;
+  --state-destructive-fg: #ff9a86;
+  --state-destructive-border: #c46450;
+  --state-scrim: rgb(0 0 0 / 55%);
+  --bjh-text-gloss: #c3c5d2;
+  --bjh-marker: #6a5a12;
+  --bjh-marker-ink: #ececf3;
+  --bjh-mark-ok: #5cc895;
+  --bjh-mark-ok-soft: #173326;
+  --bjh-mark-ng: #ff8069;
+  --bjh-mark-ng-soft: #3a1c17;
 
-  --home-bg: #191715;
-  --home-surface: #211e1b;
-  --home-surface-soft: #2d241e;
-  --home-text: #f2ece6;
-  --home-text-secondary: #c5bab1;
-  --home-text-muted: #b2a79e;
-  --home-accent: #ff9a68;
-  --home-accent-hover: #ffb28e;
-  --home-accent-contrast: #211e1b;
-  --home-accent-label: #ff9a68;
-  --home-accent-soft: #40291f;
-  --home-border: #403730;
-  --home-border-strong: #59493d;
-  --home-purple: #c0a6ee;
-  --home-green: #8fc9a5;
-  --home-blue: #9bb9e4;
-  --home-shadow-panel: 0 16px 40px rgb(0 0 0 / 32%);
-  --home-shadow-card: 0 8px 24px rgb(0 0 0 / 24%);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 28%);
+  --shadow-md: var(--shadow-menu);
+  --shadow-lg: var(--shadow-overlay);
+  }
+}
 
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.28);
-  --shadow-md: 0 8px 24px rgb(0 0 0 / 0.32);
-  --shadow-lg: 0 22px 54px rgb(0 0 0 / 0.4);
+
+@media (forced-colors: active) {
+  :root { --role-focus-ring: Highlight; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-mark: 0ms;
+    --duration-instant: 0ms;
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+  }
 }

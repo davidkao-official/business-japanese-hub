@@ -672,7 +672,7 @@
 }
 
 .library-book__cta {
-  color: var(--color-accent);
+  color: var(--role-text-link);
   font-size: var(--text-sm);
   font-weight: var(--font-weight-medium);
   white-space: nowrap;

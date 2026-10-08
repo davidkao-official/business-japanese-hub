@@ -84,7 +84,7 @@
 }
 
 .about-page__contrast-arrow {
-  color: var(--color-accent);
+  color: var(--role-accent-foreground);
   font-family: var(--font-sans);
 }
 
@@ -183,7 +183,7 @@
 
 .about-page__list > li::before {
   content: counter(about-list, decimal-leading-zero);
-  color: var(--color-accent);
+  color: var(--role-accent-foreground);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-wide);
