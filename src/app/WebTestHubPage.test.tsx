@@ -12,12 +12,27 @@ import { preparePrivatePracticeQuestionBankRelease } from '../content-delivery/p
 import { nonProprietaryPracticeQuestionBankFixture } from '../practice-web-test/fixtures/nonProprietaryPracticeFixture'
 import { getActiveLocale, LOCALE_STORAGE_KEY, setLocalePreference } from '../i18n/strings'
 
+const hookLearningUiOverrides = vi.hoisted(() => ({
+  current: null as { webChooseAnswer?: string; webNumberAnswer?: string } | null,
+}))
 const fetchPracticePayloadMock = vi.hoisted(() => vi.fn().mockResolvedValue({ kind: 'signed-out' }))
 const submitPracticeAttemptMock = vi.hoisted(() => vi.fn().mockResolvedValue({ kind: 'ok' }))
 vi.mock('../practice-web-test/client', () => ({ fetchPracticePayload: fetchPracticePayloadMock, submitPracticeAttempt: submitPracticeAttemptMock }))
+vi.mock('../i18n/strings', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../i18n/strings')>()
+  return {
+    ...actual,
+    useStrings: (...args: Parameters<typeof actual.useStrings>) => {
+      const strings = actual.useStrings(...args)
+      const overrides = hookLearningUiOverrides.current
+      return overrides ? { ...strings, learningUi: { ...strings.learningUi, ...overrides } } : strings
+    },
+  }
+})
 
 afterEach(() => {
   cleanup()
+  hookLearningUiOverrides.current = null
   setLocalePreference(null)
   submitPracticeAttemptMock.mockClear()
   document.querySelector('meta[data-test-web-test-description]')?.remove()
@@ -99,6 +114,23 @@ describe('Web Test discovery and runner-entry routes', () => {
   ])('separates the Japanese practice label from the family name at %s', (path) => {
     renderWebTestAt(path)
     expect(document.querySelector('.product-mode-page__eyebrow')).toHaveTextContent(/^練習 · SPI(?: · 言語)?$/)
+  })
+
+  it('uses the hook-supplied UI snapshot for both primary and diagnostic answer inputs', async () => {
+    hookLearningUiOverrides.current = {
+      webChooseAnswer: 'Hook snapshot choice label',
+      webNumberAnswer: 'Hook snapshot number label',
+    }
+    const { payload } = syntheticIssue212Payload([['hook-snapshot-checkpoint']])
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload })
+
+    renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'hook-snapshot-member' } })
+    await waitFor(() => expect(screen.getByRole('heading', { name: payload.questionBank.questions[0]!.promptJa })).toBeInTheDocument())
+    expect(screen.getByRole('group', { name: 'Hook snapshot choice label' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('radio')[0]!)
+    fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+    expect(screen.getByLabelText('Hook snapshot number label')).toBeInTheDocument()
   })
 
   it('sets an independent Japanese recruitment Web Test description and restores the prior route description on leave', () => {
