@@ -53,13 +53,17 @@ export function useReadingPosition(
   const [anchor, setAnchor] = useState<ReadingAnchor>(initialRestore ?? openingAnchor)
   const [appliedRestoreKey, setAppliedRestoreKey] = useState<string | null>(restore?.key ?? null)
   const [atEnd, setAtEnd] = useState(false)
+  // A restored anchor is already known; a reset viewport must be measured
+  // after layout before its synthetic opening anchor can reach persistence.
+  const [initialPersistenceAnchor, setInitialPersistenceAnchor] = useState<ReadingAnchor | null>(
+    skipInitialPersistence ? initialRestore ?? null : null,
+  )
 
   const onAnchorChangeRef = useRef(onAnchorChange)
   const lastChapterRef = useRef(chapter.id)
   const detectedRestoreKeyRef = useRef<string | null>(null)
   const lastPersistedRef = useRef<string | null>(null)
   const skipInitialPersistenceRef = useRef(skipInitialPersistence)
-  const skipInitialDetectionRef = useRef(skipInitialPersistence)
 
   // A guarded render-time state adjustment applies a new navigation restore
   // before commit. Subsequent settings/reflow/auth renders keep the consumed
@@ -110,6 +114,12 @@ export function useReadingPosition(
       const isFinalChapter = chapter.id === book.chapters[book.chapters.length - 1]?.id
       setAtEnd(ended && isFinalChapter)
       const blockId = current?.dataset.blockId
+      if (skipInitialPersistenceRef.current) {
+        setInitialPersistenceAnchor((previous) => previous ?? {
+          chapterId: chapter.id,
+          blockId: blockId ?? chapter.blocks[0]?.id ?? '',
+        })
+      }
       if (blockId) {
         setAnchor((previous) =>
           previous.chapterId === chapter.id && previous.blockId === blockId
@@ -134,10 +144,7 @@ export function useReadingPosition(
         window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
       }
     }
-    if (!restoringThisEntry) {
-      if (skipInitialDetectionRef.current) skipInitialDetectionRef.current = false
-      else update()
-    }
+    if (!restoringThisEntry) update()
     window.addEventListener('scroll', schedule, { passive: true })
     window.addEventListener('resize', schedule)
     return () => {
@@ -149,6 +156,7 @@ export function useReadingPosition(
     book.id,
     book.chapters,
     chapter.id,
+    chapter.blocks,
     contentRef,
     appliedRestoreKey,
   ])
@@ -170,22 +178,27 @@ export function useReadingPosition(
   }, [book, chapterIndex, blockIndex, effectiveAtEnd, effectiveAnchor])
 
   useEffect(() => {
-    if (!canPersist) return
-    const signature = [
+    const signatureOf = (position: ReadingAnchor) => [
       entryKey,
       book.id,
-      effectiveAnchor.chapterId,
-      effectiveAnchor.blockId,
-      effectiveAnchor.offset ?? '',
+      position.chapterId,
+      position.blockId,
+      position.offset ?? '',
     ].join(':')
+    if (skipInitialPersistenceRef.current) {
+      if (!initialPersistenceAnchor) return
+      // Seed deduplication from the actual initialization baseline, independent
+      // of the async read. A delayed reset event measures the same anchor and
+      // cannot become a save merely because canPersist changed first.
+      lastPersistedRef.current = signatureOf(initialPersistenceAnchor)
+      skipInitialPersistenceRef.current = false
+    }
+    if (!canPersist) return
+    const signature = signatureOf(effectiveAnchor)
     if (lastPersistedRef.current === signature) return
     lastPersistedRef.current = signature
-    if (skipInitialPersistenceRef.current) {
-      skipInitialPersistenceRef.current = false
-      return
-    }
     onAnchorChangeRef.current?.(effectiveAnchor)
-  }, [canPersist, entryKey, book.id, chapter.id, effectiveAnchor])
+  }, [canPersist, entryKey, book.id, chapter.id, effectiveAnchor, initialPersistenceAnchor])
 
   return { anchor: effectiveAnchor, percent, chapterIndex, blockIndex }
 }

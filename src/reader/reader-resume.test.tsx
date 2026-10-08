@@ -41,11 +41,18 @@ const originalScrollHeightDescriptor = Object.getOwnPropertyDescriptor(
 )
 const measuredTopByBlockId = new Map<string, number>()
 const measuredRectReadCountByBlockId = new Map<string, number>()
+const originalWindowGeometry = new Map(
+  ['innerHeight', 'scrollY'].map((key) => [key, Object.getOwnPropertyDescriptor(window, key)]),
+)
 
 afterEach(() => {
   vi.restoreAllMocks()
   measuredTopByBlockId.clear()
   measuredRectReadCountByBlockId.clear()
+  for (const [key, descriptor] of originalWindowGeometry) {
+    if (descriptor) Object.defineProperty(window, key, descriptor)
+    else Reflect.deleteProperty(window, key)
+  }
   if (originalScrollIntoView) {
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScrollIntoView)
   } else {
@@ -744,6 +751,120 @@ describe('reader resume intent', () => {
         ),
       )
       expect(scrollTo).toHaveBeenCalled()
+    },
+  )
+
+  it.each([
+    { order: 'read before reset event', baselineBlock: 'bm-ch2-blk-01', readFirst: true },
+    { order: 'read before reset event', baselineBlock: 'bm-ch2-blk-02', readFirst: true },
+    { order: 'reset event before read', baselineBlock: 'bm-ch2-blk-01', readFirst: false },
+    { order: 'reset event before read', baselineBlock: 'bm-ch2-blk-02', readFirst: false },
+  ])(
+    'preserves B’s stored row with $order and measured top baseline $baselineBlock',
+    async ({ baselineBlock, readFirst }) => {
+      installScrollIntoViewSpy()
+      const nextOwnerRead = deferred<ReadingState | null>()
+      const priorBPosition = savedPosition({ chapterId: 'bm-ch-2', blockId: 'bm-ch2-blk-04' })
+      let storedBPosition = priorBPosition
+      let ownerBActive = false
+      let scrollY = 0
+      Object.defineProperties(window, {
+        innerHeight: { configurable: true, value: 1000 },
+        scrollY: { configurable: true, get: () => scrollY },
+      })
+      Object.defineProperty(document.documentElement, 'scrollHeight', {
+        configurable: true,
+        value: 6000,
+      })
+
+      let nextFrameId = 0
+      const frames = new Map<number, FrameRequestCallback>()
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        frames.set(++nextFrameId, callback)
+        return nextFrameId
+      })
+      vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => frames.delete(id))
+      const flushScrollFrame = () => {
+        expect(frames.size).toBeGreaterThan(0)
+        act(() => {
+          const pending = [...frames.values()]
+          frames.clear()
+          pending.forEach((callback) => callback(0))
+        })
+      }
+
+      let pendingResetEvent: (() => void) | undefined
+      const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {
+        if (!ownerBActive) return
+        // Instant scrolling changes geometry now, but its native event can run
+        // after B's async read. At scrollY=0 a tall viewport can already place
+        // the reading line beyond the second short block, not the first block.
+        scrollY = 0
+        setMeasuredBlockTops('bm-ch2-blk-01')
+        measuredTopByBlockId.set('bm-ch2-blk-01', 100)
+        measuredTopByBlockId.set('bm-ch2-blk-02', baselineBlock.endsWith('02') ? 200 : 400)
+        pendingResetEvent = () => fireEvent.scroll(window)
+      })
+      const repository = createMockRepository()
+      vi.mocked(repository.getReadingState).mockImplementation(() =>
+        ownerBActive ? nextOwnerRead.promise : Promise.resolve(null),
+      )
+      vi.mocked(repository.saveReadingState).mockImplementation(async (state) => {
+        if (ownerBActive) storedBPosition = { ...state, updatedAt: priorBPosition.updatedAt }
+      })
+      const rendered = renderWithAppProviders(<ReaderRoutes />, {
+        initialEntries: ['/books/email-manners/read/subject-and-opening'],
+        session: user,
+        repository,
+      })
+      expect(await screen.findByRole('heading', { name: '件名と冒頭の作法' })).toBeInTheDocument()
+      await waitFor(() => expect(repository.saveReadingState).toHaveBeenCalled())
+      scrollY = 900
+      setMeasuredBlockTops('bm-ch2-blk-03')
+      fireEvent.scroll(window)
+      flushScrollFrame()
+      expect(repository.saveReadingState).toHaveBeenCalledWith(
+        expect.objectContaining({ blockId: 'bm-ch2-blk-03' }),
+      )
+      vi.mocked(repository.saveReadingState).mockClear()
+
+      ownerBActive = true
+      act(() => rendered.authClient.emitAuthStateChange({ id: 'owner-b', email: 'owner-b@example.com' }))
+      await waitFor(() => expect(repository.getReadingState).toHaveBeenCalledTimes(2))
+      expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'instant' })
+      expect(pendingResetEvent).toBeDefined()
+      expect(window.scrollY).toBe(0)
+      expect(document.getElementById(`block-${baselineBlock}`)?.getBoundingClientRect().top)
+        .toBeLessThan(window.innerHeight * 0.3)
+      expect(repository.saveReadingState).not.toHaveBeenCalled()
+
+      const resolveBRead = async () => {
+        await act(async () => {
+          nextOwnerRead.resolve(priorBPosition)
+          await nextOwnerRead.promise
+        })
+      }
+      const deliverResetEvent = () => {
+        const previousMeasurements = measuredBlockRectReadCount(baselineBlock)
+        pendingResetEvent!()
+        flushScrollFrame()
+        expect(measuredBlockRectReadCount(baselineBlock)).toBeGreaterThan(previousMeasurements)
+      }
+      if (readFirst) await resolveBRead()
+      else deliverResetEvent()
+      expect(repository.saveReadingState).not.toHaveBeenCalled()
+      if (readFirst) deliverResetEvent()
+      else await resolveBRead()
+      expect(repository.saveReadingState).not.toHaveBeenCalled()
+      expect(storedBPosition).toEqual(priorBPosition)
+
+      // A separate, later B scroll must still save the newly read block.
+      scrollY = 900
+      setMeasuredBlockTops('bm-ch2-blk-03')
+      fireEvent.scroll(window)
+      flushScrollFrame()
+      expect(repository.saveReadingState).toHaveBeenCalledTimes(1)
+      expect(storedBPosition).toEqual(expect.objectContaining({ blockId: 'bm-ch2-blk-03' }))
     },
   )
 
