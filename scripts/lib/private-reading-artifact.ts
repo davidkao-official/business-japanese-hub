@@ -17,11 +17,13 @@ export function isContractShapedReadingAuthoringJson(text: string): boolean {
   } catch {
     return false
   }
-  if (!record(value) || value.schemaVersion !== 1 || typeof value.id !== 'string' || typeof value.slug !== 'string') return false
+  if (!record(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2) || typeof value.id !== 'string' || typeof value.slug !== 'string') return false
   if (!record(value.publication) || !['draft', 'released'].includes(String(value.publication.status))) return false
   if (!record(value.rights) || typeof value.rights.basis !== 'string' || typeof value.rights.status !== 'string') return false
   if (!record(value.japaneseMaterial) || typeof value.japaneseMaterial.text !== 'string') return false
-  return typeof value.explanationZhTW === 'string' && typeof value.businessContextZhTW === 'string'
+  return value.schemaVersion === 1
+    ? typeof value.explanationZhTW === 'string' && typeof value.businessContextZhTW === 'string'
+    : typeof value.explanationJa === 'string' && typeof value.businessContextJa === 'string'
 }
 
 export function privateReadingArtifactReason(path: string, text: string): 'canonical filename' | 'authoring shape' | null {

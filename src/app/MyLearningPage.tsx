@@ -204,7 +204,7 @@ function ReadingSavesSection({
         const entry = currentSavedReadingEntry(save)
         return <li key={save.itemId}>
           <div className="my-learning-reading-saves__item">
-            {entry ? <Link to={`/read/${entry.slug}`} lang="zh-TW">{entry.title}</Link> : <span role="status">{ui.mySavedItemUnavailable}</span>}
+            {entry ? <Link to={`/read/${entry.slug}`} lang="ja">{entry.title}</Link> : <span role="status">{ui.mySavedItemUnavailable}</span>}
             <time dateTime={save.savedAt}>{new Date(save.savedAt).toLocaleDateString(getActiveLocale())}</time>
           </div>
           <button type="button" className="btn btn--secondary" disabled={busyItemId !== null} onClick={() => void remove(save.itemId)}>{busyItemId === save.itemId ? ui.working : ui.remove}</button>

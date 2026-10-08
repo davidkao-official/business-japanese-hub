@@ -20,18 +20,72 @@ export type ReadingSourceCitation = {
   publishedAt?: string
 }
 
-export type ReadingVocabularyItem = {
+/** Retained only to describe immutable schema-v1 records during audit. */
+export type ReadingLegacyV1VocabularyItem = {
   term: string
   reading?: string
   meaningZhTW: string
   noteZhTW?: string
 }
 
-export type ReadingLogicPoint = {
+/** Retained only to describe immutable schema-v1 records during audit. */
+export type ReadingLegacyV1LogicPoint = {
   label: string
   japaneseText?: string
   explanationZhTW: string
 }
+
+/** Retained for audit tooling; schema-v1 Chinese-only items are not current publishable content. */
+export type ReadingLegacyV1RuntimeItem = {
+  schemaVersion: 1
+  id: string
+  slug: string
+  title: string
+  summary: string
+  releasedAt?: string
+  category: ReadingCategory
+  tags: string[]
+  access: ReadingAccess
+  source: ReadingSourceCitation
+  japaneseMaterial: { kind: 'original' | 'authorized-excerpt' | 'public-domain-excerpt'; text: string }
+  explanationZhTW: string
+  vocabulary: ReadingLegacyV1VocabularyItem[]
+  logicAnalysis: ReadingLegacyV1LogicPoint[]
+  businessContextZhTW: string
+  davidCommentary?: string
+  relatedLinks: ReadingRelatedLink[]
+  seo: { title: string; description: string }
+  sampleLabel?: 'non-proprietary-teaching-sample'
+}
+
+export type ReadingLegacyV1AuthoringItem = Omit<ReadingLegacyV1RuntimeItem, 'releasedAt'> & {
+  publication: { status: 'draft' | 'released'; releasedAt?: string; releaseNotes?: string }
+  reviewer?: { id: string; reviewedAt: string }
+  rights: { status: 'pending' | 'cleared'; basis: ReadingRightsBasis; attestation: string }
+}
+
+export type ReadingVocabularyItem = {
+  term: string
+  reading?: string
+  meaningJa: string
+  noteJa?: string
+}
+
+export type ReadingLogicPoint = {
+  label: string
+  japaneseText?: string
+  explanationJa: string
+}
+
+export type ReadingSupportOverlay = {
+  explanation?: string
+  businessContext?: string
+  vocabulary?: { term: string; meaning: string; note?: string }[]
+  logicAnalysis?: { label: string; explanation: string }[]
+  commentary?: string
+}
+
+export type ReadingSupportOverlays = { byLocale: Record<string, ReadingSupportOverlay> }
 
 export type ReadingRelatedLink = {
   kind: 'read' | 'learn' | 'practice'
@@ -41,7 +95,7 @@ export type ReadingRelatedLink = {
 
 /** Browser-facing detail data, deliberately free of reviewer and rights records. */
 export type ReadingRuntimeItem = {
-  schemaVersion: 1
+  schemaVersion: 2
   id: string
   slug: string
   title: string
@@ -55,11 +109,12 @@ export type ReadingRuntimeItem = {
     kind: 'original' | 'authorized-excerpt' | 'public-domain-excerpt'
     text: string
   }
-  explanationZhTW: string
+  explanationJa: string
   vocabulary: ReadingVocabularyItem[]
   logicAnalysis: ReadingLogicPoint[]
-  businessContextZhTW: string
-  davidCommentary?: string
+  businessContextJa: string
+  davidCommentaryJa?: string
+  supportOverlays?: ReadingSupportOverlays
   relatedLinks: ReadingRelatedLink[]
   seo: { title: string; description: string }
   sampleLabel?: 'non-proprietary-teaching-sample'
@@ -86,7 +141,6 @@ export type ReadingAuthoringItem = Omit<ReadingRuntimeItem, 'releasedAt'> & {
     basis: ReadingRightsBasis
     attestation: string
   }
-  sampleLabel?: 'non-proprietary-teaching-sample'
 }
 
 export type ReadingValidationIssue = { path: string; message: string }

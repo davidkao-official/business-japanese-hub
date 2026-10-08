@@ -48,13 +48,16 @@ function routeSet(
 }
 
 describe('Business Reading surfaces', () => {
-  it('shows the original free sample, category filters, and Book/Reader entry points', () => {
+  it('shows the Japanese original free sample, category filters, and Book/Reader entry points', () => {
     renderWithAppProviders(routeSet(), { initialEntries: ['/read'] })
     expect(screen.getByRole('heading', { name: '日本のビジネス資料を、文脈とともに読む' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '記事を選ぶ' })).toBeInTheDocument()
     expect(document.querySelector('.reading-discovery .reading-kicker')).toHaveTextContent('読む')
     expect(screen.queryByRole('heading', { name: '読む' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /從內部提案看日本商務資料的論點安排/ })).toHaveAttribute('href', '/read/sample-internal-proposal')
+    const sampleLink = screen.getByRole('link', { name: new RegExp(sampleReadingItem.title) })
+    expect(sampleLink).toHaveAttribute('href', '/read/sample-internal-proposal')
+    expect(sampleLink.closest('h3')).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText(sampleReadingItem.summary)).toHaveAttribute('lang', 'ja')
     expect(screen.getByText('Free')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Plus の記事' })).toBeInTheDocument()
     expect(screen.getByText('Plus の記事は現在公開されていません。公開後、会員状態をサーバーで確認して配信します。')).toBeInTheDocument()
@@ -63,17 +66,60 @@ describe('Business Reading surfaces', () => {
     expect(screen.getAllByRole('link').some((link) => link.getAttribute('href')?.endsWith('/read'))).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'ビジネスニュース' }))
     expect(screen.getByRole('status')).toHaveTextContent('この分類の記事はまだ公開されていません。')
-    expect(screen.queryByRole('link', { name: /從內部提案/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: new RegExp(sampleReadingItem.title) })).not.toBeInTheDocument()
   })
 
-  it('renders the direct free detail with Japanese material, zh-TW teaching, and the actual Learn handoff', () => {
+  it('renders the direct free detail with Japanese metadata, core explanation, and the actual Learn handoff', () => {
     renderWithAppProviders(routeSet(), { initialEntries: ['/read/sample-internal-proposal'] })
     expect(screen.getByRole('heading', { name: sampleReadingItem.title })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: sampleReadingItem.title })).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText(sampleReadingItem.summary)).toHaveAttribute('lang', 'ja')
     expect(screen.getByText(sampleReadingItem.japaneseMaterial.text)).toHaveAttribute('lang', 'ja')
-    expect(screen.getByText(sampleReadingItem.explanationZhTW)).toHaveAttribute('lang', 'zh-TW')
-    expect(screen.getByText(sampleReadingItem.source.label)).toHaveAttribute('lang', 'zh-TW')
+    expect(screen.getByText(sampleReadingItem.explanationJa)).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText(sampleReadingItem.businessContextJa)).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText(sampleReadingItem.vocabulary[0]!.meaningJa)).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText(sampleReadingItem.source.label)).toHaveAttribute('lang', 'ja')
     expect(screen.getByText('公開日なし')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /論點如何在會議中承接與轉換/ })).toHaveAttribute('href', '/learn/meeting-japanese-course-correction')
+    expect(screen.getByRole('link', { name: sampleReadingItem.relatedLinks[0]!.label })).toHaveAttribute('href', '/learn/meeting-japanese-course-correction')
+  })
+
+  it('renders Japanese core and keeps a present support overlay out of V1', () => {
+    const item: ReadingRuntimeItem = {
+      ...sampleReadingItem,
+      supportOverlays: {
+        byLocale: {
+          'zh-TW': {
+            explanation: 'V1 不能顯示這段補充。',
+            businessContext: 'V1 不能顯示這段背景。',
+            vocabulary: [{ term: '問い合わせ', meaning: '測試用詞義', note: '測試用註記' }],
+            logicAnalysis: [{ label: '補充標題', explanation: 'V1 不能顯示這段邏輯說明。' }],
+            commentary: 'V1 不能顯示這段補充評論。',
+          },
+        },
+      },
+    }
+    renderWithAppProviders(routeSet([toReadingCatalogEntry(item)], undefined, [item]), { initialEntries: [`/read/${item.slug}`] })
+
+    expect(screen.getByText(item.explanationJa)).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText(item.businessContextJa)).toHaveAttribute('lang', 'ja')
+    expect(screen.queryByText(/V1 不能顯示|測試用詞義|測試用註記/)).not.toBeInTheDocument()
+  })
+
+  it('fails closed for a Chinese-only legacy item injected into the free runtime path', () => {
+    const legacy: Record<string, unknown> = {
+      ...sampleReadingItem,
+      schemaVersion: 1,
+      explanationZhTW: '不得顯示的舊版中文解說。',
+      businessContextZhTW: '不得顯示的舊版中文背景。',
+    }
+    Reflect.deleteProperty(legacy, 'explanationJa')
+    Reflect.deleteProperty(legacy, 'businessContextJa')
+    const injected = legacy as unknown as ReadingRuntimeItem
+    renderWithAppProviders(routeSet([toReadingCatalogEntry(sampleReadingItem)], undefined, [injected]), { initialEntries: [`/read/${injected.slug as string}`] })
+
+    expect(screen.getByRole('status')).toBeInTheDocument()
+    expect(screen.queryByText('不得顯示的舊版中文解說。')).not.toBeInTheDocument()
+    expect(screen.queryByRole('article')).not.toBeInTheDocument()
   })
 
   it.each([
@@ -85,19 +131,28 @@ describe('Business Reading surfaces', () => {
     const item: ReadingRuntimeItem = { ...sampleReadingItem, access, source: { ...sampleReadingItem.source, url } }
     const entry = toReadingCatalogEntry(item, access === 'plus' ? { contentId: item.id, revision } : undefined)
     renderWithAppProviders(routeSet([entry], undefined, [item]), { initialEntries: [`/read/${item.slug}`] })
-    expect(screen.getByText(item.source.label)).toHaveAttribute('lang', 'zh-TW')
+    expect(screen.getByText(item.source.label)).toHaveAttribute('lang', 'ja')
     if (url) expect(screen.getByRole('link', { name: item.source.label })).toHaveAttribute('href', url)
   })
 
-  it('keeps authored Japanese and Chinese paragraphs distinct', () => {
+  it('keeps authored Japanese core paragraphs distinct from dormant support', () => {
     const multilineItem: ReadingRuntimeItem = {
       ...sampleReadingItem,
       id: 'reading-sample-paragraphs',
       slug: 'sample-paragraphs',
       japaneseMaterial: { kind: 'original', text: '第一段。\n\n第二段。\n文中の改行。' },
-      explanationZhTW: '第一段說明。\n\n第二段說明。',
-      businessContextZhTW: '第一段背景。\n\n第二段背景。',
-      davidCommentary: '第一段觀點。\n\n第二段觀點。',
+      explanationJa: '第一段の解説。\n\n第二段の解説。',
+      businessContextJa: '第一段の背景。\n\n第二段の背景。',
+      davidCommentaryJa: '第一段の見方。\n\n第二段の見方。',
+      supportOverlays: {
+        byLocale: {
+          'zh-TW': {
+            explanation: '補充解說。',
+            businessContext: '補充背景。',
+            commentary: '補充觀點。',
+          },
+        },
+      },
     }
     const { container } = renderWithAppProviders(
       routeSet([toReadingCatalogEntry(multilineItem)], undefined, [multilineItem]),
@@ -106,11 +161,14 @@ describe('Business Reading surfaces', () => {
     expect([...container.querySelectorAll('.reading-material p')].map((node) => node.textContent))
       .toEqual(['第一段。', '第二段。\n文中の改行。'])
     expect([...container.querySelectorAll('[aria-labelledby="reading-explanation-title"] p')].map((node) => node.textContent))
-      .toEqual(['第一段說明。', '第二段說明。'])
+      .toEqual(['第一段の解説。', '第二段の解説。'])
     expect([...container.querySelectorAll('.reading-context p')].map((node) => node.textContent))
-      .toEqual(['第一段背景。', '第二段背景。'])
+      .toEqual(['第一段の背景。', '第二段の背景。'])
     expect([...container.querySelectorAll('.reading-commentary p')].map((node) => node.textContent))
-      .toEqual(['第一段觀點。', '第二段觀點。'])
+      .toEqual(['第一段の見方。', '第二段の見方。'])
+    expect([...container.querySelectorAll('[aria-labelledby="reading-explanation-title"] p, .reading-context p, .reading-commentary p')]
+      .every((node) => node.getAttribute('lang') === 'ja')).toBe(true)
+    expect(container.querySelector('.reading-article__body')?.textContent).not.toContain('補充')
   })
 
   it('uses the shared 404 presentation for an unknown article slug', () => {
@@ -154,7 +212,30 @@ describe('Business Reading surfaces', () => {
     })
     await waitFor(() => expect(load).toHaveBeenCalledTimes(1))
     expect(await screen.findByRole('heading', { name: plusItem.title })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: plusItem.title })).toHaveAttribute('lang', 'ja')
     expect(load).toHaveBeenCalledWith(plusEntry, expect.any(Function), 'member-plus', expect.any(AbortSignal))
+  })
+
+  it('fails closed when an injected Plus loader returns a legacy Chinese-only item', async () => {
+    const legacy: Record<string, unknown> = {
+      ...plusItem,
+      schemaVersion: 1,
+      explanationZhTW: '不得顯示的舊版 Plus 解說。',
+      businessContextZhTW: '不得顯示的舊版 Plus 背景。',
+    }
+    Reflect.deleteProperty(legacy, 'explanationJa')
+    Reflect.deleteProperty(legacy, 'businessContextJa')
+    const injected = legacy as unknown as ReadingRuntimeItem
+    const load = vi.fn(async () => ({ kind: 'ok' as const, item: injected }))
+    renderWithAppProviders(routeSet(plusCatalog, load), {
+      session: { id: 'member-plus', email: 'reader@example.com' },
+      membershipAccessRepository: membership('active'),
+      initialEntries: ['/read/synthetic-plus'],
+    })
+
+    expect(await screen.findByText('記事を読み込めませんでした。時間をおいて再度お試しください。')).toBeInTheDocument()
+    expect(screen.queryByText('不得顯示的舊版 Plus 解說。')).not.toBeInTheDocument()
+    expect(screen.queryByText(plusItem.japaneseMaterial.text)).not.toBeInTheDocument()
   })
 
   it('keeps Plus body unavailable when fetch fails', async () => {

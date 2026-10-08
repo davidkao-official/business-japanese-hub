@@ -91,16 +91,59 @@ describe('Reading private payload client', () => {
     ['extra envelope field', { ...deliveryBody(), debug: true }],
     ['malformed payload shape', { content: { ...deliveryBody().content, payload: { reading: runtimeItem, reviewer: { id: 'editor' } } } }],
     ['missing reading item', { content: { ...deliveryBody().content, payload: {} } }],
+    ['legacy V1 item schema', deliveryBody({ ...runtimeItem, schemaVersion: 1 })],
     ['leaked reviewer record', deliveryBody({ ...runtimeItem, reviewer: { id: 'editor' } })],
     ['leaked rights record', deliveryBody({ ...runtimeItem, rights: { basis: 'original' } })],
     ['unsafe source URL', deliveryBody({ ...runtimeItem, source: { ...runtimeItem.source, url: 'javascript:alert(1)' } })],
-    ['markup in explanation', deliveryBody({ ...runtimeItem, explanationZhTW: '<script>unsafe</script>' })],
+    ['markup in explanation', deliveryBody({ ...runtimeItem, explanationJa: '<script>unsafe</script>' })],
     ['catalog slug mismatch', deliveryBody({ ...runtimeItem, slug: 'stale-slug' })],
     ['catalog source mismatch', deliveryBody({ ...runtimeItem, source: { ...runtimeItem.source, label: 'different source' } })],
     ['catalog date mismatch', deliveryBody({ ...runtimeItem, releasedAt: '2026-09-21' })],
   ])('rejects %s', async (_label, body) => {
     vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(200, body)))
+    await expect(fetchReadingPayload(entry, async () => tokenFor(userId), userId)).resolves.toEqual({ kind: 'unavailable' })
+  })
+
+  it('rejects legacy Chinese-only and missing-Japanese payloads even when support exists', async () => {
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
+    const legacy: Record<string, unknown> = {
+      ...runtimeItem,
+      schemaVersion: 1,
+      explanationZhTW: '舊版中文解說。',
+      businessContextZhTW: '舊版中文背景。',
+    }
+    Reflect.deleteProperty(legacy, 'explanationJa')
+    Reflect.deleteProperty(legacy, 'businessContextJa')
+
+    const missingJapanese: Record<string, unknown> = { ...runtimeItem }
+    Reflect.deleteProperty(missingJapanese, 'explanationJa')
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response(200, deliveryBody(legacy)))
+      .mockResolvedValueOnce(response(200, deliveryBody(missingJapanese)))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(fetchReadingPayload(entry, async () => tokenFor(userId), userId)).resolves.toEqual({ kind: 'unavailable' })
+    await expect(fetchReadingPayload(entry, async () => tokenFor(userId), userId)).resolves.toEqual({ kind: 'unavailable' })
+  })
+
+  it('rejects unknown nested support fields and markup in locale support', async () => {
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
+    const support = runtimeItem.supportOverlays!.byLocale['zh-TW']!
+    const bodies = [
+      deliveryBody({
+        ...runtimeItem,
+        supportOverlays: { byLocale: { 'zh-TW': { ...support, reviewerNotes: 'private' } } },
+      }),
+      deliveryBody({
+        ...runtimeItem,
+        supportOverlays: { byLocale: { 'zh-TW': { ...support, commentary: '<script>unsafe</script>' } } },
+      }),
+    ]
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(response(200, bodies[0]))
+      .mockResolvedValueOnce(response(200, bodies[1])))
+    await expect(fetchReadingPayload(entry, async () => tokenFor(userId), userId)).resolves.toEqual({ kind: 'unavailable' })
     await expect(fetchReadingPayload(entry, async () => tokenFor(userId), userId)).resolves.toEqual({ kind: 'unavailable' })
   })
 

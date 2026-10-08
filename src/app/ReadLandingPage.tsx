@@ -66,8 +66,8 @@ export function ReadLandingPage() {
                     {entry.sampleLabel && <span>{copy.sampleLabel}</span>}
                     {entry.releasedAt && <time dateTime={entry.releasedAt}>{entry.releasedAt.slice(0, 10)}</time>}
                   </div>
-                  <h3 lang="zh-TW"><Link to={`/read/${entry.slug}`}>{entry.title}</Link></h3>
-                  <p lang="zh-TW">{entry.summary}</p>
+                  <h3 lang="ja"><Link to={`/read/${entry.slug}`}>{entry.title}</Link></h3>
+                  <p lang="ja">{entry.summary}</p>
                   <Link className="reading-card__action" to={`/read/${entry.slug}`}>
                     {copy.openArticle}<span aria-hidden="true"> ↗</span>
                   </Link>

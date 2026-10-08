@@ -398,6 +398,7 @@ describe('My Learning page', () => {
     })
     const sampleLink = await screen.findByRole('link', { name: sampleReadingItem.title })
     expect(sampleLink).toHaveAttribute('href', `/read/${sampleReadingItem.slug}`)
+    expect(sampleLink).toHaveAttribute('lang', 'ja')
     expect(screen.getByText("この保存済みの項目は、現在開けません。")).toBeInTheDocument()
     expect(screen.queryByText(staleId)).not.toBeInTheDocument()
     expect(screen.queryByText('a'.repeat(64))).not.toBeInTheDocument()

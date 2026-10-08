@@ -26,16 +26,37 @@ describe('private Reading release preparation', () => {
     expect(result.value.payload.reading).not.toHaveProperty('reviewer')
     expect(result.value.payload.reading).not.toHaveProperty('rights')
     expect(result.value.payload.reading.releasedAt).toBe('2026-09-20')
-    const changed = preparePrivateReadingRelease(source.id, { ...source, explanationZhTW: '更新後的原創說明。' })
-    expect(changed.ok).toBe(true)
-    if (changed.ok) expect(changed.value.revision).not.toBe(result.value.revision)
+    expect(result.value.schemaVersion).toBe(1)
+    expect(result.value.payload.reading.schemaVersion).toBe(2)
+    expect(result.value.payload.reading).toHaveProperty('supportOverlays', source.supportOverlays)
+    expect(result.value.payload.reading).not.toHaveProperty('explanationZhTW')
+    const projectedOverlay = result.value.payload.reading.supportOverlays!.byLocale['zh-TW']!
+    projectedOverlay.explanation = 'Mutated projected support copy.'
+    expect(source.supportOverlays!.byLocale['zh-TW']!.explanation).not.toBe(projectedOverlay.explanation)
+
+    const changedJapanese = preparePrivateReadingRelease(source.id, { ...source, explanationJa: '更新後の日本語解説。' })
+    expect(changedJapanese.ok).toBe(true)
+    if (changedJapanese.ok) expect(changedJapanese.value.revision).not.toBe(result.value.revision)
+
+    const zhOverlay = source.supportOverlays!.byLocale['zh-TW']!
+    const changedSupport = preparePrivateReadingRelease(source.id, {
+      ...source,
+      supportOverlays: { byLocale: { ...source.supportOverlays!.byLocale, 'zh-TW': { ...zhOverlay, explanation: '更新後的選擇性補充。' } } },
+    })
+    expect(changedSupport.ok).toBe(true)
+    if (changedSupport.ok) expect(changedSupport.value.revision).not.toBe(result.value.revision)
   })
 
   it('fails closed for free, draft, id-mismatched, and PostgreSQL-incompatible items', () => {
     const source = releasedPlusItem()
     expect(preparePrivateReadingRelease(source.id, sampleReadingItem)).toMatchObject({ ok: false })
     expect(preparePrivateReadingRelease(source.id, { ...source, publication: { status: 'draft' } })).toMatchObject({ ok: false })
+    expect(preparePrivateReadingRelease(source.id, { ...source, schemaVersion: 1 })).toMatchObject({ ok: false })
+    expect(preparePrivateReadingRelease(source.id, { ...source, schemaVersion: 3 })).toMatchObject({ ok: false })
     expect(preparePrivateReadingRelease('other-id', source)).toMatchObject({ ok: false, reason: 'Reading id does not match the requested server delivery reference' })
     expect(preparePrivateReadingRelease(source.id, { ...source, japaneseMaterial: { kind: 'original', text: '\u0000' } })).toMatchObject({ ok: false, reason: 'Reading payload contains strings incompatible with PostgreSQL jsonb' })
+    const missingJapanese = { ...source }
+    Reflect.deleteProperty(missingJapanese, 'explanationJa')
+    expect(preparePrivateReadingRelease(source.id, missingJapanese)).toMatchObject({ ok: false, reason: expect.stringContaining('invalid Reading item') })
   })
 })
