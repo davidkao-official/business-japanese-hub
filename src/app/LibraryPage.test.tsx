@@ -59,7 +59,7 @@ describe('personal library', () => {
     // shelf; the resume href must be present among the title's links.
     const titleLinks = screen.getAllByRole('link', { name: new RegExp(sampleBook.title) })
     expect(titleLinks.map((link) => link.getAttribute('href'))).toContain(
-      `/books/${sampleBook.slug}/read/keigo-in-meetings`,
+      `/books/${sampleBook.slug}/read/keigo-in-meetings?resume=1`,
     )
     // Progress indicators are present (thin line + %), never a completion chart.
     expect(screen.getAllByRole('progressbar').length).toBeGreaterThan(0)

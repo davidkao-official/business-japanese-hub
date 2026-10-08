@@ -38,8 +38,11 @@ export function toChapterOrderRefs(book: Book): ChapterOrderRef[] {
  * point at a missing chapter).
  */
 export function resumeHref(book: Book, chapterId: string | undefined): string {
+  if (!chapterId) return `/books/${book.slug}/read`;
   const chapter = chapterId ? book.chapters.find((c) => c.id === chapterId) : undefined;
-  return chapter ? `/books/${book.slug}/read/${chapter.slug}` : `/books/${book.slug}/read`;
+  return chapter
+    ? `/books/${book.slug}/read/${chapter.slug}?resume=1`
+    : `/books/${book.slug}/read?resume=1`;
 }
 
 /** The primary / secondary CTA kinds for a book in a given ownership state. */

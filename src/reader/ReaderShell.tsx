@@ -6,12 +6,12 @@
  * that knows about overlays and settings, so `ReaderPage` stays a thin resolver.
  *
  * The `store` prop is the #7 persistence seam: the shell loads on mount and
- * saves on every anchor change through the store, which is a no-op in #5.
+ * saves settled anchors through the store supplied by ReaderPage.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import type { Book, Chapter, VocabularyBlock } from '../content/types'
 import { useStrings } from '../i18n/strings'
 import { canRead, type PreviewBoundary } from '../lib/entitlement'
@@ -39,7 +39,7 @@ import { ReaderTopBar } from './ReaderTopBar'
 export interface ReaderShellProps {
   book: Book
   chapter: Chapter
-  /** Reading-position persistence seam (#7 swaps the no-op store). */
+  /** Current-user reading-position store assembled by ReaderPage. */
   store?: ReadingPositionStore
   /**
    * Server-authoritative ownership (the entitlement gate input). Only blocks
@@ -48,6 +48,18 @@ export interface ReaderShellProps {
   owned?: boolean
   /** Gate-shaped preview boundary (registry metadata; see src/reader/catalog.ts). */
   previewBoundary?: PreviewBoundary
+  /** Validated, readable saved anchor for this one Continue entry. */
+  restoreAnchor?: ReadingAnchor
+  /** Stable identity of the Continue navigation, retained when its marker is consumed. */
+  restoreEntryKey?: string
+  /** Owner identity bound to the local, one-entry consumed marker. */
+  resumeOwnerId?: string | null
+  /** Reset a viewport inherited from a different consumed owner/book entry. */
+  resetInitialViewport?: boolean
+  /** Keep transient anchors out of persistence while the initial read settles. */
+  canPersistPosition?: boolean
+  /** Suppress the first measurement save after a consumed resume remount. */
+  skipInitialPositionSave?: boolean
 }
 
 function VocabularyDetail({ block }: { block: VocabularyBlock }) {
@@ -83,11 +95,21 @@ export function ReaderShell({
   store = noopReadingPositionStore,
   owned = false,
   previewBoundary,
+  restoreAnchor,
+  restoreEntryKey,
+  resumeOwnerId = null,
+  resetInitialViewport = false,
+  canPersistPosition = true,
+  skipInitialPositionSave = false,
 }: ReaderShellProps) {
   const strings = useStrings()
   const contentRef = useRef<HTMLElement>(null)
   const isDesktop = useMediaQuery('(min-width: 64rem)')
-  const { hash } = useLocation()
+  const location = useLocation()
+  const { hash, key: locationKey } = location
+  const navigate = useNavigate()
+  const appliedRestoreKeyRef = useRef<string | null>(null)
+  const shouldResetInitialViewportRef = useRef(resetInitialViewport && !restoreAnchor && !hash)
 
   const [settings, setSettings] = useState<ReaderSettings>(initialReaderSettings)
   const [tocOpen, setTocOpen] = useState(false)
@@ -123,7 +145,83 @@ export function ReaderShell({
     },
     [store, book.id],
   )
-  const progress = useReadingPosition(book, chapter, contentRef, onAnchorChange)
+  const progress = useReadingPosition(
+    book,
+    chapter,
+    contentRef,
+    onAnchorChange,
+    {
+      restore: restoreAnchor
+        ? { anchor: restoreAnchor, key: restoreEntryKey ?? locationKey }
+        : undefined,
+      canPersist: canPersistPosition,
+      entryKey: restoreEntryKey ?? locationKey,
+      skipInitialPersistence: skipInitialPositionSave,
+    },
+  )
+
+  useLayoutEffect(() => {
+    if (!shouldResetInitialViewportRef.current) return
+    shouldResetInitialViewportRef.current = false
+    window.scrollTo(0, 0)
+  }, [book.id])
+
+  // Apply a validated saved anchor once for this route entry. This runs before
+  // position measurement so reflow/settings/session rerenders cannot replace
+  // the restored block with a transient opening anchor.
+  useLayoutEffect(() => {
+    const stableRestoreKey = restoreEntryKey ?? locationKey
+    if (!restoreAnchor || hash || appliedRestoreKeyRef.current === stableRestoreKey) return
+    appliedRestoreKeyRef.current = stableRestoreKey
+
+    if (restoreAnchor.chapterId !== chapter.id) return
+    if (!restoreAnchor.blockId) {
+      window.scrollTo(0, 0)
+    } else {
+      const targetId = `block-${restoreAnchor.blockId}`
+      const target = document.getElementById(targetId)
+      if (!target || !contentRef.current?.contains(target)) return
+      target.scrollIntoView({ block: 'start' })
+      target.focus({ preventScroll: true })
+    }
+
+    const search = new URLSearchParams(location.search)
+    if (search.get('resume') === '1') {
+      search.delete('resume')
+      const nextSearch = search.toString()
+      const priorState =
+        typeof location.state === 'object' && location.state !== null ? location.state : {}
+      navigate(
+        {
+          pathname: location.pathname,
+          search: nextSearch ? `?${nextSearch}` : '',
+          hash: location.hash,
+        },
+        {
+          replace: true,
+          state: {
+            ...priorState,
+            readerResumeConsumed: { bookId: book.id, userId: resumeOwnerId },
+            readerResumeEntryKey: stableRestoreKey,
+          },
+        },
+      )
+    }
+  }, [
+    restoreAnchor,
+    locationKey,
+    hash,
+    chapter.id,
+    book.id,
+    visibleBlocks,
+    restoreEntryKey,
+    resumeOwnerId,
+    location.pathname,
+    location.search,
+    location.state,
+    location.hash,
+    navigate,
+  ])
 
   // React Router's client-side navigation does not perform the browser's native
   // fragment scroll. Consume a resolved block fragment after readable blocks
@@ -143,11 +241,6 @@ export function ReaderShell({
     target.scrollIntoView({ block: 'start' })
     target.focus({ preventScroll: true })
   }, [hash, book.id, chapter.id, visibleBlocks])
-
-  // #5 persistence seam: exercise load on mount (no-op store; #7 resumes).
-  useEffect(() => {
-    store.load(book.id)
-  }, [store, book.id])
 
   // The reader manages its own color scheme on the whole document surface so
   // overscroll matches; restored when the reader unmounts.
