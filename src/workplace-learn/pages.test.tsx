@@ -5,6 +5,11 @@ vi.mock('../i18n/locales', async (importOriginal) => {
   return { ...actual, LAUNCHED_LOCALES: actual.SUPPORTED_LOCALES }
 })
 
+vi.mock('../lib/persistence/useBookState', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/persistence/useBookState')>()
+  return { ...actual, useBookOwned: vi.fn(() => ({ owned: false, loading: false })) }
+})
+
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -12,18 +17,20 @@ import type { WorkplaceLearnCatalogEntry, WorkplaceLearnRuntimeItem } from './ty
 import { workplaceLearnCatalog } from './catalog'
 import { sampleWorkplaceLearnItem, sampleWorkplaceVocabularyItem } from './sample'
 import { toWorkplaceLearnCatalogEntry } from './validate'
-import { WorkplaceLessonPage, WorkplaceVocabularyIndexPage, WorkplaceVocabularyPage } from './pages'
+import { WorkplaceLearnLandingPage, WorkplaceLessonPage, WorkplaceVocabularyIndexPage, WorkplaceVocabularyPage } from './pages'
 import { renderWithAppProviders } from '../test/appProviders'
 import { getStrings, setLocalePreference } from '../i18n/strings'
 import App from '../App'
 import { COURSE_CORRECTION_LEARN_SLUG, getLearningUnitByLearnSlug } from '../app/learningUnits'
 import { readingCatalog } from '../reading/catalog'
+import { useBookOwned } from '../lib/persistence/useBookState'
 
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
   setLocalePreference(null)
   window.history.replaceState(null, '', '/')
+  vi.mocked(useBookOwned).mockReturnValue({ owned: false, loading: false })
 })
 
 describe('Workplace Learn routes and details', () => {
@@ -45,10 +52,10 @@ describe('Workplace Learn routes and details', () => {
     expect(await screen.findByRole('heading', { level: 1, name: '日本職場語彙' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('link', { name: /見込み/ }))
     expect(await screen.findByRole('heading', { level: 1, name: '見込み' })).toHaveAttribute('lang', 'ja')
-    expect(screen.getByText(sampleWorkplaceVocabularyItem.lead)).toHaveAttribute('lang', 'zh-TW')
+    expect(screen.getByText(sampleWorkplaceVocabularyItem.lead)).toHaveAttribute('lang', 'ja')
     expect(screen.getByText('見込み', { selector: 'dd' })).toHaveAttribute('lang', 'ja')
-    expect(screen.getByText(/預估、預期/)).toBeInTheDocument()
-    expect(screen.getByText(/不代表所有公司/)).toBeInTheDocument()
+    expect(screen.getByText(sampleWorkplaceVocabularyItem.meaningJa)).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText(sampleWorkplaceVocabularyItem.workplaceNuanceJa)).toHaveAttribute('lang', 'ja')
     expect(screen.getByRole('link', { name: /報告時に事実と次の対応/ })).toHaveAttribute('href', '/learn/workplace/sample-status-update-with-next-step')
   })
 
@@ -65,7 +72,7 @@ describe('Workplace Learn routes and details', () => {
     )
 
     expect(screen.getByRole('heading', { name: situationLabel })).not.toHaveAttribute('lang')
-    expect(screen.getByText(sampleWorkplaceLearnItem.situation)).toHaveAttribute('lang', 'zh-TW')
+    expect(screen.getByText(sampleWorkplaceLearnItem.situation)).toHaveAttribute('lang', 'ja')
     expect(screen.getByRole('heading', { name: practiceTitle })).not.toHaveAttribute('lang')
     expect(screen.getByText(prompt)).not.toHaveAttribute('lang')
     expect(screen.getByText(practiceLabel)).not.toHaveAttribute('lang')
@@ -74,6 +81,27 @@ describe('Workplace Learn routes and details', () => {
     const ui = getStrings(locale)
     expect(document.title).toBe(`${entry.title} — ${ui.learningModes.modes.learn.title} — ${ui.app.name}`)
     if (locale === 'ja') expect(document.title).not.toMatch(/Learn/)
+  })
+
+  it.each([
+    ['owned', true, false],
+    ['owned while loading', true, true],
+    ['loading', false, true],
+    ['not owned', false, false],
+  ] as const)('shows the inherited course link only when it is %s', (_label, owned, loading) => {
+    setLocalePreference('ja')
+    vi.mocked(useBookOwned).mockReturnValue({ owned, loading })
+    vi.mocked(useBookOwned).mockClear()
+    const unit = getLearningUnitByLearnSlug(COURSE_CORRECTION_LEARN_SLUG)!
+    renderWithAppProviders(
+      <Routes><Route path="/learn" element={<WorkplaceLearnLandingPage />} /></Routes>,
+      { initialEntries: ['/learn'] },
+    )
+    expect(vi.mocked(useBookOwned)).toHaveBeenCalledWith(unit.bookId)
+    const inheritedLink = screen.queryByRole('link', { name: /その他の学習教材/ })
+    if (owned && !loading) expect(inheritedLink).toBeInTheDocument()
+    else expect(inheritedLink).not.toBeInTheDocument()
+    vi.mocked(useBookOwned).mockReturnValue({ owned: false, loading: false })
   })
 
   it('keeps the Book-projected Learn slug available on its original route', () => {
@@ -102,6 +130,43 @@ describe('Workplace Learn routes and details', () => {
     )
     expect(screen.queryByText(sampleWorkplaceLearnItem.whatToSayJapanese)).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('目前無法載入教材')
+  })
+
+  it('does not render injected Free bodies that omit Japanese core despite a complete overlay', () => {
+    setLocalePreference('ja')
+    const invalidItem: Record<string, unknown> = { ...sampleWorkplaceLearnItem }
+    delete invalidItem.meaningInContextJa
+    delete invalidItem.whyItWorksJa
+    delete invalidItem.cautionJa
+    invalidItem.supportOverlays = { byLocale: { 'zh-TW': {
+      meaningInContext: '完全な補足。', whyItWorks: '完全な補足。', caution: '完全な補足。',
+      examples: [{ explanation: '完全な補足。' }],
+    } } }
+    const entry = workplaceLearnCatalog.find((candidate) => candidate.id === sampleWorkplaceLearnItem.id)!
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[invalidItem as unknown as WorkplaceLearnRuntimeItem]} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${entry.slug}`] },
+    )
+    expect(screen.queryByText('完全な補足。')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('教材を読み込めません')
+  })
+
+  it('keeps valid locale support overlays dormant in the V1 Japanese rendering', () => {
+    setLocalePreference('ja')
+    const item = {
+      ...sampleWorkplaceLearnItem,
+      supportOverlays: { byLocale: { 'zh-TW': {
+        meaningInContext: 'V1 に表示しない補足文。', whyItWorks: 'V1 に表示しない補足文。',
+        caution: 'V1 に表示しない補足文。', examples: [{ explanation: 'V1 に表示しない補足文。' }],
+      } } },
+    } as unknown as WorkplaceLearnRuntimeItem
+    const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${entry.slug}`] },
+    )
+    expect(screen.queryByText('V1 に表示しない補足文。')).not.toBeInTheDocument()
+    expect(screen.getByText(item.kind === 'lesson' ? item.meaningInContextJa : '')).toHaveAttribute('lang', 'ja')
   })
 
   it('resolves related Read and Practice items through public registries and renders unknown links as unavailable', () => {
@@ -1118,5 +1183,47 @@ describe('Workplace Learn routes and details', () => {
     expect(screen.getByText('儲存 Workplace Learn 教材需要 Plus 會員。')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '移除儲存' })).not.toBeInTheDocument()
     expect(methods).toEqual(['GET', 'GET'])
+  })
+})
+
+describe('Injected member Workplace Learn body admission', () => {
+  it('rejects a legacy Japanese body returned as ok by an injected member loader', async () => {
+    setLocalePreference('ja')
+    const cataloguedItem: WorkplaceLearnRuntimeItem = {
+      ...sampleWorkplaceLearnItem,
+      id: 'private-workplace-invalid-loader-test',
+      slug: 'private-workplace-invalid-loader-test',
+      title: 'Member metadata title',
+      access: 'plus',
+      sampleLabel: undefined,
+      relatedVocabularyIds: [],
+    }
+    const entry = toWorkplaceLearnCatalogEntry(cataloguedItem, {
+      contentId: cataloguedItem.id,
+      revision: 'f'.repeat(64),
+    })
+    const invalidItem: Record<string, unknown> = {
+      ...cataloguedItem,
+      schemaVersion: 1,
+      whatToSayJapanese: '会員本文の表示禁止カナリアです。',
+    }
+    delete invalidItem.meaningInContextJa
+    invalidItem.supportOverlays = { byLocale: { 'zh-TW': {
+      meaningInContext: '補充說明。', whyItWorks: '補充說明。', caution: '補充說明。',
+      examples: [{ explanation: '例句補充。' }],
+    } } }
+    const loadPayload = vi.fn().mockResolvedValue({ kind: 'ok', item: invalidItem as unknown as WorkplaceLearnRuntimeItem })
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[]} loadPayload={loadPayload} />} /></Routes>,
+      {
+        initialEntries: [`/learn/workplace/${entry.slug}`],
+        session: { id: 'member-1', email: 'member@example.com' },
+        membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      },
+    )
+
+    expect(await screen.findByText(getStrings('ja').workplaceLearn.unavailable)).toBeInTheDocument()
+    expect(screen.queryByText('会員本文の表示禁止カナリアです。')).not.toBeInTheDocument()
+    expect(loadPayload).toHaveBeenCalledTimes(1)
   })
 })

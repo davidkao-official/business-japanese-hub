@@ -29,6 +29,37 @@ test('public Git Workplace Learn authoring boundary rejects renamed complete pri
   assert.equal(privateWorkplaceArtifactReason('nested/nested-drafts.json', JSON.stringify([[vocabularyDraft]])), 'authoring shape')
 })
 
+test('public Git boundary keeps legacy v1 and recognizes schema-v2 authoring, Plus bodies, and wrappers', () => {
+  const legacyV1 = {
+    schemaVersion: 1, kind: 'lesson', id: 'legacy-private', slug: 'legacy-private', access: 'plus',
+    situation: 'A workplace situation.', meaningInContextZhTW: 'Legacy explanation.',
+    whatToSayJapanese: '進捗を報告します。', examples: [{ context: '報告', japanese: '確認します。', explanationZhTW: 'Legacy note.' }],
+  }
+  assert.equal(privateWorkplaceArtifactReason('nested/legacy-v1.json', JSON.stringify(legacyV1)), 'Plus runtime shape')
+
+  const schemaV2 = {
+    ...sampleWorkplaceLearnItem,
+    schemaVersion: 2,
+    access: 'plus',
+    sampleLabel: undefined,
+    meaningInContextJa: '遅れと次の対応を共有します。',
+    whyItWorksJa: '事実から伝えると判断しやすくなります。',
+    cautionJa: '推測を事実として伝えないでください。',
+    examples: sampleWorkplaceLearnItem.examples.map((example) => ({ ...example, explanationJa: '次の行動を示します。' })),
+    supportOverlays: { byLocale: { 'zh-TW': { meaningInContext: '補充說明。' } } },
+  }
+  const v2Authoring = {
+    ...schemaV2,
+    publication: { status: 'draft' },
+    reviewer: { id: 'editor-1', reviewedAt: '2026-09-23' },
+    rights: { status: 'pending', basis: 'original', attestation: 'Review fixture.' },
+  }
+  assert.equal(privateWorkplaceArtifactReason('nested/v2-draft.json', JSON.stringify(v2Authoring)), 'authoring shape')
+  assert.equal(privateWorkplaceArtifactReason('nested/v2-runtime.json', JSON.stringify(schemaV2)), 'Plus runtime shape')
+  assert.equal(privateWorkplaceArtifactReason('nested/v2-wrapper.json', JSON.stringify({ workplaceLearn: schemaV2 })), 'Plus runtime shape')
+  assert.equal(privateWorkplaceArtifactReason('nested/v2-envelope.json', JSON.stringify({ content: { payload: { workplaceLearn: schemaV2 } } })), 'Plus runtime shape')
+})
+
 test('public Git Workplace Learn boundary rejects direct Plus runtime bodies and delivery wrappers', () => {
   const plusLesson = { ...sampleWorkplaceLearnItem, access: 'plus' }
   const plusVocabulary = { ...sampleWorkplaceVocabularyItem, access: 'plus' }
@@ -62,11 +93,11 @@ test('public Git Workplace Learn boundary rejects direct Plus runtime bodies and
 
 test('public Git Workplace Learn authoring boundary allows runtime fixtures and body-free catalog metadata', () => {
   const freeCatalogEntry = {
-    schemaVersion: 1, kind: 'lesson', id: sampleWorkplaceLearnItem.id, slug: sampleWorkplaceLearnItem.slug,
+    schemaVersion: 2, kind: 'lesson', id: sampleWorkplaceLearnItem.id, slug: sampleWorkplaceLearnItem.slug,
     title: sampleWorkplaceLearnItem.title, lead: sampleWorkplaceLearnItem.lead, access: 'free', category: sampleWorkplaceLearnItem.category,
   }
   const plusCatalogEntry = {
-    schemaVersion: 1, kind: 'lesson', id: 'workplace-plus-example', slug: 'workplace-plus-example',
+    schemaVersion: 2, kind: 'lesson', id: 'workplace-plus-example', slug: 'workplace-plus-example',
     title: 'Private title metadata only', titleLanguage: 'en', lead: 'Metadata only.', leadLanguage: 'en', access: 'plus', category: 'workplace-communication',
   }
   assert.equal(privateWorkplaceArtifactReason('src/workplace-learn/sample.json', JSON.stringify(sampleWorkplaceLearnItem)), null)

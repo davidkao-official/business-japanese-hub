@@ -28,14 +28,32 @@ export type WorkplaceLearnRelatedLink = {
   targetId: string
 }
 
+export type WorkplaceLearnLessonSupportOverlay = {
+  meaningInContext?: string
+  whyItWorks?: string
+  caution?: string
+  examples?: Array<{ explanation: string }>
+}
+
+export type WorkplaceLearnVocabularySupportOverlay = {
+  meaning?: string
+  workplaceNuance?: string
+  caution?: string
+  example?: { explanation: string }
+}
+
+export type WorkplaceLearnSupportOverlays<TOverlay> = {
+  byLocale: Record<string, TOverlay>
+}
+
 export type WorkplaceLearnExample = {
   context: string
   japanese: string
-  explanationZhTW: string
+  explanationJa: string
 }
 
 export type WorkplaceLearnLesson = {
-  schemaVersion: 1
+  schemaVersion: 2
   kind: 'lesson'
   id: string
   slug: string
@@ -47,27 +65,34 @@ export type WorkplaceLearnLesson = {
   tags: string[]
   access: WorkplaceLearnAccess
   situation: string
-  meaningInContextZhTW: string
+  meaningInContextJa: string
   learningObjective: string
   capabilityDomain: WorkplaceCapabilityDomain
   skill: string
   coreJudgment: string
   whatToDo: string
   whatToSayJapanese: string
-  whyItWorksZhTW: string
+  whyItWorksJa: string
   /** Editorial suggestions only; this field does not assert that a Practice activity exists. */
   practiceTypes: Array<'rewrite'>
   transferTakeaway: string
   examples: WorkplaceLearnExample[]
-  cautionZhTW: string
+  cautionJa: string
   relationshipContext?: string
   relatedVocabularyIds: string[]
   relatedLinks: WorkplaceLearnRelatedLink[]
+  supportOverlays?: WorkplaceLearnSupportOverlays<WorkplaceLearnLessonSupportOverlay>
   sampleLabel?: 'non-proprietary-teaching-sample'
 }
 
+export type WorkplaceLearnVocabularyExample = {
+  context: string
+  japanese: string
+  explanationJa: string
+}
+
 export type WorkplaceLearnVocabulary = {
-  schemaVersion: 1
+  schemaVersion: 2
   kind: 'vocabulary'
   id: string
   slug: string
@@ -80,15 +105,16 @@ export type WorkplaceLearnVocabulary = {
   access: WorkplaceLearnAccess
   term: string
   reading: string
-  meaningZhTW: string
-  workplaceNuanceZhTW: string
+  meaningJa: string
+  workplaceNuanceJa: string
   usageContext: string
-  example: WorkplaceLearnExample
-  cautionZhTW: string
+  example: WorkplaceLearnVocabularyExample
+  cautionJa: string
   register: string
   relationshipContext?: string
   relatedTermIds: string[]
   relatedLinks: WorkplaceLearnRelatedLink[]
+  supportOverlays?: WorkplaceLearnSupportOverlays<WorkplaceLearnVocabularySupportOverlay>
   sampleLabel?: 'non-proprietary-teaching-sample'
 }
 
@@ -124,3 +150,34 @@ export type WorkplaceLearnValidationResult =
 export type WorkplaceLearnRuntimeValidationResult =
   | { ok: true; value: WorkplaceLearnRuntimeItem }
   | { ok: false; issues: WorkplaceLearnValidationIssue[] }
+
+/** Audit-only schema-v1 shape; never accepted by runtime or authoring validators. */
+export type WorkplaceLearnLegacyV1Example = {
+  context: string
+  japanese: string
+  explanationZhTW: string
+}
+
+/** Audit-only schema-v1 lesson fields retained for inspecting historical revisions. */
+export type WorkplaceLearnLegacyV1Lesson = Omit<WorkplaceLearnLesson,
+  'schemaVersion' | 'meaningInContextJa' | 'whyItWorksJa' | 'cautionJa' | 'examples' | 'supportOverlays'
+> & {
+  schemaVersion: 1
+  meaningInContextZhTW: string
+  whyItWorksZhTW: string
+  cautionZhTW: string
+  examples: WorkplaceLearnLegacyV1Example[]
+}
+
+/** Audit-only schema-v1 vocabulary fields retained for inspecting historical revisions. */
+export type WorkplaceLearnLegacyV1Vocabulary = Omit<WorkplaceLearnVocabulary,
+  'schemaVersion' | 'meaningJa' | 'workplaceNuanceJa' | 'cautionJa' | 'example' | 'supportOverlays'
+> & {
+  schemaVersion: 1
+  meaningZhTW: string
+  workplaceNuanceZhTW: string
+  cautionZhTW: string
+  example: WorkplaceLearnLegacyV1Example
+}
+
+export type WorkplaceLearnLegacyV1RuntimeItem = WorkplaceLearnLegacyV1Lesson | WorkplaceLearnLegacyV1Vocabulary

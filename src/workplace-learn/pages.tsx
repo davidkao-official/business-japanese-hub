@@ -4,6 +4,7 @@ import { useAuth } from '@business-japanese-hub/platform-auth'
 import { PlusAccessBoundary } from '../components/PlusAccessBoundary'
 import { useMembershipAccess } from '../lib/membership/MembershipAccessContext'
 import { useStrings } from '../i18n/strings'
+import { useBookOwned } from '../lib/persistence/useBookState'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { getLearningUnitByLearnSlug, COURSE_CORRECTION_LEARN_SLUG, type LearningTextBlock } from '../app/learningUnits'
 import { NotFoundPage } from '../app/NotFoundPage'
@@ -49,6 +50,7 @@ export function WorkplaceLearnLandingPage({ catalogEntries = workplaceLearnCatal
     ? catalogEntries
     : catalogEntries.filter((entry) => entry.category === selectedCategory)
   const lesson = getLearningUnitByLearnSlug(COURSE_CORRECTION_LEARN_SLUG)
+  const legacyAccess = useBookOwned(lesson?.bookId ?? '')
 
   return (
     <section className="page workplace-learn" aria-labelledby="workplace-learn-title">
@@ -58,7 +60,7 @@ export function WorkplaceLearnLandingPage({ catalogEntries = workplaceLearnCatal
         <p className="page__lead">{strings.workplaceLearn.lead}</p>
         <div className="workplace-learn__browse-links">
           <Link to="/learn/vocabulary">{strings.workplaceLearn.vocabularyIndexLink} <span aria-hidden="true">→</span></Link>
-          {lesson && <Link to={`/learn/${COURSE_CORRECTION_LEARN_SLUG}`}>{strings.workplaceLearn.legacyLinkPrefix}{renderLearningText([lesson.gateway.title])} <span aria-hidden="true">→</span></Link>}
+          {lesson && legacyAccess.owned && !legacyAccess.loading && <Link to={`/learn/${COURSE_CORRECTION_LEARN_SLUG}`}>{strings.workplaceLearn.legacyLinkPrefix}{renderLearningText([lesson.gateway.title])} <span aria-hidden="true">→</span></Link>}
         </div>
       </div>
 
@@ -168,8 +170,16 @@ function ActivePlusWorkplaceItem({ entry, userId, getAccessToken, loadPayload, c
     let current = true
     void loadPayload(entry, getAccessToken, userId, controller.signal).then((result) => {
       if (!current || controller.signal.aborted) return
-      if (result.kind === 'ok' && result.item.access === 'plus') setItem(result.item)
-      else setFailed(true)
+      if (result.kind === 'ok') {
+        const validated = validateWorkplaceLearnRuntimeItem(result.item)
+        const reference = entry.releaseReference
+        if (validated.ok && validated.value.access === 'plus' && catalogMatchesRuntime(entry, validated.value)
+          && reference?.contentId === entry.id && /^[a-f0-9]{64}$/.test(reference.revision)) {
+          setItem(validated.value)
+          return
+        }
+      }
+      setFailed(true)
     }).catch(() => { if (current && !controller.signal.aborted) setFailed(true) })
     return () => { current = false; controller.abort() }
   }, [entry, getAccessToken, loadPayload, userId])
@@ -489,24 +499,24 @@ function currentWorkplaceEntryMatches(entry: WorkplaceLearnCatalogEntry, save: W
 
 function LessonBody({ item, related, strings }: { item: Extract<WorkplaceLearnRuntimeItem, { kind: 'lesson' }>; related: (id: string) => WorkplaceLearnCatalogEntry | undefined; strings: ReturnType<typeof useStrings> }) {
   return <div className="workplace-learn__body">
-    <section><h2>{strings.workplaceLearn.situation}</h2><p lang="zh-TW">{item.situation}</p></section>
-    <section><h2>{strings.workplaceLearn.meaning}</h2><p lang="zh-TW">{item.meaningInContextZhTW}</p></section>
-    <section><h2>{strings.workplaceLearn.objective}</h2><p lang="zh-TW">{item.learningObjective}</p><p lang="zh-TW">{item.coreJudgment}</p></section>
-    <section><h2>{strings.workplaceLearn.whatToDo}</h2><p lang="zh-TW">{item.whatToDo}</p></section>
-    <section><h2>{strings.workplaceLearn.whatToSay}</h2><blockquote lang="ja">{item.whatToSayJapanese}</blockquote><p lang="zh-TW">{item.whyItWorksZhTW}</p></section>
-    {item.examples.length > 0 && <section><h2>{strings.workplaceLearn.examples}</h2>{item.examples.map((example, index) => <div className="workplace-learn__example" key={`${example.context}-${index}`}><p className="workplace-learn__example-context" lang="zh-TW">{example.context}</p><blockquote lang="ja">{example.japanese}</blockquote><p lang="zh-TW">{example.explanationZhTW}</p></div>)}</section>}
-    <section className="workplace-learn__caution"><h2>{strings.workplaceLearn.caution}</h2><p lang="zh-TW">{item.cautionZhTW}</p>{item.relationshipContext && <p lang="zh-TW">{item.relationshipContext}</p>}</section>
+    <section><h2>{strings.workplaceLearn.situation}</h2><p lang="ja">{item.situation}</p></section>
+    <section><h2>{strings.workplaceLearn.meaning}</h2><p lang="ja">{item.meaningInContextJa}</p></section>
+    <section><h2>{strings.workplaceLearn.objective}</h2><p lang="ja">{item.learningObjective}</p><p lang="ja">{item.coreJudgment}</p></section>
+    <section><h2>{strings.workplaceLearn.whatToDo}</h2><p lang="ja">{item.whatToDo}</p></section>
+    <section><h2>{strings.workplaceLearn.whatToSay}</h2><blockquote lang="ja">{item.whatToSayJapanese}</blockquote><p lang="ja">{item.whyItWorksJa}</p></section>
+    {item.examples.length > 0 && <section><h2>{strings.workplaceLearn.examples}</h2>{item.examples.map((example, index) => <div className="workplace-learn__example" key={`${example.context}-${index}`}><p className="workplace-learn__example-context" lang="ja">{example.context}</p><blockquote lang="ja">{example.japanese}</blockquote><p lang="ja">{example.explanationJa}</p></div>)}</section>}
+    <section className="workplace-learn__caution"><h2>{strings.workplaceLearn.caution}</h2><p lang="ja">{item.cautionJa}</p>{item.relationshipContext && <p lang="ja">{item.relationshipContext}</p>}</section>
     {item.relatedVocabularyIds.length > 0 && <section><h2>{strings.workplaceLearn.relatedVocabulary}</h2><ul>{item.relatedVocabularyIds.map((id) => { const vocab = related(id); return <li key={id}>{vocab?.kind === 'vocabulary' ? <Link to={`/learn/vocabulary/${vocab.slug}`} lang={vocab.titleLanguage}>{vocab.title} →</Link> : <span className="workplace-learn__related-unavailable">{strings.workplaceLearn.relatedUnavailable}</span>}</li> })}</ul></section>}
     {item.practiceTypes.includes('rewrite') && <section className="workplace-learn__self-practice"><h2>{strings.workplaceLearn.selfPracticeTitle}</h2><p>{strings.workplaceLearn.selfPracticePrompt}</p><label htmlFor={`${item.id}-rewrite`}>{strings.workplaceLearn.selfPracticeLabel}</label><textarea id={`${item.id}-rewrite`} lang="ja" rows={4} /><p className="workplace-learn__self-practice-note">{strings.workplaceLearn.selfPracticeNoSave}</p></section>}
-    <p className="workplace-learn__takeaway" lang="zh-TW">{item.transferTakeaway}</p>
+    <p className="workplace-learn__takeaway" lang="ja">{item.transferTakeaway}</p>
   </div>
 }
 
 function VocabularyBody({ item, catalogEntries, strings }: { item: Extract<WorkplaceLearnRuntimeItem, { kind: 'vocabulary' }>; catalogEntries: readonly WorkplaceLearnCatalogEntry[]; strings: ReturnType<typeof useStrings> }) {
   return <div className="workplace-learn__body workplace-learn__vocabulary-body">
-    <dl><div><dt>{strings.workplaceLearn.termLabel}</dt><dd lang="ja">{item.term}</dd></div><div><dt>{strings.workplaceLearn.reading}</dt><dd lang="ja">{item.reading}</dd></div><div><dt>{strings.workplaceLearn.meaningLabel}</dt><dd lang="zh-TW">{item.meaningZhTW}</dd></div><div><dt>{strings.workplaceLearn.nuance}</dt><dd lang="zh-TW">{item.workplaceNuanceZhTW}</dd></div><div><dt>{strings.workplaceLearn.usage}</dt><dd lang="zh-TW">{item.usageContext}</dd></div><div><dt>{strings.workplaceLearn.register}</dt><dd lang="zh-TW">{item.register}</dd></div>{item.relationshipContext && <div><dt>{strings.workplaceLearn.relationship}</dt><dd lang="zh-TW">{item.relationshipContext}</dd></div>}</dl>
-    <section><h2>{strings.workplaceLearn.example}</h2><p className="workplace-learn__example-context" lang="zh-TW">{item.example.context}</p><blockquote lang="ja">{item.example.japanese}</blockquote><p lang="zh-TW">{item.example.explanationZhTW}</p></section>
-    <section className="workplace-learn__caution"><h2>{strings.workplaceLearn.caution}</h2><p lang="zh-TW">{item.cautionZhTW}</p></section>
+    <dl><div><dt>{strings.workplaceLearn.termLabel}</dt><dd lang="ja">{item.term}</dd></div><div><dt>{strings.workplaceLearn.reading}</dt><dd lang="ja">{item.reading}</dd></div><div><dt>{strings.workplaceLearn.meaningLabel}</dt><dd lang="ja">{item.meaningJa}</dd></div><div><dt>{strings.workplaceLearn.nuance}</dt><dd lang="ja">{item.workplaceNuanceJa}</dd></div><div><dt>{strings.workplaceLearn.usage}</dt><dd lang="ja">{item.usageContext}</dd></div><div><dt>{strings.workplaceLearn.register}</dt><dd lang="ja">{item.register}</dd></div>{item.relationshipContext && <div><dt>{strings.workplaceLearn.relationship}</dt><dd lang="ja">{item.relationshipContext}</dd></div>}</dl>
+    <section><h2>{strings.workplaceLearn.example}</h2><p className="workplace-learn__example-context" lang="ja">{item.example.context}</p><blockquote lang="ja">{item.example.japanese}</blockquote><p lang="ja">{item.example.explanationJa}</p></section>
+    <section className="workplace-learn__caution"><h2>{strings.workplaceLearn.caution}</h2><p lang="ja">{item.cautionJa}</p></section>
     {item.relatedTermIds.length > 0 && <section><h2>{strings.workplaceLearn.relatedVocabulary}</h2><ul>{item.relatedTermIds.map((id) => { const term = catalogEntries.find((entry) => entry.id === id && entry.kind === 'vocabulary'); return <li key={id}>{term ? <Link to={`/learn/vocabulary/${term.slug}`} lang={term.titleLanguage}>{term.title} →</Link> : <span className="workplace-learn__related-unavailable">{strings.workplaceLearn.relatedUnavailable}</span>}</li> })}</ul></section>}
   </div>
 }
