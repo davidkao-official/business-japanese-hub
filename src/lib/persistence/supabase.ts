@@ -5,7 +5,9 @@
  * entitlement boundary (see ./repository.ts). It talks to Supabase Postgres via
  * RLS-protected tables (supabase/migrations/0001_accounts.sql); row ownership is
  * enforced server-side by `auth.uid() = user_id`, so a client can never read or
- * write another user's rows, and can never self-grant ownership.
+ * write another user's rows, and can never self-grant ownership. Reading-state
+ * saves send the initiating user's ID as a fixed target; RLS remains the
+ * authorization boundary and rejects a target that does not match the JWT.
  *
  * The client is injected (constructor) so tests use a mocked client and never
  * touch the network.
@@ -134,13 +136,18 @@ export class SupabaseUserStateRepository implements UserStateRepository {
     return mapReadingStateRow(data as ReadingStateRow);
   }
 
-  async saveReadingState(state: SaveReadingStateInput): Promise<void> {
-    // `user_id` is intentionally omitted: the table defaults it to `auth.uid()`
-    // and RLS (`with check (auth.uid() = user_id)`) rejects any other value.
+  async saveReadingState(state: SaveReadingStateInput, initiatingUserId: string): Promise<void> {
+    if (typeof initiatingUserId !== 'string' || initiatingUserId.trim() === '') {
+      throw toRepositoryError('saveReadingState', 'initiating user id is required');
+    }
+
+    // Keep the target from the callback's initiating owner across auth-session
+    // transitions. RLS still requires this value to equal auth.uid().
     const { error } = await this.client
       .from('reading_state')
       .upsert(
         {
+          user_id: initiatingUserId,
           book_id: state.bookId,
           chapter_id: state.chapterId,
           block_id: state.blockId ?? null,

@@ -404,6 +404,7 @@ describe('reader resume intent', () => {
     await waitFor(() =>
       expect(repository.saveReadingState).toHaveBeenCalledWith(
         expect.objectContaining({ chapterId: 'bm-ch-1', blockId: 'bm-ch1-blk-03' }),
+        user.id,
       ),
     )
     expect(persisted).toMatchObject({ chapterId: 'bm-ch-1', blockId: 'bm-ch1-blk-03' })
@@ -476,6 +477,7 @@ describe('reader resume intent', () => {
     await waitFor(() =>
       expect(repository.saveReadingState).toHaveBeenCalledWith(
         expect.objectContaining({ chapterId: firstChapter.id, blockId: savedBlockId }),
+        user.id,
       ),
     )
     expect(persisted).toMatchObject({ chapterId: firstChapter.id, blockId: savedBlockId })
@@ -641,6 +643,7 @@ describe('reader resume intent', () => {
       await waitFor(() =>
         expect(repository.saveReadingState).toHaveBeenCalledWith(
           expect.objectContaining({ chapterId: 'bm-ch-2', blockId: 'bm-ch2-blk-03' }),
+          user.id,
         ),
       )
       expect(document.getElementById('block-bm-ch2-blk-03')?.getBoundingClientRect().top).toBe(0)
@@ -748,6 +751,7 @@ describe('reader resume intent', () => {
       await waitFor(() =>
         expect(repository.saveReadingState).toHaveBeenCalledWith(
           expect.objectContaining({ chapterId: 'bm-ch-2', blockId: 'bm-ch2-blk-04' }),
+          'owner-b',
         ),
       )
       expect(scrollTo).toHaveBeenCalled()
@@ -825,6 +829,7 @@ describe('reader resume intent', () => {
       flushScrollFrame()
       expect(repository.saveReadingState).toHaveBeenCalledWith(
         expect.objectContaining({ blockId: 'bm-ch2-blk-03' }),
+        user.id,
       )
       vi.mocked(repository.saveReadingState).mockClear()
 
@@ -939,6 +944,7 @@ describe('reader resume intent', () => {
       )
       expect(repository.saveReadingState).not.toHaveBeenCalledWith(
         expect.objectContaining({ chapterId: 'bm-ch-3', blockId: 'bm-ch3-blk-01' }),
+        user.id,
       )
       expect(Number(screen.getByRole('progressbar').getAttribute('aria-valuenow'))).toBe(restoredProgress)
       const targetReadCount = measuredBlockRectReadCount('bm-ch3-blk-02')
@@ -1030,6 +1036,7 @@ describe('reader resume intent', () => {
           blockId: '',
           offset: undefined,
         }),
+        user.id,
       ),
     )
   })
@@ -1148,6 +1155,7 @@ describe('reader resume intent', () => {
     await waitFor(() =>
       expect(repository.saveReadingState).toHaveBeenCalledWith(
         expect.objectContaining({ bookId: meetingBook.id, chapterId: 'mj-ch-02', blockId: 'mj-ch02-blk-12' }),
+        user.id,
       ),
     )
     const progressBeforeRefresh = screen.getByRole('progressbar').getAttribute('aria-valuenow')
@@ -1238,6 +1246,7 @@ describe('reader resume intent', () => {
       await waitFor(() =>
         expect(repository.saveReadingState).toHaveBeenCalledWith(
           expect.objectContaining({ chapterId: destination.id, blockId: destinationBlock.id }),
+          user.id,
         ),
       )
       const progressBeforeRefresh = screen.getByRole('progressbar').getAttribute('aria-valuenow')
@@ -1287,6 +1296,7 @@ describe('reader resume intent', () => {
       await waitFor(() =>
         expect(repository.saveReadingState).toHaveBeenCalledWith(
           expect.objectContaining({ chapterId: destination.id, blockId: laterBlock.id }),
+          user.id,
         ),
       )
       const progressAfterUserScroll = screen.getByRole('progressbar').getAttribute('aria-valuenow')
@@ -1316,6 +1326,7 @@ describe('reader resume intent', () => {
       ).toBe(true)
       expect(repository.saveReadingState).not.toHaveBeenCalledWith(
         expect.objectContaining({ chapterId: destination.id, blockId: destinationBlock.id }),
+        user.id,
       )
       expect(scrollIntoView.mock.contexts).not.toContain(document.getElementById(`block-${destinationBlock.id}`))
     },
@@ -1375,6 +1386,7 @@ describe('reader resume intent', () => {
       await waitFor(() =>
         expect(repository.saveReadingState).toHaveBeenCalledWith(
           expect.objectContaining({ chapterId: destination.id, blockId: revokedBlock.id }),
+          user.id,
         ),
       )
 
@@ -1455,6 +1467,7 @@ describe('reader resume intent', () => {
     await waitFor(() =>
       expect(repository.saveReadingState).toHaveBeenCalledWith(
         expect.objectContaining({ chapterId: 'bm-ch-3', blockId: 'bm-ch3-blk-03' }),
+        user.id,
       ),
     )
     expect(scrollIntoView).toHaveBeenCalledTimes(1)

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { UserStateRepository } from './repository';
 import { SupabaseUserStateRepository } from './supabase';
+import type { SaveReadingStateInput } from './types';
 
 /** Per-table mock route: `data` is returned by terminal reads; `error` rejects. */
 interface Route {
@@ -16,6 +18,14 @@ interface RecordedCall {
 
 function makeError(message: string) {
   return { message } as { message: string };
+}
+
+function saveFor(
+  repository: UserStateRepository,
+  state: SaveReadingStateInput,
+  initiatingUserId: string,
+): Promise<void> {
+  return repository.saveReadingState(state, initiatingUserId);
 }
 
 /**
@@ -175,15 +185,20 @@ describe('SupabaseUserStateRepository#getReadingState', () => {
 });
 
 describe('SupabaseUserStateRepository#saveReadingState', () => {
-  it('upserts by (user_id, book_id) with the mapped payload', async () => {
+  it('upserts by (user_id, book_id), targeting the initiating user', async () => {
     const { client, calls } = createMockClient({});
     const repo = new SupabaseUserStateRepository(client);
 
-    await repo.saveReadingState({ bookId: 'book-a', chapterId: 'ch-2', blockId: 'ch2-blk-03', offset: 12 });
+    await saveFor(
+      repo,
+      { bookId: 'book-a', chapterId: 'ch-2', blockId: 'ch2-blk-03', offset: 12 },
+      '11111111-1111-4111-8111-111111111111',
+    );
 
     const upsertCall = calls.find((call) => call.method === 'upsert');
     expect(upsertCall).toBeDefined();
     expect(upsertCall?.args[0]).toEqual({
+      user_id: '11111111-1111-4111-8111-111111111111',
       book_id: 'book-a',
       chapter_id: 'ch-2',
       block_id: 'ch2-blk-03',
@@ -196,10 +211,15 @@ describe('SupabaseUserStateRepository#saveReadingState', () => {
     const { client, calls } = createMockClient({});
     const repo = new SupabaseUserStateRepository(client);
 
-    await repo.saveReadingState({ bookId: 'book-a', chapterId: 'ch-1', blockId: null, offset: null });
+    await saveFor(
+      repo,
+      { bookId: 'book-a', chapterId: 'ch-1', blockId: null, offset: null },
+      '11111111-1111-4111-8111-111111111111',
+    );
 
     const upsertCall = calls.find((call) => call.method === 'upsert');
     expect(upsertCall?.args[0]).toEqual({
+      user_id: '11111111-1111-4111-8111-111111111111',
       book_id: 'book-a',
       chapter_id: 'ch-1',
       block_id: null,
@@ -207,12 +227,24 @@ describe('SupabaseUserStateRepository#saveReadingState', () => {
     });
   });
 
+  it('rejects missing, blank, or non-string initiating users before a request is constructed', async () => {
+    const { client, calls } = createMockClient({});
+    const repo = new SupabaseUserStateRepository(client);
+    const state = { bookId: 'book-a', chapterId: 'ch-1' };
+
+    await expect(Reflect.apply(repo.saveReadingState, repo, [state])).rejects.toThrow(/initiating user/i);
+    await expect(saveFor(repo, state, '')).rejects.toThrow(/initiating user/i);
+    await expect(saveFor(repo, state, '   ')).rejects.toThrow(/initiating user/i);
+    await expect(Reflect.apply(repo.saveReadingState, repo, [state, null])).rejects.toThrow(/initiating user/i);
+    expect(calls).toEqual([]);
+  });
+
   it('throws on a DB error', async () => {
     const { client } = createMockClient({ reading_state: { error: 'duplicate key' } });
     const repo = new SupabaseUserStateRepository(client);
 
     await expect(
-      repo.saveReadingState({ bookId: 'book-a', chapterId: 'ch-1' }),
+      saveFor(repo, { bookId: 'book-a', chapterId: 'ch-1' }, '11111111-1111-4111-8111-111111111111'),
     ).rejects.toThrow('saveReadingState: duplicate key');
   });
 });
