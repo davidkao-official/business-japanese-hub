@@ -28,7 +28,20 @@ const catalog = validatePracticeDiscoveryCatalog(catalogDocument) ? catalogDocum
 
 
 type RunnerPersistence = 'pending' | 'saved' | 'failed' | 'signed-out' | 'forbidden' | 'missing' | 'stale' | 'invalid' | 'invalid-response-time'
-type RunnerAnswer = { correct: boolean; category: string; checkpointMeasured: number; checkpointMisses: number; elapsedMs: number; persistence: RunnerPersistence }
+type RunnerAnswer = { questionId: string; questionVersion: number; correct: boolean; category: string; checkpointMeasured: number; checkpointMisses: number; elapsedMs: number; persistence: RunnerPersistence }
+type RunnerQuestionIdentity = { id: string; version: number }
+type RunnerRetryContext = {
+  scopeKey: string
+  answerIndex: number
+  questionPrefix: RunnerQuestionIdentity[]
+  checkpointIdentities: RunnerQuestionIdentity[]
+  answers: RunnerAnswer[]
+}
+
+function sameQuestionIdentities(left: RunnerQuestionIdentity[], right: RunnerQuestionIdentity[]): boolean {
+  return left.length === right.length && left.every((identity, index) =>
+    identity.id === right[index]?.id && identity.version === right[index]?.version)
+}
 
 function labelForFamily(testFamily: string): string {
   return catalog ? practiceDiscoveryFamilyLabel(catalog.releaseIdentity.contentId, testFamily) ?? '' : ''
@@ -234,6 +247,7 @@ export function WebTestRunnerEntryPage() {
   const [checkpointFeedback, setCheckpointFeedback] = useState<boolean | null>(null)
   const [persistence, setPersistence] = useState<'idle' | RunnerPersistence>('idle')
   const [retryAvailable, setRetryAvailable] = useState(false)
+  const answersRef = useRef<RunnerAnswer[]>([])
   const startedAt = useRef<number>(0)
   const questionHeadingRef = useRef<HTMLHeadingElement>(null)
   const feedbackHeadingRef = useRef<HTMLHeadingElement>(null)
@@ -246,11 +260,17 @@ export function WebTestRunnerEntryPage() {
   const lastAttemptUserIdRef = useRef<string | null>(null)
   const lastAttemptScopeKeyRef = useRef<string | null>(null)
   const lastAttemptPersistenceRef = useRef<RunnerPersistence | null>(null)
+  const retryContextRef = useRef<RunnerRetryContext | null>(null)
   const primaryElapsedMsRef = useRef<number | null>(null)
   const persistenceGenerationRef = useRef(0)
   const userId = user?.id
   const selectionKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? '', reviewQuestionId ?? '', reviewVersionParam ?? '', userId ?? ''].join('|')
   const selectionScopeKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? '', reviewQuestionId ?? '', reviewVersionParam ?? ''].join('|')
+  const updateAnswers = (update: (current: RunnerAnswer[]) => RunnerAnswer[]) => {
+    const next = update(answersRef.current)
+    answersRef.current = next
+    setAnswers(next)
+  }
   useEffect(() => {
     persistenceGenerationRef.current += 1
     let cancelled = false
@@ -267,6 +287,7 @@ export function WebTestRunnerEntryPage() {
       lastAttemptUserIdRef.current = null
       lastAttemptScopeKeyRef.current = null
       lastAttemptPersistenceRef.current = null
+      retryContextRef.current = null
     }
     setRetryAvailable(userId !== undefined && pendingRetry)
     void Promise.resolve().then(async () => {
@@ -275,6 +296,7 @@ export function WebTestRunnerEntryPage() {
       setIndex(0)
       setResponse('')
       setAnswers([])
+      answersRef.current = []
       setFeedback(null)
       setCheckpointIndex(null)
       setCheckpointResponse('')
@@ -298,8 +320,71 @@ export function WebTestRunnerEntryPage() {
         : questions.filter((entry) => entry.id === reviewQuestionId && entry.version === reviewVersion)
       if (selectedQuestions.length === 0) { setState({ kind: 'stale-review' }); return }
       if (selectedQuestions.some((entry) => resolveQuestionCheckpoints(result.payload, entry) === null)) { setState({ kind: 'unavailable' }); return }
+      const retryAttempt = pendingRetry ? lastAttemptRef.current : null
+      const retryContext = pendingRetry ? retryContextRef.current : null
+      if (retryAttempt && retryContext && retryContext.scopeKey === selectionScopeKey) {
+        const retryQuestion = selectedQuestions[retryContext.answerIndex]
+        const checkpoints = retryQuestion ? resolveQuestionCheckpoints(result.payload, retryQuestion) ?? [] : []
+        const currentPrefix = selectedQuestions.slice(0, retryContext.answerIndex + 1).map(({ id, version }) => ({ id, version }))
+        const checkpointIdentities = checkpoints.map(({ id, version }) => ({ id, version }))
+        const checkpointResponses = retryAttempt.checkpointResponses ?? []
+        const validCheckpointResponses = checkpointResponses.length === checkpoints.length && checkpointResponses.every((checkpointResponse, checkpointIndex) =>
+          checkpointResponse.checkpointId === checkpoints[checkpointIndex]?.id &&
+          checkpointResponse.checkpointVersion === checkpoints[checkpointIndex]?.version)
+        const validRetryContext = Boolean(retryQuestion &&
+          retryQuestion.id === retryAttempt.questionId && retryQuestion.version === retryAttempt.questionVersion &&
+          retryContext.answers.length === retryContext.answerIndex + 1 &&
+          sameQuestionIdentities(retryContext.questionPrefix, currentPrefix) &&
+          sameQuestionIdentities(retryContext.questionPrefix, retryContext.answers.map(({ questionId, questionVersion }) => ({ id: questionId, version: questionVersion }))) &&
+          sameQuestionIdentities(retryContext.checkpointIdentities, checkpointIdentities) &&
+          validCheckpointResponses)
+        if (validRetryContext && retryQuestion) {
+          const retryResponse = retryAttempt.answer
+          const correct = scoreQuestion(retryQuestion, retryResponse)
+          const restoredAnswers = retryContext.answers.map((answer, answerIndex) => answerIndex === retryContext.answerIndex
+            ? { ...answer, persistence: restoredPersistence }
+            : answer)
+          const finalCheckpointResponse = checkpointResponses.at(-1)
+          const finalCheckpoint = checkpoints.at(-1)
+          setIndex(retryContext.answerIndex)
+          setAnswers(restoredAnswers)
+          answersRef.current = restoredAnswers
+          setResponse(retryResponse)
+          setFeedback({ question: retryQuestion, correct })
+          setLastCorrect(correct)
+          setLastExplanation(retryQuestion.coreExplanation.concise)
+          setCheckpointIndex(finalCheckpoint ? checkpoints.length - 1 : null)
+          setCheckpointResponse(finalCheckpointResponse?.response ?? '')
+          setCheckpointFeedback(finalCheckpoint && finalCheckpointResponse
+            ? scoreAnswer(finalCheckpoint.answer, finalCheckpointResponse.response)
+            : null)
+          checkpointResponsesRef.current = checkpointResponses
+          primaryElapsedMsRef.current = retryAttempt.responseTimeMs
+          setPersistence(restoredPersistence)
+          setRetryAvailable(true)
+          startedAt.current = Date.now()
+        } else {
+          lastAttemptRef.current = null
+          lastAttemptAnswerIndexRef.current = null
+          lastAttemptUserIdRef.current = null
+          lastAttemptScopeKeyRef.current = null
+          lastAttemptPersistenceRef.current = null
+          retryContextRef.current = null
+          setRetryAvailable(false)
+          setPersistence('idle')
+        }
+      } else if (pendingRetry) {
+        lastAttemptRef.current = null
+        lastAttemptAnswerIndexRef.current = null
+        lastAttemptUserIdRef.current = null
+        lastAttemptScopeKeyRef.current = null
+        lastAttemptPersistenceRef.current = null
+        retryContextRef.current = null
+        setRetryAvailable(false)
+        setPersistence('idle')
+      }
       setState({ kind: 'ready', payload: result.payload, questions: selectedQuestions, selectionKey })
-      if (selectedQuestions[0]?.answer.input.kind === 'ordering') setResponse(selectedQuestions[0].answer.input.choices.map((choice) => choice.id))
+      if (!(pendingRetry && retryContextRef.current) && selectedQuestions[0]?.answer.input.kind === 'ordering') setResponse(selectedQuestions[0].answer.input.choices.map((choice) => choice.id))
       startedAt.current = Date.now()
     })
     return () => { cancelled = true; persistenceGenerationRef.current += 1 }
@@ -342,6 +427,17 @@ export function WebTestRunnerEntryPage() {
     lastAttemptUserIdRef.current = operationUserId
     lastAttemptScopeKeyRef.current = selectionScopeKey
     lastAttemptPersistenceRef.current = 'pending'
+    if (state.kind === 'ready' && state.questions[answerIndex]?.id === attempt.questionId && state.questions[answerIndex]?.version === attempt.questionVersion) {
+      const retryQuestion = state.questions[answerIndex]!
+      const checkpoints = resolveQuestionCheckpoints(state.payload, retryQuestion) ?? []
+      retryContextRef.current = {
+        scopeKey: selectionScopeKey,
+        answerIndex,
+        questionPrefix: state.questions.slice(0, answerIndex + 1).map(({ id, version }) => ({ id, version })),
+        checkpointIdentities: checkpoints.map(({ id, version }) => ({ id, version })),
+        answers: answersRef.current.map((answer) => ({ ...answer })),
+      }
+    }
     setRetryAvailable(true)
     setPersistence('pending')
     const result = await submitPracticeAttempt(attempt, getAccessToken, operationUserId)
@@ -354,12 +450,13 @@ export function WebTestRunnerEntryPage() {
       lastAttemptUserIdRef.current = null
       lastAttemptScopeKeyRef.current = null
       lastAttemptPersistenceRef.current = null
+      retryContextRef.current = null
       setRetryAvailable(false)
     } else {
       setRetryAvailable(true)
     }
     setPersistence(status)
-    setAnswers((current) => current.map((answer, index) => index === answerIndex ? { ...answer, persistence: status } : answer))
+    updateAnswers((current) => current.map((answer, index) => index === answerIndex ? { ...answer, persistence: status } : answer))
   }
   const retryPersist = () => {
     if (lastAttemptRef.current && lastAttemptAnswerIndexRef.current !== null && lastAttemptUserIdRef.current === userId && lastAttemptScopeKeyRef.current === selectionScopeKey) void persistAttempt(lastAttemptRef.current, lastAttemptAnswerIndexRef.current)
@@ -386,7 +483,7 @@ export function WebTestRunnerEntryPage() {
         setCheckpointFeedback(null)
         checkpointResponsesRef.current = []
         setPersistence('idle')
-        setAnswers((current) => [...current, { correct, category: question.category, checkpointMeasured: 0, checkpointMisses: 0, elapsedMs: primaryElapsedMs, persistence: 'pending' }])
+        updateAnswers((current) => [...current, { questionId: question.id, questionVersion: question.version, correct, category: question.category, checkpointMeasured: 0, checkpointMisses: 0, elapsedMs: primaryElapsedMs, persistence: 'pending' }])
         if (checkpoints.length === 0) void persistAttempt({ contentId: catalog.releaseIdentity.contentId, revision: catalog.releaseIdentity.revision, questionId: question.id, questionVersion: question.version, answer: response, responseTimeMs: primaryElapsedMs, clientIdempotencyKey: attemptId() }, answers.length)
       }} onCheckpointSubmit={() => {
         if (state.kind !== 'ready' || !question || checkpointIndex === null || checkpointFeedback !== null) return
@@ -395,7 +492,7 @@ export function WebTestRunnerEntryPage() {
         const correct = scoreAnswer(checkpoint.answer, checkpointResponse)
         checkpointResponsesRef.current = [...(checkpointResponsesRef.current ?? []), { checkpointId: checkpoint.id, checkpointVersion: checkpoint.version, response: checkpointResponse }]
         setCheckpointFeedback(correct)
-        setAnswers((current) => current.map((answer, position) => position === current.length - 1 ? { ...answer, checkpointMeasured: answer.checkpointMeasured + 1, checkpointMisses: answer.checkpointMisses + (correct ? 0 : 1) } : answer))
+        updateAnswers((current) => current.map((answer, position) => position === current.length - 1 ? { ...answer, checkpointMeasured: answer.checkpointMeasured + 1, checkpointMisses: answer.checkpointMisses + (correct ? 0 : 1) } : answer))
         const checkpoints = resolveQuestionCheckpoints(state.payload, question) ?? []
         if (checkpointIndex + 1 >= checkpoints.length) void persistAttempt({ contentId: catalog.releaseIdentity.contentId, revision: catalog.releaseIdentity.revision, questionId: question.id, questionVersion: question.version, answer: response, responseTimeMs: primaryElapsedMsRef.current ?? 0, clientIdempotencyKey: attemptId(), checkpointResponses: checkpointResponsesRef.current }, answers.length - 1)
       }} onCheckpointNext={() => {
@@ -494,7 +591,7 @@ function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHea
   if (feedback?.question.id === question.id) {
     const checkpoints = state.kind === 'ready' ? resolveQuestionCheckpoints(state.payload, question) ?? [] : []
     const checkpoint = checkpointIndex === null ? undefined : checkpoints[checkpointIndex]
-    return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? ui.answerCorrect : ui.answerIncorrect}</p><h2 ref={feedbackHeadingRef} tabIndex={-1}>{ui.webAnswerExplanation}</h2><p>{ui.webCorrectAnswerLabel}<span lang="ja">{answerLabel(answer)}</span></p><p lang="ja">{question.coreExplanation.concise}</p><p lang="ja">{question.coreExplanation.whatIsAskedJa}</p>{question.coreExplanation.representation && <RepresentationView representation={question.coreExplanation.representation} label={ui.webAnswerRepresentation} />}{overlay?.concise && <p lang="zh-TW">{overlay.concise}</p>}{overlay?.whatIsAsked && <p lang="zh-TW">{overlay.whatIsAsked}</p>}{overlay?.representationExplanation && <p lang="zh-TW">{overlay.representationExplanation}</p>}{overlay?.commonMisread && <p lang="zh-TW">{overlay.commonMisread}</p>}{overlay?.keyTerms?.map((term) => <p key={term.termId} lang="zh-TW"><span lang="ja">{term.surface}</span>：{term.meaning}{term.note && `（${term.note}）`}</p>)}{persistence === 'pending' && <p role="status">{ui.webSaving}</p>}{persistence === 'saved' && <p role="status">{ui.webSaved}</p>}{retryNotice}{persistence === 'missing' && <p role="alert">{ui.webMissingQuestion}<button type="button" onClick={reloadCurrentDocument}>{ui.webReloadQuestion}</button></p>}{persistence === 'stale' && <p role="alert">{ui.webUpdatedQuestion}<button type="button" onClick={reloadCurrentDocument}>{ui.webReloadQuestion}</button></p>}{persistence === 'invalid' && <p role="alert">{ui.webInvalidResponse}</p>}{persistence === 'invalid-response-time' && <p role="alert">{ui.webInvalidTime}</p>}{checkpoint && <section aria-labelledby="checkpoint-title"><h3 id="checkpoint-title" ref={checkpointHeadingRef} tabIndex={-1}>{ui.webCheckpointLabel}{checkpointIndex! + 1}</h3><p lang="ja">{checkpoint.promptJa}</p>{checkpointFeedback !== null ? <><p role="status">{checkpointFeedback ? ui.webCheckpointCorrect : ui.webCheckpointIncorrect}</p><button type="button" disabled={checkpointIndex! + 1 >= checkpoints.length && persistence !== 'saved' && persistence !== 'invalid-response-time'} onClick={onCheckpointNext}>{checkpointIndex! + 1 < checkpoints.length ? ui.webNextCheckpoint : ui.webNextQuestion}</button></> : <>{renderInput(checkpoint.answer, checkpointResponse, setCheckpointResponse)}<button type="button" disabled={checkpointResponse === '' || (Array.isArray(checkpointResponse) && checkpointResponse.length === 0)} onClick={onCheckpointSubmit}>{ui.webSubmitCheckpoint}</button></>}</section>}{!checkpoint && <button type="button" disabled={persistence !== 'saved' && persistence !== 'invalid-response-time'} onClick={onNext}>{ui.webNextQuestion}</button>}</section>
+    return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? ui.answerCorrect : ui.answerIncorrect}</p><h2 ref={feedbackHeadingRef} tabIndex={-1}>{ui.webAnswerExplanation}</h2><h3 lang="ja">{question.promptJa}</h3>{question.promptRepresentation && <RepresentationView representation={question.promptRepresentation} label={ui.webQuestionRepresentation} />}<p>{ui.webCorrectAnswerLabel}<span lang="ja">{answerLabel(answer)}</span></p><p lang="ja">{question.coreExplanation.concise}</p><p lang="ja">{question.coreExplanation.whatIsAskedJa}</p>{question.coreExplanation.representation && <RepresentationView representation={question.coreExplanation.representation} label={ui.webAnswerRepresentation} />}{overlay?.concise && <p lang="zh-TW">{overlay.concise}</p>}{overlay?.whatIsAsked && <p lang="zh-TW">{overlay.whatIsAsked}</p>}{overlay?.representationExplanation && <p lang="zh-TW">{overlay.representationExplanation}</p>}{overlay?.commonMisread && <p lang="zh-TW">{overlay.commonMisread}</p>}{overlay?.keyTerms?.map((term) => <p key={term.termId} lang="zh-TW"><span lang="ja">{term.surface}</span>：{term.meaning}{term.note && `（${term.note}）`}</p>)}{persistence === 'pending' && <p role="status">{ui.webSaving}</p>}{persistence === 'saved' && <p role="status">{ui.webSaved}</p>}{retryNotice}{persistence === 'missing' && <p role="alert">{ui.webMissingQuestion}<button type="button" onClick={reloadCurrentDocument}>{ui.webReloadQuestion}</button></p>}{persistence === 'stale' && <p role="alert">{ui.webUpdatedQuestion}<button type="button" onClick={reloadCurrentDocument}>{ui.webReloadQuestion}</button></p>}{persistence === 'invalid' && <p role="alert">{ui.webInvalidResponse}</p>}{persistence === 'invalid-response-time' && <p role="alert">{ui.webInvalidTime}</p>}{checkpoint && <section aria-labelledby="checkpoint-title"><h3 id="checkpoint-title" ref={checkpointHeadingRef} tabIndex={-1}>{ui.webCheckpointLabel}{checkpointIndex! + 1}</h3><p lang="ja">{checkpoint.promptJa}</p>{checkpointFeedback !== null ? <><p role="status">{checkpointFeedback ? ui.webCheckpointCorrect : ui.webCheckpointIncorrect}</p><button type="button" disabled={checkpointIndex! + 1 >= checkpoints.length && persistence !== 'saved' && persistence !== 'invalid-response-time'} onClick={onCheckpointNext}>{checkpointIndex! + 1 < checkpoints.length ? ui.webNextCheckpoint : ui.webNextQuestion}</button></> : <>{renderInput(checkpoint.answer, checkpointResponse, setCheckpointResponse)}<button type="button" disabled={checkpointResponse === '' || (Array.isArray(checkpointResponse) && checkpointResponse.length === 0)} onClick={onCheckpointSubmit}>{ui.webSubmitCheckpoint}</button></>}</section>}{!checkpoint && <button type="button" disabled={persistence !== 'saved' && persistence !== 'invalid-response-time'} onClick={onNext}>{ui.webNextQuestion}</button>}</section>
   }
   return <section className="web-test-hub__runner" aria-live="polite">{persistence === 'pending' && <p role="status">{ui.webSaving}</p>}{persistence === 'saved' && <p role="status">{ui.webSaved}</p>}{retryNotice}{lastCorrect !== null && <p role="status">{lastCorrect ? ui.answerCorrect : ui.answerIncorrect}{lastExplanation && <>：<span lang="ja">{lastExplanation}</span></>}</p>}<p>{ui.webQuestionPosition(answers.length + 1, state.questions.length)}</p><h2 ref={questionHeadingRef} tabIndex={-1} lang="ja">{question.promptJa}</h2>
     {question.promptRepresentation && <RepresentationView representation={question.promptRepresentation} label={ui.webQuestionRepresentation} />}
