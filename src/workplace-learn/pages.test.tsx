@@ -1227,3 +1227,37 @@ describe('Injected member Workplace Learn body admission', () => {
     expect(loadPayload).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('Workplace fictional sample editorial regressions', () => {
+  it('renders the approved lesson forecast wording in Japanese', () => {
+    setLocalePreference('ja')
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={workplaceLearnCatalog} publicItems={[sampleWorkplaceLearnItem]} />} /></Routes>,
+      { initialEntries: ['/learn/workplace/sample-status-update-with-next-step'] },
+    )
+
+    expect(screen.getByText('確認作業に想定より時間がかかっており、資料を本日中に共有できない可能性があります。影響範囲を確認し、15時までに改めて状況をご報告します。')).toHaveAttribute('lang', 'ja')
+  })
+
+  it('renders the answer-sharing condition separately from the fixed status-update time', () => {
+    setLocalePreference('ja')
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={workplaceLearnCatalog} publicItems={[sampleWorkplaceLearnItem]} />} /></Routes>,
+      { initialEntries: ['/learn/workplace/sample-status-update-with-next-step'] },
+    )
+
+    expect(screen.getByText('先方への確認がまだ終わっていません。回答を受け取り次第、共有します。回答がまだ届いていなくても、今日の16時までに確認状況を共有します。')).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText('確認が終わっていない事実を伝え、回答の共有と、回答の有無にかかわらず行う状況報告を分けています。')).toHaveAttribute('lang', 'ja')
+  })
+
+  it('renders the vocabulary forecast with a separate progress-report commitment', () => {
+    setLocalePreference('ja')
+    renderWithAppProviders(
+      <Routes><Route path="/learn/vocabulary/:slug" element={<WorkplaceVocabularyPage catalogEntries={workplaceLearnCatalog} publicItems={[sampleWorkplaceVocabularyItem]} />} /></Routes>,
+      { initialEntries: ['/learn/vocabulary/sample-mikomi-estimate'] },
+    )
+
+    expect(screen.getByText('資料の確認に時間がかかっており、共有は明日になる見込みです。本日15時までに、確認の進み具合を改めてご報告します。')).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText('現時点では明日の共有を予測していますが、確定した予定とは区別しています。また、確認の進み具合を本日15時までに報告すると伝えています。')).toHaveAttribute('lang', 'ja')
+  })
+})
