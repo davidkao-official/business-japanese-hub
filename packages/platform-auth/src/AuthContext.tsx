@@ -4,6 +4,8 @@ import type { AuthClient, SessionUser, SignUpResult } from './types'
 
 export interface AuthContextValue {
   user: SessionUser | null
+  /** Changes on session boundaries, including batched sign-out/sign-in events. */
+  sessionVersion: number
   loading: boolean
   getAccessToken(): Promise<string | null>
   signIn(email: string, password: string): Promise<void>
@@ -23,7 +25,16 @@ export interface AuthProviderProps {
  * a missing or failed restore degrades to signed-out instead of blocking them.
  */
 export function AuthProvider({ authClient, children }: AuthProviderProps) {
-  const [user, setUser] = useState<SessionUser | null>(null)
+  const [{ user, sessionVersion }, setSession] = useState<{ user: SessionUser | null; sessionVersion: number }>({ user: null, sessionVersion: 0 })
+  const setUser = useCallback((nextUser: SessionUser | null) => {
+    setSession((current) => {
+      const sameSession = current.user === nextUser || Boolean(
+        current.user && nextUser && current.user.id === nextUser.id
+        && current.user.sessionId && current.user.sessionId === nextUser.sessionId,
+      )
+      return { user: nextUser, sessionVersion: current.sessionVersion + (sameSession ? 0 : 1) }
+    })
+  }, [])
   const [loading, setLoading] = useState(true)
   const authEventSeenRef = useRef(false)
 
@@ -52,7 +63,7 @@ export function AuthProvider({ authClient, children }: AuthProviderProps) {
       active = false
       unsubscribe()
     }
-  }, [authClient])
+  }, [authClient, setUser])
 
   const getAccessToken = useCallback(
     () => authClient.getAccessToken?.() ?? Promise.resolve(null),
@@ -62,6 +73,7 @@ export function AuthProvider({ authClient, children }: AuthProviderProps) {
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      sessionVersion,
       loading,
       getAccessToken,
       signIn: async (email: string, password: string) => {
@@ -83,7 +95,7 @@ export function AuthProvider({ authClient, children }: AuthProviderProps) {
         setUser(null)
       },
     }),
-    [authClient, getAccessToken, user, loading],
+    [authClient, getAccessToken, user, sessionVersion, loading, setUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -4,6 +4,7 @@ import { useAuth } from '@business-japanese-hub/platform-auth'
 import { PlusAccessBoundary } from '../components/PlusAccessBoundary'
 import { useMembershipAccess } from '../lib/membership/MembershipAccessContext'
 import { useStrings } from '../i18n/strings'
+import { useBookOwned } from '../lib/persistence/useBookState'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { getLearningUnitByLearnSlug, COURSE_CORRECTION_LEARN_SLUG, type LearningTextBlock } from '../app/learningUnits'
 import { NotFoundPage } from '../app/NotFoundPage'
@@ -49,6 +50,7 @@ export function WorkplaceLearnLandingPage({ catalogEntries = workplaceLearnCatal
     ? catalogEntries
     : catalogEntries.filter((entry) => entry.category === selectedCategory)
   const lesson = getLearningUnitByLearnSlug(COURSE_CORRECTION_LEARN_SLUG)
+  const legacyAccess = useBookOwned(lesson?.bookId ?? '')
 
   return (
     <section className="page workplace-learn" aria-labelledby="workplace-learn-title">
@@ -58,7 +60,7 @@ export function WorkplaceLearnLandingPage({ catalogEntries = workplaceLearnCatal
         <p className="page__lead">{strings.workplaceLearn.lead}</p>
         <div className="workplace-learn__browse-links">
           <Link to="/learn/vocabulary">{strings.workplaceLearn.vocabularyIndexLink} <span aria-hidden="true">→</span></Link>
-          {lesson && <Link to={`/learn/${COURSE_CORRECTION_LEARN_SLUG}`}>{strings.workplaceLearn.legacyLinkPrefix}{renderLearningText([lesson.gateway.title])} <span aria-hidden="true">→</span></Link>}
+          {lesson && legacyAccess.owned && !legacyAccess.loading && <Link to={`/learn/${COURSE_CORRECTION_LEARN_SLUG}`}>{strings.workplaceLearn.legacyLinkPrefix}{renderLearningText([lesson.gateway.title])} <span aria-hidden="true">→</span></Link>}
         </div>
       </div>
 

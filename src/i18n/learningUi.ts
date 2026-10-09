@@ -1,6 +1,15 @@
 /** Japanese is the source locale. Existing Chinese copy is retained for a future complete locale.
  * SPI and About editorial wording is a draft for the content-review lane (#194). */
 export const jaLearningUi = {
+  legacyCheckingTitle: '教材の利用資格を確認しています',
+  legacyCheckingBody: '確認が終わるまで、教材と練習は表示されません。',
+  legacySignInTitle: 'ログインして教材の利用資格を確認',
+  legacySignInBody: 'この教材は、以前に取得した書籍の利用資格で開けます。ログインだけでは利用資格は追加されません。',
+  legacyUnavailableTitle: '教材の利用資格を確認できません',
+  legacyUnavailableBody: '現在、利用資格を確認できないため、教材は表示されません。公開中の教材は一覧から確認できます。',
+  legacyNotOwnedTitle: 'この教材は現在利用できません',
+  legacyNotOwnedBody: 'このアカウントには、この書籍の利用資格がありません。Plus の会員資格とは別のため、公開中の教材をご利用ください。',
+  legacyBrowseAction: '公開中の教材を見る',
   "webVerbal": "言語",
   "webNonverbal": "非言語",
   "webUntimed": "時間を計らず練習",
@@ -339,6 +348,15 @@ export const jaLearningUi = {
 export type LearningUiStrings = typeof jaLearningUi
 
 export const zhTWLearningUi: LearningUiStrings = {
+  legacyCheckingTitle: '正在確認教材使用資格',
+  legacyCheckingBody: '確認完成前不會顯示教材與練習。',
+  legacySignInTitle: '登入以確認教材使用資格',
+  legacySignInBody: '此教材需要先前取得的書籍使用資格；登入本身不會新增使用資格。',
+  legacyUnavailableTitle: '無法確認教材使用資格',
+  legacyUnavailableBody: '目前無法確認使用資格，因此不顯示教材。您仍可查看列表中的公開教材。',
+  legacyNotOwnedTitle: '目前無法使用此教材',
+  legacyNotOwnedBody: '此帳號沒有這本書籍的使用資格。此資格與 Plus 會員資格不同，請先使用公開教材。',
+  legacyBrowseAction: '查看公開教材',
   "webVerbal": "言語",
   "webNonverbal": "非言語",
   "webUntimed": "不計時學習",
