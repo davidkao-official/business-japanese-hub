@@ -170,8 +170,16 @@ function ActivePlusWorkplaceItem({ entry, userId, getAccessToken, loadPayload, c
     let current = true
     void loadPayload(entry, getAccessToken, userId, controller.signal).then((result) => {
       if (!current || controller.signal.aborted) return
-      if (result.kind === 'ok' && result.item.access === 'plus') setItem(result.item)
-      else setFailed(true)
+      if (result.kind === 'ok') {
+        const validated = validateWorkplaceLearnRuntimeItem(result.item)
+        const reference = entry.releaseReference
+        if (validated.ok && validated.value.access === 'plus' && catalogMatchesRuntime(entry, validated.value)
+          && reference?.contentId === entry.id && /^[a-f0-9]{64}$/.test(reference.revision)) {
+          setItem(validated.value)
+          return
+        }
+      }
+      setFailed(true)
     }).catch(() => { if (current && !controller.signal.aborted) setFailed(true) })
     return () => { current = false; controller.abort() }
   }, [entry, getAccessToken, loadPayload, userId])
@@ -189,57 +197,202 @@ type WorkplaceSaveControlState =
   | { kind: 'conflict' }
   | { kind: 'busy'; action: 'save' | 'remove' }
 
+type ActiveWorkplaceSaveMutation = {
+  controller: AbortController
+  userId: string
+  membershipKind: string
+  contentReady: boolean
+  entry: WorkplaceLearnCatalogEntry
+  getAccessToken: () => Promise<string | null>
+  refreshAfterSettling: boolean
+}
+
+type WorkplaceSaveIdentity = {
+  userId: string | null
+  membershipKind: string
+  contentReady: boolean
+  itemId: string
+  itemKind: WorkplaceLearnCatalogEntry['kind']
+  access: WorkplaceLearnCatalogEntry['access']
+  revision: string | null
+  contentId: string | null
+  sampleLabel: WorkplaceLearnCatalogEntry['sampleLabel']
+}
+
+type ActiveWorkplaceSaveRead = {
+  controller: AbortController
+  purpose: 'initial' | 'refresh' | 'manual'
+  refreshAfterSettling: boolean
+}
+
 function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCatalogEntry; contentReady: boolean }) {
   const strings = useStrings()
   const { user, getAccessToken } = useAuth()
   const { state: membership, retry: retryMembership } = useMembershipAccess()
+  const userId = user?.id ?? null
   const [state, setState] = useState<WorkplaceSaveControlState>({ kind: 'loading' })
-  const [retryKey, setRetryKey] = useState(0)
-  const activeRequest = useRef<AbortController | null>(null)
+  const [readRequest, setReadRequest] = useState<{ key: number; purpose: ActiveWorkplaceSaveRead['purpose'] }>({ key: 0, purpose: 'initial' })
+  const activeReadRequest = useRef<ActiveWorkplaceSaveRead | null>(null)
+  const activeMutation = useRef<ActiveWorkplaceSaveMutation | null>(null)
+  const uncertainMutation = useRef<WorkplaceSaveIdentity | null>(null)
+  const consumedManualRetryKey = useRef(0)
+  const previousUser = useRef(user)
+  const previousIdentity = useRef(getWorkplaceSaveIdentity(userId, membership.kind, contentReady, entry))
   const revision = entry.access === 'free' ? null : entry.releaseReference?.revision ?? null
 
   useEffect(() => {
     const controller = new AbortController()
-    activeRequest.current = controller
-    if (!user?.id || membership.kind !== 'active-member' || !contentReady || (entry.access === 'plus' && !entry.releaseReference)) {
+    const currentIdentity = getWorkplaceSaveIdentity(userId, membership.kind, contentReady, entry)
+    const mutation = activeMutation.current
+    if (mutation) {
+      const sameContext = mutation.userId === userId
+        && mutation.membershipKind === membership.kind
+        && mutation.contentReady === contentReady
+        && mutation.entry === entry
+        && mutation.getAccessToken === getAccessToken
+      if (sameContext) {
+        return () => controller.abort()
+      }
+      const abandonedIdentity = getWorkplaceSaveIdentity(mutation.userId, mutation.membershipKind, mutation.contentReady, mutation.entry)
+      mutation.controller.abort()
+      if (activeMutation.current === mutation) activeMutation.current = null
+      if (sameWorkplaceSaveIdentity(abandonedIdentity, currentIdentity)) {
+        uncertainMutation.current = currentIdentity
+        setState({ kind: 'unavailable' })
+      }
+    }
+    if (uncertainMutation.current && !sameWorkplaceSaveIdentity(uncertainMutation.current, currentIdentity)) {
+      uncertainMutation.current = null
+    }
+    if (!userId || membership.kind !== 'active-member' || !contentReady || (entry.access === 'plus' && !entry.releaseReference)) {
       return () => controller.abort()
     }
-    void fetchWorkplaceSave(entry.id, getAccessToken, user.id, controller.signal).then((result) => {
+    const isManualRetry = readRequest.purpose === 'manual' && readRequest.key > consumedManualRetryKey.current
+    if (isManualRetry) consumedManualRetryKey.current = readRequest.key
+    if (uncertainMutation.current && sameWorkplaceSaveIdentity(uncertainMutation.current, currentIdentity) && !isManualRetry) {
+      return () => controller.abort()
+    }
+    const request: ActiveWorkplaceSaveRead = {
+      controller,
+      purpose: isManualRetry ? 'manual' : readRequest.purpose === 'refresh' ? 'refresh' : 'initial',
+      refreshAfterSettling: false,
+    }
+    activeReadRequest.current = request
+    void fetchWorkplaceSave(entry.id, getAccessToken, userId, controller.signal).then((result) => {
       if (controller.signal.aborted) return
+      if (activeReadRequest.current === request) activeReadRequest.current = null
       if (result.kind !== 'ok') {
-        setState(result.kind === 'signed-out' ? { kind: 'signed-out' } : { kind: 'unavailable' })
+        const mutationIsUncertain = uncertainMutation.current !== null
+          && sameWorkplaceSaveIdentity(uncertainMutation.current, currentIdentity)
+        setState(mutationIsUncertain ? { kind: 'unavailable' } : result.kind === 'signed-out' ? { kind: 'signed-out' } : { kind: 'unavailable' })
+        if (request.refreshAfterSettling && !mutationIsUncertain) {
+          setReadRequest((current) => ({ key: current.key + 1, purpose: 'refresh' }))
+        }
         return
+      }
+      if (uncertainMutation.current && sameWorkplaceSaveIdentity(uncertainMutation.current, currentIdentity)) {
+        uncertainMutation.current = null
       }
       setState(result.save && (!result.save.current || !currentWorkplaceEntryMatches(entry, result.save))
         ? { kind: 'stale' }
         : { kind: 'ready', save: result.save })
-    }).catch(() => { if (!controller.signal.aborted) setState({ kind: 'unavailable' }) })
+    }).catch(() => {
+      if (controller.signal.aborted) return
+      if (activeReadRequest.current === request) activeReadRequest.current = null
+      setState({ kind: 'unavailable' })
+      const mutationIsUncertain = uncertainMutation.current !== null
+        && sameWorkplaceSaveIdentity(uncertainMutation.current, currentIdentity)
+      if (request.refreshAfterSettling && !mutationIsUncertain) {
+        setReadRequest((current) => ({ key: current.key + 1, purpose: 'refresh' }))
+      }
+    })
     return () => {
       controller.abort()
-      activeRequest.current?.abort()
-      activeRequest.current = null
+      if (activeReadRequest.current === request) activeReadRequest.current = null
     }
-  }, [contentReady, entry, getAccessToken, membership.kind, retryKey, user?.id])
+  }, [contentReady, entry, getAccessToken, membership.kind, readRequest.key, readRequest.purpose, userId])
+
+  useEffect(() => {
+    const priorUser = previousUser.current
+    const priorIdentity = previousIdentity.current
+    const currentIdentity = getWorkplaceSaveIdentity(userId, membership.kind, contentReady, entry)
+    previousUser.current = user
+    previousIdentity.current = currentIdentity
+    if (!priorUser || !user || priorUser.id !== user.id || priorUser === user
+      || !sameWorkplaceSaveIdentity(priorIdentity, currentIdentity)) return
+
+    const mutation = activeMutation.current
+    if (mutation && sameWorkplaceMutationContext(mutation, currentIdentity, entry, getAccessToken)) {
+      mutation.refreshAfterSettling = true
+      return
+    }
+    if (uncertainMutation.current && sameWorkplaceSaveIdentity(uncertainMutation.current, currentIdentity)) return
+
+    const activeRead = activeReadRequest.current
+    if (activeRead) {
+      activeRead.refreshAfterSettling = true
+      return
+    }
+    if (membership.kind === 'active-member' && contentReady && !(entry.access === 'plus' && !entry.releaseReference)) {
+      let cancelled = false
+      queueMicrotask(() => {
+        if (!cancelled) setReadRequest((current) => ({ key: current.key + 1, purpose: 'refresh' }))
+      })
+      return () => { cancelled = true }
+    }
+  }, [contentReady, entry, getAccessToken, membership.kind, user, userId])
+
+  useEffect(() => () => {
+    activeMutation.current?.controller.abort()
+    activeMutation.current = null
+  }, [])
 
   const mutate = async (action: 'save' | 'remove') => {
     if (!user?.id || membership.kind !== 'active-member' || state.kind === 'busy' || !contentReady) return
-    activeRequest.current?.abort()
+    activeReadRequest.current?.controller.abort()
+    activeReadRequest.current = null
     const controller = new AbortController()
-    activeRequest.current = controller
+    const mutation: ActiveWorkplaceSaveMutation = {
+      controller,
+      userId: user.id,
+      membershipKind: membership.kind,
+      contentReady,
+      entry,
+      getAccessToken,
+      refreshAfterSettling: false,
+    }
+    activeMutation.current = mutation
     setState({ kind: 'busy', action })
     try {
       const result = action === 'save'
         ? await saveWorkplaceItem(entry.id, revision, getAccessToken, user.id, controller.signal)
         : await removeWorkplaceSave(entry.id, getAccessToken, user.id, controller.signal)
+      const reconcileAfterSettling = mutation.refreshAfterSettling
+      if (activeMutation.current === mutation) activeMutation.current = null
       if (controller.signal.aborted) return
-      if (result.kind === 'stale') setState(action === 'save' ? { kind: 'conflict' } : { kind: 'unavailable' })
+      if (result.kind === 'ok') {
+        if (action === 'remove') setState({ kind: 'ready', save: null })
+        else if (result.save) setState({ kind: 'ready', save: result.save })
+        else {
+          setState({ kind: 'unavailable' })
+          uncertainMutation.current = getWorkplaceSaveIdentity(user.id, membership.kind, contentReady, entry)
+        }
+      } else if (result.kind === 'stale') setState(action === 'save' ? { kind: 'conflict' } : { kind: 'unavailable' })
       else if (result.kind === 'signed-out') setState({ kind: 'signed-out' })
-      else if (result.kind !== 'ok') setState({ kind: 'unavailable' })
-      else if (action === 'remove') setState({ kind: 'ready', save: null })
-      else if (result.save) setState({ kind: 'ready', save: result.save })
-      else setState({ kind: 'unavailable' })
+      else if (result.kind === 'forbidden') setState({ kind: 'unavailable' })
+      else {
+        setState({ kind: 'unavailable' })
+        uncertainMutation.current = getWorkplaceSaveIdentity(user.id, membership.kind, contentReady, entry)
+      }
+      if (reconcileAfterSettling && result.kind !== 'unavailable') {
+        setReadRequest((current) => ({ key: current.key + 1, purpose: 'refresh' }))
+      }
     } catch {
-      if (!controller.signal.aborted) setState({ kind: 'unavailable' })
+      if (activeMutation.current === mutation) activeMutation.current = null
+      if (!controller.signal.aborted) {
+        setState({ kind: 'unavailable' })
+        uncertainMutation.current = getWorkplaceSaveIdentity(user.id, membership.kind, contentReady, entry)
+      }
     }
   }
 
@@ -268,11 +421,55 @@ function WorkplaceSaveControl({ entry, contentReady }: { entry: WorkplaceLearnCa
     <p role="status">{message}</p>
     {showSave && <button className="btn btn--secondary" type="button" disabled={busy} onClick={() => void mutate('save')}>{busy ? strings.workplaceLearn.saveWorking : strings.workplaceLearn.saveAction}</button>}
     {showRemove && <button className="btn btn--secondary" type="button" disabled={busy} onClick={() => void mutate('remove')}>{busy ? strings.workplaceLearn.saveWorking : strings.workplaceLearn.removeSave}</button>}
-    {allowed && state.kind === 'unavailable' && <button className="btn btn--secondary" type="button" onClick={() => setRetryKey((key) => key + 1)}>{strings.workplaceLearn.saveRetry}</button>}
-    {allowed && state.kind === 'conflict' && <button className="btn btn--secondary" type="button" onClick={() => setRetryKey((key) => key + 1)}>{strings.workplaceLearn.saveRetry}</button>}
+    {allowed && state.kind === 'unavailable' && <button className="btn btn--secondary" type="button" onClick={() => setReadRequest((current) => ({ key: current.key + 1, purpose: 'manual' }))}>{strings.workplaceLearn.saveRetry}</button>}
+    {allowed && state.kind === 'conflict' && <button className="btn btn--secondary" type="button" onClick={() => setReadRequest((current) => ({ key: current.key + 1, purpose: 'manual' }))}>{strings.workplaceLearn.saveRetry}</button>}
     {membership.kind === 'unavailable' && <button className="btn btn--secondary" type="button" onClick={retryMembership}>{strings.workplaceLearn.saveRetry}</button>}
     {membership.kind === 'non-member' && <Link className="btn btn--secondary" to="/plus">{strings.plus.plusLabel}</Link>}
   </section>
+}
+
+function getWorkplaceSaveIdentity(
+  userId: string | null,
+  membershipKind: string,
+  contentReady: boolean,
+  entry: WorkplaceLearnCatalogEntry,
+): WorkplaceSaveIdentity {
+  return {
+    userId,
+    membershipKind,
+    contentReady,
+    itemId: entry.id,
+    itemKind: entry.kind,
+    access: entry.access,
+    revision: entry.access === 'free' ? null : entry.releaseReference?.revision ?? null,
+    contentId: entry.releaseReference?.contentId ?? null,
+    sampleLabel: entry.sampleLabel,
+  }
+}
+
+function sameWorkplaceSaveIdentity(left: WorkplaceSaveIdentity, right: WorkplaceSaveIdentity): boolean {
+  return left.userId === right.userId
+    && left.membershipKind === right.membershipKind
+    && left.contentReady === right.contentReady
+    && left.itemId === right.itemId
+    && left.itemKind === right.itemKind
+    && left.access === right.access
+    && left.revision === right.revision
+    && left.contentId === right.contentId
+    && left.sampleLabel === right.sampleLabel
+}
+
+function sameWorkplaceMutationContext(
+  mutation: ActiveWorkplaceSaveMutation,
+  identity: WorkplaceSaveIdentity,
+  entry: WorkplaceLearnCatalogEntry,
+  getAccessToken: () => Promise<string | null>,
+): boolean {
+  return mutation.userId === identity.userId
+    && mutation.membershipKind === identity.membershipKind
+    && mutation.contentReady === identity.contentReady
+    && mutation.entry === entry
+    && mutation.getAccessToken === getAccessToken
 }
 
 function DetailPreview({ entry, strings }: { entry: WorkplaceLearnCatalogEntry; strings: ReturnType<typeof useStrings> }) {
@@ -302,24 +499,24 @@ function currentWorkplaceEntryMatches(entry: WorkplaceLearnCatalogEntry, save: W
 
 function LessonBody({ item, related, strings }: { item: Extract<WorkplaceLearnRuntimeItem, { kind: 'lesson' }>; related: (id: string) => WorkplaceLearnCatalogEntry | undefined; strings: ReturnType<typeof useStrings> }) {
   return <div className="workplace-learn__body">
-    <section><h2>{strings.workplaceLearn.situation}</h2><p lang="zh-TW">{item.situation}</p></section>
-    <section><h2>{strings.workplaceLearn.meaning}</h2><p lang="zh-TW">{item.meaningInContextZhTW}</p></section>
-    <section><h2>{strings.workplaceLearn.objective}</h2><p lang="zh-TW">{item.learningObjective}</p><p lang="zh-TW">{item.coreJudgment}</p></section>
-    <section><h2>{strings.workplaceLearn.whatToDo}</h2><p lang="zh-TW">{item.whatToDo}</p></section>
-    <section><h2>{strings.workplaceLearn.whatToSay}</h2><blockquote lang="ja">{item.whatToSayJapanese}</blockquote><p lang="zh-TW">{item.whyItWorksZhTW}</p></section>
-    {item.examples.length > 0 && <section><h2>{strings.workplaceLearn.examples}</h2>{item.examples.map((example, index) => <div className="workplace-learn__example" key={`${example.context}-${index}`}><p className="workplace-learn__example-context" lang="zh-TW">{example.context}</p><blockquote lang="ja">{example.japanese}</blockquote><p lang="zh-TW">{example.explanationZhTW}</p></div>)}</section>}
-    <section className="workplace-learn__caution"><h2>{strings.workplaceLearn.caution}</h2><p lang="zh-TW">{item.cautionZhTW}</p>{item.relationshipContext && <p lang="zh-TW">{item.relationshipContext}</p>}</section>
+    <section><h2>{strings.workplaceLearn.situation}</h2><p lang="ja">{item.situation}</p></section>
+    <section><h2>{strings.workplaceLearn.meaning}</h2><p lang="ja">{item.meaningInContextJa}</p></section>
+    <section><h2>{strings.workplaceLearn.objective}</h2><p lang="ja">{item.learningObjective}</p><p lang="ja">{item.coreJudgment}</p></section>
+    <section><h2>{strings.workplaceLearn.whatToDo}</h2><p lang="ja">{item.whatToDo}</p></section>
+    <section><h2>{strings.workplaceLearn.whatToSay}</h2><blockquote lang="ja">{item.whatToSayJapanese}</blockquote><p lang="ja">{item.whyItWorksJa}</p></section>
+    {item.examples.length > 0 && <section><h2>{strings.workplaceLearn.examples}</h2>{item.examples.map((example, index) => <div className="workplace-learn__example" key={`${example.context}-${index}`}><p className="workplace-learn__example-context" lang="ja">{example.context}</p><blockquote lang="ja">{example.japanese}</blockquote><p lang="ja">{example.explanationJa}</p></div>)}</section>}
+    <section className="workplace-learn__caution"><h2>{strings.workplaceLearn.caution}</h2><p lang="ja">{item.cautionJa}</p>{item.relationshipContext && <p lang="ja">{item.relationshipContext}</p>}</section>
     {item.relatedVocabularyIds.length > 0 && <section><h2>{strings.workplaceLearn.relatedVocabulary}</h2><ul>{item.relatedVocabularyIds.map((id) => { const vocab = related(id); return <li key={id}>{vocab?.kind === 'vocabulary' ? <Link to={`/learn/vocabulary/${vocab.slug}`} lang={vocab.titleLanguage}>{vocab.title} →</Link> : <span className="workplace-learn__related-unavailable">{strings.workplaceLearn.relatedUnavailable}</span>}</li> })}</ul></section>}
     {item.practiceTypes.includes('rewrite') && <section className="workplace-learn__self-practice"><h2>{strings.workplaceLearn.selfPracticeTitle}</h2><p>{strings.workplaceLearn.selfPracticePrompt}</p><label htmlFor={`${item.id}-rewrite`}>{strings.workplaceLearn.selfPracticeLabel}</label><textarea id={`${item.id}-rewrite`} lang="ja" rows={4} /><p className="workplace-learn__self-practice-note">{strings.workplaceLearn.selfPracticeNoSave}</p></section>}
-    <p className="workplace-learn__takeaway" lang="zh-TW">{item.transferTakeaway}</p>
+    <p className="workplace-learn__takeaway" lang="ja">{item.transferTakeaway}</p>
   </div>
 }
 
 function VocabularyBody({ item, catalogEntries, strings }: { item: Extract<WorkplaceLearnRuntimeItem, { kind: 'vocabulary' }>; catalogEntries: readonly WorkplaceLearnCatalogEntry[]; strings: ReturnType<typeof useStrings> }) {
   return <div className="workplace-learn__body workplace-learn__vocabulary-body">
-    <dl><div><dt>{strings.workplaceLearn.termLabel}</dt><dd lang="ja">{item.term}</dd></div><div><dt>{strings.workplaceLearn.reading}</dt><dd lang="ja">{item.reading}</dd></div><div><dt>{strings.workplaceLearn.meaningLabel}</dt><dd lang="zh-TW">{item.meaningZhTW}</dd></div><div><dt>{strings.workplaceLearn.nuance}</dt><dd lang="zh-TW">{item.workplaceNuanceZhTW}</dd></div><div><dt>{strings.workplaceLearn.usage}</dt><dd lang="zh-TW">{item.usageContext}</dd></div><div><dt>{strings.workplaceLearn.register}</dt><dd lang="zh-TW">{item.register}</dd></div>{item.relationshipContext && <div><dt>{strings.workplaceLearn.relationship}</dt><dd lang="zh-TW">{item.relationshipContext}</dd></div>}</dl>
-    <section><h2>{strings.workplaceLearn.example}</h2><p className="workplace-learn__example-context" lang="zh-TW">{item.example.context}</p><blockquote lang="ja">{item.example.japanese}</blockquote><p lang="zh-TW">{item.example.explanationZhTW}</p></section>
-    <section className="workplace-learn__caution"><h2>{strings.workplaceLearn.caution}</h2><p lang="zh-TW">{item.cautionZhTW}</p></section>
+    <dl><div><dt>{strings.workplaceLearn.termLabel}</dt><dd lang="ja">{item.term}</dd></div><div><dt>{strings.workplaceLearn.reading}</dt><dd lang="ja">{item.reading}</dd></div><div><dt>{strings.workplaceLearn.meaningLabel}</dt><dd lang="ja">{item.meaningJa}</dd></div><div><dt>{strings.workplaceLearn.nuance}</dt><dd lang="ja">{item.workplaceNuanceJa}</dd></div><div><dt>{strings.workplaceLearn.usage}</dt><dd lang="ja">{item.usageContext}</dd></div><div><dt>{strings.workplaceLearn.register}</dt><dd lang="ja">{item.register}</dd></div>{item.relationshipContext && <div><dt>{strings.workplaceLearn.relationship}</dt><dd lang="ja">{item.relationshipContext}</dd></div>}</dl>
+    <section><h2>{strings.workplaceLearn.example}</h2><p className="workplace-learn__example-context" lang="ja">{item.example.context}</p><blockquote lang="ja">{item.example.japanese}</blockquote><p lang="ja">{item.example.explanationJa}</p></section>
+    <section className="workplace-learn__caution"><h2>{strings.workplaceLearn.caution}</h2><p lang="ja">{item.cautionJa}</p></section>
     {item.relatedTermIds.length > 0 && <section><h2>{strings.workplaceLearn.relatedVocabulary}</h2><ul>{item.relatedTermIds.map((id) => { const term = catalogEntries.find((entry) => entry.id === id && entry.kind === 'vocabulary'); return <li key={id}>{term ? <Link to={`/learn/vocabulary/${term.slug}`} lang={term.titleLanguage}>{term.title} →</Link> : <span className="workplace-learn__related-unavailable">{strings.workplaceLearn.relatedUnavailable}</span>}</li> })}</ul></section>}
   </div>
 }

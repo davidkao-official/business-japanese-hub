@@ -34,39 +34,43 @@ export function isCanonicalPrivateWorkplaceFilename(path: string): boolean {
 
 /** Identifies a complete lesson/vocabulary content body without inspecting prose heuristically. */
 function isWorkplaceRuntimeItem(value: unknown): boolean {
-  if (!record(value) || value.schemaVersion !== 1 || !['lesson', 'vocabulary'].includes(String(value.kind))) return false
+  if (!record(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2) || !['lesson', 'vocabulary'].includes(String(value.kind))) return false
   if (typeof value.id !== 'string' || typeof value.slug !== 'string' || value.access !== 'plus') return false
   if (value.kind === 'lesson') {
-    return typeof value.situation === 'string'
-      && typeof value.meaningInContextZhTW === 'string'
-      && typeof value.whatToSayJapanese === 'string'
-      && Array.isArray(value.examples)
+    if (typeof value.situation !== 'string' || !Array.isArray(value.examples)) return false
+    if (value.schemaVersion === 1) return typeof value.meaningInContextZhTW === 'string' && typeof value.whatToSayJapanese === 'string'
+    return typeof value.meaningInContextJa === 'string'
+      || typeof value.whyItWorksJa === 'string'
+      || typeof value.cautionJa === 'string'
+      || typeof value.whatToSayJapanese === 'string'
   }
-  return typeof value.term === 'string'
-    && typeof value.reading === 'string'
-    && typeof value.meaningZhTW === 'string'
-    && typeof value.workplaceNuanceZhTW === 'string'
-    && record(value.example)
+  if (typeof value.term !== 'string' || typeof value.reading !== 'string' || !record(value.example)) return false
+  if (value.schemaVersion === 1) return typeof value.meaningZhTW === 'string' && typeof value.workplaceNuanceZhTW === 'string'
+  return typeof value.meaningJa === 'string'
+    || typeof value.workplaceNuanceJa === 'string'
+    || typeof value.cautionJa === 'string'
 }
 
 /** Detects a renamed complete private authoring record, not a runtime fixture. */
 function isWorkplaceAuthoringItem(value: unknown): boolean {
-  if (!record(value) || value.schemaVersion !== 1 || !['lesson', 'vocabulary'].includes(String(value.kind))) return false
+  if (!record(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2) || !['lesson', 'vocabulary'].includes(String(value.kind))) return false
   if (typeof value.id !== 'string' || typeof value.slug !== 'string' || typeof value.access !== 'string') return false
   if (!record(value.publication) || !['draft', 'released'].includes(String(value.publication.status))) return false
   if (!record(value.rights) || !['pending', 'cleared'].includes(String(value.rights.status)) || value.rights.basis !== 'original') return false
   if (typeof value.rights.attestation !== 'string') return false
   if (value.kind === 'lesson') {
-    return typeof value.situation === 'string'
-      && typeof value.whatToSayJapanese === 'string'
-      && Array.isArray(value.examples)
-      && typeof value.meaningInContextZhTW === 'string'
+    if (typeof value.situation !== 'string' || !Array.isArray(value.examples)) return false
+    if (value.schemaVersion === 1) return typeof value.whatToSayJapanese === 'string' && typeof value.meaningInContextZhTW === 'string'
+    return typeof value.meaningInContextJa === 'string'
+      || typeof value.whyItWorksJa === 'string'
+      || typeof value.cautionJa === 'string'
+      || typeof value.whatToSayJapanese === 'string'
   }
-  return typeof value.term === 'string'
-    && typeof value.reading === 'string'
-    && typeof value.meaningZhTW === 'string'
-    && typeof value.workplaceNuanceZhTW === 'string'
-    && record(value.example)
+  if (typeof value.term !== 'string' || typeof value.reading !== 'string' || !record(value.example)) return false
+  if (value.schemaVersion === 1) return typeof value.meaningZhTW === 'string' && typeof value.workplaceNuanceZhTW === 'string'
+  return typeof value.meaningJa === 'string'
+    || typeof value.workplaceNuanceJa === 'string'
+    || typeof value.cautionJa === 'string'
 }
 
 export function isContractShapedWorkplaceAuthoringJson(text: string): boolean {

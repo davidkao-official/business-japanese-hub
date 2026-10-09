@@ -5,6 +5,11 @@ vi.mock('../i18n/locales', async (importOriginal) => {
   return { ...actual, LAUNCHED_LOCALES: actual.SUPPORTED_LOCALES }
 })
 
+vi.mock('../lib/persistence/useBookState', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lib/persistence/useBookState')>()
+  return { ...actual, useBookOwned: vi.fn(() => ({ owned: false, loading: false })) }
+})
+
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -12,18 +17,20 @@ import type { WorkplaceLearnCatalogEntry, WorkplaceLearnRuntimeItem } from './ty
 import { workplaceLearnCatalog } from './catalog'
 import { sampleWorkplaceLearnItem, sampleWorkplaceVocabularyItem } from './sample'
 import { toWorkplaceLearnCatalogEntry } from './validate'
-import { WorkplaceLessonPage, WorkplaceVocabularyIndexPage, WorkplaceVocabularyPage } from './pages'
+import { WorkplaceLearnLandingPage, WorkplaceLessonPage, WorkplaceVocabularyIndexPage, WorkplaceVocabularyPage } from './pages'
 import { renderWithAppProviders } from '../test/appProviders'
 import { getStrings, setLocalePreference } from '../i18n/strings'
 import App from '../App'
 import { COURSE_CORRECTION_LEARN_SLUG, getLearningUnitByLearnSlug } from '../app/learningUnits'
 import { readingCatalog } from '../reading/catalog'
+import { useBookOwned } from '../lib/persistence/useBookState'
 
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.unstubAllEnvs()
   setLocalePreference(null)
   window.history.replaceState(null, '', '/')
+  vi.mocked(useBookOwned).mockReturnValue({ owned: false, loading: false })
 })
 
 describe('Workplace Learn routes and details', () => {
@@ -45,10 +52,10 @@ describe('Workplace Learn routes and details', () => {
     expect(await screen.findByRole('heading', { level: 1, name: '日本職場語彙' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('link', { name: /見込み/ }))
     expect(await screen.findByRole('heading', { level: 1, name: '見込み' })).toHaveAttribute('lang', 'ja')
-    expect(screen.getByText(sampleWorkplaceVocabularyItem.lead)).toHaveAttribute('lang', 'zh-TW')
+    expect(screen.getByText(sampleWorkplaceVocabularyItem.lead)).toHaveAttribute('lang', 'ja')
     expect(screen.getByText('見込み', { selector: 'dd' })).toHaveAttribute('lang', 'ja')
-    expect(screen.getByText(/預估、預期/)).toBeInTheDocument()
-    expect(screen.getByText(/不代表所有公司/)).toBeInTheDocument()
+    expect(screen.getByText(sampleWorkplaceVocabularyItem.meaningJa)).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText(sampleWorkplaceVocabularyItem.workplaceNuanceJa)).toHaveAttribute('lang', 'ja')
     expect(screen.getByRole('link', { name: /報告時に事実と次の対応/ })).toHaveAttribute('href', '/learn/workplace/sample-status-update-with-next-step')
   })
 
@@ -65,7 +72,7 @@ describe('Workplace Learn routes and details', () => {
     )
 
     expect(screen.getByRole('heading', { name: situationLabel })).not.toHaveAttribute('lang')
-    expect(screen.getByText(sampleWorkplaceLearnItem.situation)).toHaveAttribute('lang', 'zh-TW')
+    expect(screen.getByText(sampleWorkplaceLearnItem.situation)).toHaveAttribute('lang', 'ja')
     expect(screen.getByRole('heading', { name: practiceTitle })).not.toHaveAttribute('lang')
     expect(screen.getByText(prompt)).not.toHaveAttribute('lang')
     expect(screen.getByText(practiceLabel)).not.toHaveAttribute('lang')
@@ -74,6 +81,27 @@ describe('Workplace Learn routes and details', () => {
     const ui = getStrings(locale)
     expect(document.title).toBe(`${entry.title} — ${ui.learningModes.modes.learn.title} — ${ui.app.name}`)
     if (locale === 'ja') expect(document.title).not.toMatch(/Learn/)
+  })
+
+  it.each([
+    ['owned', true, false],
+    ['owned while loading', true, true],
+    ['loading', false, true],
+    ['not owned', false, false],
+  ] as const)('shows the inherited course link only when it is %s', (_label, owned, loading) => {
+    setLocalePreference('ja')
+    vi.mocked(useBookOwned).mockReturnValue({ owned, loading })
+    vi.mocked(useBookOwned).mockClear()
+    const unit = getLearningUnitByLearnSlug(COURSE_CORRECTION_LEARN_SLUG)!
+    renderWithAppProviders(
+      <Routes><Route path="/learn" element={<WorkplaceLearnLandingPage />} /></Routes>,
+      { initialEntries: ['/learn'] },
+    )
+    expect(vi.mocked(useBookOwned)).toHaveBeenCalledWith(unit.bookId)
+    const inheritedLink = screen.queryByRole('link', { name: /その他の学習教材/ })
+    if (owned && !loading) expect(inheritedLink).toBeInTheDocument()
+    else expect(inheritedLink).not.toBeInTheDocument()
+    vi.mocked(useBookOwned).mockReturnValue({ owned: false, loading: false })
   })
 
   it('keeps the Book-projected Learn slug available on its original route', () => {
@@ -102,6 +130,43 @@ describe('Workplace Learn routes and details', () => {
     )
     expect(screen.queryByText(sampleWorkplaceLearnItem.whatToSayJapanese)).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('目前無法載入教材')
+  })
+
+  it('does not render injected Free bodies that omit Japanese core despite a complete overlay', () => {
+    setLocalePreference('ja')
+    const invalidItem: Record<string, unknown> = { ...sampleWorkplaceLearnItem }
+    delete invalidItem.meaningInContextJa
+    delete invalidItem.whyItWorksJa
+    delete invalidItem.cautionJa
+    invalidItem.supportOverlays = { byLocale: { 'zh-TW': {
+      meaningInContext: '完全な補足。', whyItWorks: '完全な補足。', caution: '完全な補足。',
+      examples: [{ explanation: '完全な補足。' }],
+    } } }
+    const entry = workplaceLearnCatalog.find((candidate) => candidate.id === sampleWorkplaceLearnItem.id)!
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[invalidItem as unknown as WorkplaceLearnRuntimeItem]} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${entry.slug}`] },
+    )
+    expect(screen.queryByText('完全な補足。')).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('教材を読み込めません')
+  })
+
+  it('keeps valid locale support overlays dormant in the V1 Japanese rendering', () => {
+    setLocalePreference('ja')
+    const item = {
+      ...sampleWorkplaceLearnItem,
+      supportOverlays: { byLocale: { 'zh-TW': {
+        meaningInContext: 'V1 に表示しない補足文。', whyItWorks: 'V1 に表示しない補足文。',
+        caution: 'V1 に表示しない補足文。', examples: [{ explanation: 'V1 に表示しない補足文。' }],
+      } } },
+    } as unknown as WorkplaceLearnRuntimeItem
+    const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${entry.slug}`] },
+    )
+    expect(screen.queryByText('V1 に表示しない補足文。')).not.toBeInTheDocument()
+    expect(screen.getByText(item.kind === 'lesson' ? item.meaningInContextJa : '')).toHaveAttribute('lang', 'ja')
   })
 
   it('resolves related Read and Practice items through public registries and renders unknown links as unavailable', () => {
@@ -272,5 +337,927 @@ describe('Workplace Learn routes and details', () => {
     fireEvent.click(screen.getByRole('button', { name: '移除儲存' }))
     expect(await screen.findByRole('button', { name: '儲存到 My Learning' })).toBeInTheDocument()
     expect(calls).toEqual(['GET', 'DELETE', 'GET', 'DELETE'])
+  })
+
+  it.each([
+    ['lesson', 'GET', sampleWorkplaceLearnItem],
+    ['lesson', 'PUT', sampleWorkplaceLearnItem],
+    ['lesson', 'DELETE', sampleWorkplaceLearnItem],
+    ['vocabulary', 'GET', sampleWorkplaceVocabularyItem],
+    ['vocabulary', 'PUT', sampleWorkplaceVocabularyItem],
+    ['vocabulary', 'DELETE', sampleWorkplaceVocabularyItem],
+  ] as const)(
+    'recovers the Free %s save control after a %s 401 with a same-user token refresh',
+    async (kind, failedMethod, item) => {
+      setLocalePreference('zh-TW')
+      vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+      const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+      const methods: string[] = []
+      const authorizationHeaders: string[] = []
+      let getCount = 0
+      vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+        const method = init?.method ?? 'GET'
+        methods.push(method)
+        authorizationHeaders.push(new Headers(init?.headers).get('Authorization') ?? '')
+        if (method === 'GET') {
+          getCount += 1
+          if (failedMethod === 'GET' && getCount === 1) return Promise.resolve(new Response('{}', { status: 401 }))
+          if (failedMethod === 'PUT' && getCount === 1) return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }))
+          if (failedMethod === 'DELETE' && getCount === 1) return Promise.resolve(new Response(JSON.stringify({ items: [{
+            itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:00:00.000Z', current: true,
+          }] }), { status: 200 }))
+          const recoveredSave = failedMethod !== 'DELETE'
+          return Promise.resolve(new Response(JSON.stringify({ items: recoveredSave ? [{
+            itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true,
+          }] : [] }), { status: 200 }))
+        }
+        if (method === failedMethod) return Promise.resolve(new Response('{}', { status: 401 }))
+        throw new Error(`Unexpected save request: ${method}`)
+      }))
+
+      const route = kind === 'lesson' ? `/learn/workplace/${entry.slug}` : `/learn/vocabulary/${entry.slug}`
+      const Page = kind === 'lesson' ? WorkplaceLessonPage : WorkplaceVocabularyPage
+      const view = renderWithAppProviders(
+        <Routes><Route path={kind === 'lesson' ? '/learn/workplace/:slug' : '/learn/vocabulary/:slug'} element={
+          <Page catalogEntries={[entry]} publicItems={[item]} />
+        } /></Routes>,
+        { initialEntries: [route], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      )
+
+      if (failedMethod === 'PUT') {
+        fireEvent.click(await screen.findByRole('button', { name: '儲存到 My Learning' }))
+      } else if (failedMethod === 'DELETE') {
+        fireEvent.click(await screen.findByRole('button', { name: '移除儲存' }))
+      }
+      await waitFor(() => {
+        expect(methods).toEqual(failedMethod === 'GET' ? ['GET'] : ['GET', failedMethod])
+        expect(screen.getByRole('region', { name: '儲存到 My Learning' })).toHaveTextContent('登入後可儲存教材；此功能提供 Plus 會員使用。')
+      })
+
+      const refreshedToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'refreshed' }))}.signature`
+      vi.spyOn(view.authClient, 'getAccessToken').mockResolvedValue(refreshedToken)
+      act(() => view.authClient.emitAuthStateChange({ id: 'member-1', email: 'member@example.com' }))
+
+      const authoritativeState = failedMethod === 'DELETE' ? '儲存到 My Learning' : '移除儲存'
+      expect(await screen.findByRole('button', { name: authoritativeState })).toBeInTheDocument()
+      expect(methods).toEqual(failedMethod === 'GET' ? ['GET', 'GET'] : ['GET', failedMethod, 'GET'])
+      expect(authorizationHeaders.at(-1)).toBe(`Bearer ${refreshedToken}`)
+    },
+  )
+
+  it.each([
+    ['lesson', sampleWorkplaceLearnItem],
+    ['vocabulary', sampleWorkplaceVocabularyItem],
+  ] as const)(
+    'recovers an ordinary Free %s manual retry when its held 401 follows same-user refresh',
+    async (kind, item) => {
+      setLocalePreference('zh-TW')
+      vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+      const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+      const methods: string[] = []
+      const authorizationHeaders: string[] = []
+      const requestUrls: string[] = []
+      const readSignals: AbortSignal[] = []
+      let resolveManualRead!: (response: Response) => void
+      const pendingManualRead = new Promise<Response>((resolve) => { resolveManualRead = resolve })
+      const savedRow = { itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true }
+      vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const method = init?.method ?? 'GET'
+        methods.push(method)
+        authorizationHeaders.push(new Headers(init?.headers).get('Authorization') ?? '')
+        requestUrls.push(String(input))
+        if (init?.signal) readSignals.push(init.signal as AbortSignal)
+        if (method === 'GET') {
+          if (methods.length === 1) return Promise.resolve(new Response('{}', { status: 503 }))
+          if (methods.length === 2) return pendingManualRead
+          if (methods.length === 3) return Promise.resolve(new Response(JSON.stringify({ items: [savedRow] }), { status: 200 }))
+        }
+        throw new Error(`Unexpected save request: ${method}`)
+      }))
+      const route = kind === 'lesson' ? `/learn/workplace/${entry.slug}` : `/learn/vocabulary/${entry.slug}`
+      const Page = kind === 'lesson' ? WorkplaceLessonPage : WorkplaceVocabularyPage
+      const view = renderWithAppProviders(
+        <Routes><Route path={kind === 'lesson' ? '/learn/workplace/:slug' : '/learn/vocabulary/:slug'} element={
+          <Page catalogEntries={[entry]} publicItems={[item]} />
+        } /></Routes>,
+        { initialEntries: [route], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      )
+
+      expect(await screen.findByText('目前無法確認儲存狀態。')).toBeInTheDocument()
+      expect(methods).toEqual(['GET'])
+      const oldToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'ordinary-manual-old' }))}.signature`
+      const freshToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'ordinary-manual-fresh' }))}.signature`
+      let currentToken = oldToken
+      vi.spyOn(view.authClient, 'getAccessToken').mockImplementation(async () => currentToken)
+      fireEvent.click(screen.getByRole('button', { name: '重試' }))
+      await waitFor(() => expect(methods).toEqual(['GET', 'GET']))
+      expect(authorizationHeaders[1]).toBe(`Bearer ${oldToken}`)
+
+      currentToken = freshToken
+      await act(async () => {
+        view.authClient.emitAuthStateChange({ id: 'member-1', email: 'member@example.com' })
+        for (let i = 0; i < 12; i += 1) await Promise.resolve()
+      })
+      expect(methods).toEqual(['GET', 'GET'])
+      expect(readSignals[1]?.aborted).toBe(false)
+
+      await act(async () => {
+        resolveManualRead(new Response('{}', { status: 401 }))
+        for (let i = 0; i < 12; i += 1) await Promise.resolve()
+      })
+      expect(await screen.findByRole('button', { name: '移除儲存' })).toBeEnabled()
+      expect(methods).toEqual(['GET', 'GET', 'GET'])
+      expect(authorizationHeaders[2]).toBe(`Bearer ${freshToken}`)
+      expect(requestUrls.every((url) => new URL(url).searchParams.get('itemId') === item.id)).toBe(true)
+      expect(screen.queryByRole('button', { name: '儲存到 My Learning' })).not.toBeInTheDocument()
+      expect(screen.getByRole('region', { name: '儲存到 My Learning' })).not.toHaveTextContent('登入後可儲存教材；此功能提供 Plus 會員使用。')
+    },
+  )
+
+  it('queues a fresh-token read when the initial save-state GET returns 401 after same-user refresh', async () => {
+    setLocalePreference('zh-TW')
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+    const item = sampleWorkplaceLearnItem
+    const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+    const methods: string[] = []
+    const authorizationHeaders: string[] = []
+    const readSignals: AbortSignal[] = []
+    let resolveInitialRead!: (response: Response) => void
+    const pendingInitialRead = new Promise<Response>((resolve) => { resolveInitialRead = resolve })
+    const savedRow = { itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true }
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET'
+      methods.push(method)
+      authorizationHeaders.push(new Headers(init?.headers).get('Authorization') ?? '')
+      if (init?.signal) readSignals.push(init.signal as AbortSignal)
+      if (method === 'GET') {
+        if (methods.filter((requestMethod) => requestMethod === 'GET').length === 1) return pendingInitialRead
+        return Promise.resolve(new Response(JSON.stringify({ items: [savedRow] }), { status: 200 }))
+      }
+      throw new Error(`Unexpected save request: ${method}`)
+    }))
+    const view = renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+    )
+
+    await waitFor(() => expect(methods).toEqual(['GET']))
+    const firstAuthorization = authorizationHeaders[0]
+    const refreshedToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'initial-read-refresh' }))}.signature`
+    vi.spyOn(view.authClient, 'getAccessToken').mockResolvedValue(refreshedToken)
+    await act(async () => {
+      view.authClient.emitAuthStateChange({ id: 'member-1', email: 'member@example.com' })
+      for (let i = 0; i < 12; i += 1) await Promise.resolve()
+    })
+    expect(methods).toEqual(['GET'])
+    expect(readSignals[0]?.aborted).toBe(false)
+
+    await act(async () => {
+      resolveInitialRead(new Response('{}', { status: 401 }))
+      for (let i = 0; i < 12; i += 1) await Promise.resolve()
+    })
+    expect(await screen.findByRole('button', { name: '移除儲存' })).toBeInTheDocument()
+    expect(methods).toEqual(['GET', 'GET'])
+    expect(firstAuthorization).not.toBe(`Bearer ${refreshedToken}`)
+    expect(authorizationHeaders.at(-1)).toBe(`Bearer ${refreshedToken}`)
+  })
+
+  it.each([
+    ['lesson', 'PUT', 'success', sampleWorkplaceLearnItem],
+    ['lesson', 'PUT', '401', sampleWorkplaceLearnItem],
+    ['lesson', 'DELETE', 'success', sampleWorkplaceLearnItem],
+    ['lesson', 'DELETE', '401', sampleWorkplaceLearnItem],
+    ['vocabulary', 'PUT', 'success', sampleWorkplaceVocabularyItem],
+    ['vocabulary', 'PUT', '401', sampleWorkplaceVocabularyItem],
+    ['vocabulary', 'DELETE', 'success', sampleWorkplaceVocabularyItem],
+    ['vocabulary', 'DELETE', '401', sampleWorkplaceVocabularyItem],
+  ] as const)(
+    'defers the refreshed %s save-state GET until a pending %s %s settles',
+    async (kind, method, mutationOutcome, item) => {
+      setLocalePreference('zh-TW')
+      vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+      const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+      const methods: string[] = []
+      const authorizationHeaders: string[] = []
+      let serverSaved = method === 'DELETE'
+      let resolveMutation!: (response: Response) => void
+      const mutationSignals: AbortSignal[] = []
+      const pendingMutation = new Promise<Response>((resolve) => { resolveMutation = resolve })
+      const savedRow = () => ({ itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true })
+      vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+        const requestMethod = init?.method ?? 'GET'
+        methods.push(requestMethod)
+        authorizationHeaders.push(new Headers(init?.headers).get('Authorization') ?? '')
+        if (requestMethod === 'GET') {
+          return Promise.resolve(new Response(JSON.stringify({ items: serverSaved ? [savedRow()] : [] }), { status: 200 }))
+        }
+        if (requestMethod === method) {
+          if (init?.signal) mutationSignals.push(init.signal as AbortSignal)
+          return pendingMutation
+        }
+        throw new Error(`Unexpected save request: ${requestMethod}`)
+      }))
+      const route = kind === 'lesson' ? `/learn/workplace/${entry.slug}` : `/learn/vocabulary/${entry.slug}`
+      const Page = kind === 'lesson' ? WorkplaceLessonPage : WorkplaceVocabularyPage
+      const view = renderWithAppProviders(
+        <Routes><Route path={kind === 'lesson' ? '/learn/workplace/:slug' : '/learn/vocabulary/:slug'} element={
+          <Page catalogEntries={[entry]} publicItems={[item]} />
+        } /></Routes>,
+        { initialEntries: [route], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      )
+
+      const mutationButton = method === 'PUT' ? '儲存到 My Learning' : '移除儲存'
+      fireEvent.click(await screen.findByRole('button', { name: mutationButton }))
+      await waitFor(() => expect(methods).toEqual(['GET', method]))
+      const firstRefreshToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'refresh-1' }))}.signature`
+      const latestRefreshToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'refresh-2' }))}.signature`
+      let currentToken = firstRefreshToken
+      vi.spyOn(view.authClient, 'getAccessToken').mockImplementation(async () => currentToken)
+      await act(async () => {
+        view.authClient.emitAuthStateChange({ id: 'member-1', email: 'member@example.com' })
+        for (let i = 0; i < 12; i += 1) await Promise.resolve()
+      })
+      currentToken = latestRefreshToken
+      await act(async () => {
+        view.authClient.emitAuthStateChange({ id: 'member-1', email: 'member@example.com' })
+        for (let i = 0; i < 12; i += 1) await Promise.resolve()
+      })
+      if (methods.length > 2) {
+        const preSettlementButton = method === 'PUT' ? '儲存到 My Learning' : '移除儲存'
+        await waitFor(() => expect(screen.getByRole('button', { name: preSettlementButton })).toBeEnabled())
+      }
+
+      const methodsBeforeSettlement = [...methods]
+      const mutationWasAbortedBeforeSettlement = mutationSignals.at(-1)?.aborted
+
+      const mutationSucceeded = mutationOutcome === 'success'
+      if (mutationSucceeded) serverSaved = method === 'PUT'
+      await act(async () => {
+        resolveMutation(method === 'PUT'
+          ? mutationSucceeded
+            ? new Response(JSON.stringify(savedRow()), { status: 200 })
+            : new Response('{}', { status: 401 })
+          : mutationSucceeded
+            ? new Response(JSON.stringify({ itemId: item.id, kind: item.kind, revision: null, serverTimestamp: '2026-09-24T09:02:00.000Z' }), { status: 200 })
+            : new Response('{}', { status: 401 }))
+        await Promise.resolve()
+      })
+
+      const authoritativeButton = serverSaved ? '移除儲存' : '儲存到 My Learning'
+      await waitFor(() => expect(screen.getByRole('button', { name: authoritativeButton })).toBeEnabled())
+      expect(methodsBeforeSettlement).toEqual(['GET', method])
+      expect(mutationWasAbortedBeforeSettlement).toBe(false)
+      expect(methods).toEqual(['GET', method, 'GET'])
+      expect(authorizationHeaders.at(-1)).toBe(`Bearer ${latestRefreshToken}`)
+      expect(methods.filter((requestMethod) => requestMethod === method)).toHaveLength(1)
+    },
+  )
+
+  it.each([
+    ['lesson', 'PUT', sampleWorkplaceLearnItem],
+    ['lesson', 'DELETE', sampleWorkplaceLearnItem],
+    ['vocabulary', 'PUT', sampleWorkplaceVocabularyItem],
+    ['vocabulary', 'DELETE', sampleWorkplaceVocabularyItem],
+  ] as const)(
+    'keeps an uncertain %s %s unavailable through later same-user refreshes',
+    async (kind, method, item) => {
+      setLocalePreference('zh-TW')
+      vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+      const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+      const methods: string[] = []
+      const authorizationHeaders: string[] = []
+      let serverSaved = method === 'DELETE'
+      let rejectMutation!: (reason?: unknown) => void
+      const mutationSignals: AbortSignal[] = []
+      const pendingMutation = new Promise<Response>((_resolve, reject) => { rejectMutation = reject })
+      const savedRow = () => ({ itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true })
+      vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+        const requestMethod = init?.method ?? 'GET'
+        methods.push(requestMethod)
+        authorizationHeaders.push(new Headers(init?.headers).get('Authorization') ?? '')
+        if (requestMethod === 'GET') {
+          return Promise.resolve(new Response(JSON.stringify({ items: serverSaved ? [savedRow()] : [] }), { status: 200 }))
+        }
+        if (requestMethod === method) {
+          if (init?.signal) mutationSignals.push(init.signal as AbortSignal)
+          return pendingMutation
+        }
+        throw new Error(`Unexpected save request: ${requestMethod}`)
+      }))
+      const route = kind === 'lesson' ? `/learn/workplace/${entry.slug}` : `/learn/vocabulary/${entry.slug}`
+      const Page = kind === 'lesson' ? WorkplaceLessonPage : WorkplaceVocabularyPage
+      const view = renderWithAppProviders(
+        <Routes><Route path={kind === 'lesson' ? '/learn/workplace/:slug' : '/learn/vocabulary/:slug'} element={
+          <Page catalogEntries={[entry]} publicItems={[item]} />
+        } /></Routes>,
+        { initialEntries: [route], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      )
+
+      const actionButton = method === 'PUT' ? '儲存到 My Learning' : '移除儲存'
+      fireEvent.click(await screen.findByRole('button', { name: actionButton }))
+      await waitFor(() => expect(methods).toEqual(['GET', method]))
+      await act(async () => {
+        rejectMutation(new Error('connection lost after dispatch'))
+        await Promise.resolve()
+      })
+      expect(await screen.findByText('目前無法確認儲存狀態。')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '重試' })).toBeInTheDocument()
+
+      const firstRefreshToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'uncertainty-refresh-1' }))}.signature`
+      const latestRefreshToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'uncertainty-refresh-2' }))}.signature`
+      let currentToken = firstRefreshToken
+      vi.spyOn(view.authClient, 'getAccessToken').mockImplementation(async () => currentToken)
+      await act(async () => {
+        view.authClient.emitAuthStateChange({ id: 'member-1', email: 'member@example.com' })
+        for (let i = 0; i < 12; i += 1) await Promise.resolve()
+      })
+      currentToken = latestRefreshToken
+      await act(async () => {
+        view.authClient.emitAuthStateChange({ id: 'member-1', email: 'member@example.com' })
+        for (let i = 0; i < 12; i += 1) await Promise.resolve()
+      })
+
+      const equivalentEntry = { ...entry }
+      view.rerender(
+        <Routes><Route path={kind === 'lesson' ? '/learn/workplace/:slug' : '/learn/vocabulary/:slug'} element={
+          <Page catalogEntries={[equivalentEntry]} publicItems={[item]} />
+        } /></Routes>,
+      )
+      await act(async () => { for (let i = 0; i < 12; i += 1) await Promise.resolve() })
+
+      if (methods.length > 2) {
+        const precommitButton = method === 'PUT' ? '儲存到 My Learning' : '移除儲存'
+        await waitFor(() => expect(screen.getByRole('button', { name: precommitButton })).toBeEnabled())
+      }
+      const precommitMethods = [...methods]
+      serverSaved = method === 'PUT'
+      await act(async () => { for (let i = 0; i < 12; i += 1) await Promise.resolve() })
+
+      expect(screen.getByText('目前無法確認儲存狀態。')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '重試' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '儲存到 My Learning' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: '移除儲存' })).not.toBeInTheDocument()
+      expect(precommitMethods).toEqual(['GET', method])
+      expect(methods).toEqual(['GET', method])
+
+      fireEvent.click(screen.getByRole('button', { name: '重試' }))
+      const authoritativeButton = serverSaved ? '移除儲存' : '儲存到 My Learning'
+      expect(await screen.findByRole('button', { name: authoritativeButton })).toBeInTheDocument()
+      expect(methods).toEqual(['GET', method, 'GET'])
+      expect(authorizationHeaders.at(-1)).toBe(`Bearer ${latestRefreshToken}`)
+      expect(methods.filter((requestMethod) => requestMethod === method)).toHaveLength(1)
+      expect(mutationSignals.at(-1)?.aborted).toBe(false)
+    },
+  )
+
+  it('clears an uncertain save owner marker when a different active account takes over', async () => {
+    setLocalePreference('zh-TW')
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+    const item = sampleWorkplaceLearnItem
+    const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+    const methods: string[] = []
+    const authorizationHeaders: string[] = []
+    let oldOwnerCommitted = false
+    let rejectPut!: (reason?: unknown) => void
+    const pendingPut = new Promise<Response>((_resolve, reject) => { rejectPut = reject })
+    const nextOwnerToken = `header.${btoa(JSON.stringify({ sub: 'member-2', jti: 'new-active-owner' }))}.signature`
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET'
+      const authorization = new Headers(init?.headers).get('Authorization') ?? ''
+      methods.push(method)
+      authorizationHeaders.push(authorization)
+      if (method === 'GET') {
+        const items = authorization === `Bearer ${nextOwnerToken}` || !oldOwnerCommitted ? [] : [{
+          itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true,
+        }]
+        return Promise.resolve(new Response(JSON.stringify({ items }), { status: 200 }))
+      }
+      if (method === 'PUT') return pendingPut
+      throw new Error(`Unexpected save request: ${method}`)
+    }))
+    const view = renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: '儲存到 My Learning' }))
+    await waitFor(() => expect(methods).toEqual(['GET', 'PUT']))
+    await act(async () => {
+      rejectPut(new Error('connection lost after dispatch'))
+      await Promise.resolve()
+    })
+    expect(await screen.findByText('目前無法確認儲存狀態。')).toBeInTheDocument()
+
+    vi.spyOn(view.authClient, 'getAccessToken').mockResolvedValue(nextOwnerToken)
+    act(() => view.authClient.emitAuthStateChange({ id: 'member-2', email: 'other@example.com' }))
+    expect(await screen.findByRole('button', { name: '儲存到 My Learning' })).toBeInTheDocument()
+    expect(methods).toEqual(['GET', 'PUT', 'GET'])
+    expect(authorizationHeaders.at(-1)).toBe(`Bearer ${nextOwnerToken}`)
+
+    oldOwnerCommitted = true
+    expect(screen.getByRole('button', { name: '儲存到 My Learning' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '移除儲存' })).not.toBeInTheDocument()
+    expect(methods).toEqual(['GET', 'PUT', 'GET'])
+  })
+
+  it('keeps an aborted same-identity save retryable after an equivalent entry rerender', async () => {
+    setLocalePreference('zh-TW')
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+    const item = sampleWorkplaceLearnItem
+    const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+    const methods: string[] = []
+    let serverSaved = false
+    let resolvePut!: (response: Response) => void
+    const putSignals: AbortSignal[] = []
+    const pendingPut = new Promise<Response>((resolve) => { resolvePut = resolve })
+    const savedRow = { itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true }
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET'
+      methods.push(method)
+      if (method === 'GET') return Promise.resolve(new Response(JSON.stringify({ items: serverSaved ? [savedRow] : [] }), { status: 200 }))
+      if (method === 'PUT') {
+        if (init?.signal) putSignals.push(init.signal as AbortSignal)
+        return pendingPut
+      }
+      throw new Error(`Unexpected save request: ${method}`)
+    }))
+    const view = renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: '儲存到 My Learning' }))
+    await waitFor(() => expect(methods).toEqual(['GET', 'PUT']))
+    expect(putSignals.at(-1)?.aborted).toBe(false)
+
+    const equivalentEntry = { ...entry }
+    view.rerender(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[equivalentEntry]} publicItems={[item]} />} /></Routes>,
+    )
+    await waitFor(() => expect(putSignals.at(-1)?.aborted).toBe(true))
+    serverSaved = true
+    await act(async () => {
+      resolvePut(new Response(JSON.stringify(savedRow), { status: 200 }))
+      for (let i = 0; i < 12; i += 1) await Promise.resolve()
+    })
+
+    expect(await screen.findByText('目前無法確認儲存狀態。')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重試' })).toBeInTheDocument()
+    expect(methods).toEqual(['GET', 'PUT'])
+
+    fireEvent.click(screen.getByRole('button', { name: '重試' }))
+    expect(await screen.findByRole('button', { name: '移除儲存' })).toBeInTheDocument()
+    expect(methods).toEqual(['GET', 'PUT', 'GET'])
+    expect(methods.filter((method) => method === 'PUT')).toHaveLength(1)
+  })
+
+  it('clears an uncertain save marker when the workplace entry changes', async () => {
+    setLocalePreference('zh-TW')
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+    const originalItem = sampleWorkplaceLearnItem
+    const originalEntry = workplaceLearnCatalog.find((candidate) => candidate.id === originalItem.id)!
+    const nextItem: WorkplaceLearnRuntimeItem = {
+      ...sampleWorkplaceLearnItem,
+      id: 'workplace-learn-sample-status-update-next',
+      title: '次の職場サンプル',
+    }
+    const nextEntry = toWorkplaceLearnCatalogEntry(nextItem)
+    const methods: string[] = []
+    const requestUrls: string[] = []
+    let oldEntryCommitted = false
+    let rejectPut!: (reason?: unknown) => void
+    const pendingPut = new Promise<Response>((_resolve, reject) => { rejectPut = reject })
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET'
+      const url = String(input)
+      methods.push(method)
+      requestUrls.push(url)
+      if (method === 'GET') {
+        const itemId = new URL(url).searchParams.get('itemId')
+        const items = itemId === originalItem.id && oldEntryCommitted ? [{
+          itemId: originalItem.id, kind: originalItem.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true,
+        }] : []
+        return Promise.resolve(new Response(JSON.stringify({ items }), { status: 200 }))
+      }
+      if (method === 'PUT') return pendingPut
+      throw new Error(`Unexpected save request: ${method}`)
+    }))
+    const view = renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[originalEntry]} publicItems={[originalItem]} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${originalEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: '儲存到 My Learning' }))
+    await waitFor(() => expect(methods).toEqual(['GET', 'PUT']))
+    await act(async () => {
+      rejectPut(new Error('connection lost after dispatch'))
+      await Promise.resolve()
+    })
+    expect(await screen.findByText('目前無法確認儲存狀態。')).toBeInTheDocument()
+
+    view.rerender(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[nextEntry]} publicItems={[nextItem]} />} /></Routes>,
+    )
+    expect(await screen.findByRole('button', { name: '儲存到 My Learning' })).toBeInTheDocument()
+    expect(methods).toEqual(['GET', 'PUT', 'GET'])
+    expect(requestUrls.at(-1)).toContain(`itemId=${nextItem.id}`)
+
+    oldEntryCommitted = true
+    expect(screen.getByRole('button', { name: '儲存到 My Learning' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '移除儲存' })).not.toBeInTheDocument()
+    expect(methods).toEqual(['GET', 'PUT', 'GET'])
+  })
+
+  it('retains uncertainty until an explicit retry GET succeeds despite refresh during and after retry', async () => {
+    setLocalePreference('zh-TW')
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+    const item = sampleWorkplaceLearnItem
+    const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+    const methods: string[] = []
+    const authorizationHeaders: string[] = []
+    let serverSaved = false
+    let rejectPut!: (reason?: unknown) => void
+    let resolveFirstRetry!: (response: Response) => void
+    const firstRetrySignals: AbortSignal[] = []
+    const pendingPut = new Promise<Response>((_resolve, reject) => { rejectPut = reject })
+    const pendingFirstRetry = new Promise<Response>((resolve) => { resolveFirstRetry = resolve })
+    const savedRow = () => ({ itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true })
+    let getCount = 0
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET'
+      methods.push(method)
+      authorizationHeaders.push(new Headers(init?.headers).get('Authorization') ?? '')
+      if (method === 'PUT') return pendingPut
+      if (method === 'GET') {
+        getCount += 1
+        if (getCount === 1) return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }))
+        if (getCount === 2) {
+          if (init?.signal) firstRetrySignals.push(init.signal as AbortSignal)
+          return pendingFirstRetry
+        }
+        if (getCount === 3) return Promise.resolve(new Response(JSON.stringify({ items: serverSaved ? [savedRow()] : [] }), { status: 200 }))
+      }
+      throw new Error(`Unexpected save request: ${method}`)
+    }))
+    const view = renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+    )
+
+    const saveButton = await screen.findByRole('button', { name: '儲存到 My Learning' })
+    const beforeRetryToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'before-manual-retry' }))}.signature`
+    let currentToken = beforeRetryToken
+    vi.spyOn(view.authClient, 'getAccessToken').mockImplementation(async () => currentToken)
+    fireEvent.click(saveButton)
+    await waitFor(() => expect(methods).toEqual(['GET', 'PUT']))
+    await act(async () => {
+      rejectPut(new Error('connection lost after dispatch'))
+      await Promise.resolve()
+    })
+    expect(await screen.findByText('目前無法確認儲存狀態。')).toBeInTheDocument()
+
+    serverSaved = true
+    fireEvent.click(screen.getByRole('button', { name: '重試' }))
+    await waitFor(() => expect(methods).toEqual(['GET', 'PUT', 'GET']))
+    const latestToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'after-manual-retry-refresh' }))}.signature`
+    currentToken = latestToken
+    await act(async () => {
+      view.authClient.emitAuthStateChange({ id: 'member-1', email: 'member@example.com' })
+      for (let i = 0; i < 12; i += 1) await Promise.resolve()
+    })
+
+    if (methods.length > 3) {
+      await waitFor(() => expect(screen.getByRole('button', { name: '移除儲存' })).toBeEnabled())
+    }
+    const methodsWhileRetryHeld = [...methods]
+    const retryWasAbortedByRefresh = firstRetrySignals.at(-1)?.aborted
+    await act(async () => {
+      resolveFirstRetry(new Response('{}', { status: 401 }))
+      for (let i = 0; i < 12; i += 1) await Promise.resolve()
+    })
+
+    expect(await screen.findByText('目前無法確認儲存狀態。')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '重試' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '移除儲存' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '儲存到 My Learning' })).not.toBeInTheDocument()
+    expect(methodsWhileRetryHeld).toEqual(['GET', 'PUT', 'GET'])
+    expect(retryWasAbortedByRefresh).toBe(false)
+
+    await act(async () => {
+      view.authClient.emitAuthStateChange({ id: 'member-1', email: 'member@example.com' })
+      for (let i = 0; i < 12; i += 1) await Promise.resolve()
+    })
+    expect(methods).toEqual(['GET', 'PUT', 'GET'])
+    expect(screen.getByRole('button', { name: '重試' })).toBeInTheDocument()
+
+    const equivalentEntry = { ...entry }
+    view.rerender(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[equivalentEntry]} publicItems={[item]} />} /></Routes>,
+    )
+    await act(async () => { for (let i = 0; i < 12; i += 1) await Promise.resolve() })
+    expect(methods).toEqual(['GET', 'PUT', 'GET'])
+    expect(screen.getByRole('button', { name: '重試' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '重試' }))
+    expect(await screen.findByRole('button', { name: '移除儲存' })).toBeInTheDocument()
+    expect(methods).toEqual(['GET', 'PUT', 'GET', 'GET'])
+    expect(authorizationHeaders.at(-1)).toBe(`Bearer ${latestToken}`)
+    expect(methods.filter((method) => method === 'PUT')).toHaveLength(1)
+  })
+
+  it('keeps the pending mutation when same-user refresh arrives during token acquisition', async () => {
+    setLocalePreference('zh-TW')
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+    const item = sampleWorkplaceLearnItem
+    const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+    const methods: string[] = []
+    const authorizationHeaders: string[] = []
+    let serverSaved = false
+    let resolveToken!: (token: string | null) => void
+    let resolvePut!: (response: Response) => void
+    const mutationSignals: AbortSignal[] = []
+    const pendingToken = new Promise<string | null>((resolve) => { resolveToken = resolve })
+    const pendingPut = new Promise<Response>((resolve) => { resolvePut = resolve })
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET'
+      methods.push(method)
+      authorizationHeaders.push(new Headers(init?.headers).get('Authorization') ?? '')
+      if (method === 'GET') {
+        const items = serverSaved ? [{ itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true }] : []
+        return Promise.resolve(new Response(JSON.stringify({ items }), { status: 200 }))
+      }
+      if (method === 'PUT') {
+        if (init?.signal) mutationSignals.push(init.signal as AbortSignal)
+        return pendingPut
+      }
+      throw new Error(`Unexpected save request: ${method}`)
+    }))
+    const view = renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+    )
+
+    const saveButton = await screen.findByRole('button', { name: '儲存到 My Learning' })
+    const getAccessToken = vi.spyOn(view.authClient, 'getAccessToken').mockReturnValue(pendingToken)
+    getAccessToken.mockClear()
+    fireEvent.click(saveButton)
+    await waitFor(() => expect(getAccessToken).toHaveBeenCalledTimes(1))
+    expect(methods).toEqual(['GET'])
+
+    const refreshedToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'token-acquired-after-refresh' }))}.signature`
+    act(() => view.authClient.emitAuthStateChange({ id: 'member-1', email: 'member@example.com' }))
+    expect(methods).toEqual(['GET'])
+    await act(async () => {
+      resolveToken(refreshedToken)
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(methods).toEqual(['GET', 'PUT']))
+    expect(authorizationHeaders.at(-1)).toBe(`Bearer ${refreshedToken}`)
+    expect(mutationSignals.at(-1)?.aborted).toBe(false)
+    serverSaved = true
+    await act(async () => {
+      resolvePut(new Response(JSON.stringify({ itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true }), { status: 200 }))
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(methods).toEqual(['GET', 'PUT', 'GET']))
+    expect(await screen.findByRole('button', { name: '移除儲存' })).toBeEnabled()
+    expect(methods.filter((method) => method === 'PUT')).toHaveLength(1)
+  })
+
+  it('aborts a pending save on account change and discards its late success', async () => {
+    setLocalePreference('zh-TW')
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+    const item = sampleWorkplaceLearnItem
+    const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+    const methods: string[] = []
+    const authorizationHeaders: string[] = []
+    let resolvePut!: (response: Response) => void
+    const putSignals: AbortSignal[] = []
+    const pendingPut = new Promise<Response>((resolve) => { resolvePut = resolve })
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET'
+      methods.push(method)
+      authorizationHeaders.push(new Headers(init?.headers).get('Authorization') ?? '')
+      if (method === 'GET') return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }))
+      if (method === 'PUT') {
+        if (init?.signal) putSignals.push(init.signal as AbortSignal)
+        return pendingPut
+      }
+      throw new Error(`Unexpected save request: ${method}`)
+    }))
+    const view = renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: '儲存到 My Learning' }))
+    await waitFor(() => expect(methods).toEqual(['GET', 'PUT']))
+    const refreshedToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'refresh-before-account-switch' }))}.signature`
+    const nextOwnerToken = `header.${btoa(JSON.stringify({ sub: 'member-2', jti: 'new-owner' }))}.signature`
+    let currentToken = refreshedToken
+    vi.spyOn(view.authClient, 'getAccessToken').mockImplementation(async () => currentToken)
+    act(() => view.authClient.emitAuthStateChange({ id: 'member-1', email: 'member@example.com' }))
+    expect(methods).toEqual(['GET', 'PUT'])
+    expect(putSignals.at(-1)?.aborted).toBe(false)
+
+    currentToken = nextOwnerToken
+    act(() => view.authClient.emitAuthStateChange({ id: 'member-2', email: 'other@example.com' }))
+    expect(await screen.findByRole('button', { name: '儲存到 My Learning' })).toBeInTheDocument()
+    expect(putSignals.at(-1)?.aborted).toBe(true)
+    expect(methods).toEqual(['GET', 'PUT', 'GET'])
+    expect(authorizationHeaders.at(-1)).toBe(`Bearer ${nextOwnerToken}`)
+
+    await act(async () => {
+      resolvePut(new Response(JSON.stringify({ itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true }), { status: 200 }))
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('button', { name: '儲存到 My Learning' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '移除儲存' })).not.toBeInTheDocument()
+    expect(methods).toEqual(['GET', 'PUT', 'GET'])
+  })
+
+  it('aborts a pending save when the released workplace entry revision changes', async () => {
+    setLocalePreference('zh-TW')
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+    const privateItem: WorkplaceLearnRuntimeItem = {
+      ...sampleWorkplaceLearnItem,
+      id: 'private-workplace-revision-switch-test',
+      slug: 'private-workplace-revision-switch-test',
+      title: 'Revision switch lesson',
+      access: 'plus',
+      sampleLabel: undefined,
+      relatedVocabularyIds: [],
+    }
+    const firstRevision = 'a'.repeat(64)
+    const nextRevision = 'b'.repeat(64)
+    const firstEntry = toWorkplaceLearnCatalogEntry(privateItem, { contentId: privateItem.id, revision: firstRevision })
+    const nextEntry = toWorkplaceLearnCatalogEntry(privateItem, { contentId: privateItem.id, revision: nextRevision })
+    const methods: string[] = []
+    let resolvePut!: (response: Response) => void
+    const putSignals: AbortSignal[] = []
+    const pendingPut = new Promise<Response>((resolve) => { resolvePut = resolve })
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET'
+      methods.push(method)
+      if (method === 'GET') return Promise.resolve(new Response(JSON.stringify({ items: [] }), { status: 200 }))
+      if (method === 'PUT') {
+        if (init?.signal) putSignals.push(init.signal as AbortSignal)
+        return pendingPut
+      }
+      throw new Error(`Unexpected save request: ${method}`)
+    }))
+    const loadPayload = vi.fn().mockResolvedValue({ kind: 'ok', item: privateItem })
+    const view = renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[firstEntry]} publicItems={[]} loadPayload={loadPayload} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${firstEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: '儲存到 My Learning' }))
+    await waitFor(() => expect(methods).toEqual(['GET', 'PUT']))
+    view.rerender(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[nextEntry]} publicItems={[]} loadPayload={loadPayload} />} /></Routes>,
+    )
+
+    expect(await screen.findByRole('button', { name: '儲存到 My Learning' })).toBeInTheDocument()
+    expect(putSignals.at(-1)?.aborted).toBe(true)
+    expect(methods).toEqual(['GET', 'PUT', 'GET'])
+
+    await act(async () => {
+      resolvePut(new Response(JSON.stringify({ itemId: privateItem.id, kind: privateItem.kind, revision: firstRevision, savedAt: '2026-09-24T09:01:00.000Z', current: true }), { status: 200 }))
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('button', { name: '儲存到 My Learning' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '移除儲存' })).not.toBeInTheDocument()
+    expect(methods).toEqual(['GET', 'PUT', 'GET'])
+  })
+
+  it('ignores a deferred same-user recovery GET after account and membership change', async () => {
+    setLocalePreference('zh-TW')
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://functions.example.test')
+    const item = sampleWorkplaceLearnItem
+    const entry = workplaceLearnCatalog.find((candidate) => candidate.id === item.id)!
+    const methods: string[] = []
+    let getCount = 0
+    let resolveRecovery!: (response: Response) => void
+    const recoverySignals: AbortSignal[] = []
+    const pendingRecovery = new Promise<Response>((resolve) => { resolveRecovery = resolve })
+    vi.stubGlobal('fetch', vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      const method = init?.method ?? 'GET'
+      methods.push(method)
+      if (method !== 'GET') throw new Error(`Unexpected save request: ${method}`)
+      getCount += 1
+      if (getCount === 1) return Promise.resolve(new Response('{}', { status: 401 }))
+      if (init?.signal) recoverySignals.push(init.signal as AbortSignal)
+      return pendingRecovery
+    }))
+    const membershipRepository = {
+      getAccess: vi.fn(async (userId: string) => userId === 'member-1' ? 'active' as const : 'non-member' as const),
+    }
+    const view = renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
+      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: membershipRepository },
+    )
+
+    await waitFor(() => {
+      expect(methods).toEqual(['GET'])
+      expect(screen.getByRole('region', { name: '儲存到 My Learning' })).toHaveTextContent('登入後可儲存教材；此功能提供 Plus 會員使用。')
+    })
+    const sameUserToken = `header.${btoa(JSON.stringify({ sub: 'member-1', jti: 'recovery-pending' }))}.signature`
+    const nextUserToken = `header.${btoa(JSON.stringify({ sub: 'member-2', jti: 'new-owner' }))}.signature`
+    vi.spyOn(view.authClient, 'getAccessToken').mockResolvedValueOnce(sameUserToken).mockResolvedValue(nextUserToken)
+    act(() => view.authClient.emitAuthStateChange({ id: 'member-1', email: 'member@example.com' }))
+    await waitFor(() => expect(methods).toEqual(['GET', 'GET']))
+
+    act(() => view.authClient.emitAuthStateChange({ id: 'member-2', email: 'other@example.com' }))
+    expect(await screen.findByText('儲存 Workplace Learn 教材需要 Plus 會員。')).toBeInTheDocument()
+    expect(recoverySignals.at(-1)?.aborted).toBe(true)
+    expect(screen.queryByRole('button', { name: '移除儲存' })).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveRecovery(new Response(JSON.stringify({ items: [{
+        itemId: item.id, kind: item.kind, revision: null, savedAt: '2026-09-24T09:01:00.000Z', current: true,
+      }] }), { status: 200 }))
+      await Promise.resolve()
+    })
+    expect(screen.getByText('儲存 Workplace Learn 教材需要 Plus 會員。')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '移除儲存' })).not.toBeInTheDocument()
+    expect(methods).toEqual(['GET', 'GET'])
+  })
+})
+
+describe('Injected member Workplace Learn body admission', () => {
+  it('rejects a legacy Japanese body returned as ok by an injected member loader', async () => {
+    setLocalePreference('ja')
+    const cataloguedItem: WorkplaceLearnRuntimeItem = {
+      ...sampleWorkplaceLearnItem,
+      id: 'private-workplace-invalid-loader-test',
+      slug: 'private-workplace-invalid-loader-test',
+      title: 'Member metadata title',
+      access: 'plus',
+      sampleLabel: undefined,
+      relatedVocabularyIds: [],
+    }
+    const entry = toWorkplaceLearnCatalogEntry(cataloguedItem, {
+      contentId: cataloguedItem.id,
+      revision: 'f'.repeat(64),
+    })
+    const invalidItem: Record<string, unknown> = {
+      ...cataloguedItem,
+      schemaVersion: 1,
+      whatToSayJapanese: '会員本文の表示禁止カナリアです。',
+    }
+    delete invalidItem.meaningInContextJa
+    invalidItem.supportOverlays = { byLocale: { 'zh-TW': {
+      meaningInContext: '補充說明。', whyItWorks: '補充說明。', caution: '補充說明。',
+      examples: [{ explanation: '例句補充。' }],
+    } } }
+    const loadPayload = vi.fn().mockResolvedValue({ kind: 'ok', item: invalidItem as unknown as WorkplaceLearnRuntimeItem })
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[]} loadPayload={loadPayload} />} /></Routes>,
+      {
+        initialEntries: [`/learn/workplace/${entry.slug}`],
+        session: { id: 'member-1', email: 'member@example.com' },
+        membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      },
+    )
+
+    expect(await screen.findByText(getStrings('ja').workplaceLearn.unavailable)).toBeInTheDocument()
+    expect(screen.queryByText('会員本文の表示禁止カナリアです。')).not.toBeInTheDocument()
+    expect(loadPayload).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('Workplace fictional sample editorial regressions', () => {
+  it('renders the approved lesson forecast wording in Japanese', () => {
+    setLocalePreference('ja')
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={workplaceLearnCatalog} publicItems={[sampleWorkplaceLearnItem]} />} /></Routes>,
+      { initialEntries: ['/learn/workplace/sample-status-update-with-next-step'] },
+    )
+
+    expect(screen.getByText('確認作業に想定より時間がかかっており、資料を本日中に共有できない可能性があります。影響範囲を確認し、15時までに改めて状況をご報告します。')).toHaveAttribute('lang', 'ja')
+  })
+
+  it('renders the answer-sharing condition separately from the fixed status-update time', () => {
+    setLocalePreference('ja')
+    renderWithAppProviders(
+      <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={workplaceLearnCatalog} publicItems={[sampleWorkplaceLearnItem]} />} /></Routes>,
+      { initialEntries: ['/learn/workplace/sample-status-update-with-next-step'] },
+    )
+
+    expect(screen.getByText('先方への確認がまだ終わっていません。回答を受け取り次第、共有します。回答がまだ届いていなくても、今日の16時までに確認状況を共有します。')).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText('確認が終わっていない事実を伝え、回答の共有と、回答の有無にかかわらず行う状況報告を分けています。')).toHaveAttribute('lang', 'ja')
+  })
+
+  it('renders the vocabulary forecast with a separate progress-report commitment', () => {
+    setLocalePreference('ja')
+    renderWithAppProviders(
+      <Routes><Route path="/learn/vocabulary/:slug" element={<WorkplaceVocabularyPage catalogEntries={workplaceLearnCatalog} publicItems={[sampleWorkplaceVocabularyItem]} />} /></Routes>,
+      { initialEntries: ['/learn/vocabulary/sample-mikomi-estimate'] },
+    )
+
+    expect(screen.getByText('資料の確認に時間がかかっており、共有は明日になる見込みです。本日15時までに、確認の進み具合を改めてご報告します。')).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText('現時点では明日の共有を予測していますが、確定した予定とは区別しています。また、確認の進み具合を本日15時までに報告すると伝えています。')).toHaveAttribute('lang', 'ja')
   })
 })

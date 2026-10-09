@@ -29,7 +29,7 @@ function hasValidPlusReference(entry: WorkplaceLearnCatalogEntry): boolean {
   if (!record(entry)) return false
   if (typeof entry.id !== 'string' || typeof entry.slug !== 'string' || typeof entry.access !== 'string') return false
   if (!exactKeys(entry, ['schemaVersion', 'kind', 'id', 'slug', 'title', 'titleLanguage', 'lead', 'leadLanguage', 'category', 'tags', 'access', ...(entry.sampleLabel === undefined ? [] : ['sampleLabel']), 'releaseReference'])) return false
-  if (entry.schemaVersion !== 1 || (entry.kind !== 'lesson' && entry.kind !== 'vocabulary')) return false
+  if (entry.schemaVersion !== 2 || (entry.kind !== 'lesson' && entry.kind !== 'vocabulary')) return false
   if (!(WORKPLACE_LEARN_CATEGORIES as readonly unknown[]).includes(entry.category)) return false
   if (typeof entry.title !== 'string' || entry.title.trim().length === 0 || entry.title.length > 180) return false
   if (!['ja', 'zh-TW', 'zh-CN', 'en'].includes(entry.titleLanguage)) return false

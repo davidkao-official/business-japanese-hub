@@ -42,6 +42,22 @@ describe('Workplace Learn Plus content client', () => {
     await expect(fetchWorkplaceLearnPayload(vocabularyEntry, async () => tokenFor(userId), userId)).resolves.toEqual({ kind: 'ok', item: vocabulary })
   })
 
+  it('fails closed for legacy versions and Japanese-core omissions even with a complete overlay', async () => {
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
+    const missingJapanese: Record<string, unknown> = { ...runtimeItem }
+    delete missingJapanese.meaningInContextJa
+    delete missingJapanese.whyItWorksJa
+    delete missingJapanese.cautionJa
+    missingJapanese.supportOverlays = { byLocale: { 'zh-TW': {
+      meaningInContext: '完整補充。', whyItWorks: '完整補充。', caution: '完整補充。',
+      examples: [{ explanation: '完整補充。' }],
+    } } }
+    for (const item of [{ ...runtimeItem, schemaVersion: 1 }, missingJapanese]) {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(200, body(item))))
+      await expect(fetchWorkplaceLearnPayload(entry, async () => tokenFor(userId), userId)).resolves.toEqual({ kind: 'unavailable' })
+    }
+  })
+
   it('does not fetch for missing or mismatched identity tokens and rejects malformed references', async () => {
     vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
     const fetchMock = vi.fn()

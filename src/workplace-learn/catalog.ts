@@ -75,7 +75,7 @@ function validatePlusCatalogEntry(raw: unknown): WorkplaceLearnCatalogEntry {
   if (!isRecord(raw)) throw new Error('Plus Workplace Learn catalog entry must be an object')
   const allowed = ['schemaVersion', 'kind', 'id', 'slug', 'title', 'titleLanguage', 'lead', 'leadLanguage', 'category', 'tags', 'access', 'releaseReference']
   if (!hasExactKeys(raw, allowed)) throw new Error('Plus Workplace Learn catalog entry has missing or unknown fields')
-  if (raw.schemaVersion !== 1 || (raw.kind !== 'lesson' && raw.kind !== 'vocabulary')) throw new Error('Invalid Plus Workplace Learn catalog kind or version')
+  if (raw.schemaVersion !== 2 || (raw.kind !== 'lesson' && raw.kind !== 'vocabulary')) throw new Error('Invalid Plus Workplace Learn catalog kind or version')
   if (typeof raw.id !== 'string' || !CONTENT_ID.test(raw.id)) throw new Error('Invalid Plus Workplace Learn catalog id')
   if (typeof raw.slug !== 'string' || raw.slug.length > 80 || !SLUG.test(raw.slug)) throw new Error('Invalid Plus Workplace Learn catalog slug')
   if (typeof raw.title !== 'string' || raw.title.trim().length < 1 || raw.title.length > 180) throw new Error('Invalid Plus Workplace Learn catalog title')
@@ -92,7 +92,7 @@ function validatePlusCatalogEntry(raw: unknown): WorkplaceLearnCatalogEntry {
     throw new Error('Invalid Plus Workplace Learn release reference')
   }
   return freezeEntry({
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: raw.kind,
     id: raw.id,
     slug: raw.slug,
