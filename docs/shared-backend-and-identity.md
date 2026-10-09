@@ -37,6 +37,13 @@ Issue #57 新增的 bounded progress/evidence contract 與 role matrix 見
 覆蓋 anonymous／owner／unrelated user／service role；finance role 對這些資料仍是 ordinary
 owner-scoped user。
 
+Library `reading_state` saves carry the initiating Reader callback's captured
+user ID as the row target, so a save started for A remains targeted at A if the
+shared SDK session later changes to B. This client value is only a target:
+existing `auth.uid() = user_id` RLS remains authoritative and rejects a target
+that differs from the verified JWT. Bookmarks keep their existing defaulted
+owner path.
+
 ## 3. Browser configuration and secret boundary
 
 Both Vite builds load the same repository-root public values:
@@ -117,7 +124,10 @@ as an explicit reviewed change; wildcard preview origins are not allowed.
 Before extending this boundary:
 
 1. identify the concrete consumer and keep its domain data product-owned;
-2. use `auth.uid()` rather than a client-supplied user ID;
+2. use verified `auth.uid()` as the authorization source. The narrow
+   `reading_state` upsert may include the Reader callback's captured initiating
+   user ID only as its row target; existing RLS must reject a mismatch. This
+   does not extend to bookmarks or other user-scoped writes;
 3. add deny-by-default privileges/RLS and role-matrix tests with the migration;
 4. keep all service-role/provider secrets and authoritative writes server-only;
 5. prove anonymous Library and Career Game paths still work;

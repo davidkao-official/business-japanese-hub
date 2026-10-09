@@ -410,7 +410,9 @@ describe('navigation', () => {
         expect(element).not.toBeNull()
         return element!
       })
-      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' }))
+      await waitFor(() =>
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'instant', block: 'start' }),
+      )
       expect(target).toHaveFocus()
     } finally {
       if (scrollDescriptor) {

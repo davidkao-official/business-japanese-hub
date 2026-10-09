@@ -94,7 +94,7 @@ export function useSaveReadingState(): (state: SaveReadingStateInput) => void {
   return useCallback(
     (state) => {
       if (!user || !repository) return;
-      void repository.saveReadingState(state).catch(() => {
+      void repository.saveReadingState(state, user.id).catch(() => {
         // Best-effort: a failed position save must never interrupt reading.
       });
     },

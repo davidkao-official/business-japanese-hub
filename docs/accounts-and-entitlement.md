@@ -34,7 +34,7 @@ PK `(user_id, book_id)`。
 
 | 欄位 | 型別 | 說明 |
 | --- | --- | --- |
-| `user_id` | `uuid default auth.uid()` FK `auth.users` | RLS 確保等於 `auth.uid()`；default 讓 client 不需帶入。 |
+| `user_id` | `uuid default auth.uid()` FK `auth.users` | RLS 確保等於 `auth.uid()`；default 讓一般寫入可省略。Reader 的 `reading_state` upsert 會帶入 callback 開始時擷取的 initiating user ID 作為固定 row target；RLS 仍要求它等於已驗證 JWT 的 `auth.uid()`，不相符即拒絕。 |
 | `book_id` | `text` | content-model `Book.id`。 |
 | `chapter_id` | `text` | 穩定 `Chapter.id` — resume 錨點。 |
 | `block_id` | `text` 可空 | 穩定 `BlockBase.id`；`null` = chapter 起點。 |
@@ -98,17 +98,17 @@ grant_entitlement(user_id uuid, book_id text, provider text, provider_ref text d
 interface UserStateRepository {
   getEntitlement(bookId: string): Promise<Entitlement | null>
   getReadingState(bookId: string): Promise<ReadingState | null>
-  saveReadingState(state: SaveReadingStateInput): Promise<void>
+  saveReadingState(state: SaveReadingStateInput, initiatingUserId: string): Promise<void>
   listBookmarks(bookId: string): Promise<Bookmark[]>
   saveBookmark(input: SaveBookmarkInput): Promise<Bookmark>
 }
 ```
 
-消費者只依賴 interface，不依賴具體 adapter；payment provider 可替換而不影響 reading/ownership code path。所有方法都以「目前登入 user」為範圍，讀寫所有權由 store 的 RLS 保證，而非 client 自行保證。
+消費者只依賴 interface，不依賴具體 adapter；payment provider 可替換而不影響 reading/ownership code path。所有方法都以登入 user 為範圍，讀寫授權由 store 的 RLS 保證。`saveReadingState` 的 `initiatingUserId` 只固定該次 callback 的 upsert target；它不授予身份或權限，RLS 仍以 `auth.uid()` 拒絕其他 user 的 target。
 
 ### 5.2 Supabase adapter（`src/lib/persistence/supabase.ts`）
 
-`SupabaseUserStateRepository implements UserStateRepository`。SupabaseClient 以 constructor 注入（測試用 mocked client，不觸網）。寫入 `reading_state`／`bookmark` 時**刻意不帶 `user_id`**：表 default 為 `auth.uid()`，RLS `with check` 會拒絕任何其他值。
+`SupabaseUserStateRepository implements UserStateRepository`。SupabaseClient 以 constructor 注入（測試用 mocked client，不觸網）。`reading_state` upsert 會帶 `initiatingUserId` 作為明確的 `user_id` target，避免 session 在 Reader callback 建立後改變時，把舊 callback 的位置寫到新 user；RLS `with check (auth.uid() = user_id)` 仍拒絕與已驗證 session 不符的 target。`bookmark` 寫入繼續省略 `user_id`，使用表的 `auth.uid()` default 與既有 RLS。
 
 ### 5.3 Entitlement gate primitive（`src/lib/entitlement.ts`）
 

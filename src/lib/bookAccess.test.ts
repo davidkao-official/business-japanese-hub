@@ -67,11 +67,11 @@ describe('bookCtaState — the §8.3 CTA matrix', () => {
 
 describe('resumeHref', () => {
   it('maps a persisted chapter id to its reader route', () => {
-    expect(resumeHref(paid, 'ch-2')).toBe('/books/keigo-essentials/read/keigo-in-meetings')
+    expect(resumeHref(paid, 'ch-2')).toBe('/books/keigo-essentials/read/keigo-in-meetings?resume=1')
   })
 
   it('falls back to the reader entry for unknown / missing ids (deny-by-default)', () => {
-    expect(resumeHref(paid, 'missing')).toBe('/books/keigo-essentials/read')
+    expect(resumeHref(paid, 'missing')).toBe('/books/keigo-essentials/read?resume=1')
     expect(resumeHref(paid, undefined)).toBe('/books/keigo-essentials/read')
   })
 })
