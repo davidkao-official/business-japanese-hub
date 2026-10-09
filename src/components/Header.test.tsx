@@ -205,6 +205,13 @@ describe('Header mobile navigation', () => {
     expect(main.inert).toBe(false)
     expect(document.body.style.overflow).toBe('')
 
+    fireEvent.click(screen.getByRole('button', { name: 'Browser Forward' }))
+    expect(await screen.findByRole('heading', { name: 'Learn route' })).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'メニュー' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Browser Back' }))
+    expect(await screen.findByRole('heading', { name: 'Home route' })).toBeInTheDocument()
+
     fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
     fireEvent.click(screen.getByRole('button', { name: 'Browser Forward' }))
 
