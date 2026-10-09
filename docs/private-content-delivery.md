@@ -56,7 +56,7 @@ Frontend artifact isolation 的 authority 是 clean hosted checkout：GitHub exa
 
 ## #125 Business Reading source and publication path
 
-`/read` 現在有一個明確標示為原創、架空、non-proprietary 的 Free 教學範例。它只證明 data-driven Read renderer 與下一步 Learn route；公開 catalog 目前沒有已發布的 Plus Reading 文章，也不能據此宣稱有 production editorial cadence。`src/reading/catalog.ts` 只放可公開的 body-free discovery metadata。正式文章的日文材料、繁體中文教學分析、研究與權利審查紀錄、review notes 和 private release history 均留在上述 private canonical source。
+`/read` 現在有一個明確標示為原創、架空、non-proprietary 的 Free 教學範例。它只證明 data-driven Read renderer 與下一步 Learn route；公開 catalog 目前沒有已發布的 Plus Reading 文章，也不能據此宣稱有 production editorial cadence。`src/reading/catalog.ts` 只放可公開的 body-free discovery metadata。正式文章的日文原文、日文解説與商業脈絡分析、研究與權利審查紀錄、review notes 和 private release history 均留在上述 private canonical source。V2 可選 support overlays 也是 private authoring content，且在 V1 保持 dormant；schema 與欄位要求以 [`reading-japanese-explanation-contract.md`](reading-japanese-explanation-contract.md) 為準。
 
 Reading 的 bounded authoring artifact 是 private checkout 內的 `reading-item.json`；public-content guard 會拒絕公開 checkout 中任何同名檔或具完整 Reading authoring 欄位的改名 JSON。它包含 draft/released 狀態、reviewer、release notes、rights basis 與 attestation。`released` 且 rights cleared 的 Plus item 才能用下列命令準備或匯入；`--source` 必須是 public checkout 之外的絕對路徑，symlink 的實際路徑也會檢查。命令不屬於 public CI 或 frontend build：
 
@@ -67,7 +67,7 @@ pnpm workflow:import-private-reading --source=/absolute/private/reading-item --c
 
 Import 另需 server-only `SUPABASE_URL` 與 `SUPABASE_SERVICE_ROLE_KEY`。Validator 將 private authoring fields 去除，只投影 text-only Reading runtime payload，計算 immutable revision 並寫入既有 `private_content_release` 的 `access_scope=member`。目前不接受 private image/cover/asset 欄位；需要資產時先建立有授權的 server delivery path。公開 catalog 的 Plus metadata 要與該 release 的 content ID、revision、title、source、日期等欄位一致；browser 只在 verified active membership 後呼叫 `content-delivery`，並重新驗證 kind、identity、revision 和 runtime 欄位。若 reference 尚未進公開 catalog，匯入本身不會使文章在 `/read` 顯示。
 
-Runtime text 保留 authoring 內的空行作為段落界線、單行換行作為行內斷行；不用 HTML/Markdown 注入文章結構。這使長篇日文材料與繁體中文分析可以維持可讀性，同時維持純文字輸出。
+Runtime text 保留 authoring 內的空行作為段落界線、單行換行作為行內斷行；不用 HTML/Markdown 注入文章結構。這讓日文原文與日文解説維持可讀性，同時維持純文字輸出；可選 support overlays 不取代日文 core，且不在 V1 renderer 顯示。
 
 Free production article 不能用 `access: free` 旗標繞過 member-only delivery；除已明確可公開的 non-proprietary fixture 外，Free publication 需要另外核准的 public delivery contract。#171 只為 active Plus member 增加 Reading item 的 server-owned save/remove preference 與 My Learning return seam；它不保存文章 body，也不表示已讀、完成或理解。逐段 resume、comprehension/review evidence、合法可持續的正式 editorial corpus 與 recurring return loop 仍屬 #122；renderer 不會把開啟文章或按下收藏偽裝成學習進度。
 
@@ -81,7 +81,7 @@ Free production article 不能用 `access: free` 旗標繞過 member-only delive
 
 ## #126 Workplace Learn and vocabulary source
 
-Workplace Learn 的 lesson 與 vocabulary 使用自己的 bounded schema、strict validator 與 body-free discovery catalog；它們不進入 Book、Reader、Career Game 或 universal content model。公開 repository 中的 Free lesson／vocabulary 是明確標示的原創、架空、non-proprietary 教學範例，不能冒充正式 Plus corpus。正式 workplace 日文、繁體中文解說、editorial review、權利紀錄及 private release history 留在 canonical private source。
+Workplace Learn 的 lesson 與 vocabulary 使用自己的 bounded schema、strict validator 與 body-free discovery catalog；它們不進入 Book、Reader、Career Game 或 universal content model。公開 repository 中的 Free lesson／vocabulary 是明確標示的原創、架空、non-proprietary 教學範例，不能冒充正式 Plus corpus。正式 workplace 日文 core 與解説、editorial review、權利紀錄及 private release history 留在 canonical private source。V2 可選 support overlays 同樣留在 private source，且於 V1 保持 dormant；schema 與欄位要求以 [`workplace-japanese-content-contract.md`](workplace-japanese-content-contract.md) 為準。
 
 Adapter 對每個 private source directory 只讀取 canonical `workplace-item.json`。它必須是 `released`、有 reviewer、rights cleared 的 Plus item，且只能使用 text-only runtime fields；sample、draft、Free 與 asset references 均拒絕匯入。`--source` 必須是公開 checkout 之外的絕對路徑，symlink 的實際路徑也會檢查。先在 private checkout 執行只讀驗證；受控匯入需要 server-only `SUPABASE_URL` 與 `SUPABASE_SERVICE_ROLE_KEY`，且不屬於 public CI 或 frontend build：
 
@@ -92,9 +92,9 @@ pnpm workflow:import-private-workplace --source=/absolute/private/workplace-item
 
 Adapter 去除 publication、reviewer 與 rights 欄位，驗證 bounded runtime，對 `{ workplaceLearn: runtime }` 計算 immutable SHA-256 revision，並以 `workplace-lesson` 或 `workplace-vocabulary`、`access_scope=member` 寫入既有 `private_content_release`。Import 本身不發佈 catalog entry；公開 Plus metadata 必須只指向相同 content id 與 revision，browser 只能在 verified active membership 後透過 `content-delivery` 讀取並重新驗證 payload。缺少 catalog reference、access、release 或合法 payload 時，UI 必須顯示 unavailable，不可回退到 private body 的公開 bundle copy。
 
-> **2026-10-02 forward note：** product contract §1 已改為 V1 Japanese-first（N1 合格的外國學習者）。以下 v1 runtime 的 `*ZhTW` 解說欄位描述現行實作；V1 需要以 versioned contract change 加入日文解説欄位（舊的繁中解說可保留為 post-V1 support overlay），見 #195。本段的 private source／delivery／fail-closed 規則不變。
+> **2026-10-09 contract note：** Workplace Learn current runtime and authoring use schema v2 with Japanese teaching prose as required core; optional support overlays remain dormant in the V1 renderer. The older v1 shape is retained only for inspection of immutable historical revisions. Do not translate, rewrite, or re-hash those revisions as part of this contract. See [`workplace-japanese-content-contract.md`](workplace-japanese-content-contract.md) for current fields, validation, and legacy-version boundaries. The private source, delivery, and fail-closed rules below remain in force.
 
-Workplace Learn v1 runtime 必須明確提供 `titleLanguage`、`leadLanguage` 與相關內容 `labelLanguage`，值限 `ja`、`zh-TW`、`zh-CN`、`en`；consumer 依欄位標記語言，不可由 item kind、slug 或目前 fixture 推測。標示 `ZhTW` 的解說欄位必須使用繁體中文連續撰寫，不要把日文短語混入中文解說；日文原句、term、讀音保留在各自明確標記的日文欄位。v1 lesson 只能宣告 `practiceTypes: ["rewrite"]`；它對應頁面上明確標示未儲存、未評分的自我改寫欄位，不代表有已持久化 Practice evidence。
+Workplace Learn current v2 runtime 必須明確提供語言 metadata，consumer 依欄位標記語言，不可由 item kind、slug 或目前 fixture 推測。教學 prose 為日文且以 `lang="ja"` 呈現；可選 support overlays 必須有明確 locale key，不可取代日文 core，亦不在 V1 renderer 顯示。Legacy v1 types 僅供檢視既有歷史 revisions，不是目前可發布的 schema；existing revisions 維持不變。V2 lesson 的 `practiceTypes: ["rewrite"]` 對應明確標示未儲存、未評分的自我改寫欄位，不代表有已持久化 Practice evidence。欄位、驗證與 overlay 範圍以 [`workplace-japanese-content-contract.md`](workplace-japanese-content-contract.md) 為準。
 
 #174 的 Workplace save 是 owner-scoped preference，只保存 stable item id、kind、current revision 與 server timestamp，不包含教材或練習文字。Service-only publication projection 是可保存與可返回的 publication authority；immutable private release import 不會自動發布。GET 的 current flag 必須來自該 projection（Plus 另需 exact `workplace-lesson`/`workplace-vocabulary` member release），而 UI 還需將 id/kind/revision/access 與本機 body-free catalog 精確比對才可連結；stale preference 仍可移除。**#124 首次 Plus Workplace publication、revision 變更或 rollback 前**，必須驗證 publication projection、Edge cache、frontend catalog、cached client 與 rollback 的組合：新版本只在明確發布後可保存；舊版/retired save 不可指向新 body；rollback 只恢復明確指定的相容 revision。不得以 private release 存在或舊 Edge/catalog cache 推定 publication。
 
