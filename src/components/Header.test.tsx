@@ -1,8 +1,9 @@
 import { act, fireEvent, screen, within, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { renderWithAppProviders } from '../test/appProviders'
 import { Header } from './Header'
+import { Layout } from './Layout'
 
 function BackButton() {
   const navigate = useNavigate()
@@ -12,6 +13,16 @@ function BackButton() {
 function CurrentPath() {
   const location = useLocation()
   return <output>{location.pathname}</output>
+}
+
+function BrowserHistoryControls() {
+  const navigate = useNavigate()
+  return (
+    <div>
+      <button type="button" onClick={() => navigate(-1)}>Browser Back</button>
+      <button type="button" onClick={() => navigate(1)}>Browser Forward</button>
+    </div>
+  )
 }
 
 function installHeaderMediaQueryHarness() {
@@ -164,6 +175,44 @@ describe('Header mobile navigation', () => {
       'aria-expanded',
       'false',
     )
+  })
+
+  it('focuses the destination main landmark when Back or Forward dismisses the open menu', async () => {
+    renderWithAppProviders(
+      <>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<><h1>Home route</h1><Link to="/learn">Open Learn</Link></>} />
+            <Route path="learn" element={<h1>Learn route</h1>} />
+          </Route>
+        </Routes>
+        <BrowserHistoryControls />
+      </>,
+      { initialEntries: ['/'] },
+    )
+
+    fireEvent.click(screen.getByRole('link', { name: 'Open Learn' }))
+    expect(await screen.findByRole('heading', { name: 'Learn route' })).toBeInTheDocument()
+    const main = screen.getByRole('main')
+
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
+    expect(screen.getByRole('dialog', { name: 'メニュー' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Browser Back' }))
+
+    expect(await screen.findByRole('heading', { name: 'Home route' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'メニュー' })).not.toBeInTheDocument())
+    await waitFor(() => expect(main).toHaveFocus())
+    expect(main.inert).toBe(false)
+    expect(document.body.style.overflow).toBe('')
+
+    fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Browser Forward' }))
+
+    expect(await screen.findByRole('heading', { name: 'Learn route' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'メニュー' })).not.toBeInTheDocument())
+    await waitFor(() => expect(main).toHaveFocus())
+    expect(main.inert).toBe(false)
+    expect(document.body.style.overflow).toBe('')
   })
 
   it('makes the shell background inert and closes on browser back', () => {

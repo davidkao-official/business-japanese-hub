@@ -289,8 +289,14 @@ export function ReaderShell({
   const toggleToc = useCallback(() => setTocOpen((current) => !current), [])
   const openVocab = useCallback((block: VocabularyBlock) => setVocabBlock(block), [])
   const closeVocab = useCallback(() => setVocabBlock(null), [])
-  const closeToc = useCallback(() => setTocOpen(false), [])
-  const closeSettings = useCallback(() => setSettingsOpen(false), [])
+  const closeToc = useCallback(() => {
+    chrome.reveal()
+    setTocOpen(false)
+  }, [chrome.reveal])
+  const closeSettings = useCallback(() => {
+    chrome.reveal()
+    setSettingsOpen(false)
+  }, [chrome.reveal])
 
   return (
     <div

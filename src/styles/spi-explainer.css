@@ -1,5 +1,6 @@
 .spi-explainer {
   width: 100%;
+  min-width: 0;
   max-width: var(--spi-explainer-container-max-width);
   margin-inline: auto;
   color: var(--color-text);
@@ -97,10 +98,13 @@
 
 .spi-explainer__sections {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   max-width: var(--spi-explainer-content-max-width);
 }
 
 .spi-explainer__section {
+  min-width: 0;
   max-width: 55rem;
   padding-block: var(--space-7);
   border-bottom: var(--stroke-thin) solid var(--color-border);
@@ -121,6 +125,8 @@
 }
 
 .spi-explainer__table-wrap {
+  width: 100%;
+  min-width: 0;
   max-width: 54rem;
   margin-block: var(--space-5);
   overflow-x: auto;
@@ -191,12 +197,13 @@
 }
 
 .spi-explainer__chips li {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  max-width: 100%;
   padding: var(--space-2) var(--space-3);
   border: var(--stroke-thin) solid var(--color-border);
   color: var(--color-text-muted);
   font-size: var(--text-sm);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .spi-explainer__skills li {

@@ -10,7 +10,7 @@ import {
 } from './WebTestHubPage'
 import { preparePrivatePracticeQuestionBankRelease } from '../content-delivery/privatePracticeQuestionBank'
 import { nonProprietaryPracticeQuestionBankFixture } from '../practice-web-test/fixtures/nonProprietaryPracticeFixture'
-import { getActiveLocale, LOCALE_STORAGE_KEY, setLocalePreference } from '../i18n/strings'
+import { getActiveLocale, getStrings, LOCALE_STORAGE_KEY, setLocalePreference } from '../i18n/strings'
 
 const hookLearningUiOverrides = vi.hoisted(() => ({
   current: null as { webChooseAnswer?: string; webNumberAnswer?: string } | null,
@@ -107,6 +107,11 @@ function syntheticIssue212Payload(checkpointIds: string[][] = [[], [], []], chec
 }
 
 describe('Web Test discovery and runner-entry routes', () => {
+  it('labels question counts as inventory in Japanese and dormant Traditional Chinese', () => {
+    expect(getStrings('ja').learningUi.webPublishedCountSuffix).toBe('問収録')
+    expect(getStrings('zh-TW').learningUi.webPublishedCountSuffix).toBe('題收錄')
+  })
+
   it.each([
     '/practice/web-test/spi',
     '/practice/web-test/spi/verbal',
@@ -188,7 +193,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning')
 
     expect(screen.getByRole('heading', { name: "文脈と語句の意味" })).toBeInTheDocument()
-    expect(screen.getByText("時間を計らず練習 · 5 問公開中")).toBeInTheDocument()
+    expect(screen.getByText("時間を計らず練習 · 5 問収録")).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText("会員向けの練習を始めるには、ログインしてください。")).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: /開始|送出|開始練習/ })).not.toBeInTheDocument()
   })

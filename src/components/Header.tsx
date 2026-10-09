@@ -9,7 +9,7 @@ const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 const BREAKPOINT_FOCUS_PROVENANCE_WINDOW_MS = 500
 
-type CloseFocusTarget = 'trigger' | 'desktop'
+type CloseFocusTarget = 'trigger' | 'desktop' | 'main'
 
 export function Header() {
   const strings = useStrings()
@@ -51,18 +51,22 @@ export function Header() {
 
     if (menuWasOpen.current) {
       menuWasOpen.current = false
-      const focusTarget =
-        closeFocusTarget.current === 'desktop' ? desktopBrandRef.current : triggerRef.current
+      const focusTarget = closeFocusTarget.current
       closeFocusTarget.current = 'trigger'
-      focusTarget?.focus()
+      if (focusTarget === 'main') {
+        document.getElementById('main-content')?.focus({ preventScroll: true })
+        return
+      }
+      const target = focusTarget === 'desktop' ? desktopBrandRef.current : triggerRef.current
+      target?.focus()
     }
   }, [menuOpen])
 
   useEffect(() => {
     if (lastLocationKey.current === location.key) return
     lastLocationKey.current = location.key
-    closeMenu()
-  }, [location.key])
+    if (menuOpen) closeMenuTo('main')
+  }, [location.key, menuOpen])
 
   useEffect(() => {
     const handleFocusIn = (event: FocusEvent) => {

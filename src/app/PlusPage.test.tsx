@@ -34,7 +34,9 @@ describe('PlusPage', () => {
   it('shows a bounded signed-out preview of the current Plus learning surfaces', async () => {
     renderWithAppProviders(<PlusPage />)
 
-    expect(screen.getByText('Plus プレビュー')).toBeInTheDocument()
+    expect(screen.getByText('Plus の提供予定内容')).toBeInTheDocument()
+    expect(screen.getAllByText(/会員向け教材は準備中です/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/公開中なのは架空のオリジナル教材サンプル/).length).toBeGreaterThan(0)
     expect(screen.getAllByText('練習').length).toBeGreaterThan(0)
     expect(screen.getAllByText('読む').length).toBeGreaterThan(0)
     expect(screen.getAllByText('学習記録').length).toBeGreaterThan(0)
