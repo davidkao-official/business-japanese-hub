@@ -59,15 +59,16 @@ afterEach(() => {
 })
 
 describe('Issue #110 — reusable Learn and Practice presentation surfaces', () => {
-  it('surfaces the released Meeting Facilitation course-correction module through Learn', () => {
+  it('does not advertise an unavailable legacy course to signed-out Learn visitors (#202)', () => {
     renderAt('/learn')
 
     const main = screen.getByRole('main')
-    const moduleLink = within(main).getByRole('link', {
+    const moduleLink = within(main).queryByRole('link', {
       name: /議論を本筋に戻す|Course Correction/i,
     })
 
-    expect(moduleLink.getAttribute('href')).toMatch(/^\/learn\/.+/)
+    expect(moduleLink).not.toBeInTheDocument()
+    expect(within(main).getByRole('link', { name: '報告時に事実と次の対応を短く伝える' })).toBeInTheDocument()
   })
 
   it('keeps the entitled Learn module discoverable without exposing its body signed out', async () => {

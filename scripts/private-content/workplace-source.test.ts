@@ -74,3 +74,14 @@ test('reads only workplace-item.json and returns the prepared member release', (
   const missing = readPrivateWorkplaceSource(join(parent, 'missing'), authoring.id)
   assert.deepEqual(missing, { ok: false, reason: 'private source is missing workplace-item.json' })
 })
+
+test('private Workplace Learn source rejects schema-v1 content at the import boundary', () => {
+  const parent = mkdtempSync(join(tmpdir(), 'workplace-source-v1-'))
+  temporaryPaths.push(parent)
+  const source = join(parent, 'private')
+  mkdirSync(source)
+  const legacy = { ...privateAuthoringItem(), schemaVersion: 1 }
+  writeFileSync(join(source, 'workplace-item.json'), JSON.stringify(legacy))
+  const result = readPrivateWorkplaceSource(source, legacy.id)
+  assert.equal(result.ok, false)
+})
