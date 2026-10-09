@@ -19,6 +19,9 @@ export interface PlusMembershipAccessRequestOptions {
   fetchImpl?: typeof fetch
 }
 
+const LOOKUP_DEADLINE_MS = 10_000
+const DEADLINE_REACHED = Symbol('membership lookup deadline reached')
+
 function functionsBaseUrl(): string | null {
   const explicit = import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL as string | undefined
   const supabase = import.meta.env.VITE_SUPABASE_URL as string | undefined
@@ -43,31 +46,48 @@ export async function fetchPlusMembershipAccess(
   expectedUserId: string,
   options: PlusMembershipAccessRequestOptions = {},
 ): Promise<PlusMembershipAccess> {
-  let token: string | null = null
+  const controller = typeof AbortController === 'function' ? new AbortController() : null
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let resolveDeadline!: (value: typeof DEADLINE_REACHED) => void
+  const deadline = new Promise<typeof DEADLINE_REACHED>((resolve) => {
+    resolveDeadline = resolve
+  })
+
+  const raceDeadline = <T>(stage: Promise<T>): Promise<T | typeof DEADLINE_REACHED> =>
+    Promise.race([stage, deadline])
+
   try {
-    token = await getAccessToken()
-  } catch {
-    return 'unavailable'
-  }
-  if (!token) return 'unavailable'
-  if (tokenSubject(token) !== expectedUserId) return 'unavailable'
+    timer = setTimeout(() => {
+      controller?.abort()
+      resolveDeadline(DEADLINE_REACHED)
+    }, LOOKUP_DEADLINE_MS)
 
-  const baseUrl = options.baseUrl === undefined ? functionsBaseUrl() : options.baseUrl
-  if (!baseUrl) return 'unavailable'
+    const tokenResult = await raceDeadline(Promise.resolve().then(getAccessToken))
+    if (tokenResult === DEADLINE_REACHED || !tokenResult) return 'unavailable'
+    if (tokenSubject(tokenResult) !== expectedUserId) return 'unavailable'
 
-  const request = options.fetchImpl ?? fetch
-  try {
-    const response = await request(`${baseUrl.replace(/\/+$/, '')}/plus-membership`, {
-      method: 'GET',
-      cache: 'no-store',
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    if (!response.ok) return 'unavailable'
+    const baseUrl = options.baseUrl === undefined ? functionsBaseUrl() : options.baseUrl
+    if (!baseUrl) return 'unavailable'
 
-    const body = (await response.json()) as { access?: unknown }
+    const request = options.fetchImpl ?? fetch
+    const responseResult = await raceDeadline(
+      Promise.resolve().then(() => request(`${baseUrl.replace(/\/+$/, '')}/plus-membership`, {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${tokenResult}` },
+        ...(controller ? { signal: controller.signal } : {}),
+      })),
+    )
+    if (responseResult === DEADLINE_REACHED || !responseResult.ok) return 'unavailable'
+
+    const bodyResult = await raceDeadline(Promise.resolve().then(() => responseResult.json()))
+    if (bodyResult === DEADLINE_REACHED) return 'unavailable'
+    const body = bodyResult as { access?: unknown }
     return parsePlusMembershipAccess(body?.access)
   } catch {
     return 'unavailable'
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
   }
 }
 
