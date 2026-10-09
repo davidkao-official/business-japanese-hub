@@ -150,48 +150,47 @@ describe('reading-saves handler', () => {
     }])
   })
 
-  it('requires an exact current catalog revision and member Reading release metadata for Plus', async () => {
+  it('requires the exact catalog revision and server publication authority for Plus', async () => {
     const savedAt = '2026-09-24T09:00:00.000Z'
     const database = createMockDb({
       'auth:getUser': { data: { id: userId } },
-      private_content_release: { data: { content_id: plusEntry.id, revision, content_kind: 'reading', access_scope: 'member', payload: { private: 'not selected' } } },
       'rpc:save_reading_item': { data: { item_id: plusEntry.id, revision, saved_at: savedAt } },
     })
     const result = await handleReadingSaves(request('PUT', { itemId: plusEntry.id, revision }), deps(database))
     expect(result.status).toBe(200)
     expect(JSON.parse(result.body)).toEqual({ itemId: plusEntry.id, revision, savedAt })
-    expect(database.callsFor('private_content_release', 'select')[0]?.args).toEqual(['content_id,revision,content_kind,access_scope'])
-    expect(database.callsFor('private_content_release', 'eq')).toContainEqual({ table: 'private_content_release', method: 'eq', args: ['revision', revision] })
+    expect(database.callsFor('private_content_release')).toEqual([])
     expect(database.rpcCalls('save_reading_item')[0]?.args[0]).toEqual({ p_user_id: userId, p_item_id: plusEntry.id, p_revision: revision })
 
-    const staleDb = createMockDb({ 'auth:getUser': { data: { id: userId } } })
+    const staleDb = createMockDb({
+      'auth:getUser': { data: { id: userId } },
+      'rpc:save_reading_item': { data: { status: 'stale' } },
+    })
     const stale = await handleReadingSaves(request('PUT', { itemId: plusEntry.id, revision: changedRevision }), deps(staleDb))
     expect(stale.status).toBe(409)
     expect(staleDb.callsFor('private_content_release')).toEqual([])
     expect(staleDb.rpcCalls('save_reading_item')).toEqual([])
   })
 
-  it.each(['book', 'public'] as const)('rejects a release with wrong content kind or access scope (%s)', async (kind) => {
+  it('maps an imported-but-unpublished Plus revision to a stale reference without exposing a body', async () => {
     const database = createMockDb({
       'auth:getUser': { data: { id: userId } },
-      private_content_release: { data: {
-        content_id: plusEntry.id, revision, content_kind: kind === 'book' ? 'book' : 'reading',
-        access_scope: kind === 'public' ? 'public' : 'member',
-      } },
+      'rpc:save_reading_item': { data: { status: 'stale' } },
     })
     const result = await handleReadingSaves(request('PUT', { itemId: plusEntry.id, revision }), deps(database))
     expect(result.status).toBe(409)
-    expect(database.rpcCalls('save_reading_item')).toEqual([])
+    expect(database.callsFor('private_content_release')).toEqual([])
+    expect(database.rpcCalls('save_reading_item')).toHaveLength(1)
   })
 
-  it('fails closed when the release lookup is unavailable', async () => {
+  it('fails closed when publication/save authority is unavailable', async () => {
     const database = createMockDb({
       'auth:getUser': { data: { id: userId } },
-      private_content_release: { error: 'database unavailable' },
+      'rpc:save_reading_item': { error: 'database unavailable' },
     })
     const result = await handleReadingSaves(request('PUT', { itemId: plusEntry.id, revision }), deps(database))
     expect(result.status).toBe(503)
-    expect(database.rpcCalls('save_reading_item')).toEqual([])
+    expect(database.rpcCalls('save_reading_item')).toHaveLength(1)
   })
 
   it('rejects stale Free revisions, unknown IDs, and client-supplied fields', async () => {
