@@ -1088,6 +1088,9 @@ describe('reader resume intent', () => {
 
     expect(await screen.findByRole('heading', { name: '依頼と締めの表現' })).toBeInTheDocument()
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).not.toHaveTextContent('?resume=1'),
+    )
     const callsAfterRestore = vi.mocked(repository.saveReadingState).mock.calls.length
     act(() => rendered.authClient.emitAuthStateChange({ ...user }))
     await waitFor(() => expect(repository.getReadingState).toHaveBeenCalledTimes(2))
