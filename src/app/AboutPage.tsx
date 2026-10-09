@@ -16,51 +16,51 @@ export function AboutPage() {
   const ui = useStrings().learningUi
 
   const AUDIENCE_ITEMS = [
-    ui.aboutText09,
-    ui.aboutText10,
-    ui.aboutText11,
-    ui.aboutText12,
-    ui.aboutText13,
-    ui.aboutText14,
+    ui.aboutAudienceNextStepAfterN1,
+    ui.aboutAudienceJobInterview,
+    ui.aboutAudienceWorkplaceCommunication,
+    ui.aboutAudienceBusinessReading,
+    ui.aboutAudienceBusinessExpression,
+    ui.aboutAudienceDirectJapaneseInformation,
   ] as const
   const REAL_WORLD_EXAMPLES = [
-    ui.aboutText01,
-    ui.aboutText02,
-    ui.aboutText03,
-    ui.aboutText04,
-    ui.aboutText05,
-    ui.aboutText06,
-    ui.aboutText07,
-    ui.aboutText08,
+    ui.aboutMaterialPresentationsPlans,
+    ui.aboutMaterialFinancialIntegratedReports,
+    ui.aboutMaterialManagementPlans,
+    ui.aboutMaterialBusinessIndustryNews,
+    ui.aboutMaterialBooksMagazines,
+    ui.aboutMaterialWorkplaceVocabulary,
+    ui.aboutMaterialMeetingsDiscussions,
+    ui.aboutMaterialLanguageNuance,
   ] as const
-  useDocumentTitle(ui.aboutText15)
+  useDocumentTitle(ui.aboutDocumentTitle)
 
   return (
     <article className="about-page" lang={getActiveLocale()} aria-labelledby="about-title">
       <header className="about-page__hero">
         <p className="about-page__eyebrow" lang={getActiveLocale()}>
-          {ui.aboutText16}</p>
+          {ui.aboutHeroEyebrow}</p>
         <h1 className="about-page__title" id="about-title">
-          {ui.aboutText17}</h1>
+          {ui.aboutHeroTitle}</h1>
         <p className="about-page__tagline">
-          {ui.aboutText18}</p>
+          {ui.aboutHeroTagline}</p>
         <p className="about-page__hero-copy">
-          {ui.aboutText19}</p>
+          {ui.aboutHeroN1LearningContinues}</p>
         <p className="about-page__hero-copy">
-          {ui.aboutText20}</p>
+          {ui.aboutHeroNextStage}</p>
         <p className="about-page__lead">
           <strong>
-            {ui.aboutText21}</strong>
+            {ui.aboutPlatformDescription}</strong>
         </p>
-        <p className="about-page__hero-copy">{ui.aboutText22}</p>
-        <p className="about-page__hero-copy">{ui.aboutText23}</p>
-        <div className="about-page__contrast" aria-label={ui.aboutText24}>
+        <p className="about-page__hero-copy">{ui.aboutBeyondCertificatesGoal}</p>
+        <p className="about-page__hero-copy">{ui.aboutTransitionIntroduction}</p>
+        <div className="about-page__contrast" aria-label={ui.aboutLearningGoalAccessibleName}>
           <p>
-            <strong>{ui.aboutText25}</strong>
+            <strong>{ui.aboutReadingComprehensionGoal}</strong>
           </p>
-          <p className="about-page__contrast-arrow">{ui.aboutText26}</p>
+          <p className="about-page__contrast-arrow">{ui.aboutTransitionArrow}</p>
           <p className="about-page__contrast-emphasis">
-            <strong>{ui.aboutText27}</strong>
+            <strong>{ui.aboutWorkingInJapaneseGoal}</strong>
           </p>
         </div>
       </header>
@@ -68,30 +68,30 @@ export function AboutPage() {
       <div className="about-page__sections">
         <section className="about-page__section" aria-labelledby="about-purpose-title">
           <p className="about-page__section-label" lang={getActiveLocale()}>
-            {ui.aboutText28}</p>
-          <h2 id="about-purpose-title">{ui.aboutText29}</h2>
-          <h3>{ui.aboutText30}</h3>
-          <p>{ui.aboutText31}</p>
-          <p>{ui.aboutText32}</p>
+            {ui.aboutPurposeEyebrow}</p>
+          <h2 id="about-purpose-title">{ui.aboutPurposeHeading}</h2>
+          <h3>{ui.aboutPurposeLead}</h3>
+          <p>{ui.aboutN1FriendsContext}</p>
+          <p>{ui.aboutJobHuntingRealization}</p>
           <p>
-            {ui.aboutText33}</p>
+            {ui.aboutInterviewExpressionBarrier}</p>
         </section>
 
         <section className="about-page__section about-page__section--distance" aria-labelledby="about-distance-title">
           <p className="about-page__section-label" lang={getActiveLocale()}>
-            {ui.aboutText34}</p>
-          <h2 id="about-distance-title">{ui.aboutText35}</h2>
-          <p>{ui.aboutText36}</p>
+            {ui.aboutDistanceEyebrow}</p>
+          <h2 id="about-distance-title">{ui.aboutDistanceHeading}</h2>
+          <p>{ui.aboutConventionalLearningIntroduction}</p>
           <p className="about-page__progression"><strong>N5 → N4 → N3 → N2 → N1</strong></p>
-          <p>{ui.aboutText37}</p>
-          <p>{ui.aboutText38}</p>
-          <p>{ui.aboutText39}</p>
-          <p>{ui.aboutText40}</p>
-          <p>{ui.aboutText41}</p>
-          <p>{ui.aboutText42}</p>
-          <p>{ui.aboutText43}</p>
-          <p>{ui.aboutText44}</p>
-          <p>{ui.aboutText45}</p>
+          <p>{ui.aboutConventionalTextbooks}</p>
+          <p>{ui.aboutConventionalVocabularyBooks}</p>
+          <p>{ui.aboutConventionalGrammarBooks}</p>
+          <p>{ui.aboutConventionalMockTests}</p>
+          <p>{ui.aboutConventionalNextStep}</p>
+          <p>{ui.aboutAfterN1Question}</p>
+          <p>{ui.aboutMissingLearningPath}</p>
+          <p>{ui.aboutSocietyBeyondJlptLevels}</p>
+          <p>{ui.aboutRealWorldMaterialsIntroduction}</p>
           <ol className="about-page__list about-page__list--examples">
             {REAL_WORLD_EXAMPLES.map((example) => (
               <li key={example}>{example}</li>
@@ -101,47 +101,47 @@ export function AboutPage() {
 
         <section className="about-page__section" aria-labelledby="about-audience-title">
           <p className="about-page__section-label" lang={getActiveLocale()}>
-            {ui.aboutText46}</p>
-          <h2 id="about-audience-title">{ui.aboutText47}</h2>
-          <p>{ui.aboutText48}</p>
+            {ui.aboutAudienceEyebrow}</p>
+          <h2 id="about-audience-title">{ui.aboutAudienceHeading}</h2>
+          <p>{ui.aboutAudienceIntroduction}</p>
           <ol className="about-page__list about-page__list--audience">
             {AUDIENCE_ITEMS.map((item) => (
               <li key={item}>{item}</li>
             ))}
           </ol>
           <div className="about-page__audience-close">
-            <p>{ui.aboutText49}</p>
-            <p>{ui.aboutText50}</p>
-            <p>{ui.aboutText51}</p>
+            <p>{ui.aboutJlptGoalLead}</p>
+            <p>{ui.aboutExistingJlptMaterials}</p>
+            <p>{ui.aboutWorkCapabilityQuestionLead}</p>
           </div>
           <div className="about-page__question">
             <blockquote>
-              <strong>{ui.aboutText52}</strong>
+              <strong>{ui.aboutWorkCapabilityQuestion}</strong>
             </blockquote>
-            <p className="about-page__question-close">{ui.aboutText53}</p>
+            <p className="about-page__question-close">{ui.aboutWorkCapabilitySupport}</p>
           </div>
         </section>
 
         <section className="about-page__section about-page__section--founders" aria-labelledby="about-founders-title">
           <p className="about-page__section-label" lang={getActiveLocale()}>
-            {ui.aboutText54}</p>
-          <h2 id="about-founders-title">{ui.aboutText55}</h2>
+            {ui.aboutFoundersEyebrow}</p>
+          <h2 id="about-founders-title">{ui.aboutFounderHeading}</h2>
           <div className="about-page__founder-story">
-            <p>{ui.aboutText56}</p>
+            <p>{ui.aboutFounderLearningJourney}</p>
             <p>
-              {ui.aboutText57}</p>
+              {ui.aboutFounderN1Milestone}</p>
             <p>
-              {ui.aboutText58}</p>
+              {ui.aboutFounderQualificationsExperience}</p>
             <p>
-              {ui.aboutText59}</p>
+              {ui.aboutFounderMbaMilestone}</p>
             <p>
-              {ui.aboutText60}</p>
-            <p>{ui.aboutText61}</p>
+              {ui.aboutFounderConsultingExperience}</p>
+            <p>{ui.aboutFounderRealizationLead}</p>
             <h3>
-              <strong>{ui.aboutText62}</strong>
+              <strong>{ui.aboutFounderN1WorkGap}</strong>
             </h3>
-            <p>{ui.aboutText63}</p>
-            <p>{ui.aboutText64}</p>
+            <p>{ui.aboutFounderLearningPathGap}</p>
+            <p>{ui.aboutFounderLearningPathGoal}</p>
           </div>
           <div className="about-page__profiles">
             <ProfileBlock profile={FOUNDER_PROFILE} />
@@ -166,7 +166,7 @@ function ProfileBlock({ profile }: { profile: PublicProfile }) {
       </ul>
       {profile.languages && (
         <p className="about-profile__languages">
-          <strong lang={getActiveLocale()}>{ui.aboutText65}</strong>
+          <strong lang={getActiveLocale()}>{ui.aboutLanguagesLabel}</strong>
           <br />
           {profile.languages.map((language, index) => (
             <span key={language.label} lang={language.language}>
