@@ -9,6 +9,7 @@ import { fetchReadingPayload } from '../reading/client'
 import { fetchReadingSave, removeReadingSave, saveReadingItem } from '../reading/savesClient'
 import type { ReadingSave, ReadingSaveError, ReadingSaveMutationResult, ReadingSaveResult } from '../reading/savesClient'
 import { readingCatalog } from '../reading/catalog'
+import { validateReadingRuntimeItem } from '../reading/validate'
 import { sampleReadingItem } from '../reading/fixtures/sample-reading'
 import type { ReadingCatalogEntry, ReadingRelatedLink, ReadingRuntimeItem } from '../reading/types'
 import { getLearningUnitByLearnSlug, getLearningUnitByPracticeSlug } from './learningUnits'
@@ -55,9 +56,11 @@ export function ReadDetailPage({
 
   if (!entry) return <NotFoundPage />
 
-  const item = entry.access === 'free'
+  const publicCandidate = entry.access === 'free'
     ? publicItems.find((candidate) => candidate.id === entry.id && candidate.slug === entry.slug && candidate.access === 'free')
     : undefined
+  const publicValidation = publicCandidate ? validateReadingRuntimeItem(publicCandidate) : null
+  const item = publicValidation?.ok ? publicValidation.value : undefined
 
   return (
     <section className="page reading-detail" aria-labelledby="reading-detail-title">
@@ -115,9 +118,12 @@ function ActivePlusReading({
     let current = true
     void loadPayload(entry, getAccessToken, userId, controller.signal).then((result) => {
       if (!current || controller.signal.aborted) return
-      setDetailState(result.kind === 'ok'
-        ? { kind: 'ready', item: result.item }
-        : { kind: 'unavailable' })
+      if (result.kind !== 'ok') {
+        setDetailState({ kind: 'unavailable' })
+        return
+      }
+      const validation = validateReadingRuntimeItem(result.item)
+      setDetailState(validation.ok ? { kind: 'ready', item: validation.value } : { kind: 'unavailable' })
     }).catch(() => {
       if (current && !controller.signal.aborted) setDetailState({ kind: 'unavailable' })
     })
@@ -143,11 +149,11 @@ function ReadingMetadata({ entry }: { entry: ReadingCatalogEntry }) {
   const strings = useStrings()
   return (
     <div className="reading-preview-meta">
-      <h1 id="reading-detail-title" lang="zh-TW">{entry.title}</h1>
-      <p lang="zh-TW">{entry.summary}</p>
+      <h1 id="reading-detail-title" lang="ja">{entry.title}</h1>
+      <p lang="ja">{entry.summary}</p>
       <p>{strings.reading.source}: {entry.source.url
-        ? <a href={entry.source.url} target="_blank" rel="noreferrer" lang="zh-TW">{entry.source.label}</a>
-        : <span lang="zh-TW">{entry.source.label}</span>}</p>
+        ? <a href={entry.source.url} target="_blank" rel="noreferrer" lang="ja">{entry.source.label}</a>
+        : <span lang="ja">{entry.source.label}</span>}</p>
       <p>{strings.reading.publishedOn}: {entry.releasedAt
         ? <time dateTime={entry.releasedAt}>{entry.releasedAt.slice(0, 10)}</time>
         : strings.reading.notDated}</p>
@@ -168,14 +174,14 @@ function ReadingArticle({ item, saveControl }: { item: ReadingRuntimeItem; saveC
           </span>
           {item.sampleLabel && <span>{strings.reading.sampleLabel}</span>}
         </div>
-        <h1 id="reading-detail-title" lang="zh-TW">{item.title}</h1>
-        <p className="reading-article__summary" lang="zh-TW">{item.summary}</p>
+        <h1 id="reading-detail-title" lang="ja">{item.title}</h1>
+        <p className="reading-article__summary" lang="ja">{item.summary}</p>
         <dl className="reading-source">
           <div>
             <dt>{strings.reading.source}</dt>
             <dd>{item.source.url
-              ? <a href={item.source.url} target="_blank" rel="noreferrer" lang="zh-TW">{item.source.label}</a>
-              : <span lang="zh-TW">{item.source.label}</span>}</dd>
+              ? <a href={item.source.url} target="_blank" rel="noreferrer" lang="ja">{item.source.label}</a>
+              : <span lang="ja">{item.source.label}</span>}</dd>
           </div>
           <div>
             <dt>{strings.reading.publishedOn}</dt>
@@ -202,15 +208,15 @@ function ReadingArticle({ item, saveControl }: { item: ReadingRuntimeItem; saveC
       <div className="reading-article__body">
         <section aria-labelledby="reading-explanation-title">
           <h2 id="reading-explanation-title">{strings.reading.explanation}</h2>
-          <ReadingParagraphs text={item.explanationZhTW} lang="zh-TW" />
+          <ReadingParagraphs text={item.explanationJa} lang="ja" />
         </section>
         {item.vocabulary.length > 0 && <section aria-labelledby="reading-vocabulary-title">
           <h2 id="reading-vocabulary-title">{strings.reading.vocabulary}</h2>
           <dl className="reading-vocabulary">
             {item.vocabulary.map((word) => (
-              <div key={`${word.term}-${word.meaningZhTW}`}>
+              <div key={`${word.term}-${word.meaningJa}`}>
                 <dt lang="ja">{word.term}{word.reading ? <span lang="ja">（{word.reading}）</span> : null}</dt>
-                <dd lang="zh-TW">{word.meaningZhTW}{word.noteZhTW ? <p>{word.noteZhTW}</p> : null}</dd>
+                <dd lang="ja">{word.meaningJa}{word.noteJa ? <p>{word.noteJa}</p> : null}</dd>
               </div>
             ))}
           </dl>
@@ -219,22 +225,22 @@ function ReadingArticle({ item, saveControl }: { item: ReadingRuntimeItem; saveC
           <h2 id="reading-logic-title">{strings.reading.logic}</h2>
           <ol className="reading-logic">
             {item.logicAnalysis.map((point) => (
-              <li key={`${point.label}-${point.explanationZhTW}`}>
-                <h3 lang="zh-TW">{point.label}</h3>
+              <li key={`${point.label}-${point.explanationJa}`}>
+                <h3 lang="ja">{point.label}</h3>
                 {point.japaneseText && <blockquote lang="ja">{point.japaneseText}</blockquote>}
-                <p lang="zh-TW">{point.explanationZhTW}</p>
+                <p lang="ja">{point.explanationJa}</p>
               </li>
             ))}
           </ol>
         </section>}
         <section className="reading-context" aria-labelledby="reading-context-title">
           <h2 id="reading-context-title">{strings.reading.businessContext}</h2>
-          <ReadingParagraphs text={item.businessContextZhTW} lang="zh-TW" />
+          <ReadingParagraphs text={item.businessContextJa} lang="ja" />
         </section>
-        {item.davidCommentary && (
+        {item.davidCommentaryJa && (
           <section className="reading-commentary" aria-labelledby="reading-commentary-title">
             <h2 id="reading-commentary-title">{strings.reading.davidCommentary}</h2>
-            <ReadingParagraphs text={item.davidCommentary} lang="zh-TW" />
+            <ReadingParagraphs text={item.davidCommentaryJa} lang="ja" />
           </section>
         )}
       </div>
@@ -339,7 +345,7 @@ function ReadingSaveControl({
   )
 }
 
-function ReadingParagraphs({ text, lang }: { text: string; lang: 'ja' | 'zh-TW' }) {
+function ReadingParagraphs({ text, lang }: { text: string; lang: 'ja' }) {
   return text.replace(/\r\n/g, '\n').split(/\n[ \t]*\n+/).filter((paragraph) => paragraph.trim().length > 0)
     .map((paragraph, index) => <p key={index} lang={lang}>{paragraph}</p>)
 }
@@ -355,7 +361,7 @@ function RelatedReading({ links }: { links: readonly ReadingRelatedLink[] }) {
     <nav className="reading-related" aria-label={strings.reading.related}>
       <h2>{strings.reading.related}</h2>
       <ul>
-        {destinations.map((link) => <li key={`${link.kind}-${link.targetId}`}><Link to={link.href}><span lang="zh-TW">{link.label}</span> <span aria-hidden="true">↗</span></Link></li>)}
+        {destinations.map((link) => <li key={`${link.kind}-${link.targetId}`}><Link to={link.href}><span lang="ja">{link.label}</span> <span aria-hidden="true">↗</span></Link></li>)}
       </ul>
     </nav>
   )

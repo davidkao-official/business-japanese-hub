@@ -1,0 +1,11 @@
+# Reading Japanese explanation contract
+
+Reading item schema version 2 makes the Japanese explanation layer part of the required content contract. Every current item provides `explanationJa`, `businessContextJa`, vocabulary `meaningJa`, and logic-point `explanationJa`; optional Japanese notes and `davidCommentaryJa` remain part of the same core. Japanese title, summary, source label, related-link labels, and SEO metadata are the V1 user-facing metadata.
+
+Schema version 1 is the immutable historical shape that used `explanationZhTW`, `businessContextZhTW`, vocabulary `meaningZhTW`/`noteZhTW`, logic `explanationZhTW`, and optional `davidCommentary`. The named `ReadingLegacyV1*` types document this shape for audit. They do not make Chinese-only records publishable through current validation or delivery. Existing revisions remain unchanged and auditable under the contract that created them; migration, translation, revision rewriting, and release-hash changes are outside this contract. New private imports require schema version 2 and its complete Japanese core.
+
+An item may include `supportOverlays.byLocale` for bounded post-V1 supporting text. Each locale may provide optional explanation, business context, vocabulary, logic analysis, and commentary fields. The validator rejects undeclared nested fields and markup or inline links. These overlays are not Japanese core, do not satisfy a missing Japanese field, and remain dormant in the V1 renderer. Projection copies only the declared core and overlay fields and clones nested arrays; it omits publication, reviewer, and rights records.
+
+The private release envelope keeps its independent `schemaVersion: 1`. Content item schema versioning does not change access checks, content identifiers, immutable revision format, member delivery, or the import target. Existing preparation and import entry points continue through strict current validation and explicit runtime projection. The public Git boundary detects renamed private authoring records in both the retained V1 shape and current V2 shape.
+
+The original fictional teaching sample's Japanese explanation and metadata are first-principles drafts pending independent content-quality review. Its optional Chinese support overlay is sample-only and is never used as a rendering fallback. It contains no real company material or reviewer/release record.
