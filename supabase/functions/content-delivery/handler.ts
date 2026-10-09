@@ -39,11 +39,14 @@ export type ReadingReleaseLookup =
   | { kind: 'missing' }
   | { kind: 'unavailable' }
 
+export type WorkplaceReleaseLookup = ReadingReleaseLookup
+
 export interface ContentDeliveryDeps {
   db: DbClient
   membershipAccessFor: (userId: string) => Promise<MembershipAccess>
   getContentKind: (contentId: string, revision: string) => Promise<ContentKindLookup>
   getPublishedReadingRelease: (userId: string, contentId: string, revision: string) => Promise<ReadingReleaseLookup>
+  getPublishedWorkplaceRelease: (userId: string, contentId: string, revision: string) => Promise<WorkplaceReleaseLookup>
   getRelease: (contentId: string, revision: string) => Promise<ReleaseLookup>
 }
 
@@ -98,10 +101,17 @@ export async function handleContentDelivery(
     return privateNoStore(notFound('published member content not found'))
   }
 
-  let lookup: ReleaseLookup | ReadingReleaseLookup
+  let lookup: ReleaseLookup | ReadingReleaseLookup | WorkplaceReleaseLookup
   if (contentKind.contentKind === 'reading') {
     try {
       lookup = await deps.getPublishedReadingRelease(userId, reference.contentId, reference.revision)
+    } catch {
+      lookup = { kind: 'unavailable' }
+    }
+    if (lookup.kind === 'non-member') return privateNoStore(forbidden('active membership required'))
+  } else if (contentKind.contentKind === 'workplace-lesson' || contentKind.contentKind === 'workplace-vocabulary') {
+    try {
+      lookup = await deps.getPublishedWorkplaceRelease(userId, reference.contentId, reference.revision)
     } catch {
       lookup = { kind: 'unavailable' }
     }

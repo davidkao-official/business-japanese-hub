@@ -12,7 +12,7 @@ import { createServiceRoleClient, type DbClient } from '../_shared/db.ts'
 import { toHandlerRequest, toResponse } from '../_shared/deno.ts'
 import { readEnvFrom } from '../_shared/env.ts'
 import { handleContentDelivery } from './handler.ts'
-import { contentKindStore, publishedReadingReleaseStore, releaseStore } from './release-store.ts'
+import { contentKindStore, publishedReadingReleaseStore, publishedWorkplaceReleaseStore, releaseStore } from './release-store.ts'
 import { resolvePlusMembershipAccess } from './membership.ts'
 
 Deno.serve(async (req) => {
@@ -27,6 +27,7 @@ Deno.serve(async (req) => {
     membershipAccessFor: (userId) => resolvePlusMembershipAccess(db, userId),
     getContentKind: contentKindStore(db),
     getPublishedReadingRelease: publishedReadingReleaseStore(db),
+    getPublishedWorkplaceRelease: publishedWorkplaceReleaseStore(db),
     getRelease: releaseStore(db),
   })
   return toResponse(withCorsHeaders(result, cors.headers))
