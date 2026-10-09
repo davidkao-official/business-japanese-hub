@@ -137,6 +137,7 @@ export function ReaderShell({
   )
 
   const chrome = useChromeVisibility(isDesktop)
+  const revealChrome = chrome.reveal
 
   // Entitlement gate: the chapter's ordered blocks are filtered to the readable
   // prefix (deny-by-default via `canRead`); a single boundary marker is rendered
@@ -290,13 +291,13 @@ export function ReaderShell({
   const openVocab = useCallback((block: VocabularyBlock) => setVocabBlock(block), [])
   const closeVocab = useCallback(() => setVocabBlock(null), [])
   const closeToc = useCallback(() => {
-    chrome.reveal()
+    revealChrome()
     setTocOpen(false)
-  }, [chrome.reveal])
+  }, [revealChrome])
   const closeSettings = useCallback(() => {
-    chrome.reveal()
+    revealChrome()
     setSettingsOpen(false)
-  }, [chrome.reveal])
+  }, [revealChrome])
 
   return (
     <div

@@ -14,7 +14,8 @@ type CloseFocusTarget = 'trigger' | 'desktop' | 'main'
 export function Header() {
   const strings = useStrings()
   const location = useLocation()
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuOpenAtLocationKey, setMenuOpenAtLocationKey] = useState<string | null>(null)
+  const menuOpen = menuOpenAtLocationKey === location.key
   const menuId = useId()
   const menuTitleId = useId()
   const menuRef = useRef<HTMLDivElement>(null)
@@ -33,13 +34,19 @@ export function Header() {
 
   const closeMenu = () => {
     closeFocusTarget.current = 'trigger'
-    setMenuOpen(false)
+    setMenuOpenAtLocationKey(null)
   }
 
   const closeMenuTo = (focusTarget: CloseFocusTarget) => {
     closeFocusTarget.current = focusTarget
-    setMenuOpen(false)
+    setMenuOpenAtLocationKey(null)
   }
+
+  useEffect(() => {
+    if (lastLocationKey.current === location.key) return
+    lastLocationKey.current = location.key
+    if (menuOpenAtLocationKey !== null) closeFocusTarget.current = 'main'
+  }, [location.key, menuOpenAtLocationKey])
 
   useEffect(() => {
     if (menuOpen) {
@@ -61,12 +68,6 @@ export function Header() {
       target?.focus()
     }
   }, [menuOpen])
-
-  useEffect(() => {
-    if (lastLocationKey.current === location.key) return
-    lastLocationKey.current = location.key
-    if (menuOpen) closeMenuTo('main')
-  }, [location.key, menuOpen])
 
   useEffect(() => {
     const handleFocusIn = (event: FocusEvent) => {
@@ -257,7 +258,13 @@ export function Header() {
           aria-haspopup="dialog"
           aria-label={menuOpen ? strings.nav.closeMenu : strings.nav.openMenu}
           disabled={menuOpen}
-          onClick={() => setMenuOpen((current) => !current)}
+          onClick={() => {
+            if (menuOpen) closeMenu()
+            else {
+              closeFocusTarget.current = 'trigger'
+              setMenuOpenAtLocationKey(location.key)
+            }
+          }}
         >
           <span aria-hidden="true">{menuOpen ? '×' : '☰'}</span>
         </button>
