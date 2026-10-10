@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { preparePrivatePracticeQuestionBankRelease } from '../../../src/content-delivery/privatePracticeQuestionBank.ts'
 import { nonProprietaryPracticeQuestionBankFixture } from '../../../src/practice-web-test/fixtures/nonProprietaryPracticeFixture.ts'
 import { handlePracticeAttempts } from './handler.ts'
+import { FREE_SPI_SAMPLE_CONTENT_ID, FREE_SPI_SAMPLE_REVISION } from '../../../src/practice-web-test/freeSample.ts'
+import { freeSpiSamplePayload } from '../../../src/practice-web-test/freeSpiSamplePayload.ts'
 import type { DbClient } from '../_shared/db.ts'
 
 const userId = '10000000-0000-4000-8000-000000000001'
@@ -94,6 +96,23 @@ describe('practice-attempts handler', () => {
     const member = deps(db(userId), 'non-member')
     expect((await handlePracticeAttempts(request(), member)).status).toBe(403)
     expect(member.getRelease).not.toHaveBeenCalled()
+  })
+
+  it('persists a signed-in non-member attempt on the public Free sample without a membership lookup', async () => {
+    const database = db(userId)
+    const free = {
+      ...deps(database, 'non-member'),
+      getRelease: vi.fn().mockResolvedValue({ kind: 'found', contentId: FREE_SPI_SAMPLE_CONTENT_ID, revision: FREE_SPI_SAMPLE_REVISION, contentKind: 'practice-question-bank', payload: freeSpiSamplePayload }),
+      getQuestionAvailability: vi.fn().mockResolvedValue({ kind: 'found', revision: FREE_SPI_SAMPLE_REVISION, version: 1 }),
+    }
+    const result = await handlePracticeAttempts(request({ contentId: FREE_SPI_SAMPLE_CONTENT_ID, revision: FREE_SPI_SAMPLE_REVISION, questionId: 'spi-free-v-vocab-01', answer: 'b' }), free)
+    expect(result.status).toBe(200)
+    expect(free.membershipAccessFor).not.toHaveBeenCalled()
+    expect(database.rpc).toHaveBeenCalledWith('record_practice_attempt', expect.objectContaining({
+      p_user_id: userId, p_content_id: FREE_SPI_SAMPLE_CONTENT_ID, p_question_id: 'spi-free-v-vocab-01', p_correct: false,
+    }))
+    const anonymous = deps(db(null), 'non-member')
+    expect((await handlePracticeAttempts(request({ contentId: FREE_SPI_SAMPLE_CONTENT_ID, revision: FREE_SPI_SAMPLE_REVISION }), anonymous)).status).toBe(401)
   })
 
   it('fails closed for unknown or stale selection and never returns private content', async () => {

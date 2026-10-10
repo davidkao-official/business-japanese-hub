@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MyLearningPage } from './MyLearningPage'
+import { FREE_SPI_SAMPLE_REVISION } from '../practice-web-test/freeSample'
 import { renderWithAppProviders } from '../test/appProviders'
 import { getActiveLocale } from '../i18n/strings'
 import type {
@@ -345,9 +346,32 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: "学習記録は Plus 会員向けの機能です" })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: "Plus でできること" })).toBeInTheDocument())
     expect(screen.getByRole('link', { name: "Plus について" })).toHaveAttribute('href', '/plus')
     expect(screen.queryByRole('heading', { name: "解答記録を読み込めません" })).not.toBeInTheDocument()
+  })
+
+  it('shows a free account its server-scoped sample record with an exact review link and the Plus note', async () => {
+    const sampleMistake = { ...review, contentId: 'practice-web-test-spi-free-sample-v1', contentRevision: FREE_SPI_SAMPLE_REVISION, questionId: 'spi-free-v-vocab-01', questionVersion: 1 }
+    const fetchSnapshot = vi.fn().mockResolvedValue({ kind: 'ok' as const, snapshot: snapshot({
+      recentAttempts: [{ ...sampleMistake, correct: false }],
+      actionableMistakes: [sampleMistake],
+      nextAction: { kind: 'review-mistake', item: sampleMistake },
+    }) })
+    const fetchSaves = vi.fn()
+    renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} fetchSaves={fetchSaves} />, {
+      session: { id: 'free-1', email: 'free@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('non-member') },
+    })
+
+    await waitFor(() => expect(screen.getAllByRole('link', { name: "この問題を復習" })[0]).toBeInTheDocument())
+    expect(fetchSnapshot).toHaveBeenCalledOnce()
+    expect(screen.getAllByRole('link', { name: "この問題を復習" })[0]).toHaveAttribute(
+      'href',
+      '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning&review=spi-free-v-vocab-01&reviewVersion=1',
+    )
+    expect(screen.getByRole('heading', { name: "Plus でできること" })).toBeInTheDocument()
+    expect(fetchSaves).not.toHaveBeenCalled()
   })
 
   it('shows the endpoint signed-out state when auth still has a cached user', async () => {
@@ -364,11 +388,11 @@ describe('My Learning page', () => {
 
   it('renders membership and endpoint failures as truthful recovery states', async () => {
     const membership = { getAccess: vi.fn().mockResolvedValue('non-member') }
-    renderWithAppProviders(<MyLearningPage />, {
+    renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'non-member' as const })} />, {
       session: { id: 'member-1', email: 'member@example.com' },
       membershipAccessRepository: membership,
     })
-    await waitFor(() => expect(screen.getByRole('heading', { name: "学習記録は Plus 会員向けの機能です" })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: "Plus でできること" })).toBeInTheDocument())
     expect(screen.getByRole('link', { name: "Plus について" })).toHaveAttribute('href', '/plus')
 
     cleanup()

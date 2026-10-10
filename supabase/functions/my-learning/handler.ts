@@ -1,7 +1,6 @@
 import { authenticateBearer } from '../_shared/auth.ts'
 import type { DbClient } from '../_shared/db.ts'
 import {
-  forbidden,
   headerValue,
   jsonResult,
   methodNotAllowed,
@@ -16,6 +15,7 @@ import {
   type PracticeReviewItem,
   type PracticeLearningSnapshot,
 } from '../../../src/lib/learning/practiceMyLearning.ts'
+import { FREE_PRACTICE_CONTENT_IDS } from '../../../src/practice-web-test/freeSample.ts'
 
 export type MembershipAccess = 'active' | 'non-member' | 'unavailable'
 
@@ -104,9 +104,11 @@ function mapAvailability(row: Record<string, unknown>): PracticeAvailability | n
   }
 }
 
-async function readRows(db: DbClient, table: string, columns: string, userId: string): Promise<Record<string, unknown>[] | null> {
+async function readRows(db: DbClient, table: string, columns: string, userId: string, contentIds: readonly string[] | null): Promise<Record<string, unknown>[] | null> {
   try {
-    const result = await db.from(table).select(columns).eq('user_id', userId).order('created_at', { ascending: false }).limit(LIMIT)
+    const owned = db.from(table).select(columns).eq('user_id', userId)
+    const scoped = contentIds === null ? owned : owned.in('content_id', [...contentIds])
+    const result = await scoped.order('created_at', { ascending: false }).limit(LIMIT)
     return result.error || !Array.isArray(result.data) ? null : result.data
   } catch {
     return null
@@ -157,11 +159,13 @@ export async function handleMyLearning(req: HandlerRequest, deps: MyLearningDeps
   if (!userId) return noStore(unauthorized())
   const access = await deps.membershipAccessFor(userId)
   if (access === 'unavailable') return noStore(jsonResult(503, { error: 'membership access unavailable' }))
-  if (access !== 'active') return noStore(forbidden('active membership required'))
+  // Without Plus, only evidence from the public Free sample is shown; member
+  // history is retained untouched and reappears when access is active again.
+  const contentScope = access === 'active' ? null : FREE_PRACTICE_CONTENT_IDS
 
   const [attemptRows, reviewRows] = await Promise.all([
-    readRows(deps.db, 'practice_attempts', EVIDENCE_COLUMNS, userId),
-    readRows(deps.db, 'practice_review_queue', EVIDENCE_COLUMNS, userId),
+    readRows(deps.db, 'practice_attempts', EVIDENCE_COLUMNS, userId, contentScope),
+    readRows(deps.db, 'practice_review_queue', EVIDENCE_COLUMNS, userId, contentScope),
   ])
   if (!attemptRows || !reviewRows) return noStore(jsonResult(503, { error: 'learning evidence unavailable' }))
   const attempts = attemptRows.map(mapAttempt)

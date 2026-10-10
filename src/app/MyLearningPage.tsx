@@ -11,6 +11,7 @@ import {
   validatePracticeDiscoveryCatalog,
   type PracticeDiscoveryMode,
 } from '../practice-web-test/discoveryCatalog'
+import { FREE_SPI_SAMPLE_CONTENT_ID, FREE_SPI_SAMPLE_REVISION } from '../practice-web-test/freeSample'
 import { practiceRunnerHref, type PracticeLearningSnapshot, type PracticeReviewItem } from '../lib/learning/practiceMyLearning'
 import { fetchPracticeLearningSnapshot } from '../lib/learning/practiceMyLearningClient'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
@@ -56,7 +57,9 @@ export function MyLearningPage({
     : { kind: 'idle' }
 
   useEffect(() => {
-    if (authLoading || !user || membershipState.kind !== 'active-member') {
+    // Free accounts receive their public-sample Practice evidence; Plus adds the
+    // member bank and Reading/Workplace saves. The server scopes the snapshot.
+    if (authLoading || !user || (membershipState.kind !== 'active-member' && membershipState.kind !== 'non-member')) {
       return
     }
     let cancelled = false
@@ -78,7 +81,12 @@ export function MyLearningPage({
   if (authLoading) return <MyLearningShell><StatePanel title={ui.myCheckingTitle} body={ui.myCheckingBody} /></MyLearningShell>
   if (!user) return <MyLearningShell><SignedOutState /></MyLearningShell>
   if (membershipState.kind === 'checking') return <MyLearningShell><StatePanel title={ui.myCheckingMembershipTitle} body={ui.myCheckingMembershipBody} /></MyLearningShell>
-  if (membershipState.kind === 'non-member') return <MyLearningShell><NonMemberState /></MyLearningShell>
+  if (membershipState.kind === 'non-member') {
+    if (currentPageState.kind === 'ready') return <MyLearningShell><MyLearningContent snapshot={currentPageState.snapshot} /><NonMemberState /></MyLearningShell>
+    if (currentPageState.kind === 'unavailable') return <MyLearningShell><StatePanel title={ui.myAttemptsUnavailableTitle} body={ui.myAttemptsUnavailableBody} action={<button className="btn btn--secondary" type="button" onClick={() => setRequestKey((current) => current + 1)}>{ui.retry}</button>} /><NonMemberState /></MyLearningShell>
+    if (currentPageState.kind === 'loading' || currentPageState.kind === 'idle') return <MyLearningShell><StatePanel title={ui.myLoadingTitle} body={ui.myLoadingBody} /></MyLearningShell>
+    return <MyLearningShell><NonMemberState /></MyLearningShell>
+  }
   if (membershipState.kind === 'unavailable') return <MyLearningShell><StatePanel title={ui.myMembershipUnavailableTitle} body={ui.myMembershipUnavailableBody} action={<button className="btn btn--secondary" type="button" onClick={retryMembership}>{ui.retry}</button>} /></MyLearningShell>
   if (currentPageState.kind === 'signed-out') return <MyLearningShell><SignedOutState /></MyLearningShell>
   if (currentPageState.kind === 'non-member') return <MyLearningShell><NonMemberState /></MyLearningShell>
@@ -325,8 +333,19 @@ function actionFor(item: PracticeReviewItem, review: boolean, ui: LearningUiStri
     : { title: ui.myContinueTitle, body: ui.myContinueBody(categoryLabelFor(item, ui, locale)), href, label: ui.myContinueAction }
 }
 
+/** The member bank and the public Free sample share the discovery catalog's categories. */
+function isCatalogPracticeContent(contentId: string): boolean {
+  return Boolean(catalog) && (contentId === catalog!.releaseIdentity.contentId || contentId === FREE_SPI_SAMPLE_CONTENT_ID)
+}
+
+function isCurrentPracticeRelease(contentId: string, revision: string): boolean {
+  if (!catalog) return false
+  return (contentId === catalog.releaseIdentity.contentId && revision === catalog.releaseIdentity.revision)
+    || (contentId === FREE_SPI_SAMPLE_CONTENT_ID && revision === FREE_SPI_SAMPLE_REVISION)
+}
+
 function categoryLabelFor(item: Pick<PracticeReviewItem, 'contentId' | 'contentRevision' | 'testFamily' | 'domain' | 'category'>, ui: LearningUiStrings, locale: Locale): string {
-  if (!catalog || item.contentId !== catalog.releaseIdentity.contentId) return ui.myUnknownCategory
+  if (!catalog || !isCatalogPracticeContent(item.contentId)) return ui.myUnknownCategory
   return practiceDiscoveryCategoryLabel(catalog.releaseIdentity.contentId, item.testFamily, item.domain, item.category, locale) ?? ui.myUnknownCategory
 }
 
@@ -336,7 +355,7 @@ function weakAreaCategoryLabel(weakArea: NonNullable<PracticeLearningSnapshot['w
 }
 
 function safeRunnerHref(item: PracticeReviewItem, review: boolean): string | null {
-  if (!catalog || item.contentId !== catalog.releaseIdentity.contentId || item.contentRevision !== catalog.releaseIdentity.revision) return null
+  if (!catalog || !isCurrentPracticeRelease(item.contentId, item.contentRevision)) return null
   const family = findPracticeDiscoveryFamily(catalog, item.testFamily)
   const domain = findPracticeDiscoveryDomain(catalog, item.testFamily, item.domain)
   const category = findPracticeDiscoveryCategory(catalog, item.testFamily, item.domain, item.category)

@@ -18,6 +18,7 @@ import {
   validateRuntimePayload,
   type RunnerResponse,
 } from '../../../src/practice-web-test/runtime.ts'
+import { isFreePracticeContentId } from '../../../src/practice-web-test/freeSample.ts'
 import type { PracticeRuntimePayload } from '../../../src/content-delivery/privatePracticeQuestionBank.ts'
 import type { RuntimeQuestion } from '../../../src/practice-web-test/runtime.ts'
 
@@ -175,9 +176,12 @@ export async function handlePracticeAttempts(req: HandlerRequest, deps: Practice
   if (!input) return badRequest('invalid request body')
   const uid = await authenticateBearer(deps.db, headerValue(req.headers, 'authorization'))
   if (!uid) return privateResult(unauthorized())
-  const access = await deps.membershipAccessFor(uid)
-  if (access === 'unavailable') return privateResult(jsonResult(503, { error: 'membership access unavailable' }))
-  if (access !== 'active') return privateResult(forbidden('active membership required'))
+  // The public Free sample needs a signed-in owner but no Plus window.
+  if (!isFreePracticeContentId(input.contentId)) {
+    const access = await deps.membershipAccessFor(uid)
+    if (access === 'unavailable') return privateResult(jsonResult(503, { error: 'membership access unavailable' }))
+    if (access !== 'active') return privateResult(forbidden('active membership required'))
+  }
   const release = await deps.getRelease(input.contentId, input.revision)
   if (release.kind === 'unavailable') return privateResult(jsonResult(503, { error: 'practice content unavailable' }))
   if (release.kind === 'missing' || release.contentKind !== 'practice-question-bank') return privateResult(jsonResult(404, { error: 'practice content not found' }))

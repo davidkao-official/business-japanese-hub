@@ -596,6 +596,43 @@
   border: 0;
 }
 
+.web-test-hub__sample-notice {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: var(--stroke-thin) solid var(--color-border);
+  border-inline-start: var(--space-1) solid var(--color-accent);
+  background: var(--color-surface-muted);
+}
+
+.web-test-hub__sample-notice h2 {
+  font-family: var(--font-serif);
+  font-size: var(--text-lg);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--leading-tight);
+}
+
+.web-test-hub__sample-notice p {
+  color: var(--color-text-muted);
+}
+
+.web-test-hub__sample-auth summary {
+  cursor: pointer;
+  min-block-size: 2.75rem;
+  display: flex;
+  align-items: center;
+}
+
+.web-test-hub__sample-auth summary:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.web-test-hub__prompt {
+  white-space: pre-line;
+}
+
 .web-test-hub__runner {
   display: grid;
   min-inline-size: 0;

@@ -23,12 +23,17 @@ import { fetchPracticePayload, submitPracticeAttempt, type PracticeAttemptInput 
 import { resolveQuestionCheckpoints, scoreAnswer, selectableQuestions, scoreQuestion, supportOverlay, type RunnerResponse, type RuntimeQuestion } from '../practice-web-test/runtime'
 import type { PracticeRepresentation } from '../practice-web-test/contract'
 import type { PracticeAnswer } from '../practice-web-test/contract'
+import { FREE_SPI_SAMPLE_CONTENT_ID, FREE_SPI_SAMPLE_REVISION } from '../practice-web-test/freeSample'
+import { freeSpiSamplePayload } from '../practice-web-test/freeSpiSamplePayload'
+import { AuthPanel } from '../components/AuthPanel'
 
 const catalog = validatePracticeDiscoveryCatalog(catalogDocument) ? catalogDocument : null
 
 
 
-type RunnerPersistence = 'pending' | 'saved' | 'failed' | 'signed-out' | 'forbidden' | 'missing' | 'stale' | 'invalid' | 'invalid-response-time'
+type RunnerPersistence = 'pending' | 'saved' | 'failed' | 'signed-out' | 'forbidden' | 'missing' | 'stale' | 'invalid' | 'invalid-response-time' | 'not-saved-sample'
+/** Persistence states after which the learner may move on to the next question. */
+const SETTLED_PERSISTENCE: ReadonlySet<string> = new Set(['saved', 'invalid-response-time', 'not-saved-sample'])
 type RunnerAnswer = { questionId: string; questionVersion: number; correct: boolean; category: string; checkpointMeasured: number; checkpointMisses: number; elapsedMs: number; persistence: RunnerPersistence }
 type RunnerQuestionIdentity = { id: string; version: number }
 type RunnerRetryContext = {
@@ -190,7 +195,7 @@ export function WebTestCategoryPage() {
           {domain.categories.map((category) => (
             <li className="web-test-hub__category" key={category.category}>
               <h3>{labelForCategory(family.testFamily, domain.domain, category)}</h3>
-              <p>{category.releasedCount} {ui.webPublishedCountSuffix}</p>
+              <p>{category.releasedCount} {ui.webPublishedCountSuffix}{freeSampleCount(family.testFamily, domain.domain, category.category) > 0 && <> · {ui.webSampleCount(freeSampleCount(family.testFamily, domain.domain, category.category))}</>}</p>
               <ul className="web-test-hub__mode-list">
                 {category.modes.map((mode) => (
                   <li key={mode}>
@@ -310,10 +315,28 @@ export function WebTestRunnerEntryPage() {
       primaryElapsedMsRef.current = null
       const restoredPersistence = lastAttemptPersistenceRef.current === 'pending' ? 'failed' : lastAttemptPersistenceRef.current ?? 'failed'
       setPersistence(userId && pendingRetry ? restoredPersistence : 'idle')
-      if (authLoading || !userId) return
+      if (authLoading) return
+      // The public Free sample needs no account; a signed-in owner without Plus
+      // (or before the member bank is published) practices and saves it too.
+      const sampleQuestions = selectableQuestions(freeSpiSamplePayload, family!.testFamily, domain!.domain, category!.category, mode!)
+      const sampleSelection = reviewQuestionId === null
+        ? sampleQuestions
+        : sampleQuestions.filter((entry) => entry.id === reviewQuestionId && entry.version === reviewVersion)
+      const sampleReview = reviewQuestionId !== null && sampleQuestions.some((entry) => entry.id === reviewQuestionId)
+      const startSample = () => {
+        if (sampleSelection.length === 0) { setState({ kind: sampleReview ? 'stale-review' : userId ? 'forbidden' : 'idle' }); return }
+        setState({ kind: 'ready', payload: freeSpiSamplePayload, questions: sampleSelection, selectionKey, source: { contentId: FREE_SPI_SAMPLE_CONTENT_ID, revision: FREE_SPI_SAMPLE_REVISION, freeSample: true } })
+        if (sampleSelection[0]?.answer.input.kind === 'ordering') setResponse(sampleSelection[0].answer.input.choices.map((choice) => choice.id))
+        startedAt.current = Date.now()
+      }
+      if (!userId || sampleReview) { if (!pendingRetry || sampleReview) startSample(); return }
       const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision, getAccessToken, userId)
       if (cancelled) return
-      if (result.kind !== 'ok') { setState({ kind: result.kind }); return }
+      if (result.kind !== 'ok') {
+        if ((result.kind === 'forbidden' || result.kind === 'missing') && reviewQuestionId === null && sampleSelection.length > 0) { startSample(); return }
+        setState({ kind: result.kind })
+        return
+      }
       const questions = selectableQuestions(result.payload, family!.testFamily, domain!.domain, category!.category, mode!)
       if (questions.length === 0) { setState({ kind: 'unavailable' }); return }
       const selectedQuestions = reviewQuestionId === null
@@ -384,7 +407,7 @@ export function WebTestRunnerEntryPage() {
         setRetryAvailable(false)
         setPersistence('idle')
       }
-      setState({ kind: 'ready', payload: result.payload, questions: selectedQuestions, selectionKey })
+      setState({ kind: 'ready', payload: result.payload, questions: selectedQuestions, selectionKey, source: { contentId: catalog.releaseIdentity.contentId, revision: catalog.releaseIdentity.revision, freeSample: false } })
       if (!(pendingRetry && retryContextRef.current) && selectedQuestions[0]?.answer.input.kind === 'ordering') setResponse(selectedQuestions[0].answer.input.choices.map((choice) => choice.id))
       startedAt.current = Date.now()
     })
@@ -409,7 +432,7 @@ export function WebTestRunnerEntryPage() {
   )
   if (!catalog || !family || !domain || !category || !validSearch || !validMode) return <CatalogUnavailable />
 
-  const viewState = !authLoading && !user
+  const viewState = !authLoading && !user && !(state.kind === 'ready' && state.source.freeSample)
     ? { kind: 'signed-out' as const }
     : state.kind === 'ready' && state.selectionKey !== selectionKey
       ? { kind: 'loading' as const }
@@ -419,8 +442,11 @@ export function WebTestRunnerEntryPage() {
     const operationSelectionKey = selectionKey
     const operationUserId = userId
     if (!operationUserId) {
-      setPersistence('failed')
+      // Only the public sample runs signed out; its answers stay on this page.
+      const status: RunnerPersistence = state.kind === 'ready' && state.source.freeSample ? 'not-saved-sample' : 'failed'
+      setPersistence(status)
       setRetryAvailable(false)
+      updateAnswers((current) => current.map((answer, index) => index === answerIndex ? { ...answer, persistence: status } : answer))
       return
     }
     lastAttemptRef.current = attempt
@@ -470,6 +496,7 @@ export function WebTestRunnerEntryPage() {
         <h1 className="page__title" id="web-test-runner-entry-title">{labelForCategory(family.testFamily, domain.domain, category)}</h1>
         <p className="page__lead">{(mode === 'untimed-learning' ? ui.webUntimed : ui.webTimed)} · {category.releasedCount} {ui.webPublishedCountSuffix}</p>
       </div>
+      {viewState.kind === 'ready' && viewState.source.freeSample && <FreeSampleNotice signedIn={Boolean(user)} count={viewState.questions.length} />}
       <RunnerStateView questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} completionHeadingRef={completionHeadingRef} checkpointHeadingRef={checkpointHeadingRef} categoryLabel={labelForCategory(family.testFamily, domain.domain, category)} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} checkpointIndex={checkpointIndex} checkpointResponse={checkpointResponse} checkpointFeedback={checkpointFeedback} persistence={persistence} canRetryPersist={retryAvailable} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} setCheckpointResponse={setCheckpointResponse} onRetryPersist={retryPersist} onSubmit={() => {
         if (!question || state.kind !== 'ready' || response === '') return
         const correct = scoreQuestion(question, response)
@@ -485,7 +512,7 @@ export function WebTestRunnerEntryPage() {
         checkpointResponsesRef.current = []
         setPersistence('idle')
         updateAnswers((current) => [...current, { questionId: question.id, questionVersion: question.version, correct, category: question.category, checkpointMeasured: 0, checkpointMisses: 0, elapsedMs: primaryElapsedMs, persistence: 'pending' }])
-        if (checkpoints.length === 0) void persistAttempt({ contentId: catalog.releaseIdentity.contentId, revision: catalog.releaseIdentity.revision, questionId: question.id, questionVersion: question.version, answer: response, responseTimeMs: primaryElapsedMs, clientIdempotencyKey: attemptId() }, answers.length)
+        if (checkpoints.length === 0) void persistAttempt({ contentId: state.source.contentId, revision: state.source.revision, questionId: question.id, questionVersion: question.version, answer: response, responseTimeMs: primaryElapsedMs, clientIdempotencyKey: attemptId() }, answers.length)
       }} onCheckpointSubmit={() => {
         if (state.kind !== 'ready' || !question || checkpointIndex === null || checkpointFeedback !== null) return
         const checkpoint = resolveQuestionCheckpoints(state.payload, question)?.[checkpointIndex]
@@ -495,11 +522,11 @@ export function WebTestRunnerEntryPage() {
         setCheckpointFeedback(correct)
         updateAnswers((current) => current.map((answer, position) => position === current.length - 1 ? { ...answer, checkpointMeasured: answer.checkpointMeasured + 1, checkpointMisses: answer.checkpointMisses + (correct ? 0 : 1) } : answer))
         const checkpoints = resolveQuestionCheckpoints(state.payload, question) ?? []
-        if (checkpointIndex + 1 >= checkpoints.length) void persistAttempt({ contentId: catalog.releaseIdentity.contentId, revision: catalog.releaseIdentity.revision, questionId: question.id, questionVersion: question.version, answer: response, responseTimeMs: primaryElapsedMsRef.current ?? 0, clientIdempotencyKey: attemptId(), checkpointResponses: checkpointResponsesRef.current }, answers.length - 1)
+        if (checkpointIndex + 1 >= checkpoints.length) void persistAttempt({ contentId: state.source.contentId, revision: state.source.revision, questionId: question.id, questionVersion: question.version, answer: response, responseTimeMs: primaryElapsedMsRef.current ?? 0, clientIdempotencyKey: attemptId(), checkpointResponses: checkpointResponsesRef.current }, answers.length - 1)
       }} onCheckpointNext={() => {
         if (state.kind !== 'ready' || !question || checkpointIndex === null) return
         const checkpoints = resolveQuestionCheckpoints(state.payload, question) ?? []
-        if (checkpointIndex + 1 >= checkpoints.length && persistence !== 'saved' && persistence !== 'invalid-response-time') return
+        if (checkpointIndex + 1 >= checkpoints.length && !SETTLED_PERSISTENCE.has(persistence)) return
         if (checkpointIndex + 1 < checkpoints.length) {
           checkpointAdvanceFocusRef.current = true
           setCheckpointIndex(checkpointIndex + 1)
@@ -528,7 +555,7 @@ export function WebTestRunnerEntryPage() {
           startedAt.current = Date.now()
         }
       }} onNext={() => {
-        if (persistence !== 'saved' && persistence !== 'invalid-response-time') return
+        if (!SETTLED_PERSISTENCE.has(persistence)) return
         persistenceGenerationRef.current += 1
         lastAttemptRef.current = null
         lastAttemptAnswerIndexRef.current = null
@@ -554,7 +581,8 @@ export function WebTestRunnerEntryPage() {
   )
 }
 
-type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' | 'stale-review' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[]; selectionKey: string }
+type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' | 'stale-review' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[]; selectionKey: string; source: RunnerSource }
+type RunnerSource = { contentId: string; revision: string; freeSample: boolean }
 
 function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHeadingRef, checkpointHeadingRef, categoryLabel, state, finish, question, response, answers, feedback, checkpointIndex, checkpointResponse, checkpointFeedback, persistence, canRetryPersist, lastCorrect, lastExplanation, setResponse, setCheckpointResponse, onRetryPersist, onSubmit, onCheckpointSubmit, onCheckpointNext, onNext }: { questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; completionHeadingRef: RefObject<HTMLHeadingElement | null>; checkpointHeadingRef: RefObject<HTMLHeadingElement | null>; categoryLabel: string; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: RunnerAnswer[]; feedback: { question: RuntimeQuestion; correct: boolean } | null; checkpointIndex: number | null; checkpointResponse: RunnerResponse; checkpointFeedback: boolean | null; persistence: 'idle' | RunnerPersistence; canRetryPersist: boolean; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; setCheckpointResponse: (value: RunnerResponse) => void; onRetryPersist: () => void; onSubmit: () => void; onCheckpointSubmit: () => void; onCheckpointNext: () => void; onNext: () => void }) {
   const ui = useStrings().learningUi
@@ -574,7 +602,9 @@ function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHea
     const measured = answers.reduce((total, answer) => total + answer.checkpointMeasured, 0)
     const misses = answers.reduce((total, answer) => total + answer.checkpointMisses, 0)
     const invalidCount = answers.filter((answer) => answer.persistence === 'invalid-response-time').length
-    const completionPersistence = invalidCount > 0
+    const completionPersistence = answers.length > 0 && answers.every((answer) => answer.persistence === 'not-saved-sample')
+      ? ui.webSampleNotSaved
+      : invalidCount > 0
       ? ui.webPartiallySaved
       : answers.length > 0 && answers.every((answer) => answer.persistence === 'saved')
         ? ui.webSaved
@@ -592,13 +622,26 @@ function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHea
   if (feedback?.question.id === question.id) {
     const checkpoints = state.kind === 'ready' ? resolveQuestionCheckpoints(state.payload, question) ?? [] : []
     const checkpoint = checkpointIndex === null ? undefined : checkpoints[checkpointIndex]
-    return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? ui.answerCorrect : ui.answerIncorrect}</p><h2 ref={feedbackHeadingRef} tabIndex={-1}>{ui.webAnswerExplanation}</h2><h3 lang="ja">{question.promptJa}</h3>{question.promptRepresentation && <RepresentationView representation={question.promptRepresentation} label={ui.webQuestionRepresentation} />}<p>{ui.webCorrectAnswerLabel}<span lang="ja">{answerLabel(answer)}</span></p><p lang="ja">{question.coreExplanation.concise}</p><p lang="ja">{question.coreExplanation.whatIsAskedJa}</p>{question.coreExplanation.representation && <RepresentationView representation={question.coreExplanation.representation} label={ui.webAnswerRepresentation} />}{overlay?.concise && <p lang="zh-TW">{overlay.concise}</p>}{overlay?.whatIsAsked && <p lang="zh-TW">{overlay.whatIsAsked}</p>}{overlay?.representationExplanation && <p lang="zh-TW">{overlay.representationExplanation}</p>}{overlay?.commonMisread && <p lang="zh-TW">{overlay.commonMisread}</p>}{overlay?.keyTerms?.map((term) => <p key={term.termId} lang="zh-TW"><span lang="ja">{term.surface}</span>：{term.meaning}{term.note && `（${term.note}）`}</p>)}{persistence === 'pending' && <p role="status">{ui.webSaving}</p>}{persistence === 'saved' && <p role="status">{ui.webSaved}</p>}{retryNotice}{persistence === 'missing' && <p role="alert">{ui.webMissingQuestion}<button type="button" onClick={reloadCurrentDocument}>{ui.webReloadQuestion}</button></p>}{persistence === 'stale' && <p role="alert">{ui.webUpdatedQuestion}<button type="button" onClick={reloadCurrentDocument}>{ui.webReloadQuestion}</button></p>}{persistence === 'invalid' && <p role="alert">{ui.webInvalidResponse}</p>}{persistence === 'invalid-response-time' && <p role="alert">{ui.webInvalidTime}</p>}{checkpoint && <section aria-labelledby="checkpoint-title"><h3 id="checkpoint-title" ref={checkpointHeadingRef} tabIndex={-1}>{ui.webCheckpointLabel}{checkpointIndex! + 1}</h3><p lang="ja">{checkpoint.promptJa}</p>{checkpointFeedback !== null ? <><p role="status">{checkpointFeedback ? ui.webCheckpointCorrect : ui.webCheckpointIncorrect}</p><button type="button" disabled={checkpointIndex! + 1 >= checkpoints.length && persistence !== 'saved' && persistence !== 'invalid-response-time'} onClick={onCheckpointNext}>{checkpointIndex! + 1 < checkpoints.length ? ui.webNextCheckpoint : ui.webNextQuestion}</button></> : <>{renderInput(checkpoint.answer, checkpointResponse, setCheckpointResponse, ui)}<button type="button" disabled={checkpointResponse === '' || (Array.isArray(checkpointResponse) && checkpointResponse.length === 0)} onClick={onCheckpointSubmit}>{ui.webSubmitCheckpoint}</button></>}</section>}{!checkpoint && <button type="button" disabled={persistence !== 'saved' && persistence !== 'invalid-response-time'} onClick={onNext}>{ui.webNextQuestion}</button>}</section>
+    return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? ui.answerCorrect : ui.answerIncorrect}</p><h2 ref={feedbackHeadingRef} tabIndex={-1}>{ui.webAnswerExplanation}</h2><h3 className="web-test-hub__prompt" lang="ja">{question.promptJa}</h3>{question.promptRepresentation && <RepresentationView representation={question.promptRepresentation} label={ui.webQuestionRepresentation} />}<p>{ui.webCorrectAnswerLabel}<span lang="ja">{answerLabel(answer)}</span></p><p lang="ja">{question.coreExplanation.concise}</p><p lang="ja">{question.coreExplanation.whatIsAskedJa}</p>{question.coreExplanation.representation && <RepresentationView representation={question.coreExplanation.representation} label={ui.webAnswerRepresentation} />}{overlay?.concise && <p lang="zh-TW">{overlay.concise}</p>}{overlay?.whatIsAsked && <p lang="zh-TW">{overlay.whatIsAsked}</p>}{overlay?.representationExplanation && <p lang="zh-TW">{overlay.representationExplanation}</p>}{overlay?.commonMisread && <p lang="zh-TW">{overlay.commonMisread}</p>}{overlay?.keyTerms?.map((term) => <p key={term.termId} lang="zh-TW"><span lang="ja">{term.surface}</span>：{term.meaning}{term.note && `（${term.note}）`}</p>)}{persistence === 'pending' && <p role="status">{ui.webSaving}</p>}{persistence === 'saved' && <p role="status">{ui.webSaved}</p>}{persistence === 'not-saved-sample' && <p role="status">{ui.webSampleNotSaved}</p>}{retryNotice}{persistence === 'missing' && <p role="alert">{ui.webMissingQuestion}<button type="button" onClick={reloadCurrentDocument}>{ui.webReloadQuestion}</button></p>}{persistence === 'stale' && <p role="alert">{ui.webUpdatedQuestion}<button type="button" onClick={reloadCurrentDocument}>{ui.webReloadQuestion}</button></p>}{persistence === 'invalid' && <p role="alert">{ui.webInvalidResponse}</p>}{persistence === 'invalid-response-time' && <p role="alert">{ui.webInvalidTime}</p>}{checkpoint && <section aria-labelledby="checkpoint-title"><h3 id="checkpoint-title" ref={checkpointHeadingRef} tabIndex={-1}>{ui.webCheckpointLabel}{checkpointIndex! + 1}</h3><p lang="ja">{checkpoint.promptJa}</p>{checkpointFeedback !== null ? <><p role="status">{checkpointFeedback ? ui.webCheckpointCorrect : ui.webCheckpointIncorrect}</p><button type="button" disabled={checkpointIndex! + 1 >= checkpoints.length && !SETTLED_PERSISTENCE.has(persistence)} onClick={onCheckpointNext}>{checkpointIndex! + 1 < checkpoints.length ? ui.webNextCheckpoint : ui.webNextQuestion}</button></> : <>{renderInput(checkpoint.answer, checkpointResponse, setCheckpointResponse, ui)}<button type="button" disabled={checkpointResponse === '' || (Array.isArray(checkpointResponse) && checkpointResponse.length === 0)} onClick={onCheckpointSubmit}>{ui.webSubmitCheckpoint}</button></>}</section>}{!checkpoint && <button type="button" disabled={!SETTLED_PERSISTENCE.has(persistence)} onClick={onNext}>{ui.webNextQuestion}</button>}</section>
   }
-  return <section className="web-test-hub__runner" aria-live="polite">{persistence === 'pending' && <p role="status">{ui.webSaving}</p>}{persistence === 'saved' && <p role="status">{ui.webSaved}</p>}{retryNotice}{lastCorrect !== null && <p role="status">{lastCorrect ? ui.answerCorrect : ui.answerIncorrect}{lastExplanation && <>：<span lang="ja">{lastExplanation}</span></>}</p>}<p>{ui.webQuestionPosition(answers.length + 1, state.questions.length)}</p><h2 ref={questionHeadingRef} tabIndex={-1} lang="ja">{question.promptJa}</h2>
+  return <section className="web-test-hub__runner" aria-live="polite">{persistence === 'pending' && <p role="status">{ui.webSaving}</p>}{persistence === 'saved' && <p role="status">{ui.webSaved}</p>}{retryNotice}{lastCorrect !== null && <p role="status">{lastCorrect ? ui.answerCorrect : ui.answerIncorrect}{lastExplanation && <>：<span lang="ja">{lastExplanation}</span></>}</p>}<p>{ui.webQuestionPosition(answers.length + 1, state.questions.length)}</p><h2 className="web-test-hub__prompt" ref={questionHeadingRef} tabIndex={-1} lang="ja">{question.promptJa}</h2>
     {question.promptRepresentation && <RepresentationView representation={question.promptRepresentation} label={ui.webQuestionRepresentation} />}
     {renderInput(answer, response, setResponse, ui)}
     <button type="button" disabled={response === '' || (Array.isArray(response) && response.length === 0)} onClick={onSubmit}>{ui.webSubmitAnswer}</button>
   </section>
+}
+
+function FreeSampleNotice({ signedIn, count }: { signedIn: boolean; count: number }) {
+  const ui = useStrings().learningUi
+  return (
+    <section className="web-test-hub__sample-notice" aria-labelledby="web-test-sample-title">
+      <h2 id="web-test-sample-title">{ui.webSampleTitle}</h2>
+      <p>{signedIn ? ui.webSampleSignedInBody(count) : ui.webSampleSignedOutBody(count)}</p>
+      {signedIn
+        ? <Link className="page__action" to="/my-learning">{ui.webSampleOpenMyLearning}</Link>
+        : <details className="web-test-hub__sample-auth"><summary>{ui.webSampleSignInToSave}</summary><AuthPanel /></details>}
+    </section>
+  )
 }
 
 function RepresentationView({ representation, label }: { representation: PracticeRepresentation; label: string }) {
@@ -642,6 +685,10 @@ function renderInput(answer: RuntimeQuestion['answer'], response: RunnerResponse
   }
   if (answer.input.kind === 'single-choice' || answer.input.kind === 'multi-select') return <fieldset><legend>{ui.webChooseAnswer}</legend>{answer.input.choices.map((choice) => <label key={choice.id}><input type={answer.input.kind === 'multi-select' ? 'checkbox' : 'radio'} name="practice-answer" value={choice.id} checked={Array.isArray(response) ? response.includes(choice.id) : response === choice.id} onChange={() => setResponse(answer.input.kind === 'multi-select' ? (Array.isArray(response) ? response.includes(choice.id) ? response.filter((id) => id !== choice.id) : [...response, choice.id] : [choice.id]) : choice.id)} /> <span lang="ja">{choice.textJa}</span>{choice.representation && <RepresentationView representation={choice.representation} label={ui.webChoiceRepresentation(choice.textJa)} />}</label>)}</fieldset>
   return null
+}
+
+function freeSampleCount(family: string, domain: string, category: string): number {
+  return selectableQuestions(freeSpiSamplePayload, family, domain, category, 'untimed-learning').length
 }
 
 function releasedCount(source: PracticeDiscoveryFamily | PracticeDiscoveryDomain): number {

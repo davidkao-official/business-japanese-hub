@@ -11,6 +11,7 @@ import {
 import { preparePrivatePracticeQuestionBankRelease } from '../content-delivery/privatePracticeQuestionBank'
 import { nonProprietaryPracticeQuestionBankFixture } from '../practice-web-test/fixtures/nonProprietaryPracticeFixture'
 import { getActiveLocale, getStrings, LOCALE_STORAGE_KEY, setLocalePreference } from '../i18n/strings'
+import { FREE_SPI_SAMPLE_CONTENT_ID, FREE_SPI_SAMPLE_REVISION } from '../practice-web-test/freeSample'
 
 const hookLearningUiOverrides = vi.hoisted(() => ({
   current: null as { webChooseAnswer?: string; webNumberAnswer?: string } | null,
@@ -189,13 +190,54 @@ describe('Web Test discovery and runner-entry routes', () => {
     )
   })
 
-  it('keeps a valid runner selection directly loadable while signed out', async () => {
+  it('lets a signed-out visitor practice the public Free sample with a Japanese explanation, without saving', async () => {
+    fetchPracticePayloadMock.mockClear()
     renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning')
 
     expect(screen.getByRole('heading', { name: "文脈と語句の意味" })).toBeInTheDocument()
     expect(screen.getByText("時間を計らず練習 · 5 問収録")).toBeInTheDocument()
-    await waitFor(() => expect(screen.getByText("会員向けの練習を始めるには、ログインしてください。")).toBeInTheDocument())
-    expect(screen.queryByRole('button', { name: /開始|送出|開始練習/ })).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByRole('heading', { name: /計画や事業が途中で行き詰まり/ })).toBeInTheDocument())
+    expect(screen.getByRole('heading', { name: '無料サンプル問題' })).toBeInTheDocument()
+    expect(screen.getByText('1／2 問目')).toBeInTheDocument()
+    expect(fetchPracticePayloadMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('radio', { name: '逡巡' }))
+    fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+    expect(screen.getByText(/頓挫（とんざ）は、計画や事業が途中で行き詰まること/)).toBeInTheDocument()
+    expect(screen.getAllByText('ログインしていないため、この解答は保存されません。').length).toBeGreaterThan(0)
+    expect(submitPracticeAttemptMock).not.toHaveBeenCalled()
+    const next = screen.getByRole('button', { name: '次の問題へ' })
+    expect(next).toBeEnabled()
+    fireEvent.click(next)
+    expect(screen.getByRole('heading', { name: /先方の事情を/ })).toBeInTheDocument()
+  })
+
+  it('falls back to the Free sample for a signed-in non-member and saves against the sample release', async () => {
+    fetchPracticePayloadMock.mockClear()
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'forbidden' })
+    renderWebTestAt('/practice/web-test/spi/nonverbal/rate-and-work?mode=untimed-learning', { session: { id: 'free-account' } })
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: /分速 80m で歩くと/ })).toBeInTheDocument())
+    expect(screen.getByText(/解答はこのアカウントに保存され/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: '6 分' }))
+    fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+    await waitFor(() => expect(screen.getByText('解答を保存しました。')).toBeInTheDocument())
+    expect(submitPracticeAttemptMock).toHaveBeenCalledWith(expect.objectContaining({
+      contentId: FREE_SPI_SAMPLE_CONTENT_ID,
+      revision: FREE_SPI_SAMPLE_REVISION,
+      questionId: 'spi-free-nv-rate-01',
+      questionVersion: 1,
+      answer: 'b',
+    }), expect.any(Function), 'free-account')
+  })
+
+  it('returns a My Learning review link for a Free sample mistake to that exact question without a member fetch', async () => {
+    fetchPracticePayloadMock.mockClear()
+    renderWebTestAt('/practice/web-test/spi/verbal/semantic-relation?mode=untimed-learning&review=spi-free-v-relation-02&reviewVersion=1', { session: { id: 'free-account' } })
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: /鉛筆：文房具/ })).toBeInTheDocument())
+    expect(screen.getByText('1／1 問目')).toBeInTheDocument()
+    expect(fetchPracticePayloadMock).not.toHaveBeenCalled()
   })
 
   it('loads only the persisted question for an exact My Learning review link', async () => {
