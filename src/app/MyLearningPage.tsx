@@ -82,6 +82,7 @@ export function MyLearningPage({
   if (!user) return <MyLearningShell><SignedOutState /></MyLearningShell>
   if (membershipState.kind === 'checking') return <MyLearningShell><StatePanel title={ui.myCheckingMembershipTitle} body={ui.myCheckingMembershipBody} /></MyLearningShell>
   if (membershipState.kind === 'non-member') {
+    if (currentPageState.kind === 'signed-out') return <MyLearningShell><SignedOutState /></MyLearningShell>
     if (currentPageState.kind === 'ready') return <MyLearningShell><MyLearningContent snapshot={currentPageState.snapshot} /><NonMemberState /></MyLearningShell>
     if (currentPageState.kind === 'unavailable') return <MyLearningShell><StatePanel title={ui.myAttemptsUnavailableTitle} body={ui.myAttemptsUnavailableBody} action={<button className="btn btn--secondary" type="button" onClick={() => setRequestKey((current) => current + 1)}>{ui.retry}</button>} /><NonMemberState /></MyLearningShell>
     if (currentPageState.kind === 'loading' || currentPageState.kind === 'idle') return <MyLearningShell><StatePanel title={ui.myLoadingTitle} body={ui.myLoadingBody} /></MyLearningShell>

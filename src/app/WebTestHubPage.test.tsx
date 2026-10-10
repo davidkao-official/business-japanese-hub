@@ -231,6 +231,38 @@ describe('Web Test discovery and runner-entry routes', () => {
     }), expect.any(Function), 'free-account')
   })
 
+  it('restores a retained Free sample Q2 retry with its feedback and history after same-user reauthentication', async () => {
+    fetchPracticePayloadMock.mockClear()
+    fetchPracticePayloadMock.mockResolvedValue({ kind: 'forbidden' })
+    submitPracticeAttemptMock
+      .mockResolvedValueOnce({ kind: 'ok' })
+      .mockResolvedValueOnce({ kind: 'signed-out' })
+      .mockResolvedValueOnce({ kind: 'ok' })
+    const rendered = renderWebTestAt('/practice/web-test/spi/nonverbal/rate-and-work?mode=untimed-learning', { session: { id: 'free-account' } })
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: /分速 80m で歩くと/ })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('radio', { name: '6 分' }))
+    fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+    await waitFor(() => expect(screen.getByText('解答を保存しました。')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '次の問題へ' }))
+    fireEvent.click(screen.getByRole('radio', { name: '3 時間' }))
+    fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '保存を再試行' })).toBeInTheDocument())
+    const originalQ2Attempt = submitPracticeAttemptMock.mock.calls[1]![0]
+
+    act(() => rendered.authClient.emitAuthStateChange(null))
+    expect(screen.getByRole('heading', { name: 'ログインが必要です' })).toBeInTheDocument()
+    act(() => rendered.authClient.emitAuthStateChange({ id: 'free-account' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '保存を再試行' })).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '保存を再試行' }))
+    await waitFor(() => expect(screen.getByText('解答を保存しました。')).toBeInTheDocument())
+    expect(submitPracticeAttemptMock.mock.calls[2]![0]).toEqual(originalQ2Attempt)
+    expect(screen.getByText(/全体の仕事量を 6 と 12 の最小公倍数/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '次の問題へ' }))
+    await waitFor(() => expect(screen.getByText(/正解 1／2 問/)).toBeInTheDocument())
+    fetchPracticePayloadMock.mockResolvedValue({ kind: 'signed-out' })
+  })
+
   it('returns a My Learning review link for a Free sample mistake to that exact question without a member fetch', async () => {
     fetchPracticePayloadMock.mockClear()
     renderWebTestAt('/practice/web-test/spi/verbal/semantic-relation?mode=untimed-learning&review=spi-free-v-relation-02&reviewVersion=1', { session: { id: 'free-account' } })

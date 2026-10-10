@@ -22,6 +22,7 @@ import { useAuth } from '@business-japanese-hub/platform-auth'
 import { fetchPracticePayload, submitPracticeAttempt, type PracticeAttemptInput } from '../practice-web-test/client'
 import { resolveQuestionCheckpoints, scoreAnswer, selectableQuestions, scoreQuestion, supportOverlay, type RunnerResponse, type RuntimeQuestion } from '../practice-web-test/runtime'
 import type { PracticeRepresentation } from '../practice-web-test/contract'
+import type { PracticeRuntimePayload } from '../content-delivery/privatePracticeQuestionBank'
 import type { PracticeAnswer } from '../practice-web-test/contract'
 import { FREE_SPI_SAMPLE_CONTENT_ID, FREE_SPI_SAMPLE_REVISION } from '../practice-web-test/freeSample'
 import { freeSpiSamplePayload } from '../practice-web-test/freeSpiSamplePayload'
@@ -319,36 +320,45 @@ export function WebTestRunnerEntryPage() {
       // The public Free sample needs no account; a signed-in owner without Plus
       // (or before the member bank is published) practices and saves it too.
       const sampleQuestions = selectableQuestions(freeSpiSamplePayload, family!.testFamily, domain!.domain, category!.category, mode!)
-      const sampleSelection = reviewQuestionId === null
-        ? sampleQuestions
-        : sampleQuestions.filter((entry) => entry.id === reviewQuestionId && entry.version === reviewVersion)
       const sampleReview = reviewQuestionId !== null && sampleQuestions.some((entry) => entry.id === reviewQuestionId)
-      const startSample = () => {
-        if (sampleSelection.length === 0) { setState({ kind: sampleReview ? 'stale-review' : userId ? 'forbidden' : 'idle' }); return }
-        setState({ kind: 'ready', payload: freeSpiSamplePayload, questions: sampleSelection, selectionKey, source: { contentId: FREE_SPI_SAMPLE_CONTENT_ID, revision: FREE_SPI_SAMPLE_REVISION, freeSample: true } })
-        if (sampleSelection[0]?.answer.input.kind === 'ordering') setResponse(sampleSelection[0].answer.input.choices.map((choice) => choice.id))
-        startedAt.current = Date.now()
+      const sampleSource: RunnerSource = { contentId: FREE_SPI_SAMPLE_CONTENT_ID, revision: FREE_SPI_SAMPLE_REVISION, freeSample: true }
+      const retryOnSample = pendingRetry && lastAttemptRef.current?.contentId === FREE_SPI_SAMPLE_CONTENT_ID
+      let payload: PracticeRuntimePayload
+      let source: RunnerSource
+      if (!userId) {
+        // A retained save waits for the same owner to sign in again.
+        if (pendingRetry || sampleQuestions.length === 0) return
+        payload = freeSpiSamplePayload
+        source = sampleSource
+      } else if (sampleReview || retryOnSample) {
+        payload = freeSpiSamplePayload
+        source = sampleSource
+      } else {
+        const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision, getAccessToken, userId)
+        if (cancelled) return
+        if (result.kind === 'ok') {
+          payload = result.payload
+          source = { contentId: catalog.releaseIdentity.contentId, revision: catalog.releaseIdentity.revision, freeSample: false }
+        } else if ((result.kind === 'forbidden' || result.kind === 'missing') && reviewQuestionId === null && sampleQuestions.length > 0) {
+          payload = freeSpiSamplePayload
+          source = sampleSource
+        } else {
+          setState({ kind: result.kind })
+          return
+        }
       }
-      if (!userId || sampleReview) { if (!pendingRetry || sampleReview) startSample(); return }
-      const result = await fetchPracticePayload(catalog.releaseIdentity.contentId, catalog.releaseIdentity.revision, getAccessToken, userId)
-      if (cancelled) return
-      if (result.kind !== 'ok') {
-        if ((result.kind === 'forbidden' || result.kind === 'missing') && reviewQuestionId === null && sampleSelection.length > 0) { startSample(); return }
-        setState({ kind: result.kind })
-        return
-      }
-      const questions = selectableQuestions(result.payload, family!.testFamily, domain!.domain, category!.category, mode!)
+      const questions = selectableQuestions(payload, family!.testFamily, domain!.domain, category!.category, mode!)
       if (questions.length === 0) { setState({ kind: 'unavailable' }); return }
       const selectedQuestions = reviewQuestionId === null
         ? questions
         : questions.filter((entry) => entry.id === reviewQuestionId && entry.version === reviewVersion)
       if (selectedQuestions.length === 0) { setState({ kind: 'stale-review' }); return }
-      if (selectedQuestions.some((entry) => resolveQuestionCheckpoints(result.payload, entry) === null)) { setState({ kind: 'unavailable' }); return }
+      if (selectedQuestions.some((entry) => resolveQuestionCheckpoints(payload, entry) === null)) { setState({ kind: 'unavailable' }); return }
       const retryAttempt = pendingRetry ? lastAttemptRef.current : null
       const retryContext = pendingRetry ? retryContextRef.current : null
       if (retryAttempt && retryContext && retryContext.scopeKey === selectionScopeKey) {
         const retryQuestion = selectedQuestions[retryContext.answerIndex]
-        const checkpoints = retryQuestion ? resolveQuestionCheckpoints(result.payload, retryQuestion) ?? [] : []
+        const checkpoints = retryQuestion ? resolveQuestionCheckpoints(payload, retryQuestion) ?? [] : []
         const currentPrefix = selectedQuestions.slice(0, retryContext.answerIndex + 1).map(({ id, version }) => ({ id, version }))
         const checkpointIdentities = checkpoints.map(({ id, version }) => ({ id, version }))
         const checkpointResponses = retryAttempt.checkpointResponses ?? []
@@ -407,7 +417,7 @@ export function WebTestRunnerEntryPage() {
         setRetryAvailable(false)
         setPersistence('idle')
       }
-      setState({ kind: 'ready', payload: result.payload, questions: selectedQuestions, selectionKey, source: { contentId: catalog.releaseIdentity.contentId, revision: catalog.releaseIdentity.revision, freeSample: false } })
+      setState({ kind: 'ready', payload: payload, questions: selectedQuestions, selectionKey, source })
       if (!(pendingRetry && retryContextRef.current) && selectedQuestions[0]?.answer.input.kind === 'ordering') setResponse(selectedQuestions[0].answer.input.choices.map((choice) => choice.id))
       startedAt.current = Date.now()
     })
@@ -432,7 +442,7 @@ export function WebTestRunnerEntryPage() {
   )
   if (!catalog || !family || !domain || !category || !validSearch || !validMode) return <CatalogUnavailable />
 
-  const viewState = !authLoading && !user && !(state.kind === 'ready' && state.source.freeSample)
+  const viewState = !authLoading && !user && !(state.kind === 'ready' && state.source.freeSample && state.selectionKey === selectionKey)
     ? { kind: 'signed-out' as const }
     : state.kind === 'ready' && state.selectionKey !== selectionKey
       ? { kind: 'loading' as const }

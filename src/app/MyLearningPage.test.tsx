@@ -351,6 +351,16 @@ describe('My Learning page', () => {
     expect(screen.queryByRole('heading', { name: "解答記録を読み込めません" })).not.toBeInTheDocument()
   })
 
+  it('offers sign-in again when a free account session expires during the snapshot request', async () => {
+    renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'signed-out' as const })} />, {
+      session: { id: 'free-1', email: 'free@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('non-member') },
+    })
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: "ログインして学習記録を確認" })).toBeInTheDocument())
+    expect(screen.queryByRole('heading', { name: "Plus でできること" })).not.toBeInTheDocument()
+  })
+
   it('shows a free account its server-scoped sample record with an exact review link and the Plus note', async () => {
     const sampleMistake = { ...review, contentId: 'practice-web-test-spi-free-sample-v1', contentRevision: FREE_SPI_SAMPLE_REVISION, questionId: 'spi-free-v-vocab-01', questionVersion: 1 }
     const fetchSnapshot = vi.fn().mockResolvedValue({ kind: 'ok' as const, snapshot: snapshot({
