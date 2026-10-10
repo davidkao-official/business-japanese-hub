@@ -629,7 +629,11 @@
   outline-offset: var(--focus-ring-offset);
 }
 
+/* Prompts can carry multi-line conditions or a reading passage. */
 .web-test-hub__prompt {
+  font-size: var(--text-md);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--leading-ja);
   white-space: pre-line;
 }
 
