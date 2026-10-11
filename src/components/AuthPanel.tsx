@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { useAuth } from '@business-japanese-hub/platform-auth'
+import { AuthError, useAuth } from '@business-japanese-hub/platform-auth'
+import type { AuthErrorCode } from '@business-japanese-hub/platform-auth'
 import { useStrings } from '../i18n/strings'
 
 export interface AuthPanelProps {
@@ -17,6 +18,7 @@ export function AuthPanel({ onAuthenticated, onCancel, showPurchaseIntro = false
   const { signIn, signUp } = useAuth()
   const [mode, setMode] = useState<Mode>('sign-in')
   const [status, setStatus] = useState<Status>('idle')
+  const [errorCode, setErrorCode] = useState<AuthErrorCode>('failure')
   const emailId = useId()
   const passwordId = useId()
   const inFlight = useRef(false)
@@ -27,7 +29,7 @@ export function AuthPanel({ onAuthenticated, onCancel, showPurchaseIntro = false
   }, [showPurchaseIntro])
 
   const submit = async (form: HTMLFormElement) => {
-    if (inFlight.current) return
+    if (inFlight.current || (mode === 'sign-up' && status === 'confirmation-sent')) return
     inFlight.current = true
     const data = new FormData(form)
     const email = String(data.get('email') ?? '').trim()
@@ -40,15 +42,18 @@ export function AuthPanel({ onAuthenticated, onCancel, showPurchaseIntro = false
         onAuthenticated?.()
         return
       }
-      const result = await signUp(email, password)
+      // Only the current app's origin/path: never carry tokens or redirect query parameters.
+      const emailRedirectTo = `${window.location.origin}${window.location.pathname}`
+      const result = await signUp(email, password, emailRedirectTo)
       if (result.signedIn) {
         setStatus('idle')
         onAuthenticated?.()
       } else {
         setStatus('confirmation-sent')
       }
-    } catch {
-      // Never expose raw provider errors or account-enumeration details.
+    } catch (error) {
+      // Only classified failures reach localized copy; never raw provider messages.
+      setErrorCode(error instanceof AuthError ? error.code : 'failure')
       setStatus('failed')
     } finally {
       inFlight.current = false
@@ -85,6 +90,10 @@ export function AuthPanel({ onAuthenticated, onCancel, showPurchaseIntro = false
             name="email"
             type="email"
             autoComplete="email"
+            disabled={status === 'pending'}
+            onChange={() => {
+              if (status === 'confirmation-sent') setStatus('idle')
+            }}
             required
           />
         </label>
@@ -96,19 +105,24 @@ export function AuthPanel({ onAuthenticated, onCancel, showPurchaseIntro = false
             type="password"
             autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'}
             minLength={mode === 'sign-up' ? 8 : undefined}
+            disabled={status === 'pending'}
             required
           />
         </label>
         {status === 'failed' && (
           <span className="auth-panel__message auth-panel__message--error" role="alert">
-            {strings.auth.failure}
+            {strings.auth[errorCode]}
           </span>
         )}
         {status === 'confirmation-sent' && (
           <span className="auth-panel__message" role="status">{strings.auth.confirmationSent}</span>
         )}
         <div className="auth-panel__actions">
-          <button className="btn btn--primary" type="submit" disabled={status === 'pending'}>
+          <button
+            className="btn btn--primary"
+            type="submit"
+            disabled={status === 'pending' || status === 'confirmation-sent'}
+          >
             {status === 'pending'
               ? strings.auth.loading
               : mode === 'sign-in'

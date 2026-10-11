@@ -1,5 +1,23 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js'
-import type { AuthClient, SessionUser, SignInResult, SignUpResult } from './types'
+import { AuthError } from './authError'
+import type { AuthClient, SessionUser, SignInResult, SignUpInput, SignUpResult } from './types'
+
+function mapAuthError(error: { status?: number; code?: string }): AuthError {
+  if (error.status === 429 || error.code === 'over_email_send_rate_limit' || error.code === 'over_request_rate_limit') {
+    return new AuthError('rateLimited')
+  }
+  switch (error.code) {
+    case 'user_already_exists':
+    case 'email_exists':
+      return new AuthError('alreadyRegistered')
+    case 'invalid_credentials':
+      return new AuthError('invalidCredentials')
+    case 'email_not_confirmed':
+      return new AuthError('emailNotConfirmed')
+    default:
+      return new AuthError('failure')
+  }
+}
 
 function mapUser(user: User | null, accessToken?: string): SessionUser | null {
   if (!user) return null
@@ -39,14 +57,18 @@ export class SupabaseAuthClient implements AuthClient {
 
   async signInWithPassword(input: { email: string; password: string }): Promise<SignInResult> {
     const { data, error } = await this.client.auth.signInWithPassword(input)
-    if (error) throw new Error(`signInWithPassword: ${error.message}`)
+    if (error) throw mapAuthError(error)
     if (!data.user) throw new Error('signInWithPassword: sign-in succeeded without a user')
     return { user: mapUser(data.user, data.session?.access_token)! }
   }
 
-  async signUpWithPassword(input: { email: string; password: string }): Promise<SignUpResult> {
-    const { data, error } = await this.client.auth.signUp(input)
-    if (error) throw new Error(`signUpWithPassword: ${error.message}`)
+  async signUpWithPassword({ email, password, emailRedirectTo }: SignUpInput): Promise<SignUpResult> {
+    const { data, error } = await this.client.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo },
+    })
+    if (error) throw mapAuthError(error)
     if (!data.user) throw new Error('signUpWithPassword: sign-up succeeded without a user')
     return { user: mapUser(data.user, data.session?.access_token)!, signedIn: data.session !== null }
   }

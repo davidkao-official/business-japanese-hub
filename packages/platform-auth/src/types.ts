@@ -17,6 +17,13 @@ export interface SignUpResult {
   signedIn: boolean
 }
 
+export interface SignUpInput {
+  email: string
+  password: string
+  /** App-owned confirmation target, computed from its current origin and path. */
+  emailRedirectTo?: string
+}
+
 /**
  * Minimal shared browser identity contract.
  *
@@ -34,7 +41,7 @@ export interface AuthClient {
   signInWithPassword(input: { email: string; password: string }): Promise<SignInResult>
 
   /** Create an email/password account; `signedIn=false` means confirmation is pending. */
-  signUpWithPassword(input: { email: string; password: string }): Promise<SignUpResult>
+  signUpWithPassword(input: SignUpInput): Promise<SignUpResult>
 
   /** Sign out the current browser session without revoking other devices. */
   signOut(): Promise<void>

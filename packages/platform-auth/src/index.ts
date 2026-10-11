@@ -1,4 +1,5 @@
 export * from './AuthContext'
+export * from './authError'
 export * from './browser'
 export * from './nullAuthClient'
 export * from './services'

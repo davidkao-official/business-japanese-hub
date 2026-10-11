@@ -387,6 +387,10 @@ export interface AppStrings {
     switchToSignIn: string
     switchToSignUp: string
     failure: string
+    rateLimited: string
+    alreadyRegistered: string
+    invalidCredentials: string
+    emailNotConfirmed: string
     confirmationSent: string
     authRequired: string
     loading: string
@@ -785,6 +789,10 @@ const ja: AppStrings = {
     switchToSignIn: 'すでにアカウントをお持ちの方',
     switchToSignUp: '初めての方はこちら',
     failure: '認証できませんでした。入力内容をご確認ください。',
+    rateLimited: '試行回数が上限に達しました。しばらく待ってから再度お試しください。',
+    alreadyRegistered: 'このメールアドレスはすでに登録されています。ログインしてください。',
+    invalidCredentials: 'メールアドレスまたはパスワードが正しくありません。',
+    emailNotConfirmed: 'メールアドレスの確認が完了していません。確認メール内のリンクを開いてください。',
     confirmationSent: '確認メールを送信しました。メール内のリンクを開いてから、もう一度ログインしてください。',
     authRequired: '購入を続けるにはログインまたはアカウント作成が必要です。',
     loading: '確認中…',
@@ -1184,6 +1192,10 @@ const en: AppStrings = {
     switchToSignIn: 'Already have an account?',
     switchToSignUp: 'New here? Create an account',
     failure: 'We could not authenticate you. Check your details and try again.',
+    rateLimited: 'Too many attempts. Please wait before trying again.',
+    alreadyRegistered: 'This email address is already registered. Please sign in.',
+    invalidCredentials: 'The email address or password is incorrect.',
+    emailNotConfirmed: 'Your email address is not confirmed. Open the link in your confirmation email.',
     confirmationSent: 'Check your email and confirm your account, then return here to sign in.',
     authRequired: 'Sign in or create an account to continue this purchase.',
     loading: 'Checking…',
@@ -1582,6 +1594,10 @@ const zhTW: AppStrings = {
     switchToSignIn: '已有帳戶？',
     switchToSignUp: '第一次來？建立帳戶',
     failure: '無法完成身分驗證，請檢查資料後再試一次。',
+    rateLimited: '嘗試次數已達上限，請稍後再試。',
+    alreadyRegistered: '此電子郵件已註冊，請登入。',
+    invalidCredentials: '電子郵件或密碼不正確。',
+    emailNotConfirmed: '電子郵件尚未確認，請開啟確認信中的連結。',
     confirmationSent: '確認信已寄出。請先點選信中連結，再回到這裡登入。',
     authRequired: '請先登入或建立帳戶，再繼續購買。',
     loading: '確認中…',
