@@ -27,6 +27,8 @@ select lives_ok($$select public.import_practice_question_release(
       and revision = 'adf8b12615c26e9aad1b2f1fb73fc48d2033492449f1d275885a12569fa5ecb6'))$$,
   're-importing the same free sample revision is idempotent');
 
+-- The review queue authorizes service reads by JWT role claim, as PostgREST sets it.
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
 select is((public.record_practice_attempt(
   '62000000-0000-4000-8000-000000000001', '62100000-0000-4000-8000-000000000001',
