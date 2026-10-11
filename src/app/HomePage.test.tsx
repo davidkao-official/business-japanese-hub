@@ -10,16 +10,57 @@ import { screen, within } from '@testing-library/react'
 import { getStrings, setLocalePreference } from '../i18n/strings'
 import { renderWithAppProviders } from '../test/appProviders'
 import { HomePage } from './HomePage'
+import * as homeEditorial from './homeEditorial'
+import { listCatalogEntries } from '../reader/catalog'
 
 beforeEach(() => {
   setLocalePreference('ja')
 })
 
 afterEach(() => {
+  vi.restoreAllMocks()
   setLocalePreference(null)
 })
 
 describe('learning-service home', () => {
+  it('makes the login-free SPI sample the primary hero entry and keeps the secondary entries', () => {
+    renderWithAppProviders(<HomePage />)
+
+    const sampleLink = screen.getByRole('link', { name: 'SPI 無料サンプルを解く' })
+    expect(sampleLink).toHaveAttribute('href', '/practice/web-test/spi')
+    expect(sampleLink).toHaveClass('concept-home-hero__action--primary')
+    expect(screen.getByText('ログイン不要・日本語の解説つき')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '学習を始める' })).toHaveAttribute('href', '/learn')
+    expect(screen.getByRole('link', { name: 'サービスについて' })).toHaveAttribute('href', '/about')
+  })
+
+  it.each([
+    '麻煩您確認，謝謝。',
+    '「ご確認」を 정중하게 부탁하는 표현입니다.',
+    'Use ご確認 to politely ask someone to check.',
+  ])('omits the meaning row and translation when there is no Japanese note: %s', (translation) => {
+    const entry = listCatalogEntries()[0]!
+    const expression = 'ご確認をお願いいたします。'
+    const sampleEntries = [{
+      ...entry,
+      book: {
+        ...entry.book,
+        chapters: [{
+          ...entry.book.chapters[0]!,
+          blocks: [{ id: 'home-example', type: 'example' as const, text: expression, translation }],
+        }],
+      },
+    }]
+    const projectedSamples = homeEditorial.listHomeContentSamples(sampleEntries)
+    vi.spyOn(homeEditorial, 'listHomeContentSamples').mockReturnValue(projectedSamples)
+    renderWithAppProviders(<HomePage />)
+
+    const samples = document.querySelector('.storefront-samples') as HTMLElement
+    expect(within(samples).getByText(expression)).toBeInTheDocument()
+    expect(within(samples).queryByText('MEANING')).not.toBeInTheDocument()
+    expect(within(samples).queryByText(translation)).not.toBeInTheDocument()
+  })
+
   it('keeps Japanese homepage headings readable as intact phrase units', () => {
     renderWithAppProviders(<HomePage />)
 
@@ -137,7 +178,8 @@ describe('learning-service home', () => {
       ),
     ).toBeInTheDocument()
     expect(within(samples).getByText('敬語（けいご）')).toHaveAttribute('lang', 'ja')
-    expect(within(samples).getByText('麻煩您確認，謝謝。')).toHaveAttribute('lang', 'zh-TW')
+    expect(within(samples).queryByText('麻煩您確認，謝謝。')).not.toBeInTheDocument()
+    expect(samples.querySelector('[lang^="zh"]')).toBeNull()
     expect(within(samples).getByText('依頼を締めくくる定番表現です。')).toHaveAttribute(
       'lang',
       'ja',

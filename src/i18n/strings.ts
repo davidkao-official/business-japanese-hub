@@ -131,6 +131,8 @@ export interface AppStrings {
         ending: string
       }
       support: string
+      trySpiSample: string
+      sampleSupport: string
       startLearning: string
       aboutPlatform: string
       visualLabel: string
@@ -512,6 +514,8 @@ const ja: AppStrings = {
       },
       support: '日本での就職、企業資料の読解、職場の会話へ。知っている日本語を、仕事で使える力につなげます。',
       startLearning: '学習を始める',
+      trySpiSample: 'SPI 無料サンプルを解く',
+      sampleSupport: 'ログイン不要・日本語の解説つき',
       aboutPlatform: 'サービスについて',
       visualLabel: 'JAPANESE AT WORK',
       visualTitle: '読む。考える。伝える。',
@@ -911,6 +915,8 @@ const en: AppStrings = {
       },
       support: 'Build on the Japanese you know for job hunting, business reading, and communication at work in Japan.',
       startLearning: 'Start learning',
+      trySpiSample: 'Try the free SPI sample',
+      sampleSupport: 'No login required · Japanese explanations included',
       aboutPlatform: 'About the platform',
       visualLabel: 'JAPANESE AT WORK',
       visualTitle: 'Read. Think. Communicate.',
@@ -1310,6 +1316,8 @@ const zhTW: AppStrings = {
       },
       support: '通過 JLPT，不代表已經能自在地在日本職場工作。從求職、商業閱讀到職場溝通，把熟悉的日文轉化為工作能力。',
       startLearning: '開始學習商業日文',
+      trySpiSample: '試做 SPI 免費題',
+      sampleSupport: '不需登入・附日文解說',
       aboutPlatform: '了解這個平台',
       visualLabel: 'JAPANESE AT WORK',
       visualTitle: '閱讀・思考・溝通',
@@ -1687,6 +1695,8 @@ const zhCN: AppStrings = {
       },
       support: '通过 JLPT，不代表已经能自在地在日本职场工作。从求职、商业阅读到职场沟通，把熟悉的日语转化为工作能力。',
       startLearning: '开始学习商务日语',
+      trySpiSample: '试做 SPI 免费题',
+      sampleSupport: '不需登录・附日文解说',
       aboutPlatform: '了解这个平台',
       visualLabel: 'JAPANESE AT WORK',
       visualTitle: '阅读・思考・沟通',

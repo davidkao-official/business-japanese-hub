@@ -26,6 +26,7 @@ import type { PracticeRuntimePayload } from '../content-delivery/privatePractice
 import type { PracticeAnswer } from '../practice-web-test/contract'
 import { FREE_SPI_SAMPLE_CONTENT_ID, FREE_SPI_SAMPLE_REVISION } from '../practice-web-test/freeSample'
 import { freeSpiSamplePayload } from '../practice-web-test/freeSpiSamplePayload'
+import { discoveryFreeSampleCount, freeSampleCount, nextFreeSampleUnit, nextPracticeUnit } from '../practice-web-test/freeSampleUnits'
 import { AuthPanel } from '../components/AuthPanel'
 
 const catalog = validatePracticeDiscoveryCatalog(catalogDocument) ? catalogDocument : null
@@ -122,7 +123,7 @@ export function WebTestHubPage() {
             <li key={family.testFamily}>
               <Link className="web-test-hub__family-link" to={`/practice/web-test/${family.testFamily}`}>
                 <span className="web-test-hub__family-title">{labelForFamily(family.testFamily)}</span>
-                <span>{releasedCount(family)} {ui.webPublishedCountSuffix}</span>
+                <span>{releasedCount(family)} {ui.webPublishedCountSuffix} · {ui.webSampleCount(discoveryFreeSampleCount(family))}</span>
                 <span>{ui.webChooseVerbal}</span>
               </Link>
             </li>
@@ -158,7 +159,7 @@ export function WebTestFamilyPage() {
             <li key={domain.domain}>
               <Link className="web-test-hub__family-link" to={`/practice/web-test/${family.testFamily}/${domain.domain}`}>
                 <span className="web-test-hub__family-title">{(domain.domain === 'verbal' ? ui.webVerbal : ui.webNonverbal)}</span>
-                <span>{releasedCount(domain)} {ui.webPublishedCountSuffix}</span>
+                <span>{releasedCount(domain)} {ui.webPublishedCountSuffix} · {ui.webSampleCount(discoveryFreeSampleCount(family, domain))}</span>
                 <span>{ui.webBrowseCategories}</span>
               </Link>
             </li>
@@ -246,6 +247,7 @@ export function WebTestRunnerEntryPage() {
   const [index, setIndex] = useState(0)
   const [response, setResponse] = useState<RunnerResponse>('')
   const [answers, setAnswers] = useState<RunnerAnswer[]>([])
+  const [runNumber, setRunNumber] = useState(0)
   const [lastCorrect, setLastCorrect] = useState<boolean | null>(null)
   const [lastExplanation, setLastExplanation] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<{ question: RuntimeQuestion; correct: boolean } | null>(null)
@@ -422,7 +424,7 @@ export function WebTestRunnerEntryPage() {
       startedAt.current = Date.now()
     })
     return () => { cancelled = true; persistenceGenerationRef.current += 1 }
-  }, [authLoading, userId, getAccessToken, selectionKey, selectionScopeKey, family, domain, category, mode, reviewQuestionId, reviewVersion, validMode, validReview, validSearch])
+  }, [authLoading, userId, getAccessToken, selectionKey, selectionScopeKey, family, domain, category, mode, reviewQuestionId, reviewVersion, validMode, validReview, validSearch, runNumber])
   const question = state.kind === 'ready' ? state.questions[index] : undefined
   const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
   useEffect(() => {
@@ -499,6 +501,16 @@ export function WebTestRunnerEntryPage() {
     if (lastAttemptRef.current && lastAttemptAnswerIndexRef.current !== null && lastAttemptUserIdRef.current === userId && lastAttemptScopeKeyRef.current === selectionScopeKey) void persistAttempt(lastAttemptRef.current, lastAttemptAnswerIndexRef.current)
   }
   const attemptId = () => globalThis.crypto.randomUUID()
+  // A signed-in sample review never checked membership, so its destination may be the member bank.
+  const nextIsFreeSample = viewState.kind === 'ready' && viewState.source.freeSample && (!userId || reviewQuestionId === null)
+  const nextSample = nextIsFreeSample
+    ? nextFreeSampleUnit(family, domain.domain, category.category)
+    : nextPracticeUnit(family, domain.domain, category.category)
+  const nextSampleLink = nextSample ? {
+    free: nextIsFreeSample,
+    href: runnerEntryHref(family.testFamily, nextSample.domain, nextSample.category.category, 'untimed-learning'),
+    label: labelForCategory(family.testFamily, nextSample.domain, nextSample.category),
+  } : undefined
   return (
       <section className="page web-test-hub" lang={getActiveLocale()} aria-labelledby="web-test-runner-entry-title">
       <div className="web-test-hub__intro">
@@ -506,8 +518,8 @@ export function WebTestRunnerEntryPage() {
         <h1 className="page__title" id="web-test-runner-entry-title">{labelForCategory(family.testFamily, domain.domain, category)}</h1>
         <p className="page__lead">{(mode === 'untimed-learning' ? ui.webUntimed : ui.webTimed)} · {category.releasedCount} {ui.webPublishedCountSuffix}</p>
       </div>
-      {viewState.kind === 'ready' && viewState.source.freeSample && <FreeSampleNotice signedIn={Boolean(user)} count={viewState.questions.length} />}
-      <RunnerStateView questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} completionHeadingRef={completionHeadingRef} checkpointHeadingRef={checkpointHeadingRef} categoryLabel={labelForCategory(family.testFamily, domain.domain, category)} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} checkpointIndex={checkpointIndex} checkpointResponse={checkpointResponse} checkpointFeedback={checkpointFeedback} persistence={persistence} canRetryPersist={retryAvailable} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} setCheckpointResponse={setCheckpointResponse} onRetryPersist={retryPersist} onSubmit={() => {
+      {viewState.kind === 'ready' && viewState.source.freeSample && !finish && <FreeSampleNotice signedIn={Boolean(user)} count={viewState.questions.length} />}
+      <RunnerStateView signedIn={Boolean(user)} nextSampleLink={nextSampleLink} onRestart={() => setRunNumber((current) => current + 1)} questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} completionHeadingRef={completionHeadingRef} checkpointHeadingRef={checkpointHeadingRef} categoryLabel={labelForCategory(family.testFamily, domain.domain, category)} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} checkpointIndex={checkpointIndex} checkpointResponse={checkpointResponse} checkpointFeedback={checkpointFeedback} persistence={persistence} canRetryPersist={retryAvailable} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} setCheckpointResponse={setCheckpointResponse} onRetryPersist={retryPersist} onSubmit={() => {
         if (!question || state.kind !== 'ready' || response === '') return
         const correct = scoreQuestion(question, response)
         const primaryElapsedMs = Date.now() - startedAt.current
@@ -594,7 +606,7 @@ export function WebTestRunnerEntryPage() {
 type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' | 'stale-review' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[]; selectionKey: string; source: RunnerSource }
 type RunnerSource = { contentId: string; revision: string; freeSample: boolean }
 
-function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHeadingRef, checkpointHeadingRef, categoryLabel, state, finish, question, response, answers, feedback, checkpointIndex, checkpointResponse, checkpointFeedback, persistence, canRetryPersist, lastCorrect, lastExplanation, setResponse, setCheckpointResponse, onRetryPersist, onSubmit, onCheckpointSubmit, onCheckpointNext, onNext }: { questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; completionHeadingRef: RefObject<HTMLHeadingElement | null>; checkpointHeadingRef: RefObject<HTMLHeadingElement | null>; categoryLabel: string; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: RunnerAnswer[]; feedback: { question: RuntimeQuestion; correct: boolean } | null; checkpointIndex: number | null; checkpointResponse: RunnerResponse; checkpointFeedback: boolean | null; persistence: 'idle' | RunnerPersistence; canRetryPersist: boolean; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; setCheckpointResponse: (value: RunnerResponse) => void; onRetryPersist: () => void; onSubmit: () => void; onCheckpointSubmit: () => void; onCheckpointNext: () => void; onNext: () => void }) {
+function RunnerStateView({ signedIn, nextSampleLink, onRestart, questionHeadingRef, feedbackHeadingRef, completionHeadingRef, checkpointHeadingRef, categoryLabel, state, finish, question, response, answers, feedback, checkpointIndex, checkpointResponse, checkpointFeedback, persistence, canRetryPersist, lastCorrect, lastExplanation, setResponse, setCheckpointResponse, onRetryPersist, onSubmit, onCheckpointSubmit, onCheckpointNext, onNext }: { signedIn: boolean; nextSampleLink?: { free: boolean; href: string; label: string }; onRestart: () => void; questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; completionHeadingRef: RefObject<HTMLHeadingElement | null>; checkpointHeadingRef: RefObject<HTMLHeadingElement | null>; categoryLabel: string; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: RunnerAnswer[]; feedback: { question: RuntimeQuestion; correct: boolean } | null; checkpointIndex: number | null; checkpointResponse: RunnerResponse; checkpointFeedback: boolean | null; persistence: 'idle' | RunnerPersistence; canRetryPersist: boolean; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; setCheckpointResponse: (value: RunnerResponse) => void; onRetryPersist: () => void; onSubmit: () => void; onCheckpointSubmit: () => void; onCheckpointNext: () => void; onNext: () => void }) {
   const ui = useStrings().learningUi
 
   if (state.kind === 'signed-out') return <section className="web-test-hub__runner-handoff"><h2>{ui.webSignInTitle}</h2><p>{ui.webSignInBody}</p></section>
@@ -619,7 +631,24 @@ function RunnerStateView({ questionHeadingRef, feedbackHeadingRef, completionHea
       : answers.length > 0 && answers.every((answer) => answer.persistence === 'saved')
         ? ui.webSaved
         : ui.webNotFullySaved
-    return <section className="web-test-hub__runner-handoff"><h2 ref={completionHeadingRef} tabIndex={-1}>{ui.webFinished}</h2><p>{ui.webCompletionSummary(correctCount, answers.length, accuracy)} · {completionPersistence}</p>{categoryResults.map((result) => <p key={result}>{result}</p>)}<p>{ui.webElapsed(Math.round(answers.reduce((total, answer) => total + answer.elapsedMs, 0) / 1000))}</p><p>{measured > 0 ? ui.webCheckpointMisses(misses, measured) : ui.webCheckpointsInsufficient}</p></section>
+    return (
+      <section className="web-test-hub__runner-handoff">
+        <h2 ref={completionHeadingRef} tabIndex={-1}>{ui.webFinished}</h2>
+        <p>{ui.webCompletionSummary(correctCount, answers.length, accuracy)} · {completionPersistence}</p>
+        {categoryResults.map((result) => <p key={result}>{result}</p>)}
+        <p>{ui.webElapsed(Math.round(answers.reduce((total, answer) => total + answer.elapsedMs, 0) / 1000))}</p>
+        <p>{measured > 0 ? ui.webCheckpointMisses(misses, measured) : ui.webCheckpointsInsufficient}</p>
+        <div className="cta-row">
+          <button className="btn btn--secondary" type="button" onClick={onRestart}>{ui.webRestartUnit}</button>
+          {nextSampleLink && <Link to={nextSampleLink.href}>{nextSampleLink.free
+            ? ui.webNextFreeSample(nextSampleLink.label)
+            : ui.webNextUnit(nextSampleLink.label)}</Link>}
+        </div>
+        {!signedIn && <><p>{ui.webCompletionSignInBody}</p><SampleSignIn /></>}
+        {signedIn && answers.some((answer) => answer.persistence === 'saved') &&
+          <Link to="/my-learning">{ui.webCompletionReview}</Link>}
+      </section>
+    )
   }
   if (state.kind !== 'ready' || !question) return null
   const answer = question.answer
@@ -649,9 +678,14 @@ function FreeSampleNotice({ signedIn, count }: { signedIn: boolean; count: numbe
       <p>{signedIn ? ui.webSampleSignedInBody(count) : ui.webSampleSignedOutBody(count)}</p>
       {signedIn
         ? <Link className="page__action" to="/my-learning">{ui.webSampleOpenMyLearning}</Link>
-        : <details className="web-test-hub__sample-auth"><summary>{ui.webSampleSignInToSave}</summary><AuthPanel /></details>}
+        : <SampleSignIn />}
     </section>
   )
+}
+
+function SampleSignIn() {
+  const ui = useStrings().learningUi
+  return <details className="web-test-hub__sample-auth"><summary>{ui.webSampleSignInToSave}</summary><AuthPanel /></details>
 }
 
 function RepresentationView({ representation, label }: { representation: PracticeRepresentation; label: string }) {
@@ -695,10 +729,6 @@ function renderInput(answer: RuntimeQuestion['answer'], response: RunnerResponse
   }
   if (answer.input.kind === 'single-choice' || answer.input.kind === 'multi-select') return <fieldset><legend>{ui.webChooseAnswer}</legend>{answer.input.choices.map((choice) => <label key={choice.id}><input type={answer.input.kind === 'multi-select' ? 'checkbox' : 'radio'} name="practice-answer" value={choice.id} checked={Array.isArray(response) ? response.includes(choice.id) : response === choice.id} onChange={() => setResponse(answer.input.kind === 'multi-select' ? (Array.isArray(response) ? response.includes(choice.id) ? response.filter((id) => id !== choice.id) : [...response, choice.id] : [choice.id]) : choice.id)} /> <span lang="ja">{choice.textJa}</span>{choice.representation && <RepresentationView representation={choice.representation} label={ui.webChoiceRepresentation(choice.textJa)} />}</label>)}</fieldset>
   return null
-}
-
-function freeSampleCount(family: string, domain: string, category: string): number {
-  return selectableQuestions(freeSpiSamplePayload, family, domain, category, 'untimed-learning').length
 }
 
 function releasedCount(source: PracticeDiscoveryFamily | PracticeDiscoveryDomain): number {
