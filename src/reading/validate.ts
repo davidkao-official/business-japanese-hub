@@ -65,10 +65,10 @@ function safeHttpsUrl(value: unknown, path: string, issues: ReadingValidationIss
 function validateRuntime(value: Record<string, unknown>, issues: ReadingValidationIssue[], mode: 'authoring' | 'runtime'): void {
   onlyKeys(value, [
     'schemaVersion', 'id', 'slug', 'title', 'summary', ...(mode === 'runtime' ? ['releasedAt'] : []), 'category', 'tags', 'access', 'source',
-    'japaneseMaterial', 'explanationZhTW', 'vocabulary', 'logicAnalysis', 'businessContextZhTW',
-    'davidCommentary', 'relatedLinks', 'seo', 'sampleLabel', ...(mode === 'authoring' ? ['publication', 'reviewer', 'rights'] : []),
+    'japaneseMaterial', 'explanationJa', 'vocabulary', 'logicAnalysis', 'businessContextJa',
+    'davidCommentaryJa', 'supportOverlays', 'relatedLinks', 'seo', 'sampleLabel', ...(mode === 'authoring' ? ['publication', 'reviewer', 'rights'] : []),
   ], '$', issues)
-  if (value.schemaVersion !== 1) issues.push({ path: '$.schemaVersion', message: 'must equal 1' })
+  if (value.schemaVersion !== 2) issues.push({ path: '$.schemaVersion', message: 'must equal 2' })
   if (typeof value.id !== 'string' || !ID.test(value.id)) issues.push({ path: '$.id', message: 'must be a stable lowercase content id' })
   if (typeof value.slug !== 'string' || !SLUG.test(value.slug)) issues.push({ path: '$.slug', message: 'must be a stable lowercase hyphenated slug' })
   plainText(value.title, '$.title', issues, 1, 180)
@@ -104,30 +104,73 @@ function validateRuntime(value: Record<string, unknown>, issues: ReadingValidati
     }
   }
 
-  plainText(value.explanationZhTW, '$.explanationZhTW', issues, 1, 12000)
-  plainText(value.businessContextZhTW, '$.businessContextZhTW', issues, 1, 8000)
-  if (value.davidCommentary !== undefined) plainText(value.davidCommentary, '$.davidCommentary', issues, 1, 8000)
+  plainText(value.explanationJa, '$.explanationJa', issues, 1, 12000)
+  plainText(value.businessContextJa, '$.businessContextJa', issues, 1, 8000)
+  if (value.davidCommentaryJa !== undefined) plainText(value.davidCommentaryJa, '$.davidCommentaryJa', issues, 1, 8000)
 
   if (!Array.isArray(value.vocabulary) || value.vocabulary.length > 80) issues.push({ path: '$.vocabulary', message: 'must be an array with at most 80 entries' })
   else value.vocabulary.forEach((entry, index) => {
     const path = `$.vocabulary[${index}]`
     if (!record(entry)) { issues.push({ path, message: 'must be an object' }); return }
-    onlyKeys(entry, ['term', 'reading', 'meaningZhTW', 'noteZhTW'], path, issues)
+    onlyKeys(entry, ['term', 'reading', 'meaningJa', 'noteJa'], path, issues)
     plainText(entry.term, `${path}.term`, issues, 1, 120)
     if (entry.reading !== undefined) plainText(entry.reading, `${path}.reading`, issues, 1, 120)
-    plainText(entry.meaningZhTW, `${path}.meaningZhTW`, issues, 1, 1000)
-    if (entry.noteZhTW !== undefined) plainText(entry.noteZhTW, `${path}.noteZhTW`, issues, 1, 1000)
+    plainText(entry.meaningJa, `${path}.meaningJa`, issues, 1, 1000)
+    if (entry.noteJa !== undefined) plainText(entry.noteJa, `${path}.noteJa`, issues, 1, 1000)
   })
 
   if (!Array.isArray(value.logicAnalysis) || value.logicAnalysis.length > 40) issues.push({ path: '$.logicAnalysis', message: 'must be an array with at most 40 entries' })
   else value.logicAnalysis.forEach((entry, index) => {
     const path = `$.logicAnalysis[${index}]`
     if (!record(entry)) { issues.push({ path, message: 'must be an object' }); return }
-    onlyKeys(entry, ['label', 'japaneseText', 'explanationZhTW'], path, issues)
+    onlyKeys(entry, ['label', 'japaneseText', 'explanationJa'], path, issues)
     plainText(entry.label, `${path}.label`, issues, 1, 120)
     if (entry.japaneseText !== undefined) plainText(entry.japaneseText, `${path}.japaneseText`, issues, 1, 2000)
-    plainText(entry.explanationZhTW, `${path}.explanationZhTW`, issues, 1, 2000)
+    plainText(entry.explanationJa, `${path}.explanationJa`, issues, 1, 2000)
   })
+
+  if (value.supportOverlays !== undefined) {
+    const overlaysPath = '$.supportOverlays'
+    if (!record(value.supportOverlays)) issues.push({ path: overlaysPath, message: 'must be a locale-keyed support overlay object' })
+    else {
+      onlyKeys(value.supportOverlays, ['byLocale'], overlaysPath, issues)
+      const byLocale = value.supportOverlays.byLocale
+      if (!record(byLocale)) issues.push({ path: `${overlaysPath}.byLocale`, message: 'must be an object keyed by locale' })
+      else {
+        if (Object.keys(byLocale).length > 10) issues.push({ path: `${overlaysPath}.byLocale`, message: 'must contain at most 10 locales' })
+        Object.entries(byLocale).forEach(([locale, overlay]) => {
+          const path = `${overlaysPath}.byLocale.${locale}`
+          if (!/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(locale)) issues.push({ path, message: 'must use a bounded BCP-47-like locale tag' })
+          if (!record(overlay)) { issues.push({ path, message: 'must be an object' }); return }
+          onlyKeys(overlay, ['explanation', 'businessContext', 'vocabulary', 'logicAnalysis', 'commentary'], path, issues)
+          if (overlay.explanation !== undefined) plainText(overlay.explanation, `${path}.explanation`, issues, 1, 12000)
+          if (overlay.businessContext !== undefined) plainText(overlay.businessContext, `${path}.businessContext`, issues, 1, 8000)
+          if (overlay.commentary !== undefined) plainText(overlay.commentary, `${path}.commentary`, issues, 1, 8000)
+          if (overlay.vocabulary !== undefined) {
+            if (!Array.isArray(overlay.vocabulary) || overlay.vocabulary.length > 80) issues.push({ path: `${path}.vocabulary`, message: 'must be an array with at most 80 entries' })
+            else overlay.vocabulary.forEach((entry, index) => {
+              const entryPath = `${path}.vocabulary[${index}]`
+              if (!record(entry)) { issues.push({ path: entryPath, message: 'must be an object' }); return }
+              onlyKeys(entry, ['term', 'meaning', 'note'], entryPath, issues)
+              plainText(entry.term, `${entryPath}.term`, issues, 1, 120)
+              plainText(entry.meaning, `${entryPath}.meaning`, issues, 1, 1000)
+              if (entry.note !== undefined) plainText(entry.note, `${entryPath}.note`, issues, 1, 1000)
+            })
+          }
+          if (overlay.logicAnalysis !== undefined) {
+            if (!Array.isArray(overlay.logicAnalysis) || overlay.logicAnalysis.length > 40) issues.push({ path: `${path}.logicAnalysis`, message: 'must be an array with at most 40 entries' })
+            else overlay.logicAnalysis.forEach((entry, index) => {
+              const entryPath = `${path}.logicAnalysis[${index}]`
+              if (!record(entry)) { issues.push({ path: entryPath, message: 'must be an object' }); return }
+              onlyKeys(entry, ['label', 'explanation'], entryPath, issues)
+              plainText(entry.label, `${entryPath}.label`, issues, 1, 120)
+              plainText(entry.explanation, `${entryPath}.explanation`, issues, 1, 2000)
+            })
+          }
+        })
+      }
+    }
+  }
 
   if (!Array.isArray(value.relatedLinks) || value.relatedLinks.length > 20) issues.push({ path: '$.relatedLinks', message: 'must be an array with at most 20 entries' })
   else value.relatedLinks.forEach((entry, index) => {
@@ -246,7 +289,7 @@ export function toReadingCatalogEntry(item: ReadingRuntimeItem, releaseReference
 /** Explicit allowlist projection prevents authoring/review fields reaching runtime payloads. */
 export function projectReadingRuntimeItem(item: ReadingAuthoringItem): ReadingRuntimeItem {
   const runtime: ReadingRuntimeItem = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id: item.id,
     slug: item.slug,
     title: item.title,
@@ -259,13 +302,24 @@ export function projectReadingRuntimeItem(item: ReadingAuthoringItem): ReadingRu
     access: item.access,
     source: { ...item.source },
     japaneseMaterial: { ...item.japaneseMaterial },
-    explanationZhTW: item.explanationZhTW,
+    explanationJa: item.explanationJa,
     vocabulary: item.vocabulary.map((entry) => ({ ...entry })),
     logicAnalysis: item.logicAnalysis.map((entry) => ({ ...entry })),
-    businessContextZhTW: item.businessContextZhTW,
+    businessContextJa: item.businessContextJa,
     relatedLinks: item.relatedLinks.map((entry) => ({ ...entry })),
     seo: { ...item.seo },
-    ...(item.davidCommentary === undefined ? {} : { davidCommentary: item.davidCommentary }),
+    ...(item.davidCommentaryJa === undefined ? {} : { davidCommentaryJa: item.davidCommentaryJa }),
+    ...(item.supportOverlays === undefined ? {} : {
+      supportOverlays: {
+        byLocale: Object.fromEntries(Object.entries(item.supportOverlays.byLocale).map(([locale, overlay]) => [locale, {
+          ...(overlay.explanation === undefined ? {} : { explanation: overlay.explanation }),
+          ...(overlay.businessContext === undefined ? {} : { businessContext: overlay.businessContext }),
+          ...(overlay.vocabulary === undefined ? {} : { vocabulary: overlay.vocabulary.map((entry) => ({ ...entry })) }),
+          ...(overlay.logicAnalysis === undefined ? {} : { logicAnalysis: overlay.logicAnalysis.map((entry) => ({ ...entry })) }),
+          ...(overlay.commentary === undefined ? {} : { commentary: overlay.commentary }),
+        }])) as NonNullable<ReadingAuthoringItem['supportOverlays']>['byLocale'],
+      },
+    }),
     ...(item.sampleLabel === undefined ? {} : { sampleLabel: item.sampleLabel }),
   }
   return runtime

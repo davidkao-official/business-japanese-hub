@@ -74,17 +74,46 @@ describe('my-learning handler', () => {
     expect(database.callsFor('practice_attempts')).toEqual([])
   })
 
-  it.each([
-    ['non-member', 403],
-    ['unavailable', 503],
-  ] as const)('fails closed for %s membership before reading evidence', async (access, status) => {
+  it('fails closed for unavailable membership before reading evidence', async () => {
     const database = createMockDb({ 'auth:getUser': { data: { id: userId } } })
 
-    const result = await handleMyLearning(request(), deps(database, access))
+    const result = await handleMyLearning(request(), deps(database, 'unavailable'))
 
-    expect(result.status).toBe(status)
+    expect(result.status).toBe(503)
     expect(database.callsFor('practice_attempts')).toEqual([])
     expect(database.callsFor('practice_review_queue')).toEqual([])
+  })
+
+  it('scopes a non-member snapshot to the public Free sample without reading member evidence', async () => {
+    const freeAttempt = { ...attemptRow, content_id: 'practice-web-test-spi-free-sample-v1', question_id: 'spi-free-v-vocab-01' }
+    const database = createMockDb({
+      'auth:getUser': { data: { id: userId } },
+      practice_attempts: { data: [freeAttempt] },
+      practice_review_queue: { data: [freeAttempt] },
+      practice_question_availability: { data: [{ ...availabilityRow, content_id: freeAttempt.content_id, question_id: freeAttempt.question_id }] },
+    })
+
+    const result = await handleMyLearning(request(), deps(database, 'non-member'))
+
+    expect(result.status).toBe(200)
+    for (const table of ['practice_attempts', 'practice_review_queue']) {
+      expect(database.callsFor(table, 'eq')).toContainEqual({ table, method: 'eq', args: ['user_id', userId] })
+      expect(database.callsFor(table, 'in')).toEqual([{ table, method: 'in', args: ['content_id', ['practice-web-test-spi-free-sample-v1']] }])
+    }
+    expect(JSON.parse(result.body).snapshot.nextAction.item.questionId).toBe('spi-free-v-vocab-01')
+  })
+
+  it('does not scope an active member snapshot by content', async () => {
+    const database = createMockDb({
+      'auth:getUser': { data: { id: userId } },
+      practice_attempts: { data: [] },
+      practice_review_queue: { data: [] },
+    })
+
+    const result = await handleMyLearning(request(), deps(database, 'active'))
+
+    expect(result.status).toBe(200)
+    expect(database.callsFor('practice_attempts', 'in')).toEqual([])
   })
 
   it('returns a bounded own-user Practice snapshot without sensitive answer data', async () => {

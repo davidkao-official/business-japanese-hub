@@ -30,6 +30,8 @@ describe('Workplace Learn public catalog projection', () => {
     expect(catalog).toHaveLength(3)
     expect(catalog[2]).toEqual(metadata)
     expect(catalog[2]).not.toHaveProperty('whatToSayJapanese')
+    expect(catalog[2]).not.toHaveProperty('meaningInContextJa')
+    expect(catalog[2]).not.toHaveProperty('supportOverlays')
   })
 
   it('validates Free Learn links against Plus lesson or vocabulary catalog IDs', () => {
@@ -97,7 +99,7 @@ describe('Workplace Learn public catalog projection', () => {
     expect(() => buildWorkplaceLearnCatalogWithPlusMetadata(
       [sampleWorkplaceLearnItem, sampleWorkplaceVocabularyItem],
       [{
-        schemaVersion: 1,
+        schemaVersion: 2,
         kind: 'lesson',
         id: 'workplace-learn-plus-reference-test',
         slug: 'plus-reference-test',

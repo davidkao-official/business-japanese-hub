@@ -27,6 +27,8 @@ describe('learning runtime route identities', () => {
 
     expect(releasedChapter).toBeDefined()
     expect(learnUnit?.title).toBe(releasedChapter?.title)
+    expect(learnUnit?.courseLabel).toBe(releasedChapter?.title)
+    expect(learnUnit?.courseLabelLanguage).toBe('ja')
     expect(learnUnit?.learnSlug).toBe(`meeting-japanese-${releasedChapter?.slug}`)
     expect(learnUnit?.practiceSlug).toBe(releasedChapter?.slug)
     const findStepTitlePart = (text: string) =>

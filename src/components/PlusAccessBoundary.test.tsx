@@ -1,12 +1,18 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import type { SessionUser } from '@business-japanese-hub/platform-auth'
 import { renderWithAppProviders } from '../test/appProviders'
-import type { PlusMembershipAccess } from '../lib/membership/access'
+import {
+  HttpPlusMembershipAccessRepository,
+  type PlusMembershipAccess,
+  type PlusMembershipAccessRepository,
+} from '../lib/membership/access'
 import { PlusAccessBoundary } from './PlusAccessBoundary'
 
+const jwtFor = (sub: string) => `header.${btoa(JSON.stringify({ sub })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')}.signature`
+
 function renderBoundary(
-  repository: { getAccess(): Promise<PlusMembershipAccess> } | null,
+  repository: PlusMembershipAccessRepository | null,
   session: SessionUser | null = null,
   access: 'public' | 'plus' = 'plus',
 ) {
@@ -19,6 +25,16 @@ function renderBoundary(
     </PlusAccessBoundary>,
     { session, membershipAccessRepository: repository },
   )
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => { resolve = resolvePromise })
+  return { promise, resolve }
+}
+
+async function flushPromises(): Promise<void> {
+  await vi.advanceTimersByTimeAsync(0)
 }
 
 describe('PlusAccessBoundary', () => {
@@ -103,4 +119,93 @@ describe('PlusAccessBoundary', () => {
     expect(screen.getByRole('button', { name: 'もう一度確認する' })).toBeInTheDocument()
     expect(screen.queryByText('Unlocked Plus content')).not.toBeInTheDocument()
   })
+
+  it.each(['token', 'fetch', 'body'] as const)(
+    'recovers after the %s stage times out and ignores late A/B results',
+    async (heldStage) => {
+      vi.useFakeTimers()
+      const heldTokens = [deferred<string | null>(), deferred<string | null>()]
+      const heldFetches = [deferred<Response>(), deferred<Response>()]
+      const heldBodies = [deferred<unknown>(), deferred<unknown>()]
+      const pendingBodyResponses: Response[] = []
+      const response = (access: string): Response => ({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({ access }),
+      } as unknown as Response)
+      let currentUserId = 'member-a'
+      let tokenIndex = 0
+      let fetchIndex = 0
+      const getAccessToken = (): Promise<string | null> => {
+        const index = tokenIndex++
+        if (heldStage === 'token' && index < 2) return heldTokens[index]!.promise
+        return Promise.resolve(jwtFor(currentUserId))
+      }
+      const fetchImpl = vi.fn<typeof fetch>((): Promise<Response> => {
+        const index = fetchIndex++
+        if (index < 2 && heldStage === 'fetch') return heldFetches[index]!.promise
+        if (index < 2 && heldStage === 'body') {
+          const pendingResponse = response('active')
+          pendingResponse.json = vi.fn(() => heldBodies[index]!.promise)
+          pendingBodyResponses[index] = pendingResponse
+          return Promise.resolve(pendingResponse)
+        }
+        return Promise.resolve(response('active'))
+      })
+      const repository = new HttpPlusMembershipAccessRepository(
+        getAccessToken,
+        { baseUrl: 'https://edge.test/functions/v1', fetchImpl },
+      )
+
+      try {
+        const view = renderBoundary(repository, { id: 'member-a', email: 'a@example.com' })
+        await act(async () => { await flushPromises() })
+        expect(fetchImpl).toHaveBeenCalledTimes(heldStage === 'token' ? 0 : 1)
+
+        currentUserId = 'member-b'
+        act(() => view.authClient.emitAuthStateChange({ id: 'member-b', email: 'b@example.com' }))
+        await act(async () => { await flushPromises() })
+        expect(fetchImpl).toHaveBeenCalledTimes(heldStage === 'token' ? 0 : 2)
+        if (heldStage === 'body') {
+          expect(pendingBodyResponses[0]?.json).toHaveBeenCalledTimes(1)
+          expect(pendingBodyResponses[1]?.json).toHaveBeenCalledTimes(1)
+        }
+
+        await act(async () => { await vi.advanceTimersByTimeAsync(10_000) })
+        expect(view.container.querySelector('[data-access-state="unavailable"]')).not.toBeNull()
+        expect(screen.getByText('会員状態を確認できません')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'もう一度確認する' })).toBeInTheDocument()
+        expect(screen.queryByText('Unlocked Plus content')).not.toBeInTheDocument()
+
+        fireEvent.click(screen.getByRole('button', { name: 'もう一度確認する' }))
+        await act(async () => { await flushPromises() })
+        await act(async () => { await flushPromises() })
+        expect(view.container.querySelector('[data-access-state="active-member"]')).not.toBeNull()
+        expect(screen.getByText('Unlocked Plus content')).toBeInTheDocument()
+
+        if (heldStage === 'token') {
+          heldTokens[0]!.resolve(jwtFor('member-a'))
+          heldTokens[1]!.resolve(jwtFor('member-b'))
+        } else if (heldStage === 'fetch') {
+          const lateA = response('active')
+          const lateB = response('non-member')
+          heldFetches[0]!.resolve(lateA)
+          heldFetches[1]!.resolve(lateB)
+          await act(async () => { await flushPromises() })
+          expect(lateA.json).not.toHaveBeenCalled()
+          expect(lateB.json).not.toHaveBeenCalled()
+        } else {
+          heldBodies[0]!.resolve({ access: 'active' })
+          heldBodies[1]!.resolve({ access: 'non-member' })
+        }
+        await act(async () => { await flushPromises() })
+        expect(view.container.querySelector('[data-access-state="active-member"]')).not.toBeNull()
+        expect(screen.getByText('Unlocked Plus content')).toBeInTheDocument()
+        if (heldStage === 'token') expect(fetchImpl).toHaveBeenCalledTimes(1)
+        expect(vi.getTimerCount()).toBe(0)
+      } finally {
+        vi.useRealTimers()
+      }
+    },
+  )
 })

@@ -1,7 +1,7 @@
 import { useStrings, getActiveLocale } from '../i18n/strings'
 import { Link, useParams } from 'react-router-dom'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
-import { useBookState } from '../lib/persistence/useBookState'
+import { LegacyLearningAccessNotice, useLegacyLearningAccess } from './LegacyLearningAccess'
 import { NotFoundPage } from './NotFoundPage'
 import {
   getLearningUnitByLearnSlug,
@@ -19,24 +19,26 @@ export function LearnUnitPage() {
   const { slug } = useParams()
   const learningUnit = getLearningUnitByLearnSlug(slug)
   const strings = useStrings()
-  const { owned, loading, error } = useBookState(learningUnit?.bookId ?? '')
+  const access = useLegacyLearningAccess(learningUnit?.bookId ?? '')
   useDocumentTitle(learningUnit ? `${learningUnit.title} — ${ui.learnLabel}` : strings.notFound.title)
 
   if (!learningUnit) return <NotFoundPage />
 
-  const canRenderBody = owned && !loading && !error
+  const canRenderBody = access.kind === 'owned'
 
   return (
     <section className="page learning-unit-page" lang={getActiveLocale()} aria-labelledby="learning-unit-title">
       <div className="learning-unit-page__intro">
         <p className="product-mode-page__eyebrow" lang={getActiveLocale()}>
-          {ui.learnLabel} · <span lang="en">{learningUnit.courseLabel}</span>
+          {ui.learnLabel} · <span lang={learningUnit.courseLabelLanguage}>{learningUnit.courseLabel}</span>
         </p>
         <h1 className="page__title" id="learning-unit-title" lang="ja">
           {learningUnit.title}
         </h1>
         {canRenderBody && <p className="page__lead">{renderLearningText(learningUnit.learn.lead)}</p>}
       </div>
+
+      <LegacyLearningAccessNotice kind={access.kind} />
 
       {canRenderBody && (
         <>

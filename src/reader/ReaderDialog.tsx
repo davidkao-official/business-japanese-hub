@@ -60,8 +60,12 @@ export function ReaderDialog({
     const previouslyFocused =
       document.activeElement instanceof HTMLElement ? document.activeElement : null
     const previousOverflow = document.body.style.overflow
+    // A rapid Tab from an offscreen Reader control can leave a native smooth
+    // scroll queued. Stop it at the current reading offset before moving focus
+    // into the dialog so the opener does not become hidden and inert.
+    window.scrollTo({ left: window.scrollX, top: window.scrollY, behavior: 'instant' })
     document.body.style.overflow = 'hidden'
-    panel?.focus()
+    panel?.focus({ preventScroll: true })
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -94,7 +98,7 @@ export function ReaderDialog({
     return () => {
       document.removeEventListener('keydown', onKeyDown)
       document.body.style.overflow = previousOverflow
-      previouslyFocused?.focus()
+      previouslyFocused?.focus({ preventScroll: true })
     }
   }, [open, onClose])
 

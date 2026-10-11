@@ -73,28 +73,6 @@ function parseBody(bodyText: string): Record<string, unknown> | null {
   }
 }
 
-async function isCurrentPlusRelease(
-  db: DbClient,
-  itemId: string,
-  revision: string,
-): Promise<'current' | 'stale' | 'unavailable'> {
-  try {
-    const result = await db.from('private_content_release')
-      .select('content_id,revision,content_kind,access_scope')
-      .eq('content_id', itemId)
-      .eq('revision', revision)
-      .maybeSingle()
-    if (result.error) return 'unavailable'
-    if (!result.data) return 'stale'
-    return result.data.content_id === itemId && result.data.revision === revision &&
-      result.data.content_kind === 'reading' && result.data.access_scope === 'member'
-      ? 'current'
-      : 'stale'
-  } catch {
-    return 'unavailable'
-  }
-}
-
 async function requireMember(
   req: HandlerRequest,
   deps: ReadingSavesDeps,
@@ -171,9 +149,6 @@ async function saveItem(body: Record<string, unknown>, userId: string, deps: Rea
     if (!reference || reference.contentId !== entry.id || body.revision !== reference.revision) {
       return noStore(jsonResult(409, { error: 'Reading save reference is stale' }))
     }
-    const release = await isCurrentPlusRelease(deps.db, entry.id, reference.revision)
-    if (release === 'unavailable') return noStore(jsonResult(503, { error: 'Reading release unavailable' }))
-    if (release !== 'current') return noStore(jsonResult(409, { error: 'Reading save reference is stale' }))
   }
 
   try {
@@ -183,6 +158,9 @@ async function saveItem(body: Record<string, unknown>, userId: string, deps: Rea
       p_revision: body.revision,
     })
     if (error) return noStore(jsonResult(503, { error: 'Reading save unavailable' }))
+    if (record(data) && data.status === 'stale') {
+      return noStore(jsonResult(409, { error: 'Reading save reference is stale' }))
+    }
     const row = mapRow(data)
     if (!row || row.item_id !== entry.id || row.revision !== body.revision) {
       return noStore(jsonResult(503, { error: 'Reading save unavailable' }))

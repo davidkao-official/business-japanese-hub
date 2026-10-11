@@ -90,7 +90,7 @@ describe('book detail — paid CTA state matrix (§8.3)', () => {
     renderBook('keigo-essentials', { session: user, repository })
 
     const resume = await screen.findByRole('link', { name: '続きを読む' })
-    expect(resume).toHaveAttribute('href', '/books/keigo-essentials/read/keigo-in-meetings')
+    expect(resume).toHaveAttribute('href', '/books/keigo-essentials/read/keigo-in-meetings?resume=1')
     expect(screen.queryByRole('button', { name: /購入する/ })).not.toBeInTheDocument()
   })
 

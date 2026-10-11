@@ -15,8 +15,11 @@ const TAG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const MAX_SLUG_LENGTH = 80
 const MAX_TAG_LENGTH = 48
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+const LOCALE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/
+const MAX_OVERLAY_LOCALES = 12
 const LANGUAGES = ['ja', 'zh-TW', 'zh-CN', 'en'] as const
 const MARKUP = /<\/?[a-z][^>]*>|!\[[^\]]*\]\([^)]*\)|\[[^\]]+\]\([^)]*\)|`|\*\*|__|(?:^|\n)\s{0,3}(?:#{1,6}\s|>\s|[-*+]\s|\d+\.\s)/i
+const OVERLAY_INLINE_MARKUP = /\*(?!\s)[^*\n]*\S\*(?!\*)|(?<![A-Za-z0-9_])_(?!\s)[^_\n]*\S_(?![A-Za-z0-9_])|~~[^~\n]*\S~~/
 
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -35,6 +38,13 @@ function plainText(value: unknown, path: string, issues: WorkplaceLearnValidatio
   }
   if (MARKUP.test(value)) issues.push({ path, message: 'HTML and Markdown markup are not allowed' })
   return true
+}
+
+function overlayPlainText(value: unknown, path: string, issues: WorkplaceLearnValidationIssue[], min = 1, max = 4000): value is string {
+  const valid = plainText(value, path, issues, min, max)
+  const hasInlineMarkup = typeof value === 'string' && OVERLAY_INLINE_MARKUP.test(value)
+  if (hasInlineMarkup) issues.push({ path, message: 'HTML and Markdown markup are not allowed' })
+  return valid && !hasInlineMarkup
 }
 
 function isoDate(value: unknown, path: string, issues: WorkplaceLearnValidationIssue[]): value is string {
@@ -74,15 +84,109 @@ function stringArray(value: unknown, path: string, issues: WorkplaceLearnValidat
   return valid
 }
 
+function cloneValidatedJson<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((entry) => cloneValidatedJson(entry)) as unknown as T
+  if (record(value)) return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, cloneValidatedJson(entry)])) as unknown as T
+  return value
+}
+
 function validateExample(value: unknown, path: string, issues: WorkplaceLearnValidationIssue[]): void {
   if (!record(value)) {
     issues.push({ path, message: 'must be an example object' })
     return
   }
-  onlyKeys(value, ['context', 'japanese', 'explanationZhTW'], path, issues)
+  onlyKeys(value, ['context', 'japanese', 'explanationJa'], path, issues)
   plainText(value.context, `${path}.context`, issues, 1, 400)
   plainText(value.japanese, `${path}.japanese`, issues, 1, 1200)
-  plainText(value.explanationZhTW, `${path}.explanationZhTW`, issues, 1, 1600)
+  plainText(value.explanationJa, `${path}.explanationJa`, issues, 1, 1600)
+}
+
+function validateLessonOverlays(value: unknown, baseExampleCount: number, path: string, issues: WorkplaceLearnValidationIssue[]): void {
+  if (!record(value)) {
+    issues.push({ path, message: 'must be a locale-keyed support overlay object' })
+    return
+  }
+  onlyKeys(value, ['byLocale'], path, issues)
+  if (!record(value.byLocale) || Object.keys(value.byLocale).length === 0 || Object.keys(value.byLocale).length > MAX_OVERLAY_LOCALES) {
+    issues.push({ path: `${path}.byLocale`, message: `must contain 1–${MAX_OVERLAY_LOCALES} locale entries` })
+    return
+  }
+  for (const [locale, overlay] of Object.entries(value.byLocale)) {
+    const localePath = `${path}.byLocale.${locale}`
+    if (locale.length > 64 || !LOCALE.test(locale)) issues.push({ path: localePath, message: 'must use a BCP-47-like locale tag' })
+    if (!record(overlay)) {
+      issues.push({ path: localePath, message: 'must be a lesson support overlay object' })
+      continue
+    }
+    onlyKeys(overlay, ['meaningInContext', 'whyItWorks', 'caution', 'examples'], localePath, issues)
+    let supportedFieldCount = 0
+    for (const [field, max] of [['meaningInContext', 2000], ['whyItWorks', 2000], ['caution', 1600]] as const) {
+      if (overlay[field] !== undefined) {
+        const issueCount = issues.length
+        overlayPlainText(overlay[field], `${localePath}.${field}`, issues, 1, max)
+        if (issues.length === issueCount) supportedFieldCount += 1
+      }
+    }
+    if (overlay.examples !== undefined) {
+      const issueCount = issues.length
+      if (!Array.isArray(overlay.examples) || overlay.examples.length !== baseExampleCount) {
+        issues.push({ path: `${localePath}.examples`, message: 'must align one-to-one with the Japanese examples' })
+      } else {
+        for (let index = 0; index < overlay.examples.length; index += 1) {
+          const examplePath = `${localePath}.examples[${index}]`
+          const example = overlay.examples[index]
+          if (!record(example)) {
+            issues.push({ path: examplePath, message: 'must be an example support object' })
+            continue
+          }
+          onlyKeys(example, ['explanation'], examplePath, issues)
+          overlayPlainText(example.explanation, `${examplePath}.explanation`, issues, 1, 1600)
+        }
+      }
+      if (issues.length === issueCount) supportedFieldCount += 1
+    }
+    if (supportedFieldCount === 0) issues.push({ path: localePath, message: 'must contain at least one defined valid support field' })
+  }
+}
+
+function validateVocabularyOverlays(value: unknown, path: string, issues: WorkplaceLearnValidationIssue[]): void {
+  if (!record(value)) {
+    issues.push({ path, message: 'must be a locale-keyed support overlay object' })
+    return
+  }
+  onlyKeys(value, ['byLocale'], path, issues)
+  if (!record(value.byLocale) || Object.keys(value.byLocale).length === 0 || Object.keys(value.byLocale).length > MAX_OVERLAY_LOCALES) {
+    issues.push({ path: `${path}.byLocale`, message: `must contain 1–${MAX_OVERLAY_LOCALES} locale entries` })
+    return
+  }
+  for (const [locale, overlay] of Object.entries(value.byLocale)) {
+    const localePath = `${path}.byLocale.${locale}`
+    if (locale.length > 64 || !LOCALE.test(locale)) issues.push({ path: localePath, message: 'must use a BCP-47-like locale tag' })
+    if (!record(overlay)) {
+      issues.push({ path: localePath, message: 'must be a vocabulary support overlay object' })
+      continue
+    }
+    onlyKeys(overlay, ['meaning', 'workplaceNuance', 'caution', 'example'], localePath, issues)
+    let supportedFieldCount = 0
+    for (const [field, max] of [['meaning', 600], ['workplaceNuance', 1400], ['caution', 1200]] as const) {
+      if (overlay[field] !== undefined) {
+        const issueCount = issues.length
+        overlayPlainText(overlay[field], `${localePath}.${field}`, issues, 1, max)
+        if (issues.length === issueCount) supportedFieldCount += 1
+      }
+    }
+    if (overlay.example !== undefined) {
+      const issueCount = issues.length
+      const examplePath = `${localePath}.example`
+      if (!record(overlay.example)) issues.push({ path: examplePath, message: 'must be an example support object' })
+      else {
+        onlyKeys(overlay.example, ['explanation'], examplePath, issues)
+        overlayPlainText(overlay.example.explanation, `${examplePath}.explanation`, issues, 1, 1600)
+      }
+      if (issues.length === issueCount) supportedFieldCount += 1
+    }
+    if (supportedFieldCount === 0) issues.push({ path: localePath, message: 'must contain at least one defined valid support field' })
+  }
 }
 
 function validateLinks(value: unknown, path: string, issues: WorkplaceLearnValidationIssue[]): void {
@@ -115,18 +219,18 @@ function validateRuntimeShape(
   }
   const lessonKeys = [
     'schemaVersion', 'kind', 'id', 'slug', 'title', 'titleLanguage', 'lead', 'leadLanguage', 'category', 'tags', 'access',
-    'situation', 'meaningInContextZhTW', 'learningObjective', 'capabilityDomain', 'skill', 'coreJudgment',
-    'whatToDo', 'whatToSayJapanese', 'whyItWorksZhTW', 'practiceTypes', 'transferTakeaway', 'examples',
-    'cautionZhTW', 'relationshipContext', 'relatedVocabularyIds', 'relatedLinks', 'sampleLabel',
+    'situation', 'meaningInContextJa', 'learningObjective', 'capabilityDomain', 'skill', 'coreJudgment',
+    'whatToDo', 'whatToSayJapanese', 'whyItWorksJa', 'practiceTypes', 'transferTakeaway', 'examples',
+    'cautionJa', 'relationshipContext', 'relatedVocabularyIds', 'relatedLinks', 'supportOverlays', 'sampleLabel',
   ]
   const vocabularyKeys = [
     'schemaVersion', 'kind', 'id', 'slug', 'title', 'titleLanguage', 'lead', 'leadLanguage', 'category', 'tags', 'access',
-    'term', 'reading', 'meaningZhTW', 'workplaceNuanceZhTW', 'usageContext', 'example', 'cautionZhTW',
-    'register', 'relationshipContext', 'relatedTermIds', 'relatedLinks', 'sampleLabel',
+    'term', 'reading', 'meaningJa', 'workplaceNuanceJa', 'usageContext', 'example', 'cautionJa',
+    'register', 'relationshipContext', 'relatedTermIds', 'relatedLinks', 'supportOverlays', 'sampleLabel',
   ]
   const authoringKeys = mode === 'authoring' ? ['publication', 'reviewer', 'rights'] : []
   onlyKeys(value, [...(kind === 'lesson' ? lessonKeys : vocabularyKeys), ...authoringKeys], '$', issues)
-  if (value.schemaVersion !== 1) issues.push({ path: '$.schemaVersion', message: 'must equal 1' })
+  if (value.schemaVersion !== 2) issues.push({ path: '$.schemaVersion', message: 'must equal 2' })
   if (typeof value.id !== 'string' || !ID.test(value.id)) issues.push({ path: '$.id', message: 'must be a stable lowercase content id' })
   if (typeof value.slug !== 'string' || value.slug.length > MAX_SLUG_LENGTH || !SLUG.test(value.slug)) issues.push({ path: '$.slug', message: `must be a stable lowercase hyphenated slug of at most ${MAX_SLUG_LENGTH} characters` })
   plainText(value.title, '$.title', issues, 1, 180)
@@ -141,7 +245,7 @@ function validateRuntimeShape(
 
   if (kind === 'lesson') {
     plainText(value.situation, '$.situation', issues, 1, 1600)
-    plainText(value.meaningInContextZhTW, '$.meaningInContextZhTW', issues, 1, 2000)
+    plainText(value.meaningInContextJa, '$.meaningInContextJa', issues, 1, 2000)
     plainText(value.learningObjective, '$.learningObjective', issues, 1, 600)
     if (!['meeting-discussion', 'hou-ren-sou', 'business-writing', 'business-reading', 'logical-japanese', 'workplace-interaction', 'job-hunting'].includes(String(value.capabilityDomain))) {
       issues.push({ path: '$.capabilityDomain', message: 'is not a supported workplace capability domain' })
@@ -150,25 +254,29 @@ function validateRuntimeShape(
     plainText(value.coreJudgment, '$.coreJudgment', issues, 1, 1200)
     plainText(value.whatToDo, '$.whatToDo', issues, 1, 1800)
     plainText(value.whatToSayJapanese, '$.whatToSayJapanese', issues, 1, 1600)
-    plainText(value.whyItWorksZhTW, '$.whyItWorksZhTW', issues, 1, 2000)
+    plainText(value.whyItWorksJa, '$.whyItWorksJa', issues, 1, 2000)
     stringArray(value.practiceTypes, '$.practiceTypes', issues, { max: 1, allowed: ['rewrite'] })
     plainText(value.transferTakeaway, '$.transferTakeaway', issues, 1, 1000)
     if (!Array.isArray(value.examples) || value.examples.length === 0 || value.examples.length > 8) issues.push({ path: '$.examples', message: 'must be an array with 1–8 examples' })
     else value.examples.forEach((example, index) => validateExample(example, `$.examples[${index}]`, issues))
-    plainText(value.cautionZhTW, '$.cautionZhTW', issues, 1, 1600)
+    plainText(value.cautionJa, '$.cautionJa', issues, 1, 1600)
     if (value.relationshipContext !== undefined) plainText(value.relationshipContext, '$.relationshipContext', issues, 1, 800)
     stringArray(value.relatedVocabularyIds, '$.relatedVocabularyIds', issues, { max: 30, pattern: ID, refs: references.vocabularyIds, allowEmpty: true })
+    if (value.supportOverlays !== undefined) {
+      validateLessonOverlays(value.supportOverlays, Array.isArray(value.examples) ? value.examples.length : 0, '$.supportOverlays', issues)
+    }
   } else {
     plainText(value.term, '$.term', issues, 1, 120)
     plainText(value.reading, '$.reading', issues, 1, 120)
-    plainText(value.meaningZhTW, '$.meaningZhTW', issues, 1, 600)
-    plainText(value.workplaceNuanceZhTW, '$.workplaceNuanceZhTW', issues, 1, 1400)
+    plainText(value.meaningJa, '$.meaningJa', issues, 1, 600)
+    plainText(value.workplaceNuanceJa, '$.workplaceNuanceJa', issues, 1, 1400)
     plainText(value.usageContext, '$.usageContext', issues, 1, 1000)
     validateExample(value.example, '$.example', issues)
-    plainText(value.cautionZhTW, '$.cautionZhTW', issues, 1, 1200)
+    plainText(value.cautionJa, '$.cautionJa', issues, 1, 1200)
     plainText(value.register, '$.register', issues, 1, 300)
     if (value.relationshipContext !== undefined) plainText(value.relationshipContext, '$.relationshipContext', issues, 1, 800)
     stringArray(value.relatedTermIds, '$.relatedTermIds', issues, { max: 20, pattern: ID, refs: references.vocabularyIds, allowEmpty: true })
+    if (value.supportOverlays !== undefined) validateVocabularyOverlays(value.supportOverlays, '$.supportOverlays', issues)
   }
   validateLinks(value.relatedLinks, '$.relatedLinks', issues)
   if (references.contentIds) {
@@ -258,6 +366,7 @@ export function projectWorkplaceLearnRuntimeItem(item: WorkplaceLearnAuthoringIt
     ...body,
     tags: [...item.tags],
     relatedLinks: item.relatedLinks.map((link) => ({ ...link })),
+    ...(item.supportOverlays === undefined ? {} : { supportOverlays: cloneValidatedJson(item.supportOverlays) }),
     ...(item.kind === 'lesson'
       ? { examples: item.examples.map((example) => ({ ...example })), relatedVocabularyIds: [...item.relatedVocabularyIds], practiceTypes: [...item.practiceTypes] }
       : { example: { ...item.example }, relatedTermIds: [...item.relatedTermIds] }),
@@ -270,8 +379,10 @@ export function toWorkplaceLearnCatalogEntry(item: WorkplaceLearnRuntimeItem, re
     || (releaseReference !== undefined && (item.access !== 'plus' || releaseReference.contentId !== item.id || !/^[a-f0-9]{64}$/.test(releaseReference.revision)))) {
     throw new Error('Workplace Learn release reference is invalid for this catalog entry')
   }
+  const validated = validateWorkplaceLearnRuntimeItem(item)
+  if (!validated.ok) throw new Error(`Invalid Workplace Learn catalog body: ${validated.issues[0]?.path ?? 'unknown field'}`)
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: item.kind,
     id: item.id,
     slug: item.slug,

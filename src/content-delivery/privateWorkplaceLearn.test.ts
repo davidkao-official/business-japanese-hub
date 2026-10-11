@@ -60,7 +60,7 @@ describe('private Workplace Learn release preparation', () => {
     const oversized = {
       ...source,
       examples: Array.from({ length: 8 }, () => ({
-        context: 'c'.repeat(400), japanese: '日'.repeat(1200), explanationZhTW: '解'.repeat(1600),
+        context: 'c'.repeat(400), japanese: '日'.repeat(1200), explanationJa: '解'.repeat(1600),
       })),
     }
     expect(preparePrivateWorkplaceLearnRelease(source.id, oversized)).toMatchObject({

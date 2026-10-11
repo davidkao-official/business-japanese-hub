@@ -76,6 +76,8 @@ describe('Plus membership temporal access resolver', () => {
     const delivered = await handleContentDelivery(deliveryRequest(), {
       db: active.db,
       membershipAccessFor: (userId) => resolvePlusMembershipAccess(active.db, userId),
+      getContentKind: async () => ({ kind: 'found', contentKind: 'fixture' }),
+      getPublishedReadingRelease: vi.fn(),
       getRelease: activeRelease,
     })
     expect(delivered.status).toBe(200)
@@ -88,6 +90,8 @@ describe('Plus membership temporal access resolver', () => {
       const result = await handleContentDelivery(deliveryRequest(), {
         db: nonMember.db,
         membershipAccessFor: (userId) => resolvePlusMembershipAccess(nonMember.db, userId),
+        getContentKind: async () => ({ kind: 'found', contentKind: 'fixture' }),
+        getPublishedReadingRelease: vi.fn(),
         getRelease,
       })
       expect(result.status).toBe(payload?.access_status === 'unknown' ? 503 : 403)
@@ -99,6 +103,8 @@ describe('Plus membership temporal access resolver', () => {
     const unavailable = await handleContentDelivery(deliveryRequest(), {
       db: failed.db,
       membershipAccessFor: (userId) => resolvePlusMembershipAccess(failed.db, userId),
+      getContentKind: async () => ({ kind: 'found', contentKind: 'fixture' }),
+      getPublishedReadingRelease: vi.fn(),
       getRelease,
     })
     expect(unavailable.status).toBe(503)

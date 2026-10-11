@@ -7,6 +7,7 @@ import {
   type ValidationAnalytics,
 } from '@business-japanese-hub/validation-analytics'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
+import { useBookOwned } from '../lib/persistence/useBookState'
 import { careerGameHomeHref } from '../lib/cross-product/careerGame'
 import { BookCover } from '../components/BookCover'
 import { listCatalogEntries } from '../reader/catalog'
@@ -102,7 +103,8 @@ function PracticeModeLink() {
 
 function LearnModeLinks() {
   const learningUnit = getLearningUnitByLearnSlug(COURSE_CORRECTION_LEARN_SLUG)
-  if (!learningUnit) return null
+  const access = useBookOwned(learningUnit?.bookId ?? '')
+  if (!learningUnit || !access.owned || access.loading) return null
 
   return (
     <section
@@ -111,7 +113,7 @@ function LearnModeLinks() {
       aria-labelledby="learn-module-title"
     >
       <div>
-        <p className="product-mode-page__eyebrow" lang="en">
+        <p className="product-mode-page__eyebrow" lang={learningUnit.courseLabelLanguage}>
           {learningUnit.courseLabel}
         </p>
         <h2 id="learn-module-title">{renderLearningText([learningUnit.gateway.title])}</h2>
@@ -119,7 +121,7 @@ function LearnModeLinks() {
       </div>
       <Link className="learning-module-link" to={`/learn/${COURSE_CORRECTION_LEARN_SLUG}`}>
         <span lang="ja">{learningUnit.title}</span>
-        <span lang="en">{learningUnit.courseLabel}</span>
+        <span lang={learningUnit.courseLabelLanguage}>{learningUnit.courseLabel}</span>
         <span>{renderLearningText(learningUnit.gateway.linkSummary)}</span>
       </Link>
     </section>

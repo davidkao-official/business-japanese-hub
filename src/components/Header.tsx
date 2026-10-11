@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useStrings } from '../i18n/strings'
 import { LanguageControl } from './LanguageControl'
@@ -9,12 +9,24 @@ const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 const BREAKPOINT_FOCUS_PROVENANCE_WINDOW_MS = 500
 
-type CloseFocusTarget = 'trigger' | 'desktop'
+type CloseFocusTarget = 'trigger' | 'desktop' | 'main'
 
 export function Header() {
   const strings = useStrings()
   const location = useLocation()
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [menuState, setMenuState] = useState({
+    open: false,
+    locationKey: location.key,
+    closeFocusTarget: 'trigger' as CloseFocusTarget,
+  })
+  if (menuState.locationKey !== location.key) {
+    setMenuState({
+      open: false,
+      locationKey: location.key,
+      closeFocusTarget: menuState.open ? 'main' : menuState.closeFocusTarget,
+    })
+  }
+  const menuOpen = menuState.open
   const menuId = useId()
   const menuTitleId = useId()
   const menuRef = useRef<HTMLDivElement>(null)
@@ -27,42 +39,34 @@ export function Header() {
   const lastTriggerFocusRef = useRef(false)
   const lastTriggerBlurAtRef = useRef<number | null>(null)
   const menuWasOpen = useRef(false)
-  const closeFocusTarget = useRef<CloseFocusTarget>('trigger')
-  const lastLocationKey = useRef(location.key)
   const [desktopAccountOpen, setDesktopAccountOpen] = useState(false)
 
   const closeMenu = () => {
-    closeFocusTarget.current = 'trigger'
-    setMenuOpen(false)
+    setMenuState((current) => ({ ...current, open: false, closeFocusTarget: 'trigger' }))
   }
 
-  const closeMenuTo = (focusTarget: CloseFocusTarget) => {
-    closeFocusTarget.current = focusTarget
-    setMenuOpen(false)
-  }
+  const closeMenuTo = useCallback((focusTarget: CloseFocusTarget) => {
+    setMenuState((current) => ({ ...current, open: false, closeFocusTarget: focusTarget }))
+  }, [])
 
   useEffect(() => {
     if (menuOpen) {
       menuWasOpen.current = true
-      closeFocusTarget.current = 'trigger'
       closeRef.current?.focus()
       return
     }
 
     if (menuWasOpen.current) {
       menuWasOpen.current = false
-      const focusTarget =
-        closeFocusTarget.current === 'desktop' ? desktopBrandRef.current : triggerRef.current
-      closeFocusTarget.current = 'trigger'
-      focusTarget?.focus()
+      const focusTarget = menuState.closeFocusTarget
+      if (focusTarget === 'main') {
+        document.getElementById('main-content')?.focus({ preventScroll: true })
+        return
+      }
+      const target = focusTarget === 'desktop' ? desktopBrandRef.current : triggerRef.current
+      target?.focus()
     }
-  }, [menuOpen])
-
-  useEffect(() => {
-    if (lastLocationKey.current === location.key) return
-    lastLocationKey.current = location.key
-    closeMenu()
-  }, [location.key])
+  }, [menuOpen, menuState.closeFocusTarget])
 
   useEffect(() => {
     const handleFocusIn = (event: FocusEvent) => {
@@ -144,7 +148,7 @@ export function Header() {
 
     desktopQuery.addListener(handleBreakpointChange)
     return () => desktopQuery.removeListener(handleBreakpointChange)
-  }, [menuOpen])
+  }, [closeMenuTo, menuOpen])
 
   useEffect(() => {
     if (!menuOpen) return
@@ -253,7 +257,14 @@ export function Header() {
           aria-haspopup="dialog"
           aria-label={menuOpen ? strings.nav.closeMenu : strings.nav.openMenu}
           disabled={menuOpen}
-          onClick={() => setMenuOpen((current) => !current)}
+          onClick={() => {
+            if (menuOpen) closeMenu()
+            else setMenuState({
+              open: true,
+              locationKey: location.key,
+              closeFocusTarget: 'trigger',
+            })
+          }}
         >
           <span aria-hidden="true">{menuOpen ? '×' : '☰'}</span>
         </button>

@@ -1,7 +1,9 @@
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MyLearningPage } from './MyLearningPage'
+import { FREE_SPI_SAMPLE_REVISION } from '../practice-web-test/freeSample'
 import { renderWithAppProviders } from '../test/appProviders'
+import { getActiveLocale } from '../i18n/strings'
 import type {
   PracticeLearningSnapshot,
   PracticeReviewItem,
@@ -11,6 +13,25 @@ import type { ReadingSave, ReadingSavesResult } from '../reading/savesClient'
 import { sampleReadingItem } from '../reading/fixtures/sample-reading'
 import type { WorkplaceSave, WorkplaceSavesResult } from '../workplace-learn/savesClient'
 import { sampleWorkplaceLearnItem } from '../workplace-learn/sample'
+
+const hookLearningUiOverrides = vi.hoisted(() => ({
+  current: null as Partial<import('../i18n/learningUi').LearningUiStrings> | null,
+}))
+vi.mock('../i18n/strings', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../i18n/strings')>()
+  return {
+    ...actual,
+    useStrings: (...args: Parameters<typeof actual.useStrings>) => {
+      const strings = actual.useStrings(...args)
+      const overrides = hookLearningUiOverrides.current
+      return overrides ? { ...strings, learningUi: { ...strings.learningUi, ...overrides } } : strings
+    },
+  }
+})
+
+afterEach(() => {
+  hookLearningUiOverrides.current = null
+})
 
 const revision = '62361e0be9ecc7792a55c0a670bc126621eaea4196fd8407ded2882cf342506c'
 
@@ -253,6 +274,71 @@ describe('My Learning page', () => {
     expect(screen.getAllByRole('status').some((status) => status.textContent?.includes("この記録の問題は現在開けません。Web テストの一覧から、練習する単元を選んでください。"))).toBe(true)
   })
 
+  it('uses the hook-supplied UI snapshot for a primary review action', async () => {
+    hookLearningUiOverrides.current = {
+      myReviewTitle: 'Hook snapshot review title',
+      myReviewBody: 'Hook snapshot review body',
+      myReviewQuestion: 'Hook snapshot review action',
+    }
+    mockSnapshot(snapshot({
+      recentAttempts: [{ ...review, correct: false }],
+      actionableMistakes: [review],
+      nextAction: { kind: 'review-mistake', item: review },
+    }))
+    renderWithAppProviders(<MyLearningPage />, {
+      session: { id: 'member-1', email: 'member@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Hook snapshot review title' })).toBeInTheDocument())
+    expect(screen.getByText('Hook snapshot review body')).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Hook snapshot review action' })[0]).toHaveAttribute(
+      'href',
+      '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning&review=question-1&reviewVersion=2',
+    )
+    expect(getActiveLocale()).toBe('ja')
+  })
+
+  it('uses the hook-supplied snapshot for continuation text and unknown-category summaries', async () => {
+    hookLearningUiOverrides.current = {
+      myContinueTitle: 'Hook snapshot continue title',
+      myContinueAction: 'Hook snapshot continue action',
+      myContinueBody: (category) => `Hook snapshot continue body for ${category}`,
+      myUnknownCategory: 'Hook snapshot unknown category',
+      myWeakAreaSummary: (category, sampleCount, incorrectCount, accuracyPercent) =>
+        `Hook snapshot weak area: ${category}; ${sampleCount} answers; ${incorrectCount} incorrect; ${accuracyPercent}%`,
+    }
+    const unknown = { ...review, category: 'future-category' }
+    mockSnapshot(snapshot({
+      recentAttempts: [{ ...review, correct: true }],
+      actionableMistakes: [unknown],
+      nextAction: { kind: 'continue-practice', item: review },
+      weakArea: {
+        domain: 'verbal',
+        category: 'future-category',
+        sampleCount: 5,
+        incorrectCount: 2,
+        accuracyPercent: 60,
+        latestAt: review.createdAt,
+      },
+    }))
+    renderWithAppProviders(<MyLearningPage />, {
+      session: { id: 'member-1', email: 'member@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Hook snapshot continue title' })).toBeInTheDocument())
+    expect(screen.getByText('Hook snapshot continue body for 文脈と語句の意味')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Hook snapshot continue action' })).toHaveAttribute(
+      'href',
+      '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning',
+    )
+    expect(screen.getAllByText('Hook snapshot unknown category').length).toBeGreaterThan(0)
+    expect(screen.getByText('Hook snapshot weak area: Hook snapshot unknown category; 5 answers; 2 incorrect; 60%')).toBeInTheDocument()
+    expect(screen.queryByText('future-category')).not.toBeInTheDocument()
+    expect(getActiveLocale()).toBe('ja')
+  })
+
   it('shows the endpoint non-member state when membership access is cached as active', async () => {
     const fetchSnapshot = vi.fn().mockResolvedValue({ kind: 'non-member' as const })
     renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} />, {
@@ -260,9 +346,42 @@ describe('My Learning page', () => {
       membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
     })
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: "学習記録は Plus 会員向けの機能です" })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: "Plus でできること" })).toBeInTheDocument())
     expect(screen.getByRole('link', { name: "Plus について" })).toHaveAttribute('href', '/plus')
     expect(screen.queryByRole('heading', { name: "解答記録を読み込めません" })).not.toBeInTheDocument()
+  })
+
+  it('offers sign-in again when a free account session expires during the snapshot request', async () => {
+    renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'signed-out' as const })} />, {
+      session: { id: 'free-1', email: 'free@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('non-member') },
+    })
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: "ログインして学習記録を確認" })).toBeInTheDocument())
+    expect(screen.queryByRole('heading', { name: "Plus でできること" })).not.toBeInTheDocument()
+  })
+
+  it('shows a free account its server-scoped sample record with an exact review link and the Plus note', async () => {
+    const sampleMistake = { ...review, contentId: 'practice-web-test-spi-free-sample-v1', contentRevision: FREE_SPI_SAMPLE_REVISION, questionId: 'spi-free-v-vocab-01', questionVersion: 1 }
+    const fetchSnapshot = vi.fn().mockResolvedValue({ kind: 'ok' as const, snapshot: snapshot({
+      recentAttempts: [{ ...sampleMistake, correct: false }],
+      actionableMistakes: [sampleMistake],
+      nextAction: { kind: 'review-mistake', item: sampleMistake },
+    }) })
+    const fetchSaves = vi.fn()
+    renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} fetchSaves={fetchSaves} />, {
+      session: { id: 'free-1', email: 'free@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('non-member') },
+    })
+
+    await waitFor(() => expect(screen.getAllByRole('link', { name: "この問題を復習" })[0]).toBeInTheDocument())
+    expect(fetchSnapshot).toHaveBeenCalledOnce()
+    expect(screen.getAllByRole('link', { name: "この問題を復習" })[0]).toHaveAttribute(
+      'href',
+      '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning&review=spi-free-v-vocab-01&reviewVersion=1',
+    )
+    expect(screen.getByRole('heading', { name: "Plus でできること" })).toBeInTheDocument()
+    expect(fetchSaves).not.toHaveBeenCalled()
   })
 
   it('shows the endpoint signed-out state when auth still has a cached user', async () => {
@@ -279,11 +398,11 @@ describe('My Learning page', () => {
 
   it('renders membership and endpoint failures as truthful recovery states', async () => {
     const membership = { getAccess: vi.fn().mockResolvedValue('non-member') }
-    renderWithAppProviders(<MyLearningPage />, {
+    renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'non-member' as const })} />, {
       session: { id: 'member-1', email: 'member@example.com' },
       membershipAccessRepository: membership,
     })
-    await waitFor(() => expect(screen.getByRole('heading', { name: "学習記録は Plus 会員向けの機能です" })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('heading', { name: "Plus でできること" })).toBeInTheDocument())
     expect(screen.getByRole('link', { name: "Plus について" })).toHaveAttribute('href', '/plus')
 
     cleanup()
@@ -313,6 +432,7 @@ describe('My Learning page', () => {
     })
     const sampleLink = await screen.findByRole('link', { name: sampleReadingItem.title })
     expect(sampleLink).toHaveAttribute('href', `/read/${sampleReadingItem.slug}`)
+    expect(sampleLink).toHaveAttribute('lang', 'ja')
     expect(screen.getByText("この保存済みの項目は、現在開けません。")).toBeInTheDocument()
     expect(screen.queryByText(staleId)).not.toBeInTheDocument()
     expect(screen.queryByText('a'.repeat(64))).not.toBeInTheDocument()

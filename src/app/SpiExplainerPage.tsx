@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 
-const SECTION_KEYS = ["spiText02","spiText03","spiText04","spiText05","spiText06","spiText07","spiText08","spiText09","spiText10","spiText11","spiText12","spiText13","spiText14","spiText15","spiText16","spiText17","spiText18"] as const
+const SECTION_KEYS = ["spiExplainerDefinitionHeading","spiExplainerAssessmentHeading","spiExplainerVariantsHeading","spiExplainerDeliveryHeading","spiExplainerDurationHeading","spiExplainerSpeedAccuracyHeading","spiExplainerN1DifficultyHeading","spiExplainerForeignLearnerDifficultyHeading","spiExplainerTranslationBarrierHeading","spiExplainerSpeedHeading","spiExplainerAccuracyHeading","spiExplainerLargeCompanyPreparationHeading","spiExplainerAccuracyTargetHeading","spiExplainerHighScoreCaveatHeading","spiExplainerOtherTestsHeading","spiExplainerPreparationHeading","spiExplainerDavidAdviceHeading"] as const
 
 function Section({ index, children }: { index: number; children: ReactNode }) {
   const ui = useStrings().learningUi
@@ -22,7 +22,7 @@ function DavidCallout({ accessibleName, children }: { accessibleName: string; ch
 
   return (
     <aside className="spi-explainer__david" aria-label={accessibleName}>
-      <p className="spi-explainer__label">{ui.spiText19}</p>
+      <p className="spi-explainer__label">{ui.spiExplainerDavidPerspectiveLabel}</p>
       {children}
     </aside>
   )
@@ -30,7 +30,7 @@ function DavidCallout({ accessibleName, children }: { accessibleName: string; ch
 
 /** Keeps the SPI explainer route description scoped to its mounted route lifetime. */
 function useSpiExplainerDescription(): void {
-  const descriptionText = useStrings().learningUi.spiText01
+  const descriptionText = useStrings().learningUi.spiExplainerMetaDescription
   useEffect(() => {
     const existing = document.querySelector<HTMLMetaElement>('meta[name="description"]')
     const description = existing ?? document.createElement('meta')
@@ -51,145 +51,145 @@ function useSpiExplainerDescription(): void {
 export function SpiExplainerPage() {
   const ui = useStrings().learningUi
 
-  useDocumentTitle(ui.spiText20)
+  useDocumentTitle(ui.spiExplainerDocumentTitle)
   useSpiExplainerDescription()
 
   return (
     <article className="spi-explainer" lang={getActiveLocale()} aria-labelledby="spi-explainer-title">
       <header className="spi-explainer__hero">
-        <p className="spi-explainer__eyebrow" lang={getActiveLocale()}>{ui.spiText21}</p>
-        <h1 id="spi-explainer-title">{ui.spiText22}</h1>
-        <p className="spi-explainer__dek">{ui.spiText23}</p>
-        <p>{ui.spiText24}</p>
-        <DavidCallout accessibleName={ui.spiText25}>
-          <p>{ui.spiText26}</p>
-          <p>{ui.spiText27}<strong>{ui.spiText28}</strong></p>
+        <p className="spi-explainer__eyebrow" lang={getActiveLocale()}>{ui.spiExplainerHeroEyebrow}</p>
+        <h1 id="spi-explainer-title">{ui.spiExplainerHeroTitle}</h1>
+        <p className="spi-explainer__dek">{ui.spiExplainerHeroDescription}</p>
+        <p>{ui.spiExplainerCareerChangeIntroduction}</p>
+        <DavidCallout accessibleName={ui.spiExplainerSelectionImpactAccessibleName}>
+          <p>{ui.spiExplainerPreparationAnecdote}</p>
+          <p>{ui.spiExplainerInterviewOpportunityLead}<strong>{ui.spiExplainerInterviewOpportunityEmphasis}</strong></p>
         </DavidCallout>
-        <p>{ui.spiText29}</p>
+        <p>{ui.spiExplainerEarlyPreparationAdvice}</p>
       </header>
 
       <aside className="spi-explainer__source-note">
-        <strong>{ui.spiText30}</strong>
-        <span>{ui.spiText31}</span>
+        <strong>{ui.spiExplainerEditorialNoteTitle}</strong>
+        <span>{ui.spiExplainerEditorialNoteBody}</span>
       </aside>
 
       <div className="spi-explainer__sections">
         <Section index={0}>
-          <p>{ui.spiText32}</p>
+          <p>{ui.spiExplainerDefinitionBody}</p>
         </Section>
 
         <Section index={1}>
-          <p>{ui.spiText33}</p>
-          <div className="spi-explainer__table-wrap"><table><thead><tr><th>{ui.spiText34}</th><th>{ui.spiText35}</th></tr></thead><tbody><tr><th scope="row">{ui.spiText36}</th><td>{ui.spiText37}</td></tr><tr><th scope="row">{ui.spiText38}</th><td>{ui.spiText39}</td></tr></tbody></table></div>
+          <p>{ui.spiExplainerAssessmentBody}</p>
+          <div className="spi-explainer__table-wrap"><table><thead><tr><th>{ui.spiExplainerAssessmentFieldColumn}</th><th>{ui.spiExplainerAssessmentContentColumn}</th></tr></thead><tbody><tr><th scope="row">{ui.spiExplainerAbilityTestLabel}</th><td>{ui.spiExplainerAbilityTestDescription}</td></tr><tr><th scope="row">{ui.spiExplainerPersonalityTestLabel}</th><td>{ui.spiExplainerPersonalityTestDescription}</td></tr></tbody></table></div>
         </Section>
 
         <Section index={2}>
-          <p>{ui.spiText40}</p>
-          <div className="spi-explainer__table-wrap"><table><thead><tr><th>{ui.spiText41}</th><th>{ui.spiText42}</th><th>{ui.spiText43}</th></tr></thead><tbody><tr><th scope="row">SPI-U</th><td>{ui.spiText44}</td><td>{ui.spiText45}</td></tr><tr><th scope="row">SPI-G</th><td>{ui.spiText46}</td><td>{ui.spiText45}</td></tr><tr><th scope="row">SPI-H</th><td>{ui.spiText47}</td><td>{ui.spiText45}</td></tr></tbody></table></div>
-          <p className="spi-explainer__warning">{ui.spiText48}</p>
+          <p>{ui.spiExplainerVariantsBody}</p>
+          <div className="spi-explainer__table-wrap"><table><thead><tr><th>{ui.spiExplainerVariantTypeColumn}</th><th>{ui.spiExplainerVariantAudienceColumn}</th><th>{ui.spiExplainerVariantContentColumn}</th></tr></thead><tbody><tr><th scope="row">SPI-U</th><td>{ui.spiExplainerUniversityGraduateAudience}</td><td>{ui.spiExplainerVariantContentDescription}</td></tr><tr><th scope="row">SPI-G</th><td>{ui.spiExplainerMidCareerAudience}</td><td>{ui.spiExplainerVariantContentDescription}</td></tr><tr><th scope="row">SPI-H</th><td>{ui.spiExplainerHighSchoolGraduateAudience}</td><td>{ui.spiExplainerVariantContentDescription}</td></tr></tbody></table></div>
+          <p className="spi-explainer__warning">{ui.spiExplainerMidCareerPreparationWarning}</p>
         </Section>
 
         <Section index={3}>
-          <p>{ui.spiText49}</p>
-          <ul className="spi-explainer__chips"><li>{ui.spiText50}</li><li>{ui.spiText51}</li><li>{ui.spiText52}</li><li>{ui.spiText53}</li></ul>
+          <p>{ui.spiExplainerDeliveryBody}</p>
+          <ul className="spi-explainer__chips"><li>{ui.spiExplainerTestCenterLabel}</li><li>{ui.spiExplainerInHouseCbtLabel}</li><li>{ui.spiExplainerWebTestingLabel}</li><li>{ui.spiExplainerPaperTestingLabel}</li></ul>
         </Section>
 
         <Section index={4}>
           <div className="spi-explainer__table-wrap">
             <table>
-              <caption>{ui.spiText54}</caption>
-              <thead><tr><th scope="col">{ui.spiText55}</th><th scope="col">{ui.spiText56}</th></tr></thead>
+              <caption>{ui.spiExplainerDurationTableCaption}</caption>
+              <thead><tr><th scope="col">{ui.spiExplainerDurationItemColumn}</th><th scope="col">{ui.spiExplainerDurationDescriptionColumn}</th></tr></thead>
               <tbody>
-                <tr><th scope="row">{ui.spiText38}</th><td>{ui.spiText57}</td></tr>
-                <tr><th scope="row">{ui.spiText36}</th><td>{ui.spiText58}</td></tr>
-                <tr><th scope="row">{ui.spiText59}</th><td>{ui.spiText60}</td></tr>
-                <tr><th scope="row">{ui.spiText61}</th><td>{ui.spiText62}</td></tr>
+                <tr><th scope="row">{ui.spiExplainerPersonalityTestLabel}</th><td>{ui.spiExplainerPersonalityTestDuration}</td></tr>
+                <tr><th scope="row">{ui.spiExplainerAbilityTestLabel}</th><td>{ui.spiExplainerAbilityTestDuration}</td></tr>
+                <tr><th scope="row">{ui.spiExplainerActualDurationLabel}</th><td>{ui.spiExplainerActualDurationDescription}</td></tr>
+                <tr><th scope="row">{ui.spiExplainerDurationEditorialNoteLabel}</th><td>{ui.spiExplainerDurationEditorialNoteBody}</td></tr>
               </tbody>
             </table>
           </div>
-          <p className="spi-explainer__source">{ui.spiText63}</p>
+          <p className="spi-explainer__source">{ui.spiExplainerDurationSource}</p>
         </Section>
 
         <Section index={5}>
-          <p>{ui.spiText64}</p>
+          <p>{ui.spiExplainerSpeedAccuracyBody}</p>
         </Section>
 
         <Section index={6}>
-          <div className="spi-explainer__table-wrap"><table><thead><tr><th>JLPT</th><th>SPI</th></tr></thead><tbody><tr><td>{ui.spiText65}</td><td>{ui.spiText66}</td></tr><tr><td>{ui.spiText67}</td><td>{ui.spiText68}</td></tr></tbody></table></div>
-          <p className="spi-explainer__pullquote">{ui.spiText69}</p>
+          <div className="spi-explainer__table-wrap"><table><thead><tr><th>JLPT</th><th>SPI</th></tr></thead><tbody><tr><td>{ui.spiExplainerJlptKnowledgeComparison}</td><td>{ui.spiExplainerSpiAppliedSkillsComparison}</td></tr><tr><td>{ui.spiExplainerJlptPacingComparison}</td><td>{ui.spiExplainerSpiTimePressureComparison}</td></tr></tbody></table></div>
+          <p className="spi-explainer__pullquote">{ui.spiExplainerJlptSpiComparisonQuote}</p>
         </Section>
 
         <Section index={7}>
-          <p>{ui.spiText70}</p>
-          <p>{ui.spiText71}<strong>{ui.spiText72}</strong></p>
+          <p>{ui.spiExplainerPracticeTopicsBody}</p>
+          <p>{ui.spiExplainerForeignLearnerDifficultyBody}<strong>{ui.spiExplainerN1ScoreCaveat}</strong></p>
         </Section>
 
         <Section index={8}>
-          <div className="spi-explainer__translation"><p><strong>{ui.spiText73}</strong><br />{ui.spiText74}</p><p><strong>{ui.spiText75}</strong><br />{ui.spiText76}</p></div>
-          <p>{ui.spiText77}</p>
+          <div className="spi-explainer__translation"><p><strong>{ui.spiExplainerNativeSpeakerLabel}</strong><br />{ui.spiExplainerNativeSpeakerProcess}</p><p><strong>{ui.spiExplainerTranslatingApplicantLabel}</strong><br />{ui.spiExplainerTranslatingApplicantProcess}</p></div>
+          <p>{ui.spiExplainerDirectComprehensionAdvice}</p>
         </Section>
 
         <Section index={9}>
-          <p>{ui.spiText78}</p>
+          <p>{ui.spiExplainerSpeedBody}</p>
         </Section>
 
         <Section index={10}>
-          <p>{ui.spiText79}</p>
+          <p>{ui.spiExplainerAccuracyBody}</p>
         </Section>
 
         <Section index={11}>
-          <p>{ui.spiText80}</p>
-          <DavidCallout accessibleName={ui.spiText81}>
-            <p>{ui.spiText82}</p>
-            <p>{ui.spiText83}<strong>{ui.spiText84}</strong></p>
+          <p>{ui.spiExplainerScreeningBody}</p>
+          <DavidCallout accessibleName={ui.spiExplainerScreeningOutcomeAccessibleName}>
+            <p>{ui.spiExplainerScreeningOutcomeAnecdote}</p>
+            <p>{ui.spiExplainerScreeningOutcomeLead}<strong>{ui.spiExplainerScreeningOutcomeEmphasis}</strong></p>
           </DavidCallout>
         </Section>
 
         <Section index={12}>
-          <p>{ui.spiText85}</p>
+          <p>{ui.spiExplainerAccuracyTargetBody}</p>
         </Section>
 
         <Section index={13}>
-          <p>{ui.spiText86}</p>
+          <p>{ui.spiExplainerHighScoreCaveatBody}</p>
         </Section>
 
         <Section index={14}>
-          <p>{ui.spiText87}</p>
+          <p>{ui.spiExplainerOtherTestsBody}</p>
           <ul className="spi-explainer__chips"><li>SPI</li><li>玉手箱</li><li>TG-WEB</li><li>CAB</li><li>GAB</li></ul>
         </Section>
 
         <Section index={15}>
-          <p>{ui.spiText88}</p>
-          <ul className="spi-explainer__skills"><li>{ui.spiText89}</li><li>{ui.spiText90}</li><li>{ui.spiText91}</li><li>{ui.spiText92}</li></ul>
-          <p>{ui.spiText93}</p>
+          <p>{ui.spiExplainerPreparationIntroduction}</p>
+          <ul className="spi-explainer__skills"><li>{ui.spiExplainerReadingVocabularySkill}</li><li>{ui.spiExplainerReasoningConditionsSkill}</li><li>{ui.spiExplainerMentalArithmeticSkill}</li><li>{ui.spiExplainerFormulasChartsSkill}</li></ul>
+          <p>{ui.spiExplainerShortPracticeAdvice}</p>
         </Section>
 
         <Section index={16}>
-          <p>{ui.spiText94}<strong>{ui.spiText95}</strong></p>
-          <p>{ui.spiText96}</p>
-          <p className="spi-explainer__pullquote">{ui.spiText97}</p>
-          <p>{ui.spiText98}</p>
-          <DavidCallout accessibleName={ui.spiText99}>
-            <p>{ui.spiText100}</p>
+          <p>{ui.spiExplainerN1AdviceLead}<strong>{ui.spiExplainerN1AdviceEmphasis}</strong></p>
+          <p>{ui.spiExplainerEmployerSkillsAdvice}</p>
+          <p className="spi-explainer__pullquote">{ui.spiExplainerN1SpiAdviceQuote}</p>
+          <p>{ui.spiExplainerInterviewOpportunityBody}</p>
+          <DavidCallout accessibleName={ui.spiExplainerPreparationStartAccessibleName}>
+            <p>{ui.spiExplainerPreparationStartAdvice}</p>
           </DavidCallout>
-          <p className="spi-explainer__closing">{ui.spiText101}</p>
+          <p className="spi-explainer__closing">{ui.spiExplainerClosingStatement}</p>
         </Section>
       </div>
 
-      <footer className="spi-explainer__sources" aria-label={ui.spiText102}>
-        <h2>{ui.spiText102}</h2>
-        <p>{ui.spiText103}</p>
+      <footer className="spi-explainer__sources" aria-label={ui.spiExplainerSourcesHeading}>
+        <h2>{ui.spiExplainerSourcesHeading}</h2>
+        <p>{ui.spiExplainerSourcesEditorialNote}</p>
         <ul>
-          <li><a href="https://www.spi.recruit.co.jp/" target="_blank" rel="noreferrer">{ui.spiText104}</a></li>
-          <li><a href="https://www.spi.recruit.co.jp/spi3/faq/" target="_blank" rel="noreferrer">{ui.spiText105}</a></li>
-          <li><a href="https://www.spi.recruit.co.jp/lp/spi_lp01a.html" target="_blank" rel="noreferrer">{ui.spiText106}</a></li>
-          <li><a href="https://www.spi.recruit.co.jp/testcenter/" target="_blank" rel="noreferrer">{ui.spiText107}</a></li>
+          <li><a href="https://www.spi.recruit.co.jp/" target="_blank" rel="noreferrer">{ui.spiExplainerOfficialWebsiteLink}</a></li>
+          <li><a href="https://www.spi.recruit.co.jp/spi3/faq/" target="_blank" rel="noreferrer">{ui.spiExplainerFaqLink}</a></li>
+          <li><a href="https://www.spi.recruit.co.jp/lp/spi_lp01a.html" target="_blank" rel="noreferrer">{ui.spiExplainerOverviewDurationLink}</a></li>
+          <li><a href="https://www.spi.recruit.co.jp/testcenter/" target="_blank" rel="noreferrer">{ui.spiExplainerTestCenterLink}</a></li>
         </ul>
       </footer>
 
       <footer className="spi-explainer__cta">
-        <p className="spi-explainer__label" lang={getActiveLocale()}>{ui.spiText108}</p>
-        <h2>{ui.spiText109}</h2>
+        <p className="spi-explainer__label" lang={getActiveLocale()}>{ui.spiExplainerPracticeCtaEyebrow}</p>
+        <h2>{ui.spiExplainerPracticeCtaTitle}</h2>
         <Link className="btn btn--primary" to="/practice/web-test">{ui.webTitle}</Link>
       </footer>
     </article>

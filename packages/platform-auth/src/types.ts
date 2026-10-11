@@ -2,6 +2,8 @@
 export interface SessionUser {
   id: string
   email?: string | null
+  /** Non-secret session identity for local draft isolation, never access authority. */
+  sessionId?: string
 }
 
 /** Result of a password sign-in attempt. */
