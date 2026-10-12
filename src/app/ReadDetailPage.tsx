@@ -12,6 +12,7 @@ import { readingCatalog } from '../reading/catalog'
 import { validateReadingRuntimeItem } from '../reading/validate'
 import { sampleReadingItem } from '../reading/fixtures/sample-reading'
 import type { ReadingCatalogEntry, ReadingRelatedLink, ReadingRuntimeItem } from '../reading/types'
+import { workplaceLearnCatalog } from '../workplace-learn/catalog'
 import { getLearningUnitByLearnSlug, getLearningUnitByPracticeSlug } from './learningUnits'
 import { NotFoundPage } from './NotFoundPage'
 
@@ -368,6 +369,11 @@ function RelatedReading({ links }: { links: readonly ReadingRelatedLink[] }) {
 }
 
 function relatedHref(link: ReadingRelatedLink): string | null {
+  if (link.kind === 'workplace-learn') {
+    const entry = workplaceLearnCatalog.find((candidate) => candidate.id === link.targetId)
+    if (!entry) return null
+    return entry.kind === 'lesson' ? `/learn/workplace/${entry.slug}` : `/learn/vocabulary/${entry.slug}`
+  }
   if (link.kind === 'learn') {
     return getLearningUnitByLearnSlug(link.targetId) ? `/learn/${link.targetId}` : null
   }

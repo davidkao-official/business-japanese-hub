@@ -9,6 +9,9 @@ import { sampleReadingItem } from '../reading/fixtures/sample-reading'
 import { toReadingCatalogEntry } from '../reading/validate'
 import type { ReadingCatalogEntry, ReadingRuntimeItem } from '../reading/types'
 import { renderWithAppProviders } from '../test/appProviders'
+import { workplaceLearnCatalog } from '../workplace-learn/catalog'
+import { WorkplaceLessonPage, WorkplaceVocabularyPage } from '../workplace-learn/pages'
+import { sampleWorkplaceLearnItem, sampleWorkplaceVocabularyItem } from '../workplace-learn/sample'
 import { ReadDetailPage } from './ReadDetailPage'
 import { ReadLandingPage } from './ReadLandingPage'
 
@@ -41,6 +44,8 @@ function routeSet(
       <Route path="/read" element={<ReadLandingPage />} />
       <Route path="/read/:slug" element={<ReadDetailPage catalogEntries={entries} loadPayload={loadPayload} publicItems={publicItems} loadSave={saveLoad} writeSave={saveWrite} deleteSave={saveDelete} />} />
       <Route path="/learn/:slug" element={<p>Actual Learn route</p>} />
+      <Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage />} />
+      <Route path="/learn/vocabulary/:slug" element={<WorkplaceVocabularyPage />} />
       <Route path="/books/:slug" element={<p>Book detail route</p>} />
       <Route path="*" element={<p>404 fallback</p>} />
     </Routes>
@@ -69,7 +74,7 @@ describe('Business Reading surfaces', () => {
     expect(screen.queryByRole('link', { name: new RegExp(sampleReadingItem.title) })).not.toBeInTheDocument()
   })
 
-  it('renders the direct free detail with Japanese metadata, core explanation, and the actual Learn handoff', () => {
+  it('renders the direct free detail with Japanese metadata, core explanation, and the free Workplace handoff', () => {
     renderWithAppProviders(routeSet(), { initialEntries: ['/read/sample-internal-proposal'] })
     expect(screen.getByRole('heading', { name: sampleReadingItem.title })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: sampleReadingItem.title })).toHaveAttribute('lang', 'ja')
@@ -80,7 +85,51 @@ describe('Business Reading surfaces', () => {
     expect(screen.getByText(sampleReadingItem.vocabulary[0]!.meaningJa)).toHaveAttribute('lang', 'ja')
     expect(screen.getByText(sampleReadingItem.source.label)).toHaveAttribute('lang', 'ja')
     expect(screen.getByText('公開日なし')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: sampleReadingItem.relatedLinks[0]!.label })).toHaveAttribute('href', '/learn/meeting-japanese-course-correction')
+    const next = sampleReadingItem.relatedLinks[0]!
+    const destination = workplaceLearnCatalog.find((entry) => entry.id === next.targetId)
+    expect(next.kind).toBe('workplace-learn')
+    expect(destination).toMatchObject({ id: sampleWorkplaceLearnItem.id, kind: 'lesson', access: 'free' })
+    const handoff = screen.getByRole('link', { name: next.label })
+    expect(handoff).toHaveAttribute('href', '/learn/workplace/sample-status-update-with-next-step')
+    fireEvent.click(handoff)
+    expect(screen.getByRole('heading', { level: 1, name: sampleWorkplaceLearnItem.title })).toBeInTheDocument()
+    expect(screen.getByText(sampleWorkplaceLearnItem.situation)).toBeInTheDocument()
+    expect(screen.queryByText('Actual Learn route')).not.toBeInTheDocument()
+  })
+
+  it('resolves Workplace vocabulary by content ID and omits unknown or slug-only targets', () => {
+    const item: ReadingRuntimeItem = {
+      ...sampleReadingItem,
+      relatedLinks: [
+        { kind: 'workplace-learn', label: '関連する語彙', targetId: sampleWorkplaceVocabularyItem.id },
+        { kind: 'workplace-learn', label: '見つからない教材', targetId: 'workplace-learn-missing' },
+        { kind: 'workplace-learn', label: '識別子ではないスラッグ', targetId: sampleWorkplaceLearnItem.slug },
+      ],
+    }
+    renderWithAppProviders(routeSet([toReadingCatalogEntry(item)], undefined, [item]), { initialEntries: [`/read/${item.slug}`] })
+    const vocabularyLink = screen.getByRole('link', { name: '関連する語彙' })
+    expect(vocabularyLink).toHaveAttribute('href', `/learn/vocabulary/${sampleWorkplaceVocabularyItem.slug}`)
+    expect(screen.queryByRole('link', { name: '見つからない教材' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '識別子ではないスラッグ' })).not.toBeInTheDocument()
+    fireEvent.click(vocabularyLink)
+    expect(screen.getByRole('heading', { level: 1, name: sampleWorkplaceVocabularyItem.title })).toBeInTheDocument()
+  })
+
+  it('preserves existing Reading, legacy Learn, and legacy Practice related destinations', () => {
+    const item: ReadingRuntimeItem = {
+      ...sampleReadingItem,
+      relatedLinks: [
+        { kind: 'read', label: '関連記事', targetId: sampleReadingItem.id },
+        { kind: 'learn', label: '従来のレッスン', targetId: 'meeting-japanese-course-correction' },
+        { kind: 'practice', label: '従来の練習', targetId: 'course-correction' },
+        { kind: 'read', label: '見つからない記事', targetId: 'reading-missing' },
+      ],
+    }
+    renderWithAppProviders(routeSet([toReadingCatalogEntry(item)], undefined, [item]), { initialEntries: [`/read/${item.slug}`] })
+    expect(screen.getByRole('link', { name: '関連記事' })).toHaveAttribute('href', `/read/${sampleReadingItem.slug}`)
+    expect(screen.getByRole('link', { name: '従来のレッスン' })).toHaveAttribute('href', '/learn/meeting-japanese-course-correction')
+    expect(screen.getByRole('link', { name: '従来の練習' })).toHaveAttribute('href', '/practice/course-correction')
+    expect(screen.queryByRole('link', { name: '見つからない記事' })).not.toBeInTheDocument()
   })
 
   it('renders Japanese core and keeps a present support overlay out of V1', () => {

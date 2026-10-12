@@ -172,8 +172,25 @@ describe('Reading authoring contract', () => {
     expect(catalog).not.toHaveProperty('releaseReference')
     expect(catalog).not.toHaveProperty('releasedAt')
     expect(sampleReadingItem.relatedLinks).toContainEqual({
-      kind: 'learn', label: '会議で論点を受けて展開する', targetId: 'meeting-japanese-course-correction',
+      kind: 'workplace-learn', label: '報告時に事実と次の対応を短く伝える', targetId: 'workplace-learn-sample-status-update',
     })
+  })
+
+  it.each(['read', 'learn', 'practice', 'workplace-learn'] as const)('accepts a %s related link in authoring and runtime data', (kind) => {
+    const relatedLinks = [{ kind, label: '次に学ぶ', targetId: 'workplace-learn-sample-status-update' }]
+    expect(validateReadingItem({ ...releasedPlusItem(), relatedLinks }, { requireReleased: true }).ok).toBe(true)
+    expect(validateReadingRuntimeItem({ ...sampleReadingItem, relatedLinks }).ok).toBe(true)
+  })
+
+  it.each([
+    { kind: 'workplace', label: '次に学ぶ', targetId: 'workplace-learn-sample-status-update' },
+    { kind: 'workplace-learn', label: '次に学ぶ', targetId: '/learn/workplace/sample-status-update-with-next-step' },
+    { kind: 'workplace-learn', label: '次に学ぶ', targetId: 'https://example.com/lesson' },
+    { kind: 'workplace-learn', label: '次に学ぶ', targetId: '' },
+    { kind: 'workplace-learn', label: '次に学ぶ', targetId: 'workplace-learn-sample-status-update', href: '/learn' },
+  ])('rejects a malformed related link in authoring and runtime data: %j', (link) => {
+    expect(validateReadingItem({ ...releasedPlusItem(), relatedLinks: [link] }).ok).toBe(false)
+    expect(validateReadingRuntimeItem({ ...sampleReadingItem, relatedLinks: [link] }).ok).toBe(false)
   })
 
   it('admits a strictly shaped immutable reference only for matching Plus metadata', () => {
