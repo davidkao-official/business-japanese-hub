@@ -47,7 +47,7 @@
   line-height: 1.18;
   letter-spacing: -0.045em;
   overflow-wrap: normal;
-  word-break: normal;
+  /* Use the shared heading kinsoku / auto-phrase rules. */
 }
 
 .concept-home-hero__title .phrase {

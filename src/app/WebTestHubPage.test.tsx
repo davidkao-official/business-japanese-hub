@@ -534,6 +534,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
     fireEvent.click(screen.getByRole('button', { name: "解答する" }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("解答が保存されたか確認できません。"))
+    expect(screen.getByRole('alert')).toHaveClass('web-test-hub__notice-action')
     expect(screen.queryByText("解答を保存しました。")).not.toBeInTheDocument()
     const nextButton = screen.getByRole('button', { name: "次の問題へ" })
     expect(nextButton).toBeDisabled()
@@ -624,6 +625,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
     fireEvent.click(screen.getByRole('button', { name: "解答する" }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("問題が更新されたため、解答は保存されていません。"))
+    expect(screen.getByRole('alert')).toHaveClass('web-test-hub__notice-action')
     expect(screen.queryByRole('button', { name: "保存を再試行" })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: "次の問題へ" })).toBeDisabled()
     fireEvent.click(screen.getByRole('button', { name: "最新の問題を読み込む" }))
@@ -644,6 +646,11 @@ describe('Web Test discovery and runner-entry routes', () => {
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
     fireEvent.click(screen.getByRole('button', { name: "解答する" }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(message))
+    if (retryable || kind === 'missing') {
+      const alert = screen.getByRole('alert')
+      expect(alert).toHaveClass('web-test-hub__notice-action')
+      expect(alert.querySelector(':scope > span')).toHaveTextContent(message)
+    }
     if (retryable) expect(screen.getByRole('button', { name: "保存を再試行" })).toBeInTheDocument()
     else expect(screen.queryByRole('button', { name: "保存を再試行" })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: "次の問題へ" })).toBeDisabled()
@@ -664,6 +671,11 @@ describe('Web Test discovery and runner-entry routes', () => {
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
     fireEvent.click(screen.getByRole('button', { name: "解答する" }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(message))
+    if (retryable) {
+      const alert = screen.getByRole('alert')
+      expect(alert).toHaveClass('web-test-hub__notice-action')
+      expect(alert.querySelector(':scope > span')).toHaveTextContent(message)
+    }
     if (retryable) expect(screen.getByRole('button', { name: "保存を再試行" })).toBeInTheDocument()
     else expect(screen.queryByRole('button', { name: "保存を再試行" })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: "次の問題へ" })).toBeDisabled()
@@ -1235,6 +1247,11 @@ describe('Web Test discovery and runner-entry routes', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: '保存を再試行' })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: '保存を再試行' }))
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(message))
+    if (canRetry || kind === 'missing') {
+      const alert = screen.getByRole('alert')
+      expect(alert).toHaveClass('web-test-hub__notice-action')
+      expect(alert.querySelector(':scope > span')).toHaveTextContent(message)
+    }
     expect(submitPracticeAttemptMock.mock.calls[1]![0]).toEqual(originalAttempt)
     if (canRetry) expect(screen.getByRole('button', { name: '保存を再試行' })).toBeInTheDocument()
     else expect(screen.queryByRole('button', { name: '保存を再試行' })).not.toBeInTheDocument()

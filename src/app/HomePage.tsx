@@ -84,6 +84,12 @@ function ConceptHero() {
     ...concept.headline.workplaceJapanese,
     concept.headline.ending,
   ].join('')
+  // Inline-block phrase atoms bypass kinsoku at their boundaries. Keep an
+  // opening bracket with the following words, never with the preceding atom.
+  const opensWorkplaceQuote = concept.headline.beforeWorkplace.endsWith('「')
+  const beforeWorkplace = opensWorkplaceQuote
+    ? concept.headline.beforeWorkplace.slice(0, -1)
+    : concept.headline.beforeWorkplace
 
   return (
     <div className="concept-home-hero">
@@ -93,9 +99,10 @@ function ConceptHero() {
           <span className="phrase">
             {concept.headline.opening}{concept.headline.examJapanese}{concept.headline.afterExam}
           </span>
-          <span className="phrase">{concept.headline.beforeWorkplace}</span>
+          <span className="phrase">{beforeWorkplace}</span>
           {concept.headline.workplaceJapanese.map((phrase, index) => (
             <span className="phrase" key={`${index}-${phrase}`}>
+              {index === 0 && opensWorkplaceQuote ? '「' : null}
               <span className="concept-home-hero__accent">{phrase}</span>
               {index === concept.headline.workplaceJapanese.length - 1 ? concept.headline.ending : null}
             </span>
