@@ -1,5 +1,5 @@
 import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@business-japanese-hub/platform-auth'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { getBookBySlug, getCatalogEntry } from './catalog'
@@ -99,6 +99,14 @@ export function ReaderPage() {
       : location.key
   const [positionSnapshot, setPositionSnapshot] = useState<ReaderPositionSnapshot | null>(null)
   const currentOwnerId = user?.id ?? null
+  const [consumedResumeEntry, setConsumedResumeEntry] = useState<{
+    bookId: string
+    entryKey: string
+    ownerId: string | null
+  } | null>(null)
+  const consumeResumeEntry = useCallback(() => {
+    if (book) setConsumedResumeEntry({ bookId: book.id, entryKey: resumeEntryKey, ownerId: currentOwnerId })
+  }, [book, resumeEntryKey, currentOwnerId])
   const [ownerObservation, setOwnerObservation] = useState(() => ({
     initialized: !authLoading,
     ownerId: authLoading ? null : currentOwnerId,
@@ -211,12 +219,19 @@ export function ReaderPage() {
   const hasResumeMarker = new URLSearchParams(location.search).get('resume') === '1'
   const resumeCandidate = !location.hash && (!chapterSlug || hasResumeMarker)
   const resumeEntryConsumed =
-    typeof consumedState === 'object' &&
-    consumedState !== null &&
-    'bookId' in consumedState &&
-    consumedState.bookId === book?.id &&
-    'userId' in consumedState &&
-    consumedState.userId === (user?.id ?? null)
+    // Router replacement is a transition. Remember consumption in the Reader
+    // before it commits, so an auth update cannot resolve this entry again with
+    // the next owner's empty reading state. Viewport anchors stay owner-scoped.
+    // A sign-out keeps the consumed entry; a different signed-in owner resumes their own position.
+    (consumedResumeEntry?.bookId === book?.id &&
+      consumedResumeEntry?.entryKey === resumeEntryKey &&
+      (currentOwnerId === null || consumedResumeEntry?.ownerId === currentOwnerId)) ||
+    (typeof consumedState === 'object' &&
+      consumedState !== null &&
+      'bookId' in consumedState &&
+      consumedState.bookId === book?.id &&
+      'userId' in consumedState &&
+      consumedState.userId === (user?.id ?? null))
   const consumedMarkerIsStale =
     typeof consumedState === 'object' &&
     consumedState !== null &&
@@ -364,6 +379,7 @@ export function ReaderPage() {
           liveRestoreAnchor={resumeViewportAnchor}
           restoreEntryKey={resumeEntryKey}
           resumeOwnerId={currentOwnerId}
+          onResumeConsumed={consumeResumeEntry}
           resetInitialViewport={ownerTransition || previousBookViewport || consumedMarkerIsStale}
           canPersistPosition={!loading && !error}
           skipInitialPositionSave={

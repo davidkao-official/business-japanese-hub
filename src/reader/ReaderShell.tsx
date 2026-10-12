@@ -56,6 +56,8 @@ export interface ReaderShellProps {
   restoreEntryKey?: string
   /** Owner identity bound to the local, one-entry consumed marker. */
   resumeOwnerId?: string | null
+  /** Record consumption before the asynchronous URL cleanup can commit. */
+  onResumeConsumed?: () => void
   /** Reset a viewport inherited from a different consumed owner/book entry. */
   resetInitialViewport?: boolean
   /** Keep transient anchors out of persistence while the initial read settles. */
@@ -101,6 +103,7 @@ export function ReaderShell({
   liveRestoreAnchor,
   restoreEntryKey,
   resumeOwnerId = null,
+  onResumeConsumed,
   resetInitialViewport = false,
   canPersistPosition = true,
   skipInitialPositionSave = false,
@@ -208,6 +211,7 @@ export function ReaderShell({
 
     const search = new URLSearchParams(location.search)
     if (search.get('resume') === '1') {
+      onResumeConsumed?.()
       search.delete('resume')
       const nextSearch = search.toString()
       const priorState =
@@ -237,6 +241,7 @@ export function ReaderShell({
     visibleBlocks,
     restoreEntryKey,
     resumeOwnerId,
+    onResumeConsumed,
     location.pathname,
     location.search,
     location.state,
