@@ -9,7 +9,7 @@ export interface AuthContextValue {
   loading: boolean
   getAccessToken(): Promise<string | null>
   signIn(email: string, password: string): Promise<void>
-  signUp(email: string, password: string): Promise<SignUpResult>
+  signUp(email: string, password: string, emailRedirectTo?: string): Promise<SignUpResult>
   signOut(): Promise<void>
 }
 
@@ -81,8 +81,8 @@ export function AuthProvider({ authClient, children }: AuthProviderProps) {
         authEventSeenRef.current = true
         setUser(nextUser)
       },
-      signUp: async (email: string, password: string) => {
-        const result = await authClient.signUpWithPassword({ email, password })
+      signUp: async (email: string, password: string, emailRedirectTo?: string) => {
+        const result = await authClient.signUpWithPassword({ email, password, emailRedirectTo })
         if (result.signedIn) {
           authEventSeenRef.current = true
           setUser(result.user)
