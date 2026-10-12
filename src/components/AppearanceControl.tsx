@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { useAppearance } from '../lib/appearance/AppearanceContext'
 import { useStrings } from '../i18n/strings'
 import type { AppearancePreference } from '../lib/appearance/appearance'
@@ -10,6 +11,7 @@ import type { AppearancePreference } from '../lib/appearance/appearance'
 export function AppearanceControl() {
   const strings = useStrings()
   const { preference, setPreference } = useAppearance()
+  const groupId = useId()
 
   const options: ReadonlyArray<{ value: AppearancePreference; label: string }> = [
     { value: 'system', label: strings.appearance.system },
@@ -28,7 +30,8 @@ export function AppearanceControl() {
         >
           <input
             type="radio"
-            name="appearance"
+            id={`${groupId}-${option.value}`}
+            name={`appearance-${groupId}`}
             value={option.value}
             checked={preference === option.value}
             onChange={() => setPreference(option.value)}

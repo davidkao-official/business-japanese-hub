@@ -312,9 +312,9 @@ Breakpoints 採用 Tachiko 的 600／1024 轉換點與 320px reflow（§11）。
 
 ### 5.5 Footer
 
-品牌一句話、mode 連結、Plus／について、規約・ポリシー、外観、販売事業者表示（post-V1 加入表示言語）。
+品牌一句話、mode 連結、Plus／について、規約・ポリシー、販売事業者表示（post-V1 加入表示言語）。
 
-**外観（System／Light／Dark）：** 位置維持 footer 與「その他」（#155；BJH header 已有 5 個 mode＋Plus＋帳號，不仿照 Tachiko 把 Appearance 放進 header）。互動採用 Tachiko Appearance 的契約：一組 single-choice **radio group**——原生 `<fieldset>`＋`<legend>外観</legend>`＋三個 `<input type="radio">`（或等價的 `role="radiogroup"`／`role="radio"`＋`aria-checked`＋roving tabindex），**不是** `aria-pressed` 的按鈕組；視覺為 segmented（選取＝`accent.background`＋`accent.foreground`，focus ring 畫在可見的 segment 上），方向鍵在組內移動並選取；選擇只改變 application appearance；**偏好寫入失敗時保留本次 session 的外觀並告知「保存できませんでした」**；讀取失敗或資料損壞時回到 System 並告知，**不阻擋頁面**；作答或輸入中不因其他分頁的變更而自動切換外觀（D39）。
+**外観（System／Light／Dark）：** 位置改為全域 header：≥80rem 時 inline 放在 desktop nav 的 tools row；<80rem 時放在 mobile／「その他」menu，同一寬度的 accessibility tree 中只有一組（Owner 2026-10-12 via #208，修訂 D39）。互動採用 Tachiko Appearance 的契約：一組 single-choice **radio group**——原生 `<fieldset>`＋`<legend>外観</legend>`＋三個 `<input type="radio">`（或等價的 `role="radiogroup"`／`role="radio"`＋`aria-checked`＋roving tabindex），**不是** `aria-pressed` 的按鈕組；視覺為 segmented（選取＝`accent.background`＋`accent.foreground`，focus ring 畫在可見的 segment 上），方向鍵在組內移動並選取；選擇只改變 application appearance；**偏好寫入失敗時保留本次 session 的外觀並告知「保存できませんでした」**；讀取失敗或資料損壞時回到 System 並告知，**不阻擋頁面**；作答或輸入中不因其他分頁的變更而自動切換外觀（D39）。
 
 ---
 
@@ -616,7 +616,7 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | **D36** | **虛線只表示「尚未成立」**（データ不足、未確認、尚未提供的保留位置）；其他狀態（含 disabled）、分隔線與 NoteTrigger 底線都用實線。**這是 BJH 自己的語意**，與 Tachiko 的 dotted cue（計算／參照／warning 值）概念相近但不相同 | v2 對所有狀態都用虛線，稀釋了它的意義 |
 | **D37** | **Tachiko 的 comfortable 視覺密度＋BJH 44px 觸控下限**；Button／Field 由 48px 改為 44px | Tachiko 32／36px 是桌機試算表密度；BJH 是通勤手機優先的消費者產品（D9、D28） |
 | **D38** | **家族 glyph**：Tachiko 的圓角 prism 方塊＋BJH 的「 」與 marker；不加「by Tachiko」 | 容器表示家族、內容表示產品；命名屬產品決策；正式 logo 仍是 D24 的後續資產工作 |
-| **D39** | **外觀維持 footer／その他**，採用 Tachiko Appearance 的 radio group 與偏好真實性規則（寫入失敗告知、讀取失敗不阻擋） | BJH header 已滿；#155 的位置決定仍成立；互動語法與家族一致 |
+| **D39** | **外觀移至全域 header**：≥80rem inline desktop nav，<80rem mobile／その他 menu；採用 Tachiko Appearance 的 radio group 與偏好真實性規則（寫入失敗告知、讀取失敗不阻擋）；**amended 2026-10-12 by owner via #208** | Owner 決定讓全域外觀控制在 header navigation 可用；取代 #155 的 footer 位置決定；互動契約不變 |
 | **D40** | **Breakpoints 採用 Tachiko 的 600／1024**（取代 960） | 家族共用一套 responsive 詞彙；960–1023px 的視窗很少，代價小 |
 | **D41** | **Dark 是 BJH 本地推導**；Tachiko 日後核准 dark 時對齊；**不引入 Interface Profiles** | Tachiko v1 為 light-only，但 System／Light／Dark 是 BJH 使用者既有的行為；Profiles 是試算表情境 |
 
@@ -658,7 +658,7 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 
 ## 15. 延續與取代
 
-**延續：** `ui-ux-research.md` 的 Japanese typography 研究（§3）、Reader chrome／settings 行為、accessibility，以及被其他文件引用的行為契約（§4.2 Preview boundary、§4.4 resume-state、§8.3 entitlement CTA states）；#157 斷行規則；#156 的 locale 架構、persistence、鍵盤行為與 legal fallback（保留在程式中；V1 不顯示切換器，post-V1 放在 footer／その他）；#155 的「不得虛構 social proof」「appearance 在 footer」「header 單列」；#72 About 的內容（需日文主版本）。
+**延續：** `ui-ux-research.md` 的 Japanese typography 研究（§3）、Reader chrome／settings 行為、accessibility，以及被其他文件引用的行為契約（§4.2 Preview boundary、§4.4 resume-state、§8.3 entitlement CTA states）；#157 斷行規則；#156 的 locale 架構、persistence、鍵盤行為與 legal fallback（保留在程式中；V1 不顯示切換器，post-V1 放在 footer／その他）；#155 的「不得虛構 social proof」「header 單列」（appearance 的 footer 位置已由 Owner 2026-10-12 via #208 修訂為 header，D39）；#72 About 的內容（需日文主版本）。
 
 **取代：** `ui-ux-research.md` 的視覺方向（Quiet Editorial、色彩、Storefront 版面）；#74 設計文件；#77 LP 視覺規格；#155 的 color／type tokens 與 hero 構圖；`src/styles/tokens.css` 現行 `--home-*`、editorial-v2、Concept C 數值。
 
@@ -690,6 +690,7 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | **v3.0**（#206，2026-10-05） | 獨立的 Source & Gloss foundation（ink 按鈕、暖灰 desk、marker 兼任導覽／focus／Plus／選取、〇與 ng 兼任保存狀態、全部虛線 StatePanel、無 forced colors、960px） | **Tachiko family foundation**（§4.0）：Tachiko roles／geometry／type ladder／controls／overlays／protected states／forced colors／600–1024；Source & Gloss 只擁有 material plane 與 marks；marker 只標日文（D32）；系統狀態與〇×分開（D33）；dark 為 BJH 推導、不引入 Interface Profiles（D41）；家族 glyph（D38）；reference tokens／CSS／截圖全部重產；§18 reconciliation ledger |
 | **v3.0.1**（PR #207 兩份獨立審查 @ `e50aa0f`） | dark 的 ink 底提示條白底白字；secondary 按鈕 pressed 繼承 violet（1.69:1）；forced colors 下 × 消失；tab bar 11px、chip 12px；warning 用 !；disabled 用虛線；外觀用 `aria-pressed`；header ログイン的 primary 規則互相矛盾；字體與虛線的來源寫得過度概括 | `--ink-inverse` → `surface.content`；每個 button variant 的完整狀態配對；forced colors 的 ✕ 字元；13px 下限套用到 tab bar 與 chip；warning＝?；disabled 實線；原生 radio group；header 的帳號控制項為 secondary、primary 規則限定頁面內容；D35／D36 明確標示為 BJH override。只修正 recipe 與一致性，不改 §4.0 的分界與任何產品語意 |
 | **v2.3.2**（#192／#196／#199 integration review，#190） | §12 的 S0 含 B5、S3 含日文 mode labels 與切換器移除；B1 的結構修正與 Dialog 的 reader tokens 未列入驗收 | S0＝B1、B3；B5、B6 與桌機切換器移除歸 S1（#194 實作）；S2 加入 Reader palette 單一定義與實際 cascade 的 B1 test；S3 移除 mobile menu 的切換器；S4 的 `Dialog` 預設 app role tokens。只修正 stage 歸屬與驗收，不改設計決策 |
+| **2026-10-12（#208）** | 外観位於 footer／その他（D39） | Owner 修訂為 header：≥80rem inline desktop nav、<80rem mobile／その他 menu；radio group 與偏好真實性契約不變 |
 
 ---
 
@@ -745,7 +746,7 @@ S0 立即可做；**S1（日文化）是 V1 最大的 blocker，優先於任何�
 | Type scale | 28／20／18／14／12／11，行高約 1.3 | 同階層；日文行高 ≥1.4；解説 16／1.8、原文 18／1.95；caption 下限 13 | 日文長文與漢字可讀性 |
 | Density | compact 32／comfortable 36 | comfortable 視覺＋44px 觸控下限；ChoiceRow ≥52 | 手機優先的消費者產品（D37） |
 | Color scheme | light-only | System／Light／Dark，dark 為 BJH 推導 | 既有使用者行為（D41） |
-| Appearance 控制 | header 的 nonmodal popover（profile＋density） | footer／その他 的 System／Light／Dark radio group，沿用偏好真實性規則 | header 空間；#155（D39） |
+| Appearance 控制 | header 的 nonmodal popover（profile＋density） | header 的 System／Light／Dark radio group：≥80rem inline desktop nav，<80rem mobile／その他 menu；沿用偏好真實性規則 | Owner 2026-10-12 via #208 修訂 D39；互動契約不變 |
 | 虛線 | dotted cue 標示計算／參照／warning 值 | **BJH 自己的語意**：只表示「尚未成立」（データ不足、未確認、保留位置）；disabled 與其他狀態用實線 | 概念相近、語意不同，不宣稱沿用（D36） |
 | Selection | active cell 白底＋2px border，focus 獨立 | ChoiceRow 2px border＋row wash，focus ring 獨立 | 同一文法用在作答選項 |
 | Table 文法 | grid header／lines | Representation、ObservationTable | 唯讀資料表，不是試算表 |
@@ -769,7 +770,7 @@ Source & Gloss thesis；material plane（白 sheet、明朝角色、genre label�
 ### 18.3 對 #206 原始提案的修正
 
 - 原提案把 BJH 描述為「Tachiko 上的 Source & Gloss profile」。**「profile」不能是 Tachiko 的 `InterfaceProfileV1`**：那是封閉的 light-only schema，無法承載 BJH 的 marks 與 dark。正確的分界是 Tachiko 自己的「application chrome vs 文件內容」，BJH 的 material plane 與 marks 是 protected product layer（§4.0.1）。
-- 原提案要「reconcile theme／appearance controls with the Tachiko shell language」。結論是**採用互動契約、不搬位置**（D39）。
+- 原提案要「reconcile theme／appearance controls with the Tachiko shell language」。結論是**採用互動契約，位置依 Owner 2026-10-12 via #208 改為 header**（≥80rem inline desktop nav，<80rem mobile／その他 menu；D39）。
 - 原提案把 marker／丸数字／赤入れ列為「仍有理由時保留」。檢查後三者都保留，但 **marker 的使用範圍必須收回**（D32）——這是 v2 本身的不一致，不是 Tachiko 帶來的。
 - 原提案要求處理 focus／selection／disabled／busy／error／unknown。除了採用 Tachiko 的外觀，還修正了 v2 把**保存結果與作答正誤**混在一起的問題（D33）。
 

@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useStrings } from '../i18n/strings'
 import { LanguageControl } from './LanguageControl'
 import { AccountControl } from './AccountControl'
+import { AppearanceControl } from './AppearanceControl'
 import { Navigation } from './Navigation'
 
 const FOCUSABLE_SELECTOR =
@@ -244,6 +245,7 @@ export function Header() {
           {!menuOpen && (
             <>
               <Navigation />
+              <AppearanceControl />
               <AccountControl open={desktopAccountOpen} onOpenChange={setDesktopAccountOpen} />
             </>
           )}
@@ -300,6 +302,7 @@ export function Header() {
             <Navigation onNavigate={closeMenu} />
             <div className="mobile-menu__controls">
               <LanguageControl variant="mobile" />
+              <AppearanceControl />
               <AccountControl />
             </div>
           </div>
