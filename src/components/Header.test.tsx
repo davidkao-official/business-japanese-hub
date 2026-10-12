@@ -1,8 +1,10 @@
 import { act, fireEvent, screen, within, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { Link, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { renderWithAppProviders } from '../test/appProviders'
 import { Header } from './Header'
+import { Footer } from './Footer'
 import { Layout } from './Layout'
 
 function BackButton() {
@@ -25,7 +27,7 @@ function BrowserHistoryControls() {
   )
 }
 
-function installHeaderMediaQueryHarness() {
+function installHeaderMediaQueryHarness(initialDesktop = true) {
   const originalMatchMedia = window.matchMedia
   const listenersByQuery = new Map<string, Array<(event: MediaQueryListEvent) => void>>()
   const matchMediaMock = vi.fn((media: string) => {
@@ -33,7 +35,7 @@ function installHeaderMediaQueryHarness() {
     listenersByQuery.set(media, listeners)
 
     return {
-      matches: media === '(min-width: 80rem)',
+      matches: media === '(min-width: 80rem)' && initialDesktop,
       media,
       onchange: null,
       addEventListener: (_event: string, listener: EventListenerOrEventListenerObject) => {
@@ -82,6 +84,123 @@ function simulateResponsiveFocusLoss() {
 }
 
 describe('Header mobile navigation', () => {
+  it.each([true, false])('keeps one appearance group in the header across desktop/mobile transitions (desktop=%s)', (desktop) => {
+    const media = installHeaderMediaQueryHarness(desktop)
+    try {
+      renderWithAppProviders(<><Header /><Footer /></>)
+      const assertSingleGroup = (parent: HTMLElement) => {
+        expect(screen.getAllByRole('radiogroup', { name: '外観' })).toHaveLength(1)
+        expect(within(parent).getByRole('radiogroup', { name: '外観' })).toBeInTheDocument()
+        expect(document.querySelectorAll('.site-footer .appearance-control')).toHaveLength(0)
+        const radios = screen.getAllByRole('radio')
+        expect(radios).toHaveLength(3)
+        expect(new Set(radios.map((radio) => radio.id)).size).toBe(3)
+        expect(new Set(radios.map((radio) => radio.getAttribute('name'))).size).toBe(1)
+      }
+      assertSingleGroup(document.querySelector('.site-header__tools') as HTMLElement)
+      media.emitHeaderBreakpoint(false)
+      fireEvent.click(screen.getByRole('button', { name: 'メニューを開く' }))
+      assertSingleGroup(screen.getByRole('dialog', { name: 'メニュー' }))
+      expect(document.querySelector('.site-header__tools .appearance-control')).toBeNull()
+      media.emitHeaderBreakpoint(true)
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      assertSingleGroup(document.querySelector('.site-header__tools') as HTMLElement)
+    } finally {
+      media.restore()
+    }
+  })
+
+  it('switches and persists System/Light/Dark in desktop and mobile without resetting the preference', async () => {
+    const user = userEvent.setup()
+    const media = installHeaderMediaQueryHarness()
+    try {
+      renderWithAppProviders(<Header />)
+      await user.click(screen.getByRole('radio', { name: 'ダーク' }))
+      expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+      media.emitHeaderBreakpoint(false)
+      await user.click(screen.getByRole('button', { name: 'メニューを開く' }))
+      expect(screen.getByRole('radio', { name: 'ダーク' })).toBeChecked()
+      await user.click(screen.getByRole('radio', { name: 'ライト' }))
+      expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+      await user.click(screen.getByRole('radio', { name: 'システム' }))
+      expect(window.localStorage.getItem('business-japanese-hub.appearance')).toBe('system')
+      expect(document.documentElement).toHaveAttribute('data-theme', 'light')
+      media.emitHeaderBreakpoint(true)
+      expect(screen.getByRole('radio', { name: 'システム' })).toBeChecked()
+    } finally {
+      media.restore()
+    }
+  })
+
+  it.each([false, true])('uses native arrow keys to focus and select appearance, wrapping within the group (mobile=%s)', async (mobile) => {
+    const user = userEvent.setup()
+    renderWithAppProviders(<Header />)
+    if (mobile) await user.click(screen.getByRole('button', { name: 'メニューを開く' }))
+    const system = screen.getByRole('radio', { name: 'システム' })
+    system.focus()
+    for (const name of ['ライト', 'ダーク', 'システム']) {
+      await user.keyboard('{ArrowRight}')
+      expect(screen.getByRole('radio', { name })).toHaveFocus()
+      expect(screen.getByRole('radio', { name })).toBeChecked()
+    }
+    await user.keyboard('{ArrowLeft}')
+    expect(screen.getByRole('radio', { name: 'ダーク' })).toHaveFocus()
+    expect(screen.getByRole('radio', { name: 'ダーク' })).toBeChecked()
+    expect(document.documentElement).toHaveAttribute('data-theme', 'dark')
+  })
+
+  it('tabs through the selected appearance radio between navigation and account controls in the mobile menu', async () => {
+    const user = userEvent.setup()
+    renderWithAppProviders(<Header />)
+    await user.click(screen.getByRole('button', { name: 'メニューを開く' }))
+    const menu = screen.getByRole('dialog', { name: 'メニュー' })
+    const lastLink = within(menu).getByRole('link', { name: '概要' })
+    const login = within(menu).getByRole('button', { name: 'ログイン' })
+    await waitFor(() => expect(login).toBeEnabled())
+    lastLink.focus()
+    await user.tab()
+    expect(within(menu).getByRole('radio', { name: 'システム' })).toHaveFocus()
+    await user.keyboard('{ArrowLeft}')
+    const dark = within(menu).getByRole('radio', { name: 'ダーク' })
+    expect(dark).toHaveFocus()
+    await user.tab()
+    expect(login).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(dark).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(lastLink).toHaveFocus()
+    login.focus()
+    await user.tab()
+    const first = within(menu).getByRole('link', { name: 'ビジネス日本語ハブ' })
+    expect(first).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(login).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('button', { name: 'メニューを開く' })).toHaveFocus()
+  })
+
+  it('restores focus from an appearance radio to the mobile trigger when crossing the breakpoint', () => {
+    const media = installHeaderMediaQueryHarness()
+    try {
+      renderWithAppProviders(<Header />)
+      screen.getByRole('radio', { name: 'システム' }).focus()
+      simulateResponsiveFocusLoss()
+      media.emitHeaderBreakpoint(false)
+      expect(screen.getByRole('button', { name: 'メニューを開く' })).toHaveFocus()
+    } finally {
+      media.restore()
+    }
+  })
+
+  it('keeps appearance and navigation available beside a signed-in long email', async () => {
+    const email = 'long.account.identity.for.header.layout@example.com'
+    renderWithAppProviders(<Header />, { session: { id: 'header-test-user', email } })
+    expect(await screen.findByText(email)).toHaveClass('account-control__identity')
+    expect(screen.getByRole('button', { name: 'ログアウト' })).toBeInTheDocument()
+    expect(screen.getByRole('radiogroup', { name: '外観' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '学習記録' })).toBeInTheDocument()
+  })
+
   it('uses Japanese mode labels in desktop and mobile navigation', () => {
     const canonicalModes = ['学ぶ', '読む', '練習', '学習記録', '体験']
     renderWithAppProviders(<Header />)
@@ -116,7 +235,7 @@ describe('Header mobile navigation', () => {
     expect(within(menu).getByRole('link', { name: '学ぶ' })).toBeInTheDocument()
     expect(within(menu).getByRole('button', { name: 'ログイン' })).toBeInTheDocument()
     expect(within(menu).queryByRole('radiogroup', { name: '表示言語' })).not.toBeInTheDocument()
-    expect(within(menu).queryByRole('radiogroup', { name: '外観' })).not.toBeInTheDocument()
+    expect(within(menu).getByRole('radiogroup', { name: '外観' })).toBeInTheDocument()
     expect(document.body.style.overflow).toBe('hidden')
   })
 

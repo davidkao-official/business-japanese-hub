@@ -1622,12 +1622,6 @@
   text-decoration: none;
 }
 
-.site-footer__appearance {
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-}
-
 .site-footer__legal {
   min-width: 0;
 }
@@ -1663,8 +1657,8 @@
 }
 
 @media (min-width: 80rem) {
-  /* The five canonical modes and shared account / locale controls fit beside
-   * the brand on a single desktop row. Appearance is available in the footer. */
+  /* Keep navigation and appearance on one row at the desktop breakpoint.
+   * The account identity yields space through its existing ellipsis. */
   .site-header__inner {
     grid-template-columns: max-content minmax(0, 1fr);
   }
@@ -1689,9 +1683,23 @@
     white-space: nowrap;
   }
 
-  .site-header__tools > .account-control,
+  .site-header__tools > .appearance-control,
   .site-header__tools > .language-control--desktop {
     flex: 0 0 auto;
+  }
+
+  .site-header__tools > .account-control {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+
+  .site-header__tools .account-control__identity {
+    min-width: 0;
+  }
+
+  .site-header__tools .account-control > .btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
   .site-header .account-control:not(.account-control--signed-in) > .btn {

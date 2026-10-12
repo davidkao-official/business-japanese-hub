@@ -187,6 +187,8 @@ describe('future launched language selector', () => {
     expect(selectedLanguage).toBeChecked()
     selectedLanguage.focus()
     await user.tab()
+    expect(within(menu).getByRole('radio', { name: 'システム' })).toHaveFocus()
+    await user.tab()
     expect(within(menu).getByRole('button', { name: 'ログイン' })).toHaveFocus()
   })
 })

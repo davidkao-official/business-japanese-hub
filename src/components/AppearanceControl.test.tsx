@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { AppearanceProvider } from '../lib/appearance/AppearanceContext'
 import { AppearanceControl } from './AppearanceControl'
@@ -25,9 +25,21 @@ describe('AppearanceControl', () => {
     renderControl()
 
     expect(screen.getByRole('radio', { name: 'システム' })).toBeChecked()
+    const name = screen.getByRole('radio', { name: 'システム' }).getAttribute('name')
+    expect(name).toMatch(/^appearance-/)
     for (const radio of screen.getAllByRole('radio')) {
-      expect(radio).toHaveAttribute('name', 'appearance')
+      expect(radio).toHaveAttribute('name', name)
     }
+  })
+
+  it('gives separate instances unique radio names and ids', () => {
+    render(<AppearanceProvider><AppearanceControl /><AppearanceControl /></AppearanceProvider>)
+    const groups = screen.getAllByRole('radiogroup', { name: '外観' })
+    const names = groups.map((group) => within(group).getByRole('radio', { name: 'システム' }).getAttribute('name'))
+    expect(new Set(names).size).toBe(2)
+    const ids = screen.getAllByRole('radio').map((radio) => radio.id)
+    expect(ids.every(Boolean)).toBe(true)
+    expect(new Set(ids).size).toBe(6)
   })
 
   it('selects and persists an explicit preference on click', () => {

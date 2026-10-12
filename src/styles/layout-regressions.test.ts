@@ -42,6 +42,28 @@ function declarations(rules: CSSRule[], selector: string, width = 320): Map<stri
 }
 
 describe('bounded layout and typography regressions', () => {
+  it('fits navigation and appearance beside a shrinkable account at exactly 80rem (#208)', () => {
+    withRules(['global.css', 'shop.css', 'editorial-v2.css'], (rules) => {
+      const width = 80 * 16
+      const tools = declarations(rules, '.site-header__tools', width)
+      expect(tools.get('display')).toBe('flex')
+      expect(tools.get('min-width')).toMatch(/^0(?:px)?$/)
+      expect(tools.get('flex-wrap')).toBe('nowrap')
+      const account = declarations(rules, '.site-header__tools > .account-control', width)
+      expect(account.get('flex')).toBe('0 1 auto')
+      expect(account.get('min-width')).toMatch(/^0(?:px)?$/)
+      const identity = declarations(rules, '.site-header__tools .account-control__identity', width)
+      expect(identity.get('min-width')).toMatch(/^0(?:px)?$/)
+      expect(declarations(rules, '.account-control__identity', width).get('text-overflow')).toBe('ellipsis')
+      expect(declarations(rules, '.site-header__tools .account-control > .btn', width).get('flex')).toBe('0 0 auto')
+      expect(declarations(rules, '.site-header__tools > .appearance-control', width).get('flex')).toBe('0 0 auto')
+      expect(declarations(rules, '.site-nav', width).get('flex')).toBe('0 0 auto')
+      expect(declarations(rules, '.site-nav__list', width).get('flex-wrap')).toBe('nowrap')
+      expect(declarations(rules, '.site-nav__link', width).get('white-space')).toBe('nowrap')
+      expect(declarations(rules, '.site-header__tools', width - 1).get('display')).toBe('none')
+    })
+  })
+
   it('keeps founder languages at credential body size and muted profile colour (#203)', () => {
     withRules(['tokens.css', 'global.css', 'about.css'], (rules) => {
       const tokens = declarations(rules, ':root')
