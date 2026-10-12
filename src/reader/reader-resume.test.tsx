@@ -6,7 +6,7 @@
  */
 
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import type { ReactElement, ReactNode } from 'react'
+import { Suspense, type ReactElement, type ReactNode } from 'react'
 import { AuthProvider } from '@business-japanese-hub/platform-auth'
 import type { SessionUser } from '@business-japanese-hub/platform-auth'
 import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
@@ -1514,7 +1514,134 @@ describe('reader resume intent', () => {
     vi.mocked(repository.saveReadingState).mockClear()
     act(() => rendered.authClient.emitAuthStateChange(null))
     expect(await screen.findByRole('heading', { name: '依頼と締めの表現' })).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/read/requests-and-closings')
     expect(scrollIntoView).toHaveBeenCalledTimes(1)
     expect(repository.saveReadingState).not.toHaveBeenCalled()
+  })
+
+  it('keeps the public chapter on sign-out before the resume cleanup navigation commits', async () => {
+    const scrollIntoView = installScrollIntoViewSpy()
+    const repository = createMockRepository({ readingStates: { [secondBook.id]: savedPosition() } })
+    const cleanupCommit = deferred<void>()
+    let cleanupPending = true
+    const cleanupAttempted = vi.fn()
+
+    function HoldResumeCleanup() {
+      const location = useLocation()
+      // Keep React Router's transition pending after restoration, while the
+      // urgent auth update still sees the original ?resume=1 location.
+      if (cleanupPending && location.state?.readerResumeConsumed) {
+        cleanupAttempted()
+        throw cleanupCommit.promise
+      }
+      return null
+    }
+
+    const rendered = renderWithAppProviders(
+      <Suspense fallback={<p>Waiting for test navigation</p>}>
+        <HoldResumeCleanup />
+        <ReaderRoutes />
+      </Suspense>,
+      {
+        initialEntries: ['/books/email-manners/read/requests-and-closings?resume=1'],
+        session: user,
+        repository,
+      },
+    )
+
+    expect(await screen.findByRole('heading', { name: '依頼と締めの表現' })).toBeInTheDocument()
+    await waitFor(() => expect(cleanupAttempted).toHaveBeenCalled())
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('location')).toHaveTextContent('/read/requests-and-closings?resume=1')
+    vi.mocked(repository.saveReadingState).mockClear()
+
+    act(() => rendered.authClient.emitAuthStateChange(null))
+    expect(screen.getByRole('heading', { name: '依頼と締めの表現' })).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/read/requests-and-closings?resume=1')
+    await act(async () => {
+      cleanupPending = false
+      cleanupCommit.resolve()
+      await cleanupCommit.promise
+    })
+
+    expect(screen.getByRole('heading', { name: '依頼と締めの表現' })).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/read/requests-and-closings')
+    expect(screen.getByTestId('location')).not.toHaveTextContent('?resume=1')
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(repository.saveReadingState).not.toHaveBeenCalled()
+  })
+
+  it('resumes a different owner before the prior resume cleanup navigation commits', async () => {
+    const scrollIntoView = installScrollIntoViewSpy()
+    const ownerB = { id: 'different-reader', email: 'other@example.com' }
+    const ownerBState = savedPosition({ chapterId: 'bm-ch-1', blockId: 'bm-ch1-blk-02' })
+    const ownerBReading = deferred<ReadingState | null>()
+    const repository = {
+      ...createMockRepository(),
+      getReadingState: vi.fn()
+        .mockResolvedValueOnce(savedPosition())
+        .mockImplementation(() => ownerBReading.promise),
+    }
+    const cleanupCommit = deferred<void>()
+    let cleanupPending = true
+    const cleanupAttempted = vi.fn()
+
+    function HoldResumeCleanup() {
+      const location = useLocation()
+      // Hold the consumed-marker replacement while allowing B's chapter
+      // navigation to commit with its own still-unconsumed ?resume=1 entry.
+      if (cleanupPending && location.state?.readerResumeConsumed) {
+        cleanupAttempted()
+        throw cleanupCommit.promise
+      }
+      return null
+    }
+
+    const rendered = renderWithAppProviders(
+      <Suspense fallback={<p>Waiting for test navigation</p>}>
+        <HoldResumeCleanup />
+        <ReaderRoutes />
+      </Suspense>,
+      {
+        initialEntries: ['/books/email-manners/read/requests-and-closings?resume=1'],
+        session: user,
+        repository,
+      },
+    )
+
+    expect(await screen.findByRole('heading', { name: '依頼と締めの表現' })).toBeInTheDocument()
+    await waitFor(() => expect(cleanupAttempted).toHaveBeenCalled())
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('location')).toHaveTextContent('/read/requests-and-closings?resume=1')
+    vi.mocked(repository.saveReadingState).mockClear()
+
+    act(() => rendered.authClient.emitAuthStateChange(ownerB))
+    await waitFor(() => expect(repository.getReadingState).toHaveBeenCalledTimes(2))
+    await act(async () => {
+      ownerBReading.resolve(ownerBState)
+      await ownerBReading.promise
+    })
+
+    expect(await screen.findByRole('heading', { name: 'メールの基本構成' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '依頼と締めの表現' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/read/email-basics?resume=1')
+    expect(scrollIntoView).toHaveBeenCalledTimes(2)
+    expect(scrollIntoView.mock.contexts[1]).toBe(document.getElementById('block-bm-ch1-blk-02'))
+    expect(document.getElementById('block-bm-ch1-blk-02')).toHaveFocus()
+    expect(repository.saveReadingState).not.toHaveBeenCalledWith(
+      expect.objectContaining({ chapterId: 'bm-ch-3' }),
+      ownerB.id,
+    )
+
+    await act(async () => {
+      cleanupPending = false
+      cleanupCommit.resolve()
+      await cleanupCommit.promise
+    })
+
+    expect(screen.getByRole('heading', { name: 'メールの基本構成' })).toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/read/email-basics')
+    expect(screen.getByTestId('location')).not.toHaveTextContent('?resume=1')
+    expect(scrollIntoView).toHaveBeenCalledTimes(2)
   })
 })
