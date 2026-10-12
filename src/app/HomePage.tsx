@@ -102,9 +102,13 @@ function ConceptHero() {
           ))}
         </h1>
         <p className="concept-home-hero__support">{concept.support}</p>
+        <p className="concept-home-hero__support">{concept.sampleSupport}</p>
         <div className="concept-home-hero__actions">
-          <Link className="concept-home-hero__action concept-home-hero__action--primary" to="/learn">
-            {concept.startLearning}<span aria-hidden="true">↗</span>
+          <Link className="concept-home-hero__action concept-home-hero__action--primary" to="/practice/web-test/spi">
+            {concept.trySpiSample}<span aria-hidden="true">↗</span>
+          </Link>
+          <Link className="concept-home-hero__action concept-home-hero__action--secondary" to="/learn">
+            {concept.startLearning}
           </Link>
           <Link className="concept-home-hero__action concept-home-hero__action--secondary" to="/about">
             {concept.aboutPlatform}
@@ -281,10 +285,10 @@ function EditorialSamples({ samples }: { samples: HomeContentSample[] }) {
                 >
                   {sample.expression}
                 </h3>
-                <div className="storefront-sample__tier">
+                {sample.meaning && <div className="storefront-sample__tier">
                   <p className="storefront-sample__tier-label" lang="en">MEANING</p>
                   <p lang={sample.meaningLanguage}>{sample.meaning}</p>
-                </div>
+                </div>}
                 {sample.supporting && (
                   <div className="storefront-sample__tier">
                     <p className="storefront-sample__tier-label" lang="en">NOTE</p>

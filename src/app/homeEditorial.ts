@@ -77,19 +77,6 @@ function sourceLabel(book: Book, chapter: Chapter): string {
   return `${book.title} / ${chapter.title}`
 }
 
-/**
- * Example translations predate per-field language metadata in the content
- * model. Keep the Book language as the source-language default, while
- * recognizing the released Traditional Chinese translation and plain-English
- * fallback without changing the published content itself.
- */
-function languageForTranslation(text: string, bookLanguage: string): string {
-  if (bookLanguage !== 'ja') return bookLanguage
-  if (/[\u3040-\u30ff]/u.test(text)) return bookLanguage
-  if (/[\u3400-\u9fff]/u.test(text)) return 'zh-TW'
-  return /[A-Za-z]/u.test(text) ? 'en' : bookLanguage
-}
-
 function sampleFromBlock(
   content: PublicChapterContent,
   block: ContentBlock,
@@ -133,7 +120,9 @@ function sampleFromBlock(
   }
 
   if (block.type === 'example') {
-    if (!block.text || (!block.translation && !block.note)) return undefined
+    if (!block.text) return undefined
+    // V1 home samples use Japanese explanations; legacy translations stay in the Book.
+    const meaning = book.language === 'ja' ? block.note ?? '' : ''
     return {
       id: `${book.id}:${block.id}`,
       book,
@@ -142,12 +131,8 @@ function sampleFromBlock(
       sourceLabel: sourceLabel(book, chapter),
       expression: block.text,
       expressionLanguage: book.language,
-      meaning: block.translation ?? block.note ?? '',
-      meaningLanguage: block.translation
-        ? languageForTranslation(block.translation, book.language)
-        : book.language,
-      supporting: block.translation ? block.note : undefined,
-      supportingLanguage: block.note ? book.language : undefined,
+      meaning,
+      meaningLanguage: 'ja',
     }
   }
 
@@ -225,7 +210,7 @@ export function listEditorialFeatures(entries = listCatalogEntries()): Editorial
     })
   }
 
-  if (firstSample) {
+  if (firstSample?.meaning) {
     features.push({
       label: 'EXPRESSION',
       title: firstSample.expression,

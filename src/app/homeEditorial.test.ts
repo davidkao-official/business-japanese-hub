@@ -33,9 +33,36 @@ describe('home editorial content projection', () => {
       'お手数をおかけしますが、ご確認のほどよろしくお願いいたします。',
     ])
     expect(samples.map((sample) => sample.expressionLanguage)).toEqual(['ja', 'ja', 'ja'])
-    expect(samples.find((sample) => sample.kind === 'example')?.meaningLanguage).toBe('zh-TW')
-    expect(samples.find((sample) => sample.kind === 'example')?.supportingLanguage).toBe('ja')
+    expect(samples.find((sample) => sample.kind === 'example')?.meaning).toBe('依頼を締めくくる定番表現です。')
+    expect(samples.find((sample) => sample.kind === 'example')?.meaningLanguage).toBe('ja')
+    expect(samples.find((sample) => sample.kind === 'example')?.supporting).toBeUndefined()
     expect(samples.every((sample) => sample.sourceLabel.includes(' / '))).toBe(true)
+  })
+
+  it.each([
+    '麻煩您確認，謝謝。',
+    'Please check it.',
+    '確認を依頼する表現です。',
+    '「ご確認」を 정중하게 부탁하는 표현입니다.',
+    'Use ご確認 to politely ask someone to check.',
+  ])('never uses a translation for an example without a note: %s', (translation) => {
+    const entry = entries[0]!
+    const sampleEntries = [{
+      ...entry,
+      book: {
+        ...entry.book,
+        chapters: [{
+          ...entry.book.chapters[0]!,
+          blocks: [{ id: 'home-example', type: 'example' as const, text: 'ご確認をお願いいたします。', translation }],
+        }],
+      },
+    }]
+    const samples = listHomeContentSamples(sampleEntries)
+    expect(samples).toHaveLength(1)
+    expect(samples[0]?.meaning).toBe('')
+    expect(samples[0]?.supporting).toBeUndefined()
+    expect(samples[0]?.expression).toBe('ご確認をお願いいたします。')
+    expect(listEditorialFeatures(sampleEntries).some((feature) => feature.label === 'EXPRESSION')).toBe(false)
   })
 
   it('builds the supported numbered set and only real media selections', () => {

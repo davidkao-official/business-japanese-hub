@@ -12,6 +12,7 @@ import { preparePrivatePracticeQuestionBankRelease } from '../content-delivery/p
 import { nonProprietaryPracticeQuestionBankFixture } from '../practice-web-test/fixtures/nonProprietaryPracticeFixture'
 import { getActiveLocale, getStrings, LOCALE_STORAGE_KEY, setLocalePreference } from '../i18n/strings'
 import { FREE_SPI_SAMPLE_CONTENT_ID, FREE_SPI_SAMPLE_REVISION } from '../practice-web-test/freeSample'
+import * as freeSampleUnits from '../practice-web-test/freeSampleUnits'
 
 const hookLearningUiOverrides = vi.hoisted(() => ({
   current: null as { webChooseAnswer?: string; webNumberAnswer?: string } | null,
@@ -33,6 +34,7 @@ vi.mock('../i18n/strings', async (importOriginal) => {
 
 afterEach(() => {
   cleanup()
+  vi.restoreAllMocks()
   hookLearningUiOverrides.current = null
   setLocalePreference(null)
   submitPracticeAttemptMock.mockClear()
@@ -50,6 +52,17 @@ function renderWebTestAt(path: string, options: Parameters<typeof renderWithAppP
     </Routes>,
     { initialEntries: [path], ...options },
   )
+}
+
+async function completeSampleUnit() {
+  for (let index = 0; index < 2; index += 1) {
+    await screen.findByText(`${index + 1}／2 問目`)
+    fireEvent.click(screen.getAllByRole('radio')[0]!)
+    fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '次の問題へ' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '次の問題へ' }))
+  }
+  return screen.getByRole('heading', { name: '練習が終わりました' }).closest('section')!
 }
 
 function syntheticRuntimePayload(promptJa: string, category = 'vocabulary-in-context') {
@@ -108,6 +121,109 @@ function syntheticIssue212Payload(checkpointIds: string[][] = [[], [], []], chec
 }
 
 describe('Web Test discovery and runner-entry routes', () => {
+  it('shows the free sample inventory alongside the full bank on hub, domain, and unit cards', () => {
+    renderWebTestAt('/practice/web-test')
+    expect(screen.getByText('40 問収録 · 無料サンプル 16 問')).toBeInTheDocument()
+
+    cleanup()
+    renderWebTestAt('/practice/web-test/spi')
+    expect(screen.getAllByText('20 問収録 · 無料サンプル 8 問')).toHaveLength(2)
+
+    cleanup()
+    renderWebTestAt('/practice/web-test/spi/verbal')
+    expect(screen.getAllByText('5 問収録 · 無料サンプル 2 問')).toHaveLength(4)
+  })
+
+  it('offers sign-in, free account creation, the next free unit, and a clean restart after anonymous completion', async () => {
+    fetchPracticePayloadMock.mockClear()
+    renderWebTestAt('/practice/web-test/spi/nonverbal/rate-and-work?mode=untimed-learning')
+    const completion = await completeSampleUnit()
+
+    expect(document.activeElement).toBe(within(completion).getByRole('heading', { name: '練習が終わりました' }))
+    expect(within(completion).getByRole('link', { name: '次の無料サンプル：集合と場合の数' })).toHaveAttribute(
+      'href', '/practice/web-test/spi/nonverbal/sets-and-counting?mode=untimed-learning',
+    )
+    expect(within(completion).queryByRole('link', { name: /次の単元/ })).not.toBeInTheDocument()
+    expect(within(completion).getByText(/次の解答から保存され、学習記録で/)).toBeInTheDocument()
+    expect(within(completion).queryByRole('link', { name: '学習記録で復習する' })).not.toBeInTheDocument()
+    fireEvent.click(within(completion).getByText('ログインして解答を保存する'))
+    expect(within(completion).getByRole('button', { name: 'ログインして続ける' })).toBeInTheDocument()
+    fireEvent.click(within(completion).getByRole('button', { name: '初めての方はこちら' }))
+    expect(within(completion).getByRole('button', { name: 'アカウントを作成して続ける' })).toBeInTheDocument()
+    expect(submitPracticeAttemptMock).not.toHaveBeenCalled()
+
+    fireEvent.click(within(completion).getByRole('button', { name: 'もう一度解く' }))
+    await screen.findByText('1／2 問目')
+    expect(screen.getByRole('heading', { name: /分速 80m で歩くと/ })).toHaveFocus()
+    expect(screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)
+    expect(screen.queryByRole('heading', { name: '練習が終わりました' })).not.toBeInTheDocument()
+    const restartedCompletion = await completeSampleUnit()
+    expect(within(restartedCompletion).getByText(/正解 \d／2 問/)).toBeInTheDocument()
+    expect(fetchPracticePayloadMock).not.toHaveBeenCalled()
+    expect(submitPracticeAttemptMock).not.toHaveBeenCalled()
+  })
+
+  it('links saved free-account answers to learning records and wraps to the other domain', async () => {
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'forbidden' })
+    submitPracticeAttemptMock.mockResolvedValue({ kind: 'ok' })
+    renderWebTestAt('/practice/web-test/spi/nonverbal/sets-and-counting?mode=untimed-learning', { session: { id: 'free-account' } })
+    const completion = await completeSampleUnit()
+
+    expect(within(completion).getByRole('link', { name: '学習記録で復習する' })).toHaveAttribute('href', '/my-learning')
+    const next = within(completion).getByRole('link', { name: '次の無料サンプル：長文の推論' })
+    expect(next).toHaveAttribute('href', '/practice/web-test/spi/verbal/reading-inference?mode=untimed-learning')
+    expect(within(completion).queryByRole('link', { name: /次の単元/ })).not.toBeInTheDocument()
+    expect(within(completion).queryByText('ログインして解答を保存する')).not.toBeInTheDocument()
+    expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(2)
+
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'forbidden' })
+    fireEvent.click(next)
+    await screen.findByText('1／2 問目')
+    expect(screen.getByRole('heading', { name: '長文の推論' })).toBeInTheDocument()
+  })
+
+  it('labels member-bank completion neutrally and navigates without the free-sample filter', async () => {
+    const nextFreeSample = vi.spyOn(freeSampleUnits, 'nextFreeSampleUnit').mockReturnValue(undefined)
+    const payload = syntheticRuntimePayload('会員向けの問題')
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload })
+    submitPracticeAttemptMock.mockResolvedValue({ kind: 'ok' })
+    renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'plus-member' } })
+    await screen.findByRole('heading', { name: '会員向けの問題' })
+    fireEvent.click(screen.getAllByRole('radio')[0]!)
+    fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '次の問題へ' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '次の問題へ' }))
+
+    const completion = screen.getByRole('heading', { name: '練習が終わりました' }).closest('section')!
+    expect(within(completion).getByRole('link', { name: '次の単元：推論（条件と順序）' })).toHaveAttribute(
+      'href', '/practice/web-test/spi/nonverbal/conditions-and-ordering?mode=untimed-learning',
+    )
+    expect(within(completion).queryByRole('link', { name: /次の無料サンプル/ })).not.toBeInTheDocument()
+    expect(nextFreeSample).not.toHaveBeenCalled()
+  })
+
+  it('labels the next unit neutrally after a signed-in Free sample review, whose destination may be the member bank', async () => {
+    submitPracticeAttemptMock.mockResolvedValue({ kind: 'ok' })
+    renderWebTestAt('/practice/web-test/spi/verbal/semantic-relation?mode=untimed-learning&review=spi-free-v-relation-02&reviewVersion=1', { session: { id: 'plus-member' } })
+    await screen.findByRole('heading', { name: /鉛筆：文房具/ })
+    fireEvent.click(screen.getAllByRole('radio')[0]!)
+    fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '次の問題へ' })).toBeEnabled())
+    fireEvent.click(screen.getByRole('button', { name: '次の問題へ' }))
+
+    const completion = screen.getByRole('heading', { name: '練習が終わりました' }).closest('section')!
+    expect(within(completion).getByRole('link', { name: /^次の単元：/ })).toBeInTheDocument()
+    expect(within(completion).queryByRole('link', { name: /次の無料サンプル/ })).not.toBeInTheDocument()
+  })
+
+  it('omits the next-unit link when no other free sample unit is available', async () => {
+    vi.spyOn(freeSampleUnits, 'nextFreeSampleUnit').mockReturnValue(undefined)
+    renderWebTestAt('/practice/web-test/spi/nonverbal/rate-and-work?mode=untimed-learning')
+    const completion = await completeSampleUnit()
+    expect(within(completion).queryByRole('link', { name: /次の無料サンプル/ })).not.toBeInTheDocument()
+    expect(within(completion).getByRole('button', { name: 'もう一度解く' })).toBeInTheDocument()
+  })
+
   it('labels question counts as inventory in Japanese and dormant Traditional Chinese', () => {
     expect(getStrings('ja').learningUi.webPublishedCountSuffix).toBe('問収録')
     expect(getStrings('zh-TW').learningUi.webPublishedCountSuffix).toBe('題收錄')
@@ -572,6 +688,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(nextButton).toBeEnabled()
     fireEvent.click(nextButton)
     expect(screen.getByRole('heading', { name: "練習が終わりました" })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '学習記録で復習する' })).not.toBeInTheDocument()
     nowSpy.mockRestore()
   })
 
@@ -598,6 +715,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     await waitFor(() => expect(screen.getByText("解答を保存しました。")).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: "次の問題へ" }))
     expect(screen.getByText('正解 2／2 問（正答率 100%） · 解答時間が記録可能な範囲を超えたため、一部の解答は保存されていません。')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '学習記録で復習する' })).toHaveAttribute('href', '/my-learning')
     expect(screen.queryByText('結果只保留在目前頁面')).not.toBeInTheDocument()
     nowSpy.mockRestore()
   })
