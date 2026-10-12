@@ -655,6 +655,17 @@
   border: var(--stroke-thin) solid var(--color-border);
 }
 
+.web-test-hub__notice-action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.web-test-hub__notice-action > span {
+  min-width: 0;
+}
+
 .web-test-hub__runner ol {
   display: grid;
   gap: var(--space-3);

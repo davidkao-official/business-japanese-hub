@@ -4,6 +4,8 @@
   max-width: var(--spi-explainer-container-max-width);
   margin-inline: auto;
   color: var(--color-text);
+  /* Long auto-phrases and Latin terms must not set the page's minimum width. */
+  overflow-wrap: anywhere;
 }
 
 .spi-explainer__hero {
@@ -45,7 +47,7 @@
   font-weight: var(--font-weight-medium);
   line-height: var(--editorial-feature-title-leading);
   letter-spacing: var(--editorial-display-tracking);
-  overflow-wrap: normal;
+  overflow-wrap: anywhere;
 }
 
 .spi-explainer__dek {
@@ -121,7 +123,7 @@
   font-weight: var(--font-weight-medium);
   line-height: var(--leading-tight);
   letter-spacing: var(--editorial-feature-tracking);
-  overflow-wrap: normal;
+  overflow-wrap: anywhere;
 }
 
 .spi-explainer__table-wrap {
@@ -291,7 +293,7 @@
 
 @media (max-width: 40rem) {
   .spi-explainer__source-note {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-2);
   }
 
@@ -301,7 +303,7 @@
   }
 
   .spi-explainer__translation {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-2);
   }
 
