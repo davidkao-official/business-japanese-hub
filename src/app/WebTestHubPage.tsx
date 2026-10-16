@@ -2,7 +2,7 @@ import { useStrings, getActiveLocale } from '../i18n/strings'
 import type { LearningUiStrings } from '../i18n/learningUi'
 import { useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import catalogDocument from '../practice-web-test/released-discovery-catalog.json'
 import {
   findPracticeDiscoveryCategory,
@@ -224,6 +224,7 @@ export function WebTestRunnerEntryPage() {
   const ui = useStrings().learningUi
 
   const { family: familyParam, domain: domainParam, category: categoryParam } = useParams()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const mode = searchParams.get('mode')
   const reviewQuestionId = searchParams.get('review')
@@ -442,6 +443,10 @@ export function WebTestRunnerEntryPage() {
       ? titleFor(labelForCategory(family.testFamily, domain.domain, category), (domain.domain === 'verbal' ? ui.webVerbal : ui.webNonverbal), labelForFamily(family.testFamily))
       : ui.pageNotFound,
   )
+  if (catalog && family && domain && category && searchKeys.length === 0) {
+    const defaultMode = category.modes.includes('untimed-learning') ? 'untimed-learning' : category.modes[0]
+    return <Navigate replace to={{ search: `?mode=${defaultMode}`, hash: location.hash }} />
+  }
   if (!catalog || !family || !domain || !category || !validSearch || !validMode) return <CatalogUnavailable />
 
   const viewState = !authLoading && !user && !(state.kind === 'ready' && state.source.freeSample && state.selectionKey === selectionKey)
