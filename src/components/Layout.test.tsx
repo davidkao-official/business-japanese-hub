@@ -1,9 +1,12 @@
 import { configure, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Link, Route, Routes, useNavigate } from 'react-router-dom'
+import { BrowserRouter, Link, Route, Routes, useNavigate } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderWithAppProviders } from '../test/appProviders'
+import { AuthProvider } from '@business-japanese-hub/platform-auth'
+import { AppearanceProvider } from '../lib/appearance/AppearanceContext'
+import { createMockAuthClient, renderWithAppProviders } from '../test/appProviders'
 import { Layout } from './Layout'
+import { resetBootEntry } from './layoutBootEntry'
 
 function ReaderRoute() {
   const navigate = useNavigate()
@@ -20,7 +23,12 @@ function renderRoutes(initialEntries: string[]) {
     <Routes>
       <Route path="/books/example/read/chapter" element={<ReaderRoute />} />
       <Route element={<Layout />}>
-        <Route path="/books/example" element={<Link to="/library">Open library</Link>} />
+        <Route path="/books/example" element={
+          <>
+            <Link to="/library">Open library</Link>
+            <Link to="/books/example/read/chapter">Open Reader</Link>
+          </>
+        } />
         <Route path="/library" element={<ReaderRoute />} />
       </Route>
     </Routes>
@@ -47,33 +55,19 @@ describe.each([false, true])('Layout route focus (StrictMode=%s)', (strict) => {
     expect(window.scrollTo).not.toHaveBeenCalled()
   })
 
-  it('does not focus main or scroll when reloading a pushed history entry', async () => {
+  it('does not focus main or scroll when reloading a pushed history entry', () => {
     const previousHistoryState: unknown = window.history.state
     window.history.replaceState({ usr: null, key: 'reloaded', idx: 2 }, '')
-    vi.resetModules()
     let view: ReturnType<typeof render> | undefined
 
     try {
-      // Reload Layout and its providers/router together to preserve context identity.
-      const [
-        { Layout: ReloadedLayout },
-        { BrowserRouter },
-        { AuthProvider },
-        { AppearanceProvider },
-        { createMockAuthClient },
-      ] = await Promise.all([
-        import('./Layout'),
-        import('react-router-dom'),
-        import('@business-japanese-hub/platform-auth'),
-        import('../lib/appearance/AppearanceContext'),
-        import('../test/appProviders'),
-      ])
-
+      // A reload: the document boots on a pushed entry whose key is restored.
+      resetBootEntry()
       view = render(
         <AppearanceProvider>
           <AuthProvider authClient={createMockAuthClient(null)}>
             <BrowserRouter>
-              <ReloadedLayout />
+              <Layout />
             </BrowserRouter>
           </AuthProvider>
         </AppearanceProvider>,
@@ -85,7 +79,6 @@ describe.each([false, true])('Layout route focus (StrictMode=%s)', (strict) => {
     } finally {
       view?.unmount()
       window.history.replaceState(previousHistoryState, '')
-      vi.resetModules()
     }
   })
 
@@ -105,6 +98,23 @@ describe.each([false, true])('Layout route focus (StrictMode=%s)', (strict) => {
   it('focuses main without scrolling on a POP from outside Layout', async () => {
     const user = userEvent.setup()
     renderRoutes(['/library', '/books/example', '/books/example/read/chapter'])
+    expect(screen.queryByRole('main')).not.toBeInTheDocument()
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus')
+
+    await user.click(screen.getByRole('button', { name: 'Go back' }))
+
+    expect(screen.getByRole('main')).toHaveFocus()
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+    expect(window.scrollTo).not.toHaveBeenCalled()
+  })
+
+  it('focuses main without scrolling when returning from Reader to the boot entry', async () => {
+    const user = userEvent.setup()
+    renderRoutes(['/books/example'])
+    expect(screen.getByRole('main')).not.toHaveFocus()
+    expect(window.scrollTo).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('link', { name: 'Open Reader' }))
     expect(screen.queryByRole('main')).not.toBeInTheDocument()
     const focus = vi.spyOn(HTMLElement.prototype, 'focus')
 

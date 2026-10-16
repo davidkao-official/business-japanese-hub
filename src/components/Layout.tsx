@@ -3,11 +3,7 @@ import { Outlet, useLocation, useNavigationType } from 'react-router-dom'
 import { useLocale, useStrings } from '../i18n/strings'
 import { Footer } from './Footer'
 import { Header } from './Header'
-
-// App eagerly imports Layout, so this captures the boot entry before any navigation.
-const initialLocationKey = typeof window === 'undefined'
-  ? 'default'
-  : ((window.history.state as { key?: string } | null)?.key ?? 'default')
+import { consumeBootEntry } from './layoutBootEntry'
 
 /**
  * Application shell: semantic landmarks + skip link + route-change focus and
@@ -20,12 +16,13 @@ const initialLocationKey = typeof window === 'undefined'
  * long destination does not open halfway down. POP (back/forward) navigations
  * leave scroll alone so the browser restores the previous position.
  *
- * On mount, the boot-time history key is skipped (including after a reload of
- * a pushed entry) so a fresh page load neither steals focus nor scrolls.
- * Mounting after leaving the Reader is a navigation. Each location key is
- * handled once, including during StrictMode effect replay. The navigation
- * type comes from `useNavigationType` (React Router), not a pathname heuristic;
- * `preventScroll` keeps the browser's own restoration intact for POP.
+ * The boot-time history entry is skipped once per document (see
+ * `layoutBootEntry`) so a fresh page load neither steals focus nor scrolls.
+ * Mounting after leaving the Reader, even back onto the boot entry, is a
+ * navigation. The per-instance key guard makes StrictMode effect replay a
+ * no-op. The navigation type comes from `useNavigationType` (React Router),
+ * not a pathname heuristic; `preventScroll` keeps the browser's own
+ * restoration intact for POP.
  */
 export function Layout() {
   const strings = useStrings()
@@ -33,7 +30,7 @@ export function Layout() {
   const location = useLocation()
   const navigationType = useNavigationType()
   const mainRef = useRef<HTMLElement>(null)
-  const previousLocationKey = useRef(initialLocationKey)
+  const previousLocationKey = useRef<string | null>(null)
 
   useEffect(() => {
     document.documentElement.lang = locale
@@ -44,6 +41,9 @@ export function Layout() {
       return
     }
     previousLocationKey.current = location.key
+    if (consumeBootEntry(location.key)) {
+      return
+    }
     mainRef.current?.focus({ preventScroll: true })
     if (navigationType !== 'POP') {
       window.scrollTo(0, 0)

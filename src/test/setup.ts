@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest'
 import { cleanup } from '@testing-library/react'
 import { afterEach, beforeEach } from 'vitest'
+import { resetBootEntry } from '../components/layoutBootEntry'
 
 // Keep the suite's historical default deterministic now that locale is derived
 // from browser preferences. Individual locale tests may override these values.
@@ -19,6 +20,8 @@ Object.defineProperty(window.navigator, 'languages', {
 window.scrollTo = () => {}
 
 beforeEach(() => {
+  // Every test renders a fresh "document": Layout's boot entry is unhandled.
+  resetBootEntry()
   // Locale + appearance preferences are presentation state, not durable test
   // state. Each test starts from the deterministic defaults unless it opts in.
   window.localStorage.removeItem('business-japanese-hub.locale')
