@@ -177,7 +177,7 @@ function validateRuntime(value: Record<string, unknown>, issues: ReadingValidati
     const path = `$.relatedLinks[${index}]`
     if (!record(entry)) { issues.push({ path, message: 'must be an object' }); return }
     onlyKeys(entry, ['kind', 'label', 'targetId'], path, issues)
-    if (!['read', 'learn', 'practice', 'workplace-learn'].includes(String(entry.kind))) issues.push({ path: `${path}.kind`, message: 'must be read, learn, practice, or workplace-learn' })
+    if (typeof entry.kind !== 'string' || !['read', 'learn', 'practice', 'workplace-learn'].includes(entry.kind)) issues.push({ path: `${path}.kind`, message: 'must be read, learn, practice, or workplace-learn' })
     plainText(entry.label, `${path}.label`, issues, 1, 100)
     if (typeof entry.targetId !== 'string' || !ID.test(entry.targetId)) issues.push({ path: `${path}.targetId`, message: 'must be a stable content id' })
   })

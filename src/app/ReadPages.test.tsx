@@ -113,6 +113,8 @@ describe('Business Reading surfaces', () => {
     expect(screen.queryByRole('link', { name: '識別子ではないスラッグ' })).not.toBeInTheDocument()
     fireEvent.click(vocabularyLink)
     expect(screen.getByRole('heading', { level: 1, name: sampleWorkplaceVocabularyItem.title })).toBeInTheDocument()
+    expect(screen.getByText(sampleWorkplaceVocabularyItem.meaningJa)).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText(sampleWorkplaceVocabularyItem.example.japanese)).toHaveAttribute('lang', 'ja')
   })
 
   it('preserves existing Reading, legacy Learn, and legacy Practice related destinations', () => {
@@ -130,6 +132,19 @@ describe('Business Reading surfaces', () => {
     expect(screen.getByRole('link', { name: '従来のレッスン' })).toHaveAttribute('href', '/learn/meeting-japanese-course-correction')
     expect(screen.getByRole('link', { name: '従来の練習' })).toHaveAttribute('href', '/practice/course-correction')
     expect(screen.queryByRole('link', { name: '見つからない記事' })).not.toBeInTheDocument()
+  })
+
+  it('omits a Workplace link to a Reading content ID while resolving a read link to the same ID', () => {
+    const item: ReadingRuntimeItem = {
+      ...sampleReadingItem,
+      relatedLinks: [
+        { kind: 'workplace-learn', label: '別の種類の教材', targetId: sampleReadingItem.id },
+        { kind: 'read', label: '関連記事', targetId: sampleReadingItem.id },
+      ],
+    }
+    renderWithAppProviders(routeSet([toReadingCatalogEntry(item)], undefined, [item]), { initialEntries: [`/read/${item.slug}`] })
+    expect(screen.queryByRole('link', { name: '別の種類の教材' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '関連記事' })).toHaveAttribute('href', `/read/${sampleReadingItem.slug}`)
   })
 
   it('renders Japanese core and keeps a present support overlay out of V1', () => {

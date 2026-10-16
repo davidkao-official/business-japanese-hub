@@ -183,6 +183,29 @@ describe('Reading authoring contract', () => {
   })
 
   it.each([
+    { name: 'read array', kind: ['read'] },
+    { name: 'learn array', kind: ['learn'] },
+    { name: 'practice array', kind: ['practice'] },
+    { name: 'workplace-learn array', kind: ['workplace-learn'] },
+    { name: 'null', kind: null },
+    { name: 'undefined', kind: undefined },
+    { name: 'number', kind: 1 },
+    { name: 'boolean', kind: true },
+    { name: 'object', kind: {} },
+    { name: 'string-coercible object', kind: { toString: () => 'read' } },
+    { name: 'throwing coercion object', kind: { toString: () => { throw new Error('kind must not be coerced') } } },
+    { name: 'boxed string', kind: Object('read') },
+  ])('rejects a $name related-link kind without coercion in authoring and runtime data', ({ kind }) => {
+    const relatedLinks = [{ kind, label: '次に学ぶ', targetId: 'workplace-learn-sample-status-update' }]
+    const expected = {
+      ok: false,
+      issues: [{ path: '$.relatedLinks[0].kind', message: 'must be read, learn, practice, or workplace-learn' }],
+    }
+    expect(validateReadingItem({ ...releasedPlusItem(), relatedLinks }, { requireReleased: true })).toEqual(expected)
+    expect(validateReadingRuntimeItem({ ...sampleReadingItem, relatedLinks })).toEqual(expected)
+  })
+
+  it.each([
     { kind: 'workplace', label: '次に学ぶ', targetId: 'workplace-learn-sample-status-update' },
     { kind: 'workplace-learn', label: '次に学ぶ', targetId: '/learn/workplace/sample-status-update-with-next-step' },
     { kind: 'workplace-learn', label: '次に学ぶ', targetId: 'https://example.com/lesson' },
