@@ -110,6 +110,7 @@ export function ReaderShell({
 }: ReaderShellProps) {
   const strings = useStrings()
   const contentRef = useRef<HTMLElement>(null)
+  const topbarRef = useRef<HTMLElement>(null)
   const isDesktop = useMediaQuery('(min-width: 64rem)')
   const location = useLocation()
   const { hash, key: locationKey } = location
@@ -139,7 +140,7 @@ export function ReaderShell({
     resetInitialViewport && !restoreAnchorForEntry && !hash,
   )
 
-  const chrome = useChromeVisibility(isDesktop)
+  const chrome = useChromeVisibility(isDesktop, topbarRef)
   const revealChrome = chrome.reveal
 
   // Entitlement gate: the chapter's ordered blocks are filtered to the readable
@@ -314,6 +315,7 @@ export function ReaderShell({
       <ReaderProgress percent={progress.percent} />
 
       <ReaderTopBar
+        ref={topbarRef}
         book={book}
         chapter={chapter}
         tocOpen={tocOpen}

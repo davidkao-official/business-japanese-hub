@@ -1,8 +1,10 @@
+import type { Ref } from 'react'
 import { Link } from 'react-router-dom'
 import type { Book, Chapter } from '../content/types'
 import { useStrings } from '../i18n/strings'
 
 export interface ReaderTopBarProps {
+  ref?: Ref<HTMLElement>
   book: Book
   chapter: Chapter
   tocOpen: boolean
@@ -14,9 +16,11 @@ export interface ReaderTopBarProps {
 /**
  * Reader chrome. On desktop it is always visible; on mobile it slides away on
  * scroll-down and back on scroll-up (content-first, tools on intent). While
- * hidden it is `inert` so its controls are not keyboard-reachable.
+ * a descendant has keyboard-visible focus it stays visible during scrolling.
+ * While hidden it is `inert` so its controls are not keyboard-reachable.
  */
 export function ReaderTopBar({
+  ref,
   book,
   chapter,
   tocOpen,
@@ -28,6 +32,7 @@ export function ReaderTopBar({
 
   return (
     <header
+      ref={ref}
       className={`reader-topbar${hidden ? ' reader-topbar--hidden' : ''}`}
       inert={hidden}
     >
