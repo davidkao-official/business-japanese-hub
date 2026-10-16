@@ -88,7 +88,7 @@ export type ReadingSupportOverlay = {
 export type ReadingSupportOverlays = { byLocale: Record<string, ReadingSupportOverlay> }
 
 export type ReadingRelatedLink = {
-  kind: 'read' | 'learn' | 'practice'
+  kind: 'read' | 'learn' | 'practice' | 'workplace-learn'
   label: string
   targetId: string
 }

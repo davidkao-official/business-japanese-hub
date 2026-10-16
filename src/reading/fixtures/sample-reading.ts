@@ -44,7 +44,7 @@ export const sampleReadingItem: ReadingRuntimeItem = {
     },
   },
   relatedLinks: [
-    { kind: 'learn', label: '会議で論点を受けて展開する', targetId: 'meeting-japanese-course-correction' },
+    { kind: 'workplace-learn', label: '報告時に事実と次の対応を短く伝える', targetId: 'workplace-learn-sample-status-update' },
   ],
   seo: {
     title: 'ビジネス文書読解：提案の論点構成｜Business Japanese Hub',
