@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { Link, Route, Routes } from 'react-router-dom'
+import { Link, Route, Routes, useLocation } from 'react-router-dom'
 import { renderWithAppProviders } from '../test/appProviders'
 import {
   WebTestCategoryPage,
@@ -42,13 +42,18 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+function WebTestLocation() {
+  const location = useLocation()
+  return <span data-testid="web-test-location">{location.pathname}{location.search}{location.hash}</span>
+}
+
 function renderWebTestAt(path: string, options: Parameters<typeof renderWithAppProviders>[1] = {}) {
   return renderWithAppProviders(
     <Routes>
       <Route path="/practice/web-test" element={<WebTestHubPage />} />
       <Route path="/practice/web-test/:family" element={<WebTestFamilyPage />} />
       <Route path="/practice/web-test/:family/:domain" element={<WebTestCategoryPage />} />
-      <Route path="/practice/web-test/:family/:domain/:category" element={<WebTestRunnerEntryPage />} />
+      <Route path="/practice/web-test/:family/:domain/:category" element={<><WebTestRunnerEntryPage /><WebTestLocation /></>} />
     </Routes>,
     { initialEntries: [path], ...options },
   )
@@ -121,6 +126,28 @@ function syntheticIssue212Payload(checkpointIds: string[][] = [[], [], []], chec
 }
 
 describe('Web Test discovery and runner-entry routes', () => {
+  it('redirects a bare unit path to untimed learning and renders the runner', async () => {
+    fetchPracticePayloadMock.mockClear()
+    const path = '/practice/web-test/spi/verbal/semantic-relation'
+    renderWebTestAt(path)
+
+    await screen.findByText('1／2 問目')
+    expect(screen.getByTestId('web-test-location').textContent).toBe(`${path}?mode=untimed-learning`)
+    expect(screen.getByRole('button', { name: '解答する' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'ページが見つかりません' })).not.toBeInTheDocument()
+    expect(fetchPracticePayloadMock).not.toHaveBeenCalled()
+    expect(submitPracticeAttemptMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves the confirmation hash when redirecting a bare unit path', async () => {
+    const path = '/practice/web-test/spi/verbal/semantic-relation'
+    const hash = '#access_token=x&type=signup'
+    renderWebTestAt(`${path}${hash}`)
+
+    await screen.findByText('1／2 問目')
+    expect(screen.getByTestId('web-test-location').textContent).toBe(`${path}?mode=untimed-learning${hash}`)
+  })
+
   it('shows the free sample inventory alongside the full bank on hub, domain, and unit cards', () => {
     renderWebTestAt('/practice/web-test')
     expect(screen.getByText('40 問収録 · 無料サンプル 16 問')).toBeInTheDocument()
@@ -1261,6 +1288,11 @@ describe('Web Test discovery and runner-entry routes', () => {
   })
 
   it.each([
+    '/practice/web-test/spi/verbal/private-editorial-label',
+    '/practice/web-test/spi/verbal/semantic-relation?foo=1',
+    '/practice/web-test/spi/verbal/semantic-relation?mode=bogus',
+    '/practice/web-test/spi/verbal/semantic-relation?mode=untimed-learning&review=question',
+    '/practice/web-test/spi/verbal/semantic-relation?mode=untimed-learning&reviewVersion=1',
     '/practice/web-test/spi/verbal/vocabulary-in-context?mode=timed-practice',
     '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning&extra=1',
     '/practice/web-test/spi/verbal/private-editorial-label?mode=untimed-learning',
