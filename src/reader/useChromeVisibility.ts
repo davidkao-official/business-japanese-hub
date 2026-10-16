@@ -4,10 +4,12 @@
  * On mobile the navigation bar is hidden by default and appears when the user
  * scrolls up, taps the peek handle, or otherwise interacts. On desktop the
  * chrome stays visible (focused reading with strong navigation). `toggle` is
- * the explicit-interaction escape hatch for the peek handle.
+ * the explicit-interaction escape hatch for the peek handle. Scroll-down does
+ * not hide chrome while a topbar descendant has keyboard-visible focus.
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import type { RefObject } from 'react'
 
 export interface ChromeVisibility {
   visible: boolean
@@ -16,7 +18,20 @@ export interface ChromeVisibility {
   toggle: () => void
 }
 
-export function useChromeVisibility(isDesktop: boolean): ChromeVisibility {
+function hasKeyboardVisibleFocus(topbar: HTMLElement | null | undefined): boolean {
+  const activeElement = document.activeElement
+  if (!activeElement || !topbar?.contains(activeElement)) return false
+  try {
+    return activeElement.matches(':focus-visible')
+  } catch {
+    return false
+  }
+}
+
+export function useChromeVisibility(
+  isDesktop: boolean,
+  topbarRef?: RefObject<HTMLElement | null>,
+): ChromeVisibility {
   const [visible, setVisible] = useState(true)
 
   useEffect(() => {
@@ -30,7 +45,10 @@ export function useChromeVisibility(isDesktop: boolean): ChromeVisibility {
         const y = window.scrollY
         const diff = y - lastY
         if (y < 16) setVisible(true)
-        else if (Math.abs(diff) > 6) setVisible(diff < 0)
+        else if (
+          Math.abs(diff) > 6 &&
+          (diff < 0 || !hasKeyboardVisibleFocus(topbarRef?.current))
+        ) setVisible(diff < 0)
         lastY = y
       })
     }
@@ -39,7 +57,7 @@ export function useChromeVisibility(isDesktop: boolean): ChromeVisibility {
       window.removeEventListener('scroll', onScroll)
       if (raf) cancelAnimationFrame(raf)
     }
-  }, [isDesktop])
+  }, [isDesktop, topbarRef])
 
   const reveal = useCallback(() => setVisible(true), [])
   const hide = useCallback(() => setVisible(false), [])
