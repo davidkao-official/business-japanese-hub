@@ -655,6 +655,20 @@
   border: var(--stroke-thin) solid var(--color-border);
 }
 
+.web-test-hub__explanation-layer {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--space-2);
+  color: var(--bjh-text-gloss);
+}
+
+.web-test-hub__explanation-label {
+  color: var(--role-text-secondary);
+  font-size: var(--size-caption);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-title);
+}
+
 .web-test-hub__notice-action {
   display: flex;
   flex-wrap: wrap;

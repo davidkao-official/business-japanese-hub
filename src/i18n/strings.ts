@@ -18,7 +18,11 @@ import { DEFAULT_LOCALE, SUPPORTED_LOCALES, LAUNCHED_LOCALES, resolveLaunchedLoc
 export { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from './locales'
 
 export interface AppStrings {
-  learningUi: LearningUiStrings
+  learningUi: LearningUiStrings & {
+    webWhatIsAskedLabel: string
+    webSolutionLabel: string
+    webExplanationLabel: string
+  }
   reading: {
     eyebrow: string
     title: string
@@ -441,7 +445,12 @@ export interface AppStrings {
 }
 
 const ja: AppStrings = {
-  learningUi: jaLearningUi,
+  learningUi: {
+    ...jaLearningUi,
+    webWhatIsAskedLabel: '題意',
+    webSolutionLabel: '解き方',
+    webExplanationLabel: '解説',
+  },
   reading: {
     eyebrow: 'ビジネス資料を読む', title: '日本のビジネス資料を、文脈とともに読む',
     lead: '日本語の資料を起点に、語彙・論点・仕事の背景を読み解きます。',
@@ -853,7 +862,12 @@ const ja: AppStrings = {
 }
 
 const en: AppStrings = {
-  learningUi: jaLearningUi,
+  learningUi: {
+    ...jaLearningUi,
+    webWhatIsAskedLabel: 'What the question asks',
+    webSolutionLabel: 'Approach',
+    webExplanationLabel: 'Explanation',
+  },
   reading: {
     eyebrow: 'BUSINESS READING', title: 'Read Japanese business material in context',
     lead: 'Start with Japanese source material, then examine its vocabulary, argument, and workplace context.',
@@ -1258,7 +1272,12 @@ const en: AppStrings = {
 }
 
 const zhTW: AppStrings = {
-  learningUi: zhTWLearningUi,
+  learningUi: {
+    ...zhTWLearningUi,
+    webWhatIsAskedLabel: '題意',
+    webSolutionLabel: '解法',
+    webExplanationLabel: '解說',
+  },
   reading: {
     eyebrow: 'BUSINESS READING', title: '在脈絡中閱讀日本商業資料',
     lead: '從日文原文出發，理解詞彙、論點安排與職場背景。',
@@ -1665,6 +1684,12 @@ const zhTW: AppStrings = {
 // a deterministic zh-TW fallback; legal documents use their own defined set.
 const zhCN: AppStrings = {
   ...zhTW,
+  learningUi: {
+    ...zhTW.learningUi,
+    webWhatIsAskedLabel: '题意',
+    webSolutionLabel: '解法',
+    webExplanationLabel: '解说',
+  },
   workplaceLearn: {
     ...zhTW.workplaceLearn,
     title: '日本职场实战', lead: '从日本职场情境出发，学习该传达什么，以及如何表达。',

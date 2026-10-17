@@ -56,6 +56,16 @@ describe('i18n', () => {
     expect(DEFAULT_LOCALE).toBe('ja')
   })
 
+  it.each([
+    ['ja', ['題意', '解き方', '解説']],
+    ['en', ['What the question asks', 'Approach', 'Explanation']],
+    ['zh-TW', ['題意', '解法', '解說']],
+    ['zh-CN', ['题意', '解法', '解说']],
+  ] as const)('provides explanation layer labels for %s', (locale, labels) => {
+    const ui = getStrings(locale).learningUi
+    expect([ui.webWhatIsAskedLabel, ui.webSolutionLabel, ui.webExplanationLabel]).toEqual(labels)
+  })
+
   it('supports exactly the four released UI locales', () => {
     expect(SUPPORTED_LOCALES).toEqual(['ja', 'zh-TW', 'zh-CN', 'en'])
   })
