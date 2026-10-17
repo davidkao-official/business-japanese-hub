@@ -36,6 +36,22 @@ describe('AccountControl', () => {
     delete (Element.prototype as Partial<Element>).scrollIntoView
   })
 
+  it('leaves the page position alone for an absolutely positioned (header) panel', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    const style = document.createElement('style')
+    style.textContent = '.account-control__panel { position: absolute; }'
+    document.head.append(style)
+    renderWithAppProviders(<AccountControl />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ログイン' }))
+
+    expect(screen.getByRole('region', { name: 'ログイン' })).toBeInTheDocument()
+    expect(scrollIntoView).not.toHaveBeenCalled()
+    style.remove()
+    delete (Element.prototype as Partial<Element>).scrollIntoView
+  })
+
   it('keeps the account visible and reports a generic error when sign-out fails', async () => {
     const { authClient } = renderWithAppProviders(<AccountControl />, {
       session: { id: 'u-1', email: 'reader@example.com' },

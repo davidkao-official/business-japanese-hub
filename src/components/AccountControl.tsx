@@ -20,10 +20,12 @@ export function AccountControl({ open: controlledOpen, onOpenChange }: AccountCo
   const open = controlledOpen ?? uncontrolledOpen
 
   // An in-flow panel (mobile menu, Book access notice) can open below the fold; bring the form into view.
+  // The header's absolutely positioned popover is left alone so the page doesn't jump.
   useEffect(() => {
-    if (!open) return
+    const panel = panelRef.current
+    if (!open || !panel || window.getComputedStyle(panel).position !== 'static') return
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    panelRef.current?.scrollIntoView?.({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' })
+    panel.scrollIntoView?.({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' })
   }, [open])
   const setOpen = (nextOpen: boolean) => {
     onOpenChange?.(nextOpen)
