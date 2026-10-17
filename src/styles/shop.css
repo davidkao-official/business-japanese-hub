@@ -547,7 +547,21 @@
 
 /* AccountControl also serves a named area in the global header. */
 .book-access-notice .account-control {
+  display: grid;
   grid-area: auto;
+  justify-items: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* The header panel is anchored to a right-aligned control; here it opens in flow on its own row. */
+.book-access-notice .account-control:has(.account-control__panel) {
+  flex-basis: 100%;
+}
+
+.book-access-notice .account-control__panel {
+  position: static;
+  width: min(var(--measure-reading), 100%);
 }
 
 @media (max-width: 47.99rem) {
