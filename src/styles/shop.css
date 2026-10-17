@@ -460,6 +460,7 @@
 
 .book-hero {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
   padding-block: var(--space-5) var(--space-6);
 }
@@ -540,6 +541,11 @@
   max-width: var(--measure-reading);
 }
 
+.book-metadata > dt,
+.book-metadata > dd {
+  min-width: 0;
+}
+
 .book-metadata dt {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
@@ -547,6 +553,7 @@
 
 .book-metadata dd {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .book-toc-preview {
