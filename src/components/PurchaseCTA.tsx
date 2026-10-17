@@ -16,6 +16,7 @@
  *     before any executor call. Proceeding after viewing them records the same
  *     displayed snapshots in order_compliance; no TW-style checkbox is used.
  */
+// Dormant after G2 (#202); retained with its tests for historical checkout.
 import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Book } from '../content/types'

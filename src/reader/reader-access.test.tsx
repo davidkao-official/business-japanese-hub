@@ -10,7 +10,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
 import { createMockRepository, renderWithAppProviders } from '../test/appProviders'
 import { paidKeigoBook } from '../content/fixtures/paid-test-books'
@@ -37,6 +37,19 @@ vi.mock('./catalog', async () => {
 
 const user = { id: 'u-1', email: 'reader@example.com' }
 const paidKeigoId = paidKeigoBook.id
+const retiredNotice = 'この書籍の続きは現在提供していません。以前にご購入いただいた方は、ログインすると続きを読めます。'
+
+function expectNoPurchase() {
+  expect(screen.queryByRole('button', { name: /購入する/ })).not.toBeInTheDocument()
+  expect(screen.queryByText(/¥880|USD\s*12|決済は準備中/)).not.toBeInTheDocument()
+}
+
+function expectFreeReading() {
+  expect(screen.getByText(retiredNotice)).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: '無料で読める教材を見る' })).toHaveAttribute('href', '/read')
+  expect(screen.getByRole('link', { name: '書籍に戻る' })).toHaveAttribute('href', '/books/keigo-essentials')
+  expectNoPurchase()
+}
 
 function granted(bookId: string) {
   return { bookId, provider: 'manual' as const, grantedAt: '2026-08-01T00:00:00.000Z' }
@@ -67,8 +80,47 @@ describe('reader entitlement gate', () => {
     renderReaderRoute('/books/keigo-essentials/read/keigo-in-meetings')
 
     expect(await screen.findByText('この先はプレビューの範囲外です。')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /購入する/ })).toBeInTheDocument()
+    expectFreeReading()
+    expect(screen.getByRole('link', { name: '試し読み' })).toHaveAttribute(
+      'href', '/books/keigo-essentials/read/keigo-basics',
+    )
+    fireEvent.click(await screen.findByRole('button', { name: 'ログイン' }))
+    expect(screen.getByRole('textbox', { name: 'メールアドレス' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '会議での敬語' })).not.toBeInTheDocument()
+  })
+
+  it('offers signed-in non-owners reading paths without another login', async () => {
+    renderReaderRoute('/books/keigo-essentials/read/keigo-in-meetings', {
+      session: user, repository: createMockRepository(),
+    })
+
+    await screen.findByText(retiredNotice)
+    expectFreeReading()
+    expect(screen.getByRole('link', { name: '試し読み' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'ログイン' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '会議での敬語' })).not.toBeInTheDocument()
+  })
+
+  it.each([false, true])('shows neutral loading before resolving Reader ownership to %s', async (owned) => {
+    const repository = createMockRepository()
+    let resolveEntitlement!: (value: ReturnType<typeof granted> | null) => void
+    vi.mocked(repository.getEntitlement).mockReturnValue(new Promise((resolve) => { resolveEntitlement = resolve }))
+    renderReaderRoute('/books/keigo-essentials/read/keigo-in-meetings', { session: user, repository })
+
+    expect(screen.getByText('確認中…')).toBeInTheDocument()
+    expectNoPurchase()
+    expect(screen.queryByText(retiredNotice)).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '会議での敬語' })).not.toBeInTheDocument()
+    await waitFor(() => expect(repository.getEntitlement).toHaveBeenCalledWith(paidKeigoId))
+    await act(async () => resolveEntitlement(owned ? granted(paidKeigoId) : null))
+    if (owned) {
+      expect(await screen.findByRole('heading', { level: 1, name: '会議での敬語' })).toBeInTheDocument()
+      expect(screen.queryByText(retiredNotice)).not.toBeInTheDocument()
+    } else {
+      await screen.findByText(retiredNotice)
+      expectFreeReading()
+    }
+    expectNoPurchase()
   })
 
   it('renders the preview chapter without sign-in (public preview has no friction)', async () => {
@@ -101,7 +153,7 @@ describe('reader entitlement gate', () => {
 })
 
 describe('block-level preview boundary', () => {
-  it('hides blocks beyond the boundary and marks the cut (incl. the marginalia rail)', () => {
+  it('hides blocks beyond the boundary and marks the cut (incl. the marginalia rail)', async () => {
     const { container } = renderWithAppProviders(
       <ReaderShell
         book={paidKeigoBook}
@@ -116,9 +168,37 @@ describe('block-level preview boundary', () => {
     // …the vocabulary block beyond the boundary is not rendered…
     expect(screen.queryByRole('button', { name: '敬語' })).not.toBeInTheDocument()
     // …and the inline boundary marker is shown.
-    expect(screen.getByText('ここから先は購入後にお読みいただけます。')).toBeInTheDocument()
+    expectFreeReading()
     // Paid content must not leak sideways into the marginalia rail either.
     expect(container.querySelector('.reader-marginalia')).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: 'ログイン' }))
+    expect(screen.getByRole('textbox', { name: 'メールアドレス' })).toBeInTheDocument()
+  })
+
+  it('gives signed-in non-owners a truthful inline boundary and free reading', async () => {
+    renderWithAppProviders(
+      <ReaderShell book={paidKeigoBook} chapter={paidKeigoBook.chapters[0]}
+        previewBoundary={{ chapterId: 'ch-1', blockId: 'ch1-blk-03' }} />,
+      { session: user },
+    )
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'ログイン' })).not.toBeInTheDocument())
+    expectFreeReading()
+    expect(screen.queryByRole('button', { name: 'ログイン' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '敬語' })).not.toBeInTheDocument()
+  })
+
+  it('keeps all inline content available to owners without a paid boundary', () => {
+    const { container } = renderWithAppProviders(
+      <ReaderShell book={paidKeigoBook} chapter={paidKeigoBook.chapters[0]} owned
+        previewBoundary={{ chapterId: 'ch-1', blockId: 'ch1-blk-03' }} />,
+      { session: user },
+    )
+
+    expect(screen.getByRole('button', { name: '敬語' })).toBeInTheDocument()
+    expect(container.querySelector('.reader-paid-boundary')).toBeNull()
+    expect(screen.queryByText(retiredNotice)).not.toBeInTheDocument()
+    expectNoPurchase()
   })
 
   it('denies everything for a malformed boundary (unknown block id)', () => {
@@ -131,7 +211,7 @@ describe('block-level preview boundary', () => {
     )
 
     // Deny-by-default: a boundary that does not resolve hides all content.
-    expect(screen.getByText('ここから先は購入後にお読みいただけます。')).toBeInTheDocument()
+    expectFreeReading()
     expect(screen.queryByText('敬語とは')).not.toBeInTheDocument()
   })
 })
@@ -140,7 +220,8 @@ describe('reader gate surface', () => {
   it('shows the locked message when a paid book offers no preview', () => {
     renderWithAppProviders(<ReaderGate book={paidKeigoBook} hasPreview={false} />)
 
-    expect(screen.getByText('この書籍は購入後に読むことができます。')).toBeInTheDocument()
+    expect(screen.getByText('この書籍の閲覧には、以前に取得した利用資格が必要です。')).toBeInTheDocument()
+    expectFreeReading()
     expect(screen.queryByRole('link', { name: '試し読み' })).not.toBeInTheDocument()
   })
 })
