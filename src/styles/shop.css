@@ -621,6 +621,18 @@
   overflow-wrap: anywhere;
 }
 
+/* em follows the reader's browser text size, so enlarged text also stacks label over value. */
+@media (max-width: 30em) {
+  .book-metadata {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-1);
+  }
+
+  .book-metadata dd + dt {
+    margin-block-start: var(--space-3);
+  }
+}
+
 .book-toc-preview {
   display: grid;
   gap: 0;
