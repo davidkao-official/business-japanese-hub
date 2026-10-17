@@ -38,6 +38,32 @@ describe('Workplace Learn routes and details', () => {
     expect(getStrings('ja').workplaceLearn.title).toBe('日本の職場で実践する')
   })
 
+  it('renders Japanese access badges for free and Plus Workplace Learn entries', async () => {
+    setLocalePreference('ja')
+    const freeEntry = workplaceLearnCatalog.find((entry) => entry.id === sampleWorkplaceLearnItem.id)!
+    const privateItem: WorkplaceLearnRuntimeItem = {
+      ...sampleWorkplaceLearnItem,
+      id: 'private-workplace-badge-test',
+      slug: 'private-workplace-badge-test',
+      title: 'Plus access badge fixture',
+      access: 'plus',
+      sampleLabel: undefined,
+    }
+    const plusEntry = toWorkplaceLearnCatalogEntry(privateItem, { contentId: privateItem.id, revision: 'd'.repeat(64) })
+    renderWithAppProviders(
+      <Routes><Route path="/learn" element={<WorkplaceLearnLandingPage catalogEntries={[freeEntry, plusEntry]} />} /></Routes>,
+      { initialEntries: ['/learn'] },
+    )
+    const freeBadge = document.querySelector('.workplace-learn__access--free') as HTMLElement
+    const plusBadge = document.querySelector('.workplace-learn__access--plus') as HTMLElement
+    expect(freeBadge).toHaveTextContent('無料')
+    expect(freeBadge).not.toHaveTextContent(/^(FREE|Free)$/)
+    expect(plusBadge).toHaveTextContent('Plus')
+    expect(plusBadge).not.toHaveTextContent(/^(PLUS|BOOK)$/)
+    expect(screen.queryByText(/^(FREE|Free|PLUS|BOOK)$/)).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Plus access badge fixture' })).toBeInTheDocument()
+  })
+
   it('routes the public discovery path to vocabulary and lesson details', async () => {
     setLocalePreference('zh-TW')
     window.history.replaceState(null, '', '/learn')

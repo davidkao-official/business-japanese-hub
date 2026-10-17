@@ -196,6 +196,12 @@
   letter-spacing: -0.03em;
 }
 
+.concept-home-visual__label:lang(ja),
+.concept-home-visual__paper-kicker:lang(ja) {
+  font-family: var(--font-sans);
+  letter-spacing: var(--tracking-normal);
+}
+
 .concept-home-visual__paper-rule {
   width: 3rem;
   height: 3px;

@@ -19,6 +19,12 @@
   text-transform: uppercase;
 }
 
+.plus-access__label:lang(ja) {
+  font-family: var(--font-sans);
+  letter-spacing: var(--tracking-normal);
+  text-transform: none;
+}
+
 .plus-hero {
   display: grid;
   gap: var(--space-4);

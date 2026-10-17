@@ -63,7 +63,12 @@ describe('Business Reading surfaces', () => {
     expect(sampleLink).toHaveAttribute('href', '/read/sample-internal-proposal')
     expect(sampleLink.closest('h3')).toHaveAttribute('lang', 'ja')
     expect(screen.getByText(sampleReadingItem.summary)).toHaveAttribute('lang', 'ja')
-    expect(screen.getByText('Free')).toBeInTheDocument()
+    const freeBadge = document.querySelector('.reading-access--free') as HTMLElement
+    expect(freeBadge).toHaveTextContent('無料')
+    expect(freeBadge).not.toHaveTextContent(/^(FREE|Free)$/)
+    const plusLabel = document.querySelector('.reading-plus-note .reading-kicker') as HTMLElement
+    expect(plusLabel).toHaveTextContent('Plus')
+    expect(screen.queryByText(/^(FREE|Free|PLUS|BOOK)$/)).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Plus の記事' })).toBeInTheDocument()
     expect(screen.getByText('Plus の記事は現在公開されていません。公開後、会員状態をサーバーで確認して配信します。')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'マイライブラリ' })).toHaveAttribute('href', '/library')
