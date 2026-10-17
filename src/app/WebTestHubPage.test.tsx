@@ -110,6 +110,9 @@ function expectLabelledExplanation(question: Pick<PracticeQuestion, 'promptJa' |
   if (question.coreExplanation.representation) {
     const representation = view.getByRole('figure', { name: '解き方' })
     expect(view.getByRole('heading', { name: '解き方', level: 3 }).nextElementSibling).toBe(representation)
+    // The layer heading names the figure; the generic caption must not repeat it.
+    expect(representation.querySelector('figcaption')).toBeNull()
+    expect(view.getAllByText('解き方')).toHaveLength(1)
     expect(meaning.compareDocumentPosition(representation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(representation.compareDocumentPosition(explanation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   } else {

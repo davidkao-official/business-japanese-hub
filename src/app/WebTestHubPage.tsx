@@ -671,8 +671,8 @@ function RunnerStateView({ signedIn, nextSampleLink, onRestart, questionHeadingR
       <p lang="ja">{question.coreExplanation.whatIsAskedJa}</p>
     </div>
     {question.coreExplanation.representation && <div className="web-test-hub__explanation-layer">
-      <h3 className="web-test-hub__explanation-label">{ui.webSolutionLabel}</h3>
-      <RepresentationView representation={question.coreExplanation.representation} label={ui.webAnswerRepresentation} />
+      <h3 className="web-test-hub__explanation-label" id={`web-test-solution-${question.id}`}>{ui.webSolutionLabel}</h3>
+      <RepresentationView representation={question.coreExplanation.representation} label={ui.webAnswerRepresentation} labelledBy={`web-test-solution-${question.id}`} />
     </div>}
     <div className="web-test-hub__explanation-layer">
       <h3 className="web-test-hub__explanation-label">{ui.webExplanationLabel}</h3>
@@ -704,15 +704,18 @@ function SampleSignIn() {
   return <details className="web-test-hub__sample-auth"><summary>{ui.webSampleSignInToSave}</summary><AuthPanel /></details>
 }
 
-function RepresentationView({ representation, label }: { representation: PracticeRepresentation; label: string }) {
+function RepresentationView({ representation, label, labelledBy }: { representation: PracticeRepresentation; label: string; labelledBy?: string }) {
   const ui = useStrings().learningUi
+  // Inside a labelled explanation layer the heading already names the figure, so the generic caption is dropped.
+  const figureLabel = labelledBy ? { 'aria-labelledby': labelledBy } : { 'aria-label': label }
+  const caption = labelledBy ? null : <figcaption>{label}</figcaption>
 
-  if (representation.kind === 'equation') return <figure aria-label={label}><figcaption>{label}</figcaption><pre lang="ja">{representation.expression}</pre></figure>
-  if (representation.kind === 'table') return <figure aria-label={label}><figcaption>{label}</figcaption><table><thead><tr>{representation.columns.map((column) => <th lang="ja" key={column} scope="col">{column}</th>)}</tr></thead><tbody>{representation.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td lang="ja" key={`${rowIndex}-${cellIndex}`}>{cell}</td>)}</tr>)}</tbody></table></figure>
-  if (representation.kind === 'diagram') { const labels = new Map(representation.nodes.map((node) => [node.id, node.label])); return <figure aria-label={label}><figcaption lang="ja">{representation.altText}</figcaption><ul>{representation.nodes.map((node) => <li lang="ja" key={node.id}>{node.label}</li>)}</ul>{representation.edges.map((edge, index) => <p lang="ja" key={`${edge.from}-${edge.to}-${index}`}>{labels.get(edge.from) ?? edge.from} → {labels.get(edge.to) ?? edge.to}{edge.label ? `：${edge.label}` : ''}</p>)}</figure> }
-  if (representation.kind === 'elimination') return <figure aria-label={label}><figcaption>{label}</figcaption><ul>{representation.candidates.map((candidate) => <li lang="ja" key={candidate}>{candidate}</li>)}</ul><ol>{representation.steps.map((step) => <li lang="ja" key={step}>{step}</li>)}</ol></figure>
-  if (representation.kind === 'logic-grid') return <figure aria-label={label}><figcaption>{label}</figcaption><table><thead><tr><th scope="col">{ui.webGridRow}</th>{representation.columns.map((column) => <th lang="ja" key={column} scope="col">{column}</th>)}</tr></thead><tbody>{representation.rows.map((row) => <tr key={row}><th scope="row" lang="ja">{row}</th>{representation.columns.map((column) => <td key={column}>{({ yes: ui.webYes, no: ui.webNo, unknown: ui.webUnknown })[representation.cells.find((cell) => cell.row === row && cell.column === column)?.value ?? 'unknown']}</td>)}</tr>)}</tbody></table></figure>
-  return <figure aria-label={label}><figcaption lang="ja">{representation.label}</figcaption><p lang="ja">{representation.content}</p></figure>
+  if (representation.kind === 'equation') return <figure {...figureLabel}>{caption}<pre lang="ja">{representation.expression}</pre></figure>
+  if (representation.kind === 'table') return <figure {...figureLabel}>{caption}<table><thead><tr>{representation.columns.map((column) => <th lang="ja" key={column} scope="col">{column}</th>)}</tr></thead><tbody>{representation.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td lang="ja" key={`${rowIndex}-${cellIndex}`}>{cell}</td>)}</tr>)}</tbody></table></figure>
+  if (representation.kind === 'diagram') { const labels = new Map(representation.nodes.map((node) => [node.id, node.label])); return <figure {...figureLabel}><figcaption lang="ja">{representation.altText}</figcaption><ul>{representation.nodes.map((node) => <li lang="ja" key={node.id}>{node.label}</li>)}</ul>{representation.edges.map((edge, index) => <p lang="ja" key={`${edge.from}-${edge.to}-${index}`}>{labels.get(edge.from) ?? edge.from} → {labels.get(edge.to) ?? edge.to}{edge.label ? `：${edge.label}` : ''}</p>)}</figure> }
+  if (representation.kind === 'elimination') return <figure {...figureLabel}>{caption}<ul>{representation.candidates.map((candidate) => <li lang="ja" key={candidate}>{candidate}</li>)}</ul><ol>{representation.steps.map((step) => <li lang="ja" key={step}>{step}</li>)}</ol></figure>
+  if (representation.kind === 'logic-grid') return <figure {...figureLabel}>{caption}<table><thead><tr><th scope="col">{ui.webGridRow}</th>{representation.columns.map((column) => <th lang="ja" key={column} scope="col">{column}</th>)}</tr></thead><tbody>{representation.rows.map((row) => <tr key={row}><th scope="row" lang="ja">{row}</th>{representation.columns.map((column) => <td key={column}>{({ yes: ui.webYes, no: ui.webNo, unknown: ui.webUnknown })[representation.cells.find((cell) => cell.row === row && cell.column === column)?.value ?? 'unknown']}</td>)}</tr>)}</tbody></table></figure>
+  return <figure {...figureLabel}><figcaption lang="ja">{representation.label}</figcaption><p lang="ja">{representation.content}</p></figure>
 }
 
 function answerLabel(answer: RuntimeQuestion['answer']): string {
