@@ -218,7 +218,7 @@ export const PRIVACY_DOCUMENT: LegalDocument = {
       {
         heading: 'お問い合わせ・苦情窓口',
         paragraphs: [
-          `個人情報の取扱いに関するお問い合わせ・苦情先：${sellerDisclosureFor('ja').supportEmail}。`,
+          `個人情報の取扱いに関するお問い合わせ・苦情の窓口：${sellerDisclosureFor('ja').supportEmail}。`,
         ],
       },
       {
