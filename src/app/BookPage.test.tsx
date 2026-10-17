@@ -116,7 +116,8 @@ describe('book detail — paid CTA state matrix (§8.3)', () => {
     } else {
       expect(await screen.findByText(retiredNotice)).toBeInTheDocument()
     }
-    expect(container.querySelector('.book-actions__reserve')).toBe(reserve)
+    // The sizing copy exists only while ownership resolves; owners don't keep blank space.
+    expect(container.querySelector('.book-actions__reserve')).toBeNull()
     expectNoPurchase()
   })
 

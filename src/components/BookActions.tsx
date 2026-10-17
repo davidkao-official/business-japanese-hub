@@ -81,9 +81,10 @@ export function BookActions({
 
   return (
     <div className={`book-actions${tierOf(book) === 'paid' ? ' book-actions--paid' : ''}${className ? ` ${className}` : ''}`}>
-      {tierOf(book) === 'paid' && (
-        // Noninteractive sizing copy reserves the largest signed-out state for
-        // pending and owner actions too, including when buttons stack on mobile.
+      {tierOf(book) === 'paid' && loading && (
+        // While ownership resolves, a noninteractive sizing copy reserves the
+        // non-owner notice (the common case) so it appears without a shift,
+        // including when buttons stack on mobile. Owners get a one-time settle.
         <div className="book-actions__reserve book-access-notice" aria-hidden="true">
           <p className="book-access-notice__message" data-label={strings.book.noLongerOffered} />
           <div className="cta-row">
