@@ -1,37 +1,30 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { screen } from '@testing-library/react'
 import { renderWithAppProviders } from '../test/appProviders'
 import { BookActions } from './BookActions'
 import { paidKeigoBook } from '../content/fixtures/paid-test-books'
 
-const { legalReadyMock } = vi.hoisted(() => ({ legalReadyMock: vi.fn(() => true) }))
-vi.mock('../legal-content', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../legal-content')>()
-  return { ...actual, isPaidLaunchLegalReady: legalReadyMock }
-})
+describe('BookActions — retired purchase state (#202 G2)', () => {
+  it('offers free reading and login even when no preview exists', async () => {
+    renderWithAppProviders(<BookActions book={paidKeigoBook} cta={{ primary: 'purchase' }} />)
 
-describe('BookActions — purchase placeholder while ownership resolves', () => {
-  beforeEach(() => legalReadyMock.mockReturnValue(true))
-
-  it('reserves the hidden unavailable-note line while the legal gate is closed', () => {
-    legalReadyMock.mockReturnValue(false)
-    const { container } = renderWithAppProviders(
-      <BookActions book={paidKeigoBook} cta={{ primary: 'purchase' }} loading />,
-    )
-
-    expect(screen.getByRole('status')).toHaveTextContent('確認中')
-    const reserve = container.querySelector('.purchase-cta > .purchase-cta__note--reserve')
-    expect(reserve).toHaveTextContent('決済は準備中です。')
-    expect(reserve).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByText(/この書籍の続きは現在提供していません/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '無料で読める教材を見る' })).toHaveAttribute('href', '/read')
+    expect(await screen.findByRole('button', { name: 'ログイン' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '試し読み' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /購入する/ })).not.toBeInTheDocument()
+    expect(screen.queryByText(/¥880|決済は準備中/)).not.toBeInTheDocument()
   })
 
-  it('reserves nothing extra once the legal gate is open', () => {
+  it('shows a neutral pending state with no checkout wording or controls', () => {
     const { container } = renderWithAppProviders(
       <BookActions book={paidKeigoBook} cta={{ primary: 'purchase' }} loading />,
     )
 
-    expect(screen.getByRole('status')).toBeInTheDocument()
-    expect(container.querySelector('.purchase-cta__note--reserve')).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent('確認中…')
+    expect(screen.getByRole('status').parentElement).toHaveAttribute('aria-busy', 'true')
+    expect(container.querySelector('.book-actions__reserve')).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.queryByText(/¥880|決済は準備中/)).not.toBeInTheDocument()
   })
 })

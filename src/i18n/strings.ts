@@ -286,6 +286,8 @@ export interface AppStrings {
     seeContents: string
     pending: string
     purchaseUnavailable: string
+    noLongerOffered: string
+    browseFreeReading: string
     ownedLabel: string
     freeReadingNote: string
   }
@@ -305,7 +307,6 @@ export interface AppStrings {
     readFromStart: string
     continueReading: string
     progressLabel: string
-    paidBoundary: string
     chapterLabel: (order: number) => string
     fontSize: string
     theme: string
@@ -346,7 +347,6 @@ export interface AppStrings {
   readerGate: {
     beyondPreview: string
     locked: string
-    message: string
     previewNote: string
     backToBook: string
   }
@@ -701,6 +701,8 @@ const ja: AppStrings = {
     seeContents: '目次を見る',
     pending: '確認中…',
     purchaseUnavailable: '決済は準備中です。',
+    noLongerOffered: 'この書籍の続きは現在提供していません。以前にご購入いただいた方は、ログインすると続きを読めます。',
+    browseFreeReading: '無料で読める教材を見る',
     ownedLabel: '取得済み',
     freeReadingNote: 'この本は全章を無料でお読みいただけます。',
   },
@@ -720,7 +722,6 @@ const ja: AppStrings = {
     readFromStart: '読み始める',
     continueReading: '続きを読む',
     progressLabel: '読書の進捗',
-    paidBoundary: 'ここから先は購入後にお読みいただけます。',
     chapterLabel: (order: number) => `第 ${order} 章`,
     fontSize: '文字サイズ',
     theme: '表示テーマ',
@@ -760,9 +761,8 @@ const ja: AppStrings = {
   },
   readerGate: {
     beyondPreview: 'この先はプレビューの範囲外です。',
-    locked: 'この書籍は購入後に読むことができます。',
-    message: '購入すると、続きをお読みいただけます。',
-    previewNote: '購入の前に、無料プレビューをお試しください。',
+    locked: 'この書籍の閲覧には、以前に取得した利用資格が必要です。',
+    previewNote: '無料プレビューは引き続きお読みいただけます。',
     backToBook: '書籍に戻る',
   },
   notFound: {
@@ -1111,6 +1111,8 @@ const en: AppStrings = {
     seeContents: 'View contents',
     pending: 'Checking…',
     purchaseUnavailable: 'Payment is not available yet.',
+    noLongerOffered: 'The remaining chapters of this book are not currently offered. If you acquired it earlier, sign in to keep reading.',
+    browseFreeReading: 'Explore free reading',
     ownedLabel: 'Owned',
     freeReadingNote: 'Every chapter of this book is free to read.',
   },
@@ -1130,7 +1132,6 @@ const en: AppStrings = {
     readFromStart: 'Start reading',
     continueReading: 'Continue reading',
     progressLabel: 'Reading progress',
-    paidBoundary: 'The rest of this book is available after purchase.',
     chapterLabel: (order: number) => `Chapter ${order}`,
     fontSize: 'Text size',
     theme: 'Theme',
@@ -1170,9 +1171,8 @@ const en: AppStrings = {
   },
   readerGate: {
     beyondPreview: 'You’ve reached the end of the preview.',
-    locked: 'This book is available after purchase.',
-    message: 'Purchase the book to keep reading.',
-    previewNote: 'Try the free preview before you buy.',
+    locked: 'Reading this book requires previously acquired access.',
+    previewNote: 'The free preview remains available to read.',
     backToBook: 'Back to the book',
   },
   notFound: {
@@ -1521,6 +1521,8 @@ const zhTW: AppStrings = {
     seeContents: '查看目錄',
     pending: '確認中…',
     purchaseUnavailable: '付款功能準備中。',
+    noLongerOffered: '本書的後續章節目前不再提供。先前已購買的讀者可登入繼續閱讀。',
+    browseFreeReading: '瀏覽免費閱讀教材',
     ownedLabel: '已擁有',
     freeReadingNote: '本書所有章節均可免費閱讀。',
   },
@@ -1540,7 +1542,6 @@ const zhTW: AppStrings = {
     readFromStart: '開始閱讀',
     continueReading: '繼續閱讀',
     progressLabel: '閱讀進度',
-    paidBoundary: '後續內容需購買後方可閱讀。',
     chapterLabel: (order: number) => `第 ${order} 章`,
     fontSize: '文字大小',
     theme: '顯示主題',
@@ -1580,9 +1581,8 @@ const zhTW: AppStrings = {
   },
   readerGate: {
     beyondPreview: '這裡已超出試讀範圍。',
-    locked: '本書需購買後方可閱讀。',
-    message: '購買本書後，即可繼續閱讀。',
-    previewNote: '購買前請先試讀免費預覽。',
+    locked: '閱讀本書需具備先前取得的使用資格。',
+    previewNote: '免費試讀內容仍可閱讀。',
     backToBook: '返回書籍',
   },
   notFound: {
@@ -1684,6 +1684,16 @@ const zhTW: AppStrings = {
 // a deterministic zh-TW fallback; legal documents use their own defined set.
 const zhCN: AppStrings = {
   ...zhTW,
+  book: {
+    ...zhTW.book,
+    noLongerOffered: '本书的后续章节目前不再提供。先前已购买的读者可登录继续阅读。',
+    browseFreeReading: '浏览免费阅读教材',
+  },
+  readerGate: {
+    ...zhTW.readerGate,
+    locked: '阅读本书需具备先前取得的使用资格。',
+    previewNote: '免费试读内容仍可阅读。',
+  },
   learningUi: {
     ...zhTW.learningUi,
     webWhatIsAskedLabel: '题意',

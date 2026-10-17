@@ -46,7 +46,14 @@ describe('commercial Book reader access', () => {
 
     expect(await screen.findByText('この先はプレビューの範囲外です。')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: paidChapter.title })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /購入する/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /購入する/ })).not.toBeInTheDocument()
+    expect(screen.queryByText(/USD\s*12|決済は準備中/)).not.toBeInTheDocument()
+    expect(screen.getByText(/この書籍の続きは現在提供していません/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '無料で読める教材を見る' })).toHaveAttribute('href', '/read')
+    expect(screen.getByRole('link', { name: '試し読み' })).toHaveAttribute(
+      'href', `/books/meeting-japanese/read/${previewChapter.slug}`,
+    )
+    expect(await screen.findByRole('button', { name: 'ログイン' })).toBeInTheDocument()
   })
 
   it('unlocks the paid chapter only when the repository returns an entitlement', async () => {

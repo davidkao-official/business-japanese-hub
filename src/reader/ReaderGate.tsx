@@ -5,13 +5,13 @@
  *
  * This is the server-side-gated boundary in the UI: it never renders reader
  * content, and it is the single place that explains access + offers the
- * purchase / preview entry points (docs/ui-ux-research.md §4.2, §8.3).
+ * historical access / preview entry points (G2, #202).
  */
 
 import { Link } from 'react-router-dom'
 import type { Book } from '../content/types'
 import { PreviewCTA } from '../components/PreviewCTA'
-import { PurchaseCTA } from '../components/PurchaseCTA'
+import { BookAccessNotice } from '../components/BookAccessNotice'
 import { useStrings } from '../i18n/strings'
 
 export interface ReaderGateProps {
@@ -31,11 +31,9 @@ export function ReaderGate({ book, hasPreview }: ReaderGateProps) {
       <h1 className="reader-gate__title" id="reader-gate-title">
         {book.title}
       </h1>
-      <p className="reader-gate__message">{strings.readerGate.message}</p>
-      <div className="cta-row reader-gate__actions">
-        <PurchaseCTA book={book} />
+      <BookAccessNotice>
         {hasPreview && <PreviewCTA book={book} />}
-      </div>
+      </BookAccessNotice>
       <Link className="reader-gate__back" to={`/books/${book.slug}`}>
         {strings.readerGate.backToBook}
       </Link>

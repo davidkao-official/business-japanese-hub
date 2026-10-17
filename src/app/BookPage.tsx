@@ -74,9 +74,9 @@ export function BookPage() {
           <p className="book-hero__access">
             {ownedByUser ? (
               <span className="entitlement-label">{strings.book.ownedLabel}</span>
-            ) : (
+            ) : tier !== 'paid' ? (
               <Price book={book} />
-            )}
+            ) : null}
           </p>
           <BookActions
             book={book}

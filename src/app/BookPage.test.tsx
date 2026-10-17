@@ -1,15 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
 import { renderWithAppProviders, createMockRepository } from '../test/appProviders'
 import type { PurchaseExecutor } from '../lib/purchase/types'
 import { BookPage } from './BookPage'
-
-const { legalReadyMock } = vi.hoisted(() => ({ legalReadyMock: vi.fn(() => true) }))
-vi.mock('../legal-content', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../legal-content')>()
-  return { ...actual, isPaidLaunchLegalReady: legalReadyMock }
-})
 
 /**
  * These unit tests isolate the §8.3 CTA matrix with the compact synthetic paid
@@ -35,8 +29,13 @@ vi.mock('../reader/catalog', async () => {
 
 const user = { id: 'u-1', email: 'reader@example.com' }
 const paidKeigoId = 'book-test-paid-keigo'
+const retiredNotice = 'この書籍の続きは現在提供していません。以前にご購入いただいた方は、ログインすると続きを読めます。'
 
-beforeEach(() => legalReadyMock.mockReturnValue(true))
+function expectNoPurchase() {
+  expect(screen.queryByRole('button', { name: /購入する/ })).not.toBeInTheDocument()
+  expect(screen.queryByText(/¥880|USD\s*12/)).not.toBeInTheDocument()
+  expect(screen.queryByText('決済は準備中です。')).not.toBeInTheDocument()
+}
 
 function granted(bookId: string) {
   return { bookId, provider: 'manual' as const, grantedAt: '2026-08-01T00:00:00.000Z' }
@@ -63,17 +62,63 @@ function renderBook(slug: string, options: RenderBookOptions = {}) {
 }
 
 describe('book detail — paid CTA state matrix (§8.3)', () => {
-  it('paid + unowned + preview → 購入する / 試し読み', async () => {
+  it('signed-out non-owners see historical access, free reading and the existing login entry', async () => {
     renderBook('keigo-essentials')
 
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: /購入する/ })).toBeInTheDocument(),
-    )
+    expect(await screen.findByText(retiredNotice)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '試し読み' })).toHaveAttribute(
-      'href',
-      '/books/keigo-essentials/read/keigo-basics',
+      'href', '/books/keigo-essentials/read/keigo-basics',
     )
-    expect(screen.getByText('¥880')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '無料で読める教材を見る' })).toHaveAttribute('href', '/read')
+    expectNoPurchase()
+    fireEvent.click(await screen.findByRole('button', { name: 'ログイン' }))
+    expect(screen.getByRole('textbox', { name: 'メールアドレス' })).toBeInTheDocument()
+  })
+
+  it('signed-in non-owners see the same reading paths without another login entry or checkout', async () => {
+    const purchaseExecutor = vi.fn()
+    const repository = createMockRepository()
+    renderBook('keigo-essentials', { session: user, repository, purchaseExecutor })
+
+    expect(await screen.findByText(retiredNotice)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '試し読み' })).toHaveAttribute(
+      'href', '/books/keigo-essentials/read/keigo-basics',
+    )
+    expect(screen.getByRole('link', { name: '無料で読める教材を見る' })).toHaveAttribute('href', '/read')
+    expect(screen.queryByRole('button', { name: 'ログイン' })).not.toBeInTheDocument()
+    expectNoPurchase()
+    expect(purchaseExecutor).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('keeps a neutral reserved layout until ownership resolves to %s', async (owned) => {
+    const repository = createMockRepository()
+    let resolveEntitlement!: (value: ReturnType<typeof granted> | null) => void
+    vi.mocked(repository.getEntitlement).mockReturnValue(new Promise((resolve) => { resolveEntitlement = resolve }))
+    const { container } = renderBook('keigo-essentials', { session: user, repository })
+
+    // Auth restore and then the deferred repository read must both stay neutral.
+    expect(screen.getByRole('status')).toHaveTextContent('確認中…')
+    expectNoPurchase()
+    await waitFor(() => expect(repository.getEntitlement).toHaveBeenCalledWith(paidKeigoId))
+    const reserve = container.querySelector('.book-actions__reserve')
+    expect(reserve).toHaveAttribute('aria-hidden', 'true')
+    expect(reserve?.querySelector('a, button, input')).toBeNull()
+    expect(screen.queryByText(retiredNotice)).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '試し読み' })).toHaveAttribute(
+      'href', '/books/keigo-essentials/read/keigo-basics',
+    )
+
+    await act(async () => resolveEntitlement(owned ? granted(paidKeigoId) : null))
+    if (owned) {
+      expect(await screen.findByRole('link', { name: '読み始める' })).toBeInTheDocument()
+      expect(screen.getByText('取得済み')).toBeInTheDocument()
+      expect(screen.queryByText(retiredNotice)).not.toBeInTheDocument()
+    } else {
+      expect(await screen.findByText(retiredNotice)).toBeInTheDocument()
+    }
+    // The sizing copy exists only while ownership resolves; owners don't keep blank space.
+    expect(container.querySelector('.book-actions__reserve')).toBeNull()
+    expectNoPurchase()
   })
 
   it('paid + owned + progress → 続きを読む to the resume chapter', async () => {
@@ -100,6 +145,11 @@ describe('book detail — paid CTA state matrix (§8.3)', () => {
 
     const start = await screen.findByRole('link', { name: '読み始める' })
     expect(start).toHaveAttribute('href', '/books/keigo-essentials/read/keigo-basics')
+    expect(screen.getByRole('link', { name: '目次を見る' })).toHaveAttribute('href', '#book-toc')
+    expect(screen.getByText('取得済み')).toBeInTheDocument()
+    expect(screen.queryByText(retiredNotice)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '無料で読める教材を見る' })).not.toBeInTheDocument()
+    expectNoPurchase()
   })
 })
 
@@ -139,7 +189,7 @@ describe('book detail — free Prototype', () => {
   })
 })
 
-describe('book detail — not-found + purchase seam', () => {
+describe('book detail — not-found', () => {
   it('shows a quiet not-found state for an unknown book (with the slug)', async () => {
     renderBook('not-a-book')
 
@@ -158,34 +208,4 @@ describe('book detail — not-found + purchase seam', () => {
     expect(repository.getReadingState).not.toHaveBeenCalled()
   })
 
-  it('the paid 購入する CTA reports that payment is not available yet (#9 swaps the executor)', async () => {
-    renderBook('keigo-essentials', { session: user })
-
-    const buy = await screen.findByRole('button', { name: /購入する/ })
-    fireEvent.click(buy)
-    // Declare JP, then proceed only after the exact versioned disclosures have
-    // been rendered. The executor must not be reached before this confirmation.
-    fireEvent.click(screen.getByRole('button', { name: '日本の消費者' }))
-    fireEvent.click(screen.getByRole('button', { name: '同意して購入する' }))
-
-    expect(await screen.findByText('決済は準備中です。')).toBeInTheDocument()
-  })
-
-  it('degrades to the unavailable note when the purchase executor rejects (never stuck pending)', async () => {
-    renderBook('keigo-essentials', {
-      session: user,
-      purchaseExecutor: async () => {
-        throw new Error('checkout offline')
-      },
-    })
-
-    const buy = await screen.findByRole('button', { name: /購入する/ })
-    fireEvent.click(buy)
-    fireEvent.click(screen.getByRole('button', { name: '日本の消費者' }))
-    fireEvent.click(screen.getByRole('button', { name: '同意して購入する' }))
-
-    expect(await screen.findByText('決済は準備中です。')).toBeInTheDocument()
-    // The CTA must not stay disabled/pending after a rejection.
-    expect(screen.getByRole('button', { name: /購入する/ })).not.toBeDisabled()
-  })
 })

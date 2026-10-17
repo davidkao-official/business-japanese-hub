@@ -8,9 +8,9 @@ import { Link } from 'react-router-dom'
 import type { Book } from '../content/types'
 import { useStrings } from '../i18n/strings'
 import type { BookCtaState } from '../lib/bookAccess'
-import { isPaidLaunchLegalReady } from '../legal-content'
+import { tierOf } from '../lib/bookAccess'
+import { BookAccessNotice } from './BookAccessNotice'
 import { PreviewCTA } from './PreviewCTA'
-import { PurchaseCTA } from './PurchaseCTA'
 
 export interface BookActionsProps {
   book: Book
@@ -20,8 +20,7 @@ export interface BookActionsProps {
   /** Hash anchor for the 目次を見る secondary (detail page only). */
   tocHref?: string
   /**
-   * While ownership is resolving for a paid book, the primary purchase action
-   * is replaced by a neutral pending note instead of flashing a wrong CTA.
+   * While ownership resolves, show a neutral pending note in the same space.
    */
   loading?: boolean
   className?: string
@@ -44,23 +43,7 @@ export function BookActions({
   const primary = (() => {
     switch (cta.primary) {
       case 'purchase':
-        return loading ? (
-          // While the legal launch gate is closed the resolved CTA carries a
-          // status note under the button; reserve that line so the page does
-          // not shift when ownership resolves.
-          <span key="primary" className="purchase-cta">
-            <span className="btn btn--pending" role="status">
-              {strings.book.pending}
-            </span>
-            {!isPaidLaunchLegalReady() && (
-              <span className="purchase-cta__note purchase-cta__note--reserve" aria-hidden="true">
-                {strings.book.purchaseUnavailable}
-              </span>
-            )}
-          </span>
-        ) : (
-          <PurchaseCTA book={book} key="primary" />
-        )
+        return null
       case 'preview':
         return <PreviewCTA book={book} key="primary" />
       case 'start':
@@ -97,9 +80,32 @@ export function BookActions({
   })()
 
   return (
-    <div className={`cta-row${className ? ` ${className}` : ''}`}>
-      {primary}
-      {secondary}
+    <div className={`book-actions${tierOf(book) === 'paid' ? ' book-actions--paid' : ''}${className ? ` ${className}` : ''}`}>
+      {tierOf(book) === 'paid' && loading && (
+        // While ownership resolves, a noninteractive sizing copy reserves the
+        // non-owner notice (the common case) so it appears without a shift,
+        // including when buttons stack on mobile. Owners get a one-time settle.
+        <div className="book-actions__reserve book-access-notice" aria-hidden="true">
+          <p className="book-access-notice__message" data-label={strings.book.noLongerOffered} />
+          <div className="cta-row">
+            <span className="btn btn--ghost" data-label={strings.book.preview} />
+            <span className="btn btn--secondary" data-label={strings.book.browseFreeReading} />
+            <span className="btn btn--ghost" data-label={strings.auth.signIn} />
+          </div>
+        </div>
+      )}
+      <div className="book-actions__content">
+        {loading ? (
+          <div className="cta-row" aria-busy="true">
+            <span className="btn btn--pending" role="status">{strings.book.pending}</span>
+            {secondary}
+          </div>
+        ) : cta.primary === 'purchase' ? (
+          <BookAccessNotice>{secondary}</BookAccessNotice>
+        ) : (
+          <div className="cta-row">{primary}{secondary}</div>
+        )}
+      </div>
     </div>
   )
 }
