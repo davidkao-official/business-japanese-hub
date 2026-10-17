@@ -119,10 +119,23 @@ describe('i18n', () => {
     expect(result.current.strings.legal.legalLanguageFallback).toContain('繁體中文')
   })
 
-  it('every locale implements every AppStrings key', () => {
-    const jaShape = collectShape(getStrings('ja'))
+  it('every locale implements every required AppStrings key', () => {
+    // Japanese-only editorial resources are optional while dormant locales
+    // preserve their original labels. All required keys still match exactly.
+    const requiredShape = (locale: (typeof SUPPORTED_LOCALES)[number]) => {
+      const strings = getStrings(locale)
+      return collectShape({
+        ...strings,
+        home: {
+          ...strings.home,
+          editorialLabels: undefined,
+          concept: { ...strings.home.concept, visualKicker: undefined },
+        },
+      })
+    }
+    const jaShape = requiredShape('ja')
     for (const locale of SUPPORTED_LOCALES) {
-      expect(collectShape(getStrings(locale))).toEqual(jaShape)
+      expect(requiredShape(locale)).toEqual(jaShape)
     }
   })
 

@@ -125,11 +125,13 @@ function ConceptHero() {
       <div className="concept-home-hero__visual">
         <div className="concept-home-visual__header" aria-hidden="true">
           <span className="concept-home-visual__mark" aria-hidden="true">文</span>
-          <span className="concept-home-visual__label">{concept.visualLabel}</span>
+          <span className="concept-home-visual__label" lang={locale === 'ja' ? 'ja' : undefined}>{concept.visualLabel}</span>
           <span className="concept-home-visual__rule" aria-hidden="true" />
         </div>
         <div className="concept-home-visual__paper" aria-hidden="true">
-          <span className="concept-home-visual__paper-kicker">BUSINESS / CONTEXT / LANGUAGE</span>
+          <span className="concept-home-visual__paper-kicker" lang={locale === 'ja' ? 'ja' : undefined}>
+            {concept.visualKicker ?? 'BUSINESS / CONTEXT / LANGUAGE'}
+          </span>
           <span className="concept-home-visual__paper-title">{concept.visualTitle}</span>
           <span className="concept-home-visual__paper-rule" />
           <span className="concept-home-visual__paper-copy">{concept.visualBody}</span>
@@ -163,6 +165,7 @@ function LearningJourney() {
 }
 
 function LearningPillars() {
+  const locale = useLocale()
   const { concept } = useStrings().home
 
   return (
@@ -172,7 +175,7 @@ function LearningPillars() {
         {concept.pillars.map((pillar, index) => (
           <li className={`concept-pillar concept-pillar--${index + 1}`} key={pillar.title}>
             <span className="concept-pillar__index" aria-hidden="true">0{index + 1}</span>
-            <h3 lang="en">{pillar.title}</h3>
+            <h3 lang={locale === 'ja' ? 'ja' : 'en'}>{pillar.title}</h3>
             <p>{pillar.body}</p>
           </li>
         ))}
@@ -242,8 +245,8 @@ function EditorialFeatures({ features }: { features: EditorialFeature[] }) {
               {String(index + 1).padStart(2, '0')}
             </span>
             <div className="storefront-feature__copy">
-              <p className="storefront-feature__label" lang="en">
-                {feature.label}
+              <p className="storefront-feature__label" lang={locale === 'ja' ? 'ja' : 'en'}>
+                {strings.home.editorialLabels?.features[feature.label] ?? feature.label}
               </p>
               <h3 lang={feature.titleLanguage}>
                 {feature.title}
@@ -282,8 +285,8 @@ function EditorialSamples({ samples }: { samples: HomeContentSample[] }) {
                 <p className="storefront-sample__source" lang={sample.book.language}>
                   {sample.sourceLabel}
                 </p>
-                <p className="storefront-sample__kind" lang="en">
-                  {sample.kind}
+                <p className="storefront-sample__kind" lang={locale === 'ja' ? 'ja' : 'en'}>
+                  {strings.home.editorialLabels?.kinds[sample.kind] ?? sample.kind}
                 </p>
                 <h3
                   className="storefront-sample__expression"
@@ -293,12 +296,12 @@ function EditorialSamples({ samples }: { samples: HomeContentSample[] }) {
                   {sample.expression}
                 </h3>
                 {sample.meaning && <div className="storefront-sample__tier">
-                  <p className="storefront-sample__tier-label" lang="en">MEANING</p>
+                  <p className="storefront-sample__tier-label" lang={locale === 'ja' ? 'ja' : 'en'}>{strings.home.editorialLabels?.meaning ?? 'MEANING'}</p>
                   <p lang={sample.meaningLanguage}>{sample.meaning}</p>
                 </div>}
                 {sample.supporting && (
                   <div className="storefront-sample__tier">
-                    <p className="storefront-sample__tier-label" lang="en">NOTE</p>
+                    <p className="storefront-sample__tier-label" lang={locale === 'ja' ? 'ja' : 'en'}>{strings.home.editorialLabels?.note ?? 'NOTE'}</p>
                     <p lang={sample.supportingLanguage}>{sample.supporting}</p>
                   </div>
                 )}

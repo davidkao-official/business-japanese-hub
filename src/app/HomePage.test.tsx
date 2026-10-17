@@ -64,7 +64,7 @@ describe('learning-service home', () => {
 
     const samples = document.querySelector('.storefront-samples') as HTMLElement
     expect(within(samples).getByText(expression)).toBeInTheDocument()
-    expect(within(samples).queryByText('MEANING')).not.toBeInTheDocument()
+    expect(within(samples).queryByText('意味')).not.toBeInTheDocument()
     expect(within(samples).queryByText(translation)).not.toBeInTheDocument()
   })
 
@@ -147,6 +147,19 @@ describe('learning-service home', () => {
     expect(screen.getByRole('link', { name: 'Start learning' })).toHaveAttribute('href', '/learn')
     expect(document.querySelectorAll('.concept-journey__step')).toHaveLength(4)
     expect(document.querySelectorAll('.concept-pillar')).toHaveLength(4)
+    for (const title of ['Business Reading', 'Professional Vocabulary', 'Japan Literacy', 'Business Discussion']) {
+      expect(screen.getByRole('heading', { level: 3, name: title })).toHaveAttribute('lang', 'en')
+    }
+    expect(document.querySelector('.concept-home-visual__header')).toHaveTextContent('JAPANESE AT WORK')
+    expect(document.querySelector('.concept-home-visual__paper')).toHaveTextContent('BUSINESS / CONTEXT / LANGUAGE')
+    const features = document.querySelector('.storefront-features') as HTMLElement
+    for (const label of ['BOOK', 'CHAPTER', 'EXPRESSION']) {
+      expect(within(features).getByText(label)).toBeInTheDocument()
+    }
+    const samples = document.querySelector('.storefront-samples') as HTMLElement
+    for (const label of ['DIALOGUE', 'VOCABULARY', 'EXAMPLE', 'MEANING', 'NOTE']) {
+      expect(within(samples).getAllByText(new RegExp(`^${label}$`, 'i')).length).toBeGreaterThan(0)
+    }
   })
 
   it('makes the five learning modes primary without rendering a one-time Book sales shell', () => {
@@ -172,9 +185,9 @@ describe('learning-service home', () => {
     const features = document.querySelector('.storefront-features') as HTMLElement
     expect(features).not.toBeNull()
     expect(within(features).getAllByRole('listitem')).toHaveLength(3)
-    expect(within(features).getByText('BOOK')).toBeInTheDocument()
-    expect(within(features).getByText('CHAPTER')).toBeInTheDocument()
-    expect(within(features).getByText('EXPRESSION')).toBeInTheDocument()
+    expect(within(features).getByText('書籍')).toBeInTheDocument()
+    expect(within(features).getByText('章')).toBeInTheDocument()
+    expect(within(features).getByText('表現')).toBeInTheDocument()
 
     const samples = document.querySelector('.storefront-samples') as HTMLElement
     expect(samples).not.toBeNull()
@@ -206,6 +219,35 @@ describe('learning-service home', () => {
     expect(within(selections).getAllByRole('img')).toHaveLength(3)
     expect(within(selections).getAllByRole('link', { name: '詳細を見る' })).toHaveLength(3)
     expect(screen.queryByRole('heading', { name: /stats/i })).not.toBeInTheDocument()
+  })
+
+  it('renders Japanese homepage labels and keeps Japanese decorative labels hidden', () => {
+    renderWithAppProviders(<HomePage />)
+
+    for (const title of ['ビジネス資料の読解', '仕事の語彙', '日本社会の理解', 'ビジネスの対話']) {
+      expect(screen.getByRole('heading', { level: 3, name: title })).toHaveAttribute('lang', 'ja')
+    }
+    const visualHeader = document.querySelector('.concept-home-visual__header') as HTMLElement
+    const visualPaper = document.querySelector('.concept-home-visual__paper') as HTMLElement
+    expect(visualHeader).toHaveAttribute('aria-hidden', 'true')
+    expect(visualPaper).toHaveAttribute('aria-hidden', 'true')
+    expect(visualHeader).toHaveTextContent('仕事の日本語')
+    expect(visualPaper).toHaveTextContent('ビジネス・文脈・言葉')
+    expect(screen.queryByText('Business Reading')).not.toBeInTheDocument()
+    expect(screen.queryByText('Professional Vocabulary')).not.toBeInTheDocument()
+    expect(screen.queryByText('Japan Literacy')).not.toBeInTheDocument()
+    expect(screen.queryByText('Business Discussion')).not.toBeInTheDocument()
+    expect(screen.queryByText(/^(FREE|PLUS|BOOK)$/)).not.toBeInTheDocument()
+    expect(screen.queryByText('CHAPTER', { exact: true })).not.toBeInTheDocument()
+    expect(screen.queryByText('EXPRESSION', { exact: true })).not.toBeInTheDocument()
+
+    const samples = document.querySelector('.storefront-samples') as HTMLElement
+    for (const label of ['会話', '語彙', '例文', '意味', '解説']) {
+      expect(within(samples).getAllByText(label).length).toBeGreaterThan(0)
+    }
+    for (const label of ['dialogue', 'vocabulary', 'example', 'meaning', 'note']) {
+      expect(within(samples).queryByText(new RegExp(`^${label}$`, 'i'))).not.toBeInTheDocument()
+    }
   })
 
   it('keeps the approved public founder and co-founder profiles available below the service entry points', () => {

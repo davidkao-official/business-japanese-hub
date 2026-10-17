@@ -82,7 +82,7 @@ export function ReadLandingPage() {
 
       {!hasPublishedPlusReading && <section className="reading-plus-note" aria-labelledby="reading-plus-title">
         <div>
-          <p className="reading-kicker">Plus</p>
+          <p className="reading-kicker">{copy.plus}</p>
           <h2 id="reading-plus-title">{copy.plusUnavailableTitle}</h2>
           <p>{copy.plusUnavailableBody}</p>
         </div>

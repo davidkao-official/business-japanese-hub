@@ -19,6 +19,14 @@
   text-transform: uppercase;
 }
 
+/* Plan names (Free / Plus) render as written, not as an uppercase Latin eyebrow. */
+.plus-access__label:lang(ja),
+.plus-value__label {
+  font-family: var(--font-sans);
+  letter-spacing: var(--tracking-normal);
+  text-transform: none;
+}
+
 .plus-hero {
   display: grid;
   gap: var(--space-4);
