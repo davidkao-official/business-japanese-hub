@@ -12,6 +12,7 @@ import { preparePrivatePracticeQuestionBankRelease } from '../content-delivery/p
 import { nonProprietaryPracticeQuestionBankFixture } from '../practice-web-test/fixtures/nonProprietaryPracticeFixture'
 import { getActiveLocale, getStrings, LOCALE_STORAGE_KEY, setLocalePreference } from '../i18n/strings'
 import { FREE_SPI_SAMPLE_CONTENT_ID, FREE_SPI_SAMPLE_REVISION } from '../practice-web-test/freeSample'
+import type { PracticeQuestion } from '../practice-web-test/contract'
 import * as freeSampleUnits from '../practice-web-test/freeSampleUnits'
 
 const hookLearningUiOverrides = vi.hoisted(() => ({
@@ -85,6 +86,35 @@ function syntheticRuntimePayload(promptJa: string, category = 'vocabulary-in-con
     ...release.value.payload,
     questionBank: { ...release.value.payload.questionBank, questions: [question] },
     supportOverlays: [],
+  }
+}
+
+function expectLabelledExplanation(question: Pick<PracticeQuestion, 'promptJa' | 'coreExplanation'>) {
+  const runner = screen.getByRole('heading', { name: '解答と解説', level: 2 }).closest('section')!
+  const view = within(runner)
+  const labels = question.coreExplanation.representation ? ['題意', '解き方', '解説'] : ['題意', '解説']
+  const headings = view.getAllByRole('heading', { level: 3 })
+  expect(headings.slice(0, labels.length + 1).map((heading) => heading.textContent)).toEqual([question.promptJa, ...labels])
+
+  const meaning = view.getByText(question.coreExplanation.whatIsAskedJa)
+  const explanation = view.getByText(question.coreExplanation.concise)
+  expect(view.getByRole('heading', { name: '題意', level: 3 }).nextElementSibling).toBe(meaning)
+  expect(view.getByRole('heading', { name: '解説', level: 3 }).nextElementSibling).toBe(explanation)
+  expect(meaning).toHaveAttribute('lang', 'ja')
+  expect(explanation).toHaveAttribute('lang', 'ja')
+
+  const correctAnswer = view.getByText(/^正解：/)
+  expect(headings[0]!.compareDocumentPosition(correctAnswer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(correctAnswer.compareDocumentPosition(headings[1]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  expect(meaning.compareDocumentPosition(explanation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  if (question.coreExplanation.representation) {
+    const representation = view.getByRole('figure', { name: '解き方' })
+    expect(view.getByRole('heading', { name: '解き方', level: 3 }).nextElementSibling).toBe(representation)
+    expect(meaning.compareDocumentPosition(representation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(representation.compareDocumentPosition(explanation) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  } else {
+    expect(view.queryByRole('heading', { name: '解き方', level: 3 })).not.toBeInTheDocument()
+    expect(view.queryByRole('figure', { name: '解き方' })).not.toBeInTheDocument()
   }
 }
 
@@ -431,6 +461,37 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByText("1／1 問目")).toBeInTheDocument()
   })
 
+  it.each([
+    { entry: 'practice', withRepresentation: false },
+    { entry: 'practice', withRepresentation: true },
+    { entry: 'review', withRepresentation: false },
+    { entry: 'review', withRepresentation: true },
+  ])('labels Japanese explanation layers in $entry with representation=$withRepresentation', async ({ entry, withRepresentation }) => {
+    const payload = syntheticRuntimePayload('表示された選択肢から「二番」を選んでください。')
+    const question = payload.questionBank.questions[0]!
+    if (withRepresentation) {
+      question.coreExplanation = {
+        ...question.coreExplanation,
+        representation: { kind: 'elimination', candidates: ['一番', '二番'], steps: ['一番を除き、二番を選びます。'] },
+      }
+    }
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload })
+    const reviewQuery = entry === 'review' ? `&review=${question.id}&reviewVersion=${question.version}` : ''
+    renderWebTestAt(`/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning${reviewQuery}`, {
+      session: { id: 'synthetic-member' },
+    })
+
+    await screen.findByRole('heading', { name: question.promptJa })
+    expect(screen.queryByRole('heading', { name: '題意' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('radio', { name: '二番' }))
+    fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+    expectLabelledExplanation(question)
+    if (withRepresentation) {
+      expect(screen.getByRole('figure', { name: '解き方' })).toHaveTextContent('一番を除き、二番を選びます。')
+    }
+    await screen.findByText('解答を保存しました。')
+  })
+
   it('fails closed when an exact review question is no longer in the current release', async () => {
     fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload: syntheticRuntimePayload('目前版本的合成題幹') })
     renderWebTestAt(
@@ -494,8 +555,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     nowSpy.mockReturnValue(9000)
     expect(screen.getByText('二番、一番')).toHaveAttribute('lang', 'ja')
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: "解答と解説" }))
-    expect(screen.getByText('順序を確認します。')).toHaveAttribute('lang', 'ja')
-    expect(screen.getByText('二番を先にすることが求められています。')).toHaveAttribute('lang', 'ja')
+    expectLabelledExplanation(first)
     for (const text of ['合成提示。', '請依序排列。', '這是合成表示。', '不要倒置順序。']) {
       expect(screen.queryByText(text)).not.toBeInTheDocument()
     }
@@ -525,8 +585,7 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: '二番を選んでください。' }))
     fireEvent.click(screen.getByRole('radio', { name: '二番' }))
     fireEvent.click(screen.getByRole('button', { name: "解答する" }))
-    expect(screen.getByText(sourceQuestion.coreExplanation.concise)).toHaveAttribute('lang', 'ja')
-    expect(screen.getByText(sourceQuestion.coreExplanation.whatIsAskedJa)).toHaveAttribute('lang', 'ja')
+    expectLabelledExplanation(second)
     expect(screen.queryByText('請選擇第二個選項。')).not.toBeInTheDocument()
     await waitFor(() => expect(screen.getByText("解答を保存しました。")).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: "次の問題へ" }))

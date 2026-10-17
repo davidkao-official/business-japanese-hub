@@ -4,14 +4,14 @@ import { jaLearningUi } from './learningUi'
 import { getStrings } from './strings'
 
 describe('locale-launch admission (#205)', () => {
-  it('never launches a non-Japanese locale backed by the Japanese fallback object', () => {
+  it('never launches a non-Japanese locale backed by the Japanese fallback copy', () => {
     for (const locale of LAUNCHED_LOCALES) {
-      if (locale !== 'ja') expect(getStrings(locale).learningUi, locale).not.toBe(jaLearningUi)
+      if (locale !== 'ja') expect(getStrings(locale).learningUi, locale).not.toMatchObject(jaLearningUi)
     }
   })
 
   it('recognizes the dormant English resource as a fallback, not a completed translation', () => {
-    expect(getStrings('en').learningUi).toBe(jaLearningUi)
+    expect(getStrings('en').learningUi).toMatchObject(jaLearningUi)
     expect(LAUNCHED_LOCALES).not.toContain('en')
   })
 })
