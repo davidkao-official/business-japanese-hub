@@ -253,6 +253,10 @@
   font-size: var(--text-sm);
 }
 
+.purchase-cta__note--reserve {
+  visibility: hidden;
+}
+
 /* ---------------------------------------------------------------
  * Storefront — editorial feature + compact shelf
  * --------------------------------------------------------------- */
