@@ -51,19 +51,58 @@ export interface SellerDisclosure {
 }
 
 /**
- * Placeholder merchant-of-record disclosure.
+ * Locale-neutral merchant-of-record disclosure model.
  *
  * The registered seller name is an EXTERNAL pre-sale gate (docs/legal-tax-launch-brief.md
  * §4.1) that is not yet known, so this constant is the single source for the
- * public disclosure and receipt surfaces. Replace every field and set
- * `pending` false as part of the reviewed legal-content release; checkout also
- * requires every document live and every explicit review-pending note removed.
+ * public disclosure and receipt surfaces. Pending presentation copy is kept
+ * separately by locale so neutral fields never leak across translated bodies.
+ * Replace every field and set `pending` false as part of the reviewed legal-
+ * content release; checkout also requires every document live and every
+ * explicit review-pending note removed.
  */
 export const SELLER_DISCLOSURE: SellerDisclosure = {
-  name: '販売者名確認中（確定後に掲載します）',
-  address: '所在地確認中（確定後に掲載します）',
-  phone: '電話番号確認中（確定後に掲載します）',
-  responsiblePerson: '責任者確認中（確定後に掲載します）',
-  supportEmail: '現在準備中です。確定後に掲載します',
+  name: 'Seller name pending confirmation',
+  address: 'Seller address pending confirmation',
+  phone: 'Seller phone pending confirmation',
+  responsiblePerson: 'Responsible person pending confirmation',
+  supportEmail: 'Support email pending confirmation',
   pending: true,
+}
+
+const PENDING_SELLER_DISCLOSURE_COPY: Record<
+  LegalContentLocale,
+  Omit<SellerDisclosure, 'pending'>
+> = {
+  ja: {
+    name: '販売者名確認中（確定後に掲載します）',
+    address: '所在地確認中（確定後に掲載します）',
+    phone: '電話番号確認中（確定後に掲載します）',
+    responsiblePerson: '責任者確認中（確定後に掲載します）',
+    supportEmail: '現在準備中です。確定後に掲載します',
+  },
+  en: {
+    name: 'Seller name pending confirmation',
+    address: 'Seller address pending confirmation',
+    phone: 'Seller phone pending confirmation',
+    responsiblePerson: 'Responsible person pending confirmation',
+    supportEmail: 'Support email pending confirmation',
+  },
+  'zh-TW': {
+    name: '販售者名稱確認中（確定後公布）',
+    address: '地址確認中（確定後公布）',
+    phone: '電話確認中（確定後公布）',
+    responsiblePerson: '負責人確認中（確定後公布）',
+    supportEmail: '準備中，確定後公布',
+  },
+}
+
+/** Return locale-specific pending copy, or the real seller fields when ready. */
+export function sellerDisclosureFor(
+  locale: LegalContentLocale,
+  seller: SellerDisclosure = SELLER_DISCLOSURE,
+): SellerDisclosure {
+  return seller.pending
+    ? { ...PENDING_SELLER_DISCLOSURE_COPY[locale], pending: true }
+    : seller
 }

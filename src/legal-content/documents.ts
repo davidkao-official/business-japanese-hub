@@ -8,7 +8,7 @@
  * legal text — the actual text is gated on professional legal review (§8).
  */
 
-import { SELLER_DISCLOSURE, type LegalDocument } from './model.ts'
+import { sellerDisclosureFor, type LegalDocument } from './model.ts'
 
 export const TERMS_DOCUMENT: LegalDocument = {
   id: 'terms',
@@ -62,7 +62,7 @@ export const TERMS_DOCUMENT: LegalDocument = {
       {
         heading: 'お問い合わせ窓口',
         paragraphs: [
-          `本規約に関するお問い合わせ先：${SELLER_DISCLOSURE.supportEmail}。`,
+          `本規約に関するお問い合わせ先：${sellerDisclosureFor('ja').supportEmail}。`,
         ],
       },
       {
@@ -113,7 +113,7 @@ export const TERMS_DOCUMENT: LegalDocument = {
       {
         heading: 'Contact',
         paragraphs: [
-          `For questions about these terms, contact ${SELLER_DISCLOSURE.supportEmail}.`,
+          `For questions about these terms, contact ${sellerDisclosureFor('en').supportEmail}.`,
         ],
       },
       {
@@ -164,7 +164,7 @@ export const TERMS_DOCUMENT: LegalDocument = {
       {
         heading: '聯絡窗口',
         paragraphs: [
-          `如對本條款有任何疑問，請聯絡 ${SELLER_DISCLOSURE.supportEmail}。`,
+          `如對本條款有任何疑問，請聯絡 ${sellerDisclosureFor('zh-TW').supportEmail}。`,
         ],
       },
       {
@@ -218,7 +218,7 @@ export const PRIVACY_DOCUMENT: LegalDocument = {
       {
         heading: 'お問い合わせ・苦情窓口',
         paragraphs: [
-          `個人情報の取扱いに関するお問い合わせ・苦情先：${SELLER_DISCLOSURE.supportEmail}。`,
+          `個人情報の取扱いに関するお問い合わせ・苦情先：${sellerDisclosureFor('ja').supportEmail}。`,
         ],
       },
       {
@@ -257,7 +257,7 @@ export const PRIVACY_DOCUMENT: LegalDocument = {
       {
         heading: 'Contact and complaints',
         paragraphs: [
-          `For questions or complaints about personal information, contact ${SELLER_DISCLOSURE.supportEmail}.`,
+          `For questions or complaints about personal information, contact ${sellerDisclosureFor('en').supportEmail}.`,
         ],
       },
       {
@@ -296,7 +296,7 @@ export const PRIVACY_DOCUMENT: LegalDocument = {
       {
         heading: '聯絡與申訴窗口',
         paragraphs: [
-          `如對個人資料之處理有任何疑問或申訴，請聯絡 ${SELLER_DISCLOSURE.supportEmail}。`,
+          `如對個人資料之處理有任何疑問或申訴，請聯絡 ${sellerDisclosureFor('zh-TW').supportEmail}。`,
         ],
       },
       {
@@ -327,7 +327,7 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
         id: 'jp-tokushoho-seller-disclosure',
         heading: '販売者',
         paragraphs: [
-          `販売者名：${SELLER_DISCLOSURE.name}。所在地：${SELLER_DISCLOSURE.address}。電話番号：${SELLER_DISCLOSURE.phone}。通信販売業務責任者：${SELLER_DISCLOSURE.responsiblePerson}。お問い合わせ：${SELLER_DISCLOSURE.supportEmail}。`,
+          `販売者名：${sellerDisclosureFor('ja').name}。所在地：${sellerDisclosureFor('ja').address}。電話番号：${sellerDisclosureFor('ja').phone}。通信販売業務責任者：${sellerDisclosureFor('ja').responsiblePerson}。お問い合わせ：${sellerDisclosureFor('ja').supportEmail}。`,
         ],
       },
       {
@@ -357,7 +357,7 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
       {
         heading: 'お問い合わせ窓口',
         paragraphs: [
-          `商品・注文・返品に関するお問い合わせ先：${SELLER_DISCLOSURE.supportEmail}。`,
+          `商品・注文・返品に関するお問い合わせ先：${sellerDisclosureFor('ja').supportEmail}。`,
         ],
       },
       {
@@ -373,7 +373,7 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
         id: 'jp-tokushoho-seller-disclosure',
         heading: 'Seller',
         paragraphs: [
-          `Seller: ${SELLER_DISCLOSURE.name}. Address: ${SELLER_DISCLOSURE.address}. Phone: ${SELLER_DISCLOSURE.phone}. Responsible person: ${SELLER_DISCLOSURE.responsiblePerson}. Support: ${SELLER_DISCLOSURE.supportEmail}.`,
+          `Seller: ${sellerDisclosureFor('en').name}. Address: ${sellerDisclosureFor('en').address}. Phone: ${sellerDisclosureFor('en').phone}. Responsible person: ${sellerDisclosureFor('en').responsiblePerson}. Support: ${sellerDisclosureFor('en').supportEmail}.`,
         ],
       },
       {
@@ -403,7 +403,7 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
       {
         heading: 'Contact',
         paragraphs: [
-          `For questions about products, orders, or returns, contact ${SELLER_DISCLOSURE.supportEmail}.`,
+          `For questions about products, orders, or returns, contact ${sellerDisclosureFor('en').supportEmail}.`,
         ],
       },
       {
@@ -419,7 +419,7 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
         id: 'jp-tokushoho-seller-disclosure',
         heading: '販售者',
         paragraphs: [
-          `販售者：${SELLER_DISCLOSURE.name}。地址：${SELLER_DISCLOSURE.address}。電話：${SELLER_DISCLOSURE.phone}。通信販賣業務負責人：${SELLER_DISCLOSURE.responsiblePerson}。客服：${SELLER_DISCLOSURE.supportEmail}。`,
+          `販售者：${sellerDisclosureFor('zh-TW').name}。地址：${sellerDisclosureFor('zh-TW').address}。電話：${sellerDisclosureFor('zh-TW').phone}。通信販賣業務負責人：${sellerDisclosureFor('zh-TW').responsiblePerson}。客服：${sellerDisclosureFor('zh-TW').supportEmail}。`,
         ],
       },
       {
@@ -449,7 +449,7 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
       {
         heading: '聯絡窗口',
         paragraphs: [
-          `如對商品、訂單或退貨有任何疑問，請聯絡 ${SELLER_DISCLOSURE.supportEmail}。`,
+          `如對商品、訂單或退貨有任何疑問，請聯絡 ${sellerDisclosureFor('zh-TW').supportEmail}。`,
         ],
       },
       {
@@ -504,7 +504,7 @@ export const REFUNDS_DOCUMENT: LegalDocument = {
       {
         heading: 'お問い合わせ窓口',
         paragraphs: [
-          `返品・返金に関するお問い合わせ先：${SELLER_DISCLOSURE.supportEmail}。`,
+          `返品・返金に関するお問い合わせ先：${sellerDisclosureFor('ja').supportEmail}。`,
         ],
       },
       {
@@ -543,7 +543,7 @@ export const REFUNDS_DOCUMENT: LegalDocument = {
       {
         heading: 'Contact',
         paragraphs: [
-          `For questions about returns and refunds, contact ${SELLER_DISCLOSURE.supportEmail}.`,
+          `For questions about returns and refunds, contact ${sellerDisclosureFor('en').supportEmail}.`,
         ],
       },
       {
@@ -588,7 +588,7 @@ export const REFUNDS_DOCUMENT: LegalDocument = {
       {
         heading: '聯絡窗口',
         paragraphs: [
-          `如對退貨退款有任何疑問，請聯絡 ${SELLER_DISCLOSURE.supportEmail}。`,
+          `如對退貨退款有任何疑問，請聯絡 ${sellerDisclosureFor('zh-TW').supportEmail}。`,
         ],
       },
       {

@@ -5,7 +5,7 @@
  * (seller) disclosure placeholder to the rest of the app.
  */
 
-export { SELLER_DISCLOSURE } from './model.ts'
+export { SELLER_DISCLOSURE, sellerDisclosureFor } from './model.ts'
 export { LEGAL_CONTENT_LOCALES } from './model.ts'
 export type {
   LegalContentLocale,

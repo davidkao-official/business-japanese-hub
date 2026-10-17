@@ -5,6 +5,7 @@ import {
   listLegalDocuments,
   requireLegalDocumentBySlug,
   SELLER_DISCLOSURE,
+  sellerDisclosureFor,
   isPaidLaunchLegalReady,
 } from './index'
 import { LEGAL_DOCUMENTS } from './documents'
@@ -93,17 +94,49 @@ describe('legal content', () => {
     expect(SELLER_DISCLOSURE.phone.trim()).not.toBe('')
     expect(SELLER_DISCLOSURE.responsiblePerson.trim()).not.toBe('')
     expect(SELLER_DISCLOSURE.supportEmail.trim()).not.toBe('')
-    expect(SELLER_DISCLOSURE.name).toBe('販売者名確認中（確定後に掲載します）')
-    expect(SELLER_DISCLOSURE.supportEmail).toBe('現在準備中です。確定後に掲載します')
+    expect(SELLER_DISCLOSURE).toEqual({
+      name: 'Seller name pending confirmation',
+      address: 'Seller address pending confirmation',
+      phone: 'Seller phone pending confirmation',
+      responsiblePerson: 'Responsible person pending confirmation',
+      supportEmail: 'Support email pending confirmation',
+      pending: true,
+    })
+    expect(sellerDisclosureFor('ja')).toEqual({
+      name: '販売者名確認中（確定後に掲載します）',
+      address: '所在地確認中（確定後に掲載します）',
+      phone: '電話番号確認中（確定後に掲載します）',
+      responsiblePerson: '責任者確認中（確定後に掲載します）',
+      supportEmail: '現在準備中です。確定後に掲載します',
+      pending: true,
+    })
     expect(isPaidLaunchLegalReady()).toBe(false)
   })
 
-  it('keeps Japanese legal contact instructions truthful while seller details are pending', () => {
-    for (const slug of ['terms', 'privacy', 'tokushoho', 'refunds']) {
-      const document = requireLegalDocumentBySlug(slug)
-      const japaneseBody = document.bodies.ja.map((section) => section.paragraphs.join('\n')).join('\n')
-      expect(japaneseBody).toContain('現在準備中です。確定後に掲載します。')
-      expect(japaneseBody).not.toMatch(/pending confirmation|mailto:/i)
+  it('keeps pending seller text isolated to each legal locale', () => {
+    for (const document of LEGAL_DOCUMENTS) {
+      for (const locale of LEGAL_CONTENT_LOCALES) {
+        const body = document.bodies[locale].map((section) => section.paragraphs.join('\n')).join('\n')
+        const ownDisclosure = sellerDisclosureFor(locale)
+        expect(body).toContain(ownDisclosure.supportEmail)
+        if (document.slug === 'tokushoho') {
+          expect(body).toContain(ownDisclosure.name)
+          expect(body).toContain(ownDisclosure.address)
+          expect(body).toContain(ownDisclosure.phone)
+          expect(body).toContain(ownDisclosure.responsiblePerson)
+        }
+        for (const otherLocale of LEGAL_CONTENT_LOCALES.filter((candidate) => candidate !== locale)) {
+          const otherDisclosure = sellerDisclosureFor(otherLocale)
+          expect(body).not.toContain(otherDisclosure.supportEmail)
+          if (document.slug === 'tokushoho') {
+            expect(body).not.toContain(otherDisclosure.name)
+            expect(body).not.toContain(otherDisclosure.address)
+            expect(body).not.toContain(otherDisclosure.phone)
+            expect(body).not.toContain(otherDisclosure.responsiblePerson)
+          }
+        }
+        expect(body).not.toMatch(/mailto:/i)
+      }
     }
     expect(SELLER_DISCLOSURE.pending).toBe(true)
     expect(isPaidLaunchLegalReady()).toBe(false)
@@ -116,12 +149,27 @@ describe('legal content', () => {
         (section) => section.id === 'jp-tokushoho-seller-disclosure',
       )
       const disclosure = sellerSection?.paragraphs.join('\n') ?? ''
-      expect(disclosure).toContain(SELLER_DISCLOSURE.name)
-      expect(disclosure).toContain(SELLER_DISCLOSURE.address)
-      expect(disclosure).toContain(SELLER_DISCLOSURE.phone)
-      expect(disclosure).toContain(SELLER_DISCLOSURE.responsiblePerson)
-      expect(disclosure).toContain(SELLER_DISCLOSURE.supportEmail)
+      const seller = sellerDisclosureFor(locale)
+      expect(disclosure).toContain(seller.name)
+      expect(disclosure).toContain(seller.address)
+      expect(disclosure).toContain(seller.phone)
+      expect(disclosure).toContain(seller.responsiblePerson)
+      expect(disclosure).toContain(seller.supportEmail)
     }
+  })
+
+  it('returns real seller fields unchanged after confirmation', () => {
+    const realSeller = {
+      name: 'Example Seller LLC',
+      address: '1 Example Street',
+      phone: '+1-555-0100',
+      responsiblePerson: 'Example Person',
+      supportEmail: 'support@example.com',
+      pending: false,
+    }
+    expect(sellerDisclosureFor('ja', realSeller)).toBe(realSeller)
+    expect(sellerDisclosureFor('en', realSeller)).toBe(realSeller)
+    expect(sellerDisclosureFor('zh-TW', realSeller)).toBe(realSeller)
   })
 
   it('cannot become launch-ready while reviewed-document placeholder notes remain', () => {
@@ -140,13 +188,6 @@ describe('legal content', () => {
 
     expect(isPaidLaunchLegalReady(liveDocuments, completeSeller)).toBe(false)
 
-    const replacements = [
-      [SELLER_DISCLOSURE.name, completeSeller.name],
-      [SELLER_DISCLOSURE.address, completeSeller.address],
-      [SELLER_DISCLOSURE.phone, completeSeller.phone],
-      [SELLER_DISCLOSURE.responsiblePerson, completeSeller.responsiblePerson],
-      [SELLER_DISCLOSURE.supportEmail, completeSeller.supportEmail],
-    ] as const
     const reviewedDocuments = liveDocuments.map((document) => ({
       ...document,
       bodies: Object.fromEntries(
@@ -157,7 +198,13 @@ describe('legal content', () => {
             .map((section) => ({
               ...section,
               paragraphs: section.paragraphs.map((paragraph) =>
-                replacements.reduce(
+                [
+                  [sellerDisclosureFor(locale).name, completeSeller.name],
+                  [sellerDisclosureFor(locale).address, completeSeller.address],
+                  [sellerDisclosureFor(locale).phone, completeSeller.phone],
+                  [sellerDisclosureFor(locale).responsiblePerson, completeSeller.responsiblePerson],
+                  [sellerDisclosureFor(locale).supportEmail, completeSeller.supportEmail],
+                ].reduce(
                   (result, [before, after]) => result.replaceAll(before, after),
                   paragraph,
                 ),
