@@ -104,6 +104,13 @@ describe('book detail — paid CTA state matrix (§8.3)', () => {
 })
 
 describe('book detail — free Prototype', () => {
+  it('shows Japanese as a display name in book metadata', async () => {
+    renderBook('email-manners')
+
+    await waitFor(() => expect(screen.getByText('日本語')).toBeInTheDocument())
+    expect(screen.queryByText('ja')).not.toBeInTheDocument()
+  })
+
   it('free tier shows 無料 and a free-reading CTA, never a purchase affordance', async () => {
     renderBook('email-manners')
 

@@ -13,10 +13,10 @@
  * a resolved `taxable` snapshot labels the total 税込 (the server amount already
  * reflects the authoritative total).
  */
-import { useStrings } from '../i18n/strings';
+import { useLocale, useStrings } from '../i18n/strings';
 import type { OrderStatusResponse } from '../lib/payments/contract';
 import { isJapanTaxResolved, japanTaxRateFor } from '../lib/payments/tax-config';
-import { SELLER_DISCLOSURE } from '../legal-content';
+import { legalContentLocaleFor, sellerDisclosureFor } from '../legal-content';
 
 /** Canonical Money → localized display (JPY is zero-decimal; others minor/100). */
 export function formatOrderAmount(money: OrderStatusResponse['amount']): string {
@@ -47,6 +47,7 @@ export function isJapanTaxInclusive(order: OrderStatusResponse): boolean {
 
 export function OrderReceipt({ order }: { order: OrderStatusResponse }) {
   const strings = useStrings();
+  const sellerDisclosure = sellerDisclosureFor(legalContentLocaleFor(useLocale()));
   const isRefunded = order.status === 'refunded' || order.deliveryStatus === 'revoked';
   if (order.status !== 'paid' && !isRefunded) return null;
   const paymentMethod = order.paymentProvider?.toLowerCase() === 'paypal'
@@ -107,9 +108,13 @@ export function OrderReceipt({ order }: { order: OrderStatusResponse }) {
         </p>
         <p>
           <strong>{strings.purchaseResult.supportLabel}</strong>{' '}
-          <a href={`mailto:${SELLER_DISCLOSURE.supportEmail}`}>
-            {SELLER_DISCLOSURE.supportEmail}
-          </a>
+          {sellerDisclosure.pending ? (
+            <span>{sellerDisclosure.supportEmail}</span>
+          ) : (
+            <a href={`mailto:${sellerDisclosure.supportEmail}`}>
+              {sellerDisclosure.supportEmail}
+            </a>
+          )}
         </p>
       </div>
     </section>

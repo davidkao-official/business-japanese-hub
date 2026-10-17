@@ -7,10 +7,41 @@
  * change cannot rewrite a historical order's snapshot.
  */
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { JapanConsumptionTaxStatus, Jurisdiction, OrderStatusResponse } from '../lib/payments/contract';
 import { isJapanTaxInclusive, OrderReceipt } from './OrderReceipt';
-import { SELLER_DISCLOSURE } from '../legal-content';
+import { sellerDisclosureFor } from '../legal-content';
+import { setLocalePreference } from '../i18n/strings';
+
+const sellerDisclosureState = vi.hoisted(() => ({ pending: true }));
+
+// Exercise dormant legal/UI locales here without changing the app's V1 locale gate.
+vi.mock('../i18n/locales', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../i18n/locales')>();
+  return { ...actual, LAUNCHED_LOCALES: actual.SUPPORTED_LOCALES };
+});
+
+vi.mock('../legal-content', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../legal-content')>();
+  const confirmedSeller = {
+    name: 'Example Seller LLC',
+    address: '1 Example Street',
+    phone: '+1-555-0100',
+    responsiblePerson: 'Example Person',
+    supportEmail: 'support@example.com',
+    pending: false,
+  };
+  return {
+    ...actual,
+    sellerDisclosureFor: (locale: Parameters<typeof actual.sellerDisclosureFor>[0]) =>
+      actual.sellerDisclosureFor(locale, sellerDisclosureState.pending ? undefined : confirmedSeller),
+  };
+});
+
+afterEach(() => {
+  sellerDisclosureState.pending = true;
+  setLocalePreference(null);
+});
 
 function order(
   overrides: {
@@ -136,9 +167,27 @@ describe('OrderReceipt — renders from the server snapshot', () => {
       'href',
       '/legal/refunds',
     );
-    expect(screen.getByRole('link', { name: SELLER_DISCLOSURE.supportEmail })).toHaveAttribute(
+    expect(screen.getByText(sellerDisclosureFor('ja').supportEmail)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: sellerDisclosureFor('ja').supportEmail })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['en', 'Support email pending confirmation'],
+    ['zh-TW', '準備中，確定後公布'],
+    ['zh-CN', '準備中，確定後公布'],
+  ] as const)('shows pending support text in the %s legal locale without a mail link', (locale, text) => {
+    setLocalePreference(locale);
+    render(<OrderReceipt order={order()} />);
+    expect(screen.getByText(text)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: text })).not.toBeInTheDocument();
+  });
+
+  it('links the confirmed support email when seller details are no longer pending', () => {
+    sellerDisclosureState.pending = false;
+    render(<OrderReceipt order={order()} />);
+    expect(screen.getByRole('link', { name: 'support@example.com' })).toHaveAttribute(
       'href',
-      `mailto:${SELLER_DISCLOSURE.supportEmail}`,
+      'mailto:support@example.com',
     );
   });
 

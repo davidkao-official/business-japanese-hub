@@ -401,6 +401,8 @@ function PublicProfiles() {
 }
 
 function PublicProfileBlock({ id, profile }: { id: string; profile: PublicProfile }) {
+  const strings = useStrings()
+  const locale = useLocale()
   return (
     <article className="page" aria-labelledby={id} lang={profile.language}>
       <h2 className="section-title" id={id}>
@@ -413,7 +415,7 @@ function PublicProfileBlock({ id, profile }: { id: string; profile: PublicProfil
       </ul>
       {profile.languages && (
         <p className="public-profile__languages">
-          <strong lang="en">Languages</strong>
+          <strong lang={locale}>{strings.learningUi.aboutLanguagesLabel}</strong>
           <br />
           {profile.languages.map((language, index) => (
             <span key={language.label}>
