@@ -1,0 +1,52 @@
+/* Independent text controls share the house touch target (§10 / D28).
+ * Keep the extra area transparent, and in flow so adjacent targets cannot
+ * overlap. Prose links and inline note triggers deliberately stay out. Load
+ * after surface styles so their inline/block defaults cannot shrink targets.
+ */
+.reader-topbar__back,
+.site-footer__brand,
+.site-footer__legal-list a,
+.workplace-learn__browse-links a,
+.workplace-learn__section-heading > a,
+.workplace-learn__item h3 a,
+.workplace-learn__read-link,
+.workplace-learn__back,
+.workplace-learn__related a,
+.workplace-learn__body li > a,
+.reading-card h3 a,
+.reading-card__action,
+.reading-back,
+.reading-related a,
+.reading-books__links a,
+.reading-source dd > a,
+.appearance-control__option {
+  display: inline-flex;
+  align-items: center;
+  min-inline-size: var(--control-min-h);
+  min-block-size: var(--control-min-h);
+}
+
+.reader-topbar__back {
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+/* The label owns the transparent target; keep its visible segment compact. */
+.appearance-control__option {
+  display: grid;
+  align-items: center;
+}
+
+/* Keep a small separation between wrapped targets, including WebKit edge
+ * hit-testing, without adding the old text-row gap to every 44px row. */
+.site-footer__legal-list {
+  row-gap: var(--space-1);
+}
+
+/* Up to 52rem the card's 12px row gap cannot absorb its -16px summary margin:
+ * that paragraph would cover the bottom of the title link's target. */
+@media (max-width: 52rem) {
+  .reading-card > p {
+    margin-block-start: 0;
+  }
+}

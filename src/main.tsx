@@ -13,6 +13,7 @@ import './styles/reading.css'
 import './styles/spi-explainer.css'
 import './styles/plus.css'
 import './styles/home-concept-c.css'
+import './styles/standalone-controls.css'
 
 const root = document.getElementById('root')
 
