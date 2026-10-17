@@ -621,8 +621,8 @@
   overflow-wrap: anywhere;
 }
 
-/* em follows the reader's browser text size, so enlarged text also stacks label over value. */
-@media (max-width: 30em) {
+/* Narrow tier (<600px, design-system §11). Media-query rem follows the browser text size, so enlarged text stacks too. */
+@media (max-width: 37.49rem) {
   .book-metadata {
     grid-template-columns: minmax(0, 1fr);
     row-gap: var(--space-1);
