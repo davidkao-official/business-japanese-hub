@@ -30,6 +30,12 @@
   gap: var(--space-3);
 }
 
+/* A purchase CTA can carry its status note below the button; align the row's
+ * controls by their top edge so sibling buttons stay level with it. */
+.cta-row:has(> .purchase-cta) {
+  align-items: flex-start;
+}
+
 .btn {
   display: inline-flex;
   flex-shrink: 0;
