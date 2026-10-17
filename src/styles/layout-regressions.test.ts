@@ -98,3 +98,10 @@ describe('bounded layout and typography regressions', () => {
     })
   })
 })
+
+describe('purchase CTA rows', () => {
+  it('top-aligns CTA rows that hold a purchase CTA so its status note cannot push siblings down', () => {
+    const shop = readStyle('shop.css')
+    expect(shop).toMatch(/\.cta-row:has\(> \.purchase-cta\)\s*\{\s*align-items:\s*flex-start;\s*\}/)
+  })
+})

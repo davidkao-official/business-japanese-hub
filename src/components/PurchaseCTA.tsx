@@ -16,7 +16,7 @@
  *     before any executor call. Proceeding after viewing them records the same
  *     displayed snapshots in order_compliance; no TW-style checkbox is used.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Book } from '../content/types'
 import { useLocale, useStrings } from '../i18n/strings'
@@ -63,6 +63,8 @@ export function PurchaseCTA({
 }: PurchaseCTAProps) {
   const strings = useStrings()
   const locale = useLocale()
+  const unavailableMessageId = useId()
+  const legalReady = isPaidLaunchLegalReady()
   const { user, loading: authLoading } = useAuth()
   const { execute } = usePurchase()
   const [declared, setDeclared] = useState<ResolvedJurisdiction | 'unresolved'>('unresolved')
@@ -353,14 +355,15 @@ export function PurchaseCTA({
           type="button"
           className="btn btn--primary"
           onClick={onPrimaryClick}
-          disabled={phase === 'pending' || authLoading}
+          disabled={!legalReady || phase === 'pending' || authLoading}
+          aria-describedby={!legalReady || phase === 'unavailable' ? unavailableMessageId : undefined}
         >
-          {phase === 'pending' || authLoading ? strings.book.pending : label}
+          {phase === 'pending' || (authLoading && legalReady) ? strings.book.pending : label}
         </button>
       )}
 
-      {phase === 'unavailable' && (
-        <span className="purchase-cta__note" role="status">
+      {(!legalReady || phase === 'unavailable') && (
+        <span id={unavailableMessageId} className="purchase-cta__note" role="status">
           {strings.book.purchaseUnavailable}
         </span>
       )}

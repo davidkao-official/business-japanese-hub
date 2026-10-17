@@ -30,6 +30,12 @@
   gap: var(--space-3);
 }
 
+/* A purchase CTA can carry its status note below the button; align the row's
+ * controls by their top edge so sibling buttons stay level with it. */
+.cta-row:has(> .purchase-cta) {
+  align-items: flex-start;
+}
+
 .btn {
   display: inline-flex;
   flex-shrink: 0;
@@ -235,9 +241,20 @@
   gap: var(--space-2);
 }
 
+/* Keep the protected disabled recipe above the editorial primary/hover styles. */
+.purchase-cta .btn.btn--primary:disabled {
+  border-color: var(--role-border-subtle);
+  background: var(--role-surface-inset);
+  color: var(--state-disabled-fg);
+}
+
 .purchase-cta__note {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
+}
+
+.purchase-cta__note--reserve {
+  visibility: hidden;
 }
 
 /* ---------------------------------------------------------------

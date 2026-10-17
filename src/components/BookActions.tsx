@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'
 import type { Book } from '../content/types'
 import { useStrings } from '../i18n/strings'
 import type { BookCtaState } from '../lib/bookAccess'
+import { isPaidLaunchLegalReady } from '../legal-content'
 import { PreviewCTA } from './PreviewCTA'
 import { PurchaseCTA } from './PurchaseCTA'
 
@@ -44,8 +45,18 @@ export function BookActions({
     switch (cta.primary) {
       case 'purchase':
         return loading ? (
-          <span key="primary" className="btn btn--pending" role="status">
-            {strings.book.pending}
+          // While the legal launch gate is closed the resolved CTA carries a
+          // status note under the button; reserve that line so the page does
+          // not shift when ownership resolves.
+          <span key="primary" className="purchase-cta">
+            <span className="btn btn--pending" role="status">
+              {strings.book.pending}
+            </span>
+            {!isPaidLaunchLegalReady() && (
+              <span className="purchase-cta__note purchase-cta__note--reserve" aria-hidden="true">
+                {strings.book.purchaseUnavailable}
+              </span>
+            )}
           </span>
         ) : (
           <PurchaseCTA book={book} key="primary" />
