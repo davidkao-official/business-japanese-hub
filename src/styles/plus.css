@@ -310,12 +310,12 @@
   }
 }
 
-.site-nav__link--membership {
+.site-header__tools .site-nav__link--membership {
   border: var(--stroke-thin) solid var(--color-border-strong);
   color: var(--color-text);
 }
 
-.site-nav__link--membership:hover {
+.site-header__tools .site-nav__link--membership:hover {
   border-color: var(--color-accent);
   background: var(--color-accent-soft);
 }
