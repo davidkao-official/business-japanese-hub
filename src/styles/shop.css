@@ -559,6 +559,13 @@
   flex-basis: 100%;
 }
 
+/* Reader text sizes scale these labels; let them wrap instead of overflowing narrow columns. */
+.book-access-notice .cta-row > .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
 .book-access-notice .account-control__panel {
   position: static;
   width: min(var(--measure-reading), 100%);
