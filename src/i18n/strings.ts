@@ -140,6 +140,7 @@ export interface AppStrings {
       startLearning: string
       aboutPlatform: string
       visualLabel: string
+      visualKicker?: string
       visualTitle: string
       visualBody: string
       journeyTitle: string
@@ -155,6 +156,13 @@ export interface AppStrings {
     samplesTitle: string
     selectionsLabel: string
     selectionsTitle: string
+    // Dormant locales retain the original editorial labels until localized.
+    editorialLabels?: {
+      features: Record<'BOOK' | 'CHAPTER' | 'EXPRESSION', string>
+      kinds: Record<'dialogue' | 'vocabulary' | 'example', string>
+      meaning: string
+      note: string
+    }
   }
   plus: {
     eyebrow: string
@@ -454,7 +462,7 @@ const ja: AppStrings = {
     explanation: '読み解き', vocabulary: '語彙', logic: '論点の流れ', businessContext: 'ビジネスの背景',
     davidCommentary: 'David の視点', booksTitle: '書籍と長文を読む',
     booksBody: '長いテーマを順に読み進めたい方は、書籍をご利用ください。',
-    browseBooks: 'マイライブラリ', openReader: '本文を読む', openArticle: '記事を読む', free: 'Free', plus: 'Plus',
+    browseBooks: 'マイライブラリ', openReader: '本文を読む', openArticle: '記事を読む', free: '無料', plus: 'Plus',
     sampleLabel: 'オリジナル教材サンプル', notDated: '公開日なし',
     backToRead: '記事一覧へ戻る', unavailable: '記事を読み込めませんでした。時間をおいて再度お試しください。',
     saveLabel: '保存した記事', saveSignIn: '保存するにはログインしてください。', savePlusRequired: '記事の保存は Plus 会員向けです。',
@@ -506,7 +514,7 @@ const ja: AppStrings = {
   },
   storefront: {
     catalog: 'すべての書籍',
-    bookLabel: 'BOOK',
+    bookLabel: '書籍',
     viewDetails: '詳細を見る',
     featured: '注目の一冊',
     free: '無料',
@@ -530,7 +538,8 @@ const ja: AppStrings = {
       trySpiSample: 'SPI 無料サンプルを解く',
       sampleSupport: 'ログイン不要・日本語の解説つき',
       aboutPlatform: 'サービスについて',
-      visualLabel: 'JAPANESE AT WORK',
+      visualLabel: '仕事の日本語',
+      visualKicker: 'ビジネス・文脈・言葉',
       visualTitle: '読む。考える。伝える。',
       visualBody: '仕事の文脈から、次に使える日本語を学ぶ。',
       journeyTitle: '仕事につながる学びの道筋',
@@ -542,10 +551,10 @@ const ja: AppStrings = {
       ],
       pillarsTitle: '日本で働くための日本語を、4つの力から。',
       pillars: [
-        { title: 'Business Reading', body: '公開中の日本語資料を読み、企業や商業の文脈をつかむ。' },
-        { title: 'Professional Vocabulary', body: '仕事や社会で使われる語彙を、実際の文脈とともに知る。' },
-        { title: 'Japan Literacy', body: '日本の職場、産業、ビジネス社会への理解を深める。' },
-        { title: 'Business Discussion', body: '相手に伝わる表現を考え、仕事の対話へつなげる。' },
+        { title: 'ビジネス資料の読解', body: '公開中の日本語資料を読み、企業や商業の文脈をつかむ。' },
+        { title: '仕事の語彙', body: '仕事や社会で使われる語彙を、実際の文脈とともに知る。' },
+        { title: '日本社会の理解', body: '日本の職場、産業、ビジネス社会への理解を深める。' },
+        { title: 'ビジネスの対話', body: '相手に伝わる表現を考え、仕事の対話へつなげる。' },
       ],
       valueTitle: '試験の先へ。日本語を仕事で生かす力に。',
       valueBody: '日本での就職準備、ビジネス資料の読解、入社後の職場への適応まで。実際の仕事の流れに沿って、日本語を学び続けられます。',
@@ -556,6 +565,12 @@ const ja: AppStrings = {
     samplesTitle: '実際の文章と会話から学ぶ',
     selectionsLabel: '書籍からの選書',
     selectionsTitle: '公開中の書籍から、読む場所を選ぶ',
+    editorialLabels: {
+      features: { BOOK: '書籍', CHAPTER: '章', EXPRESSION: '表現' },
+      kinds: { dialogue: '会話', vocabulary: '語彙', example: '例文' },
+      meaning: '意味',
+      note: '解説',
+    },
   },
   plus: {
     eyebrow: 'MEMBERSHIP',
@@ -588,8 +603,8 @@ const ja: AppStrings = {
     accessBody: '会員資格を確認してから Plus の対象教材を表示します。確認できない場合は、時間をおいて再度お試しください。',
     previewTitle: 'Plus の提供予定内容',
     previewBody: 'ここに表示する領域は、Plus で提供予定の内容です。会員向け教材は準備中です。公開中の Read と職場の日本語は、架空のオリジナル教材サンプルです。',
-    freeLabel: 'FREE',
-    plusLabel: 'PLUS',
+    freeLabel: '無料',
+    plusLabel: 'Plus',
     freeAction: '無料の学習を始める',
     memberAction: '学習記録を見る',
     states: {

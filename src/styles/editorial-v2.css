@@ -1160,6 +1160,15 @@
   margin: 0;
 }
 
+.storefront-section-heading__label:lang(ja),
+.storefront-feature__label:lang(ja),
+.storefront-sample__kind:lang(ja),
+.storefront-sample__tier-label:lang(ja) {
+  font-family: var(--font-sans);
+  letter-spacing: var(--tracking-normal);
+  text-transform: none;
+}
+
 .storefront-section-heading h2 {
   max-width: var(--measure-reading);
   margin: 0;
