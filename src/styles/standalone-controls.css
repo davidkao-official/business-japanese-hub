@@ -43,9 +43,9 @@
   row-gap: var(--space-1);
 }
 
-/* The narrow card's 12px row gap cannot absorb its old -16px summary margin:
+/* Up to 52rem the card's 12px row gap cannot absorb its -16px summary margin:
  * that paragraph would cover the bottom of the title link's target. */
-@media (max-width: 38rem) {
+@media (max-width: 52rem) {
   .reading-card > p {
     margin-block-start: 0;
   }

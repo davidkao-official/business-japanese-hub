@@ -165,10 +165,10 @@ describe('standalone control targets', () => {
     })
   })
 
-  it('keeps the narrow Read summary from covering the title target', () => {
+  it('keeps the stacked Read summary from covering the title target', () => {
     withRules((_rules, finalStyleRules) => {
       const narrow = finalStyleRules.find((rule) => rule instanceof CSSMediaRule
-        && rule.conditionText === '(max-width: 38rem)') as CSSMediaRule
+        && rule.conditionText === '(max-width: 52rem)') as CSSMediaRule
       expect(narrow).toBeInstanceOf(CSSMediaRule)
       expect(declarations(Array.from(narrow.cssRules), '.reading-card > p').get('margin-block-start'))
         .toMatch(/^0(?:px)?$/)
