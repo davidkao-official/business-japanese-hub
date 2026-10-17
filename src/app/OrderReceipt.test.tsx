@@ -136,10 +136,8 @@ describe('OrderReceipt — renders from the server snapshot', () => {
       'href',
       '/legal/refunds',
     );
-    expect(screen.getByRole('link', { name: SELLER_DISCLOSURE.supportEmail })).toHaveAttribute(
-      'href',
-      `mailto:${SELLER_DISCLOSURE.supportEmail}`,
-    );
+    expect(screen.getByText(SELLER_DISCLOSURE.supportEmail)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: SELLER_DISCLOSURE.supportEmail })).not.toBeInTheDocument();
   });
 
   it('renders refunded and revoked delivery instead of completed access', () => {

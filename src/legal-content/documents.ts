@@ -62,7 +62,7 @@ export const TERMS_DOCUMENT: LegalDocument = {
       {
         heading: 'お問い合わせ窓口',
         paragraphs: [
-          `本規約に関するお問い合わせは ${SELLER_DISCLOSURE.supportEmail} までご連絡ください。`,
+          `本規約に関するお問い合わせ先：${SELLER_DISCLOSURE.supportEmail}。`,
         ],
       },
       {
@@ -218,7 +218,7 @@ export const PRIVACY_DOCUMENT: LegalDocument = {
       {
         heading: 'お問い合わせ・苦情窓口',
         paragraphs: [
-          `個人情報の取扱いに関するお問い合わせ・苦情は ${SELLER_DISCLOSURE.supportEmail} までご連絡ください。`,
+          `個人情報の取扱いに関するお問い合わせ・苦情先：${SELLER_DISCLOSURE.supportEmail}。`,
         ],
       },
       {
@@ -357,7 +357,7 @@ export const TOKUSHOHO_DOCUMENT: LegalDocument = {
       {
         heading: 'お問い合わせ窓口',
         paragraphs: [
-          `商品・注文・返品に関するお問い合わせは ${SELLER_DISCLOSURE.supportEmail} までご連絡ください。`,
+          `商品・注文・返品に関するお問い合わせ先：${SELLER_DISCLOSURE.supportEmail}。`,
         ],
       },
       {
@@ -504,7 +504,7 @@ export const REFUNDS_DOCUMENT: LegalDocument = {
       {
         heading: 'お問い合わせ窓口',
         paragraphs: [
-          `返品・返金に関するお問い合わせは ${SELLER_DISCLOSURE.supportEmail} までご連絡ください。`,
+          `返品・返金に関するお問い合わせ先：${SELLER_DISCLOSURE.supportEmail}。`,
         ],
       },
       {

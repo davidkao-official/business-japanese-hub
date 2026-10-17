@@ -445,7 +445,7 @@ const ja: AppStrings = {
     explanation: '読み解き', vocabulary: '語彙', logic: '論点の流れ', businessContext: 'ビジネスの背景',
     davidCommentary: 'David の視点', booksTitle: '書籍と長文を読む',
     booksBody: '長いテーマを順に読み進めたい方は、書籍をご利用ください。',
-    browseBooks: '書籍一覧を見る', openReader: '本文を読む', openArticle: '記事を読む', free: 'Free', plus: 'Plus',
+    browseBooks: 'マイライブラリ', openReader: '本文を読む', openArticle: '記事を読む', free: 'Free', plus: 'Plus',
     sampleLabel: 'オリジナル教材サンプル', notDated: '公開日なし',
     backToRead: '記事一覧へ戻る', unavailable: '記事を読み込めませんでした。時間をおいて再度お試しください。',
     saveLabel: '保存した記事', saveSignIn: '保存するにはログインしてください。', savePlusRequired: '記事の保存は Plus 会員向けです。',

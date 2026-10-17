@@ -93,6 +93,19 @@ describe('legal content', () => {
     expect(SELLER_DISCLOSURE.phone.trim()).not.toBe('')
     expect(SELLER_DISCLOSURE.responsiblePerson.trim()).not.toBe('')
     expect(SELLER_DISCLOSURE.supportEmail.trim()).not.toBe('')
+    expect(SELLER_DISCLOSURE.name).toBe('販売者名確認中（確定後に掲載します）')
+    expect(SELLER_DISCLOSURE.supportEmail).toBe('現在準備中です。確定後に掲載します')
+    expect(isPaidLaunchLegalReady()).toBe(false)
+  })
+
+  it('keeps Japanese legal contact instructions truthful while seller details are pending', () => {
+    for (const slug of ['terms', 'privacy', 'tokushoho', 'refunds']) {
+      const document = requireLegalDocumentBySlug(slug)
+      const japaneseBody = document.bodies.ja.map((section) => section.paragraphs.join('\n')).join('\n')
+      expect(japaneseBody).toContain('現在準備中です。確定後に掲載します。')
+      expect(japaneseBody).not.toMatch(/pending confirmation|mailto:/i)
+    }
+    expect(SELLER_DISCLOSURE.pending).toBe(true)
     expect(isPaidLaunchLegalReady()).toBe(false)
   })
 

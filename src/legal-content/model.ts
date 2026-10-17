@@ -60,10 +60,10 @@ export interface SellerDisclosure {
  * requires every document live and every explicit review-pending note removed.
  */
 export const SELLER_DISCLOSURE: SellerDisclosure = {
-  name: 'Seller name pending confirmation',
-  address: 'Seller address pending confirmation',
-  phone: 'Seller phone pending confirmation',
-  responsiblePerson: 'Responsible person pending confirmation',
-  supportEmail: 'Support email pending confirmation',
+  name: '販売者名確認中（確定後に掲載します）',
+  address: '所在地確認中（確定後に掲載します）',
+  phone: '電話番号確認中（確定後に掲載します）',
+  responsiblePerson: '責任者確認中（確定後に掲載します）',
+  supportEmail: '現在準備中です。確定後に掲載します',
   pending: true,
 }

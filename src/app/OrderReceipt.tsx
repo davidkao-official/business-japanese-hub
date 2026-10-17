@@ -107,9 +107,13 @@ export function OrderReceipt({ order }: { order: OrderStatusResponse }) {
         </p>
         <p>
           <strong>{strings.purchaseResult.supportLabel}</strong>{' '}
-          <a href={`mailto:${SELLER_DISCLOSURE.supportEmail}`}>
-            {SELLER_DISCLOSURE.supportEmail}
-          </a>
+          {SELLER_DISCLOSURE.pending ? (
+            <span>{SELLER_DISCLOSURE.supportEmail}</span>
+          ) : (
+            <a href={`mailto:${SELLER_DISCLOSURE.supportEmail}`}>
+              {SELLER_DISCLOSURE.supportEmail}
+            </a>
+          )}
         </p>
       </div>
     </section>

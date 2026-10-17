@@ -34,6 +34,13 @@ describe('learning-service home', () => {
     expect(screen.getByRole('link', { name: 'サービスについて' })).toHaveAttribute('href', '/about')
   })
 
+  it('labels the founder language list in Japanese', () => {
+    renderWithAppProviders(<HomePage />)
+
+    expect(screen.getByText('使用言語')).toBeInTheDocument()
+    expect(screen.queryByText('Languages')).not.toBeInTheDocument()
+  })
+
   it.each([
     '麻煩您確認，謝謝。',
     '「ご確認」を 정중하게 부탁하는 표현입니다.',

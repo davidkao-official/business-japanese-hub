@@ -341,6 +341,8 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByText("時間を計らず練習 · 5 問収録")).toBeInTheDocument()
     await waitFor(() => expect(screen.getByRole('heading', { name: /計画や事業が途中で行き詰まり/ })).toBeInTheDocument())
     expect(screen.getByRole('heading', { name: '無料サンプル問題' })).toBeInTheDocument()
+    expect(screen.getByText(/学習記録から間違えた問題を復習できます/)).toBeInTheDocument()
+    expect(screen.queryByText(/My Learning/)).not.toBeInTheDocument()
     expect(screen.getByText('1／2 問目')).toBeInTheDocument()
     expect(fetchPracticePayloadMock).not.toHaveBeenCalled()
 
@@ -361,7 +363,8 @@ describe('Web Test discovery and runner-entry routes', () => {
     renderWebTestAt('/practice/web-test/spi/nonverbal/rate-and-work?mode=untimed-learning', { session: { id: 'free-account' } })
 
     await waitFor(() => expect(screen.getByRole('heading', { name: /分速 80m で歩くと/ })).toBeInTheDocument())
-    expect(screen.getByText(/解答はこのアカウントに保存され/)).toBeInTheDocument()
+    expect(screen.getByText(/解答はこのアカウントに保存され、学習記録から復習できます/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '学習記録を開く' })).toHaveAttribute('href', '/my-learning')
     fireEvent.click(screen.getByRole('radio', { name: '6 分' }))
     fireEvent.click(screen.getByRole('button', { name: '解答する' }))
     await waitFor(() => expect(screen.getByText('解答を保存しました。')).toBeInTheDocument())

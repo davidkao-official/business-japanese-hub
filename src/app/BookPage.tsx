@@ -7,6 +7,7 @@ import { bookCtaState, offersPreview, resumeHref, tierOf } from '../lib/bookAcce
 import { BookActions } from '../components/BookActions'
 import { BookCover } from '../components/BookCover'
 import { Price } from '../components/Price'
+import { bookLanguageLabel } from './bookLanguageLabel'
 
 /**
  * Book detail — publisher-like product page for the generic `/books/:slug`
@@ -185,7 +186,7 @@ export function BookPage() {
               </>
             )}
             <dt>{strings.book.language}</dt>
-            <dd>{book.language}</dd>
+            <dd>{bookLanguageLabel(book.language)}</dd>
           </dl>
         </section>
       </div>
