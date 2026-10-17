@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useAuth } from '@business-japanese-hub/platform-auth'
 import { useStrings } from '../i18n/strings'
 import { AuthPanel } from './AuthPanel'
@@ -16,7 +16,17 @@ export function AccountControl({ open: controlledOpen, onOpenChange }: AccountCo
   const [signingOut, setSigningOut] = useState(false)
   const [signOutFailed, setSignOutFailed] = useState(false)
   const panelId = useId()
+  const panelRef = useRef<HTMLDivElement>(null)
   const open = controlledOpen ?? uncontrolledOpen
+
+  // An in-flow panel (mobile menu, Book access notice) can open below the fold; bring the form into view.
+  // The header's absolutely positioned popover is left alone so the page doesn't jump.
+  useEffect(() => {
+    const panel = panelRef.current
+    if (!open || !panel || window.getComputedStyle(panel).position !== 'static') return
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    panel.scrollIntoView?.({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' })
+  }, [open])
   const setOpen = (nextOpen: boolean) => {
     onOpenChange?.(nextOpen)
     if (controlledOpen === undefined) setUncontrolledOpen(nextOpen)
@@ -59,7 +69,7 @@ export function AccountControl({ open: controlledOpen, onOpenChange }: AccountCo
         {strings.auth.signIn}
       </button>
       {open && (
-        <div className="account-control__panel" id={panelId}>
+        <div className="account-control__panel" id={panelId} ref={panelRef}>
           <AuthPanel onAuthenticated={() => setOpen(false)} onCancel={() => setOpen(false)} />
         </div>
       )}

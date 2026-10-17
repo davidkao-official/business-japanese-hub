@@ -508,10 +508,75 @@
 
 .book-hero__access {
   margin-block: var(--space-3);
+  min-block-size: 1lh;
 }
 
 .book-hero__actions {
   margin-top: var(--space-4);
+}
+
+.book-actions--paid {
+  display: grid;
+}
+
+.book-actions__reserve,
+.book-actions--paid > .book-actions__content {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.book-actions__reserve {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.book-actions__reserve [data-label]::before {
+  content: attr(data-label);
+}
+
+.book-access-notice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  gap: var(--space-3);
+}
+
+.book-access-notice__message {
+  color: var(--color-text-muted);
+  max-width: var(--measure-reading);
+}
+
+/* AccountControl also serves a named area in the global header. */
+.book-access-notice .account-control {
+  display: grid;
+  grid-area: auto;
+  justify-items: start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+/* The header panel is anchored to a right-aligned control; here it opens in flow on its own row. */
+.book-access-notice .account-control:has(.account-control__panel) {
+  flex-basis: 100%;
+}
+
+/* Reader text sizes scale these labels; let them wrap instead of overflowing narrow columns. */
+.book-access-notice .cta-row > .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+.book-access-notice .account-control__panel {
+  position: static;
+  width: min(var(--measure-reading), 100%);
+}
+
+@media (max-width: 47.99rem) {
+  .book-hero__actions .cta-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .book-detail__sections {
