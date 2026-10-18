@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "releaseIdentity": {
     "contentId": "practice-web-test-spi-v1",
-    "revision": "62361e0be9ecc7792a55c0a670bc126621eaea4196fd8407ded2882cf342506c"
+    "revision": "2eb5d0868363c8160693b6410386521054ffcf5c4636125f1f9e74111c0d22ad"
   },
   "families": [
     {
@@ -13,28 +13,28 @@
           "categories": [
             {
               "category": "conditions-and-ordering",
-              "releasedCount": 5,
+              "releasedCount": 8,
               "modes": [
                 "untimed-learning"
               ]
             },
             {
               "category": "percentage-profit-loss",
-              "releasedCount": 5,
+              "releasedCount": 9,
               "modes": [
                 "untimed-learning"
               ]
             },
             {
               "category": "rate-and-work",
-              "releasedCount": 5,
+              "releasedCount": 7,
               "modes": [
                 "untimed-learning"
               ]
             },
             {
               "category": "sets-and-counting",
-              "releasedCount": 5,
+              "releasedCount": 9,
               "modes": [
                 "untimed-learning"
               ]

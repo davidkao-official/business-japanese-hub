@@ -183,11 +183,12 @@ describe('Web Test discovery and runner-entry routes', () => {
 
   it('shows the free sample inventory alongside the full bank on hub, domain, and unit cards', () => {
     renderWebTestAt('/practice/web-test')
-    expect(screen.getByText('40 問収録 · 無料サンプル 16 問')).toBeInTheDocument()
+    expect(screen.getByText('53 問収録 · 無料サンプル 16 問')).toBeInTheDocument()
 
     cleanup()
     renderWebTestAt('/practice/web-test/spi')
-    expect(screen.getAllByText('20 問収録 · 無料サンプル 8 問')).toHaveLength(2)
+    expect(screen.getByText('20 問収録 · 無料サンプル 8 問')).toBeInTheDocument()
+    expect(screen.getByText('33 問収録 · 無料サンプル 8 問')).toBeInTheDocument()
 
     cleanup()
     renderWebTestAt('/practice/web-test/spi/verbal')
