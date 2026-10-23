@@ -1,6 +1,15 @@
 /** Japanese is the source locale. Existing Chinese copy is retained for a future complete locale.
  * SPI and About editorial wording is a draft for the content-review lane (#194). */
 export const jaLearningUi = {
+  webReviewTitle: '間違えた問題・復習',
+  webReviewSignInBody: '解答の保存と、間違えた問題の復習にはログインが必要です。',
+  webReviewSignInAction: 'ログインして復習する',
+  webReviewLoading: '復習リストを読み込んでいます。',
+  webReviewUnavailable: '復習リストを読み込めません。分野を選んで練習することはできます。',
+  webReviewEmpty: '現在確認できる、保存済みの間違えた問題はありません。分野を選んで練習しましょう。',
+  webReviewCount: (count: number) => `保存済みの間違えた問題：${count}問`,
+  webReviewLimit: '復習リストには最新50問まで表示されます。',
+  webReviewOpen: '学習記録で間違えた問題を復習する',
   legacyCheckingTitle: '教材の利用資格を確認しています',
   legacyCheckingBody: '確認が終わるまで、教材と練習は表示されません。',
   legacySignInTitle: 'ログインして教材の利用資格を確認',
@@ -360,6 +369,16 @@ export const jaLearningUi = {
 export type LearningUiStrings = typeof jaLearningUi
 
 export const zhTWLearningUi: LearningUiStrings = {
+  // Untranslated V1 additions retain the Japanese source copy.
+  webReviewTitle: jaLearningUi.webReviewTitle,
+  webReviewSignInBody: jaLearningUi.webReviewSignInBody,
+  webReviewSignInAction: jaLearningUi.webReviewSignInAction,
+  webReviewLoading: jaLearningUi.webReviewLoading,
+  webReviewUnavailable: jaLearningUi.webReviewUnavailable,
+  webReviewEmpty: jaLearningUi.webReviewEmpty,
+  webReviewCount: jaLearningUi.webReviewCount,
+  webReviewLimit: jaLearningUi.webReviewLimit,
+  webReviewOpen: jaLearningUi.webReviewOpen,
   legacyCheckingTitle: '正在確認教材使用資格',
   legacyCheckingBody: '確認完成前不會顯示教材與練習。',
   legacySignInTitle: '登入以確認教材使用資格',
