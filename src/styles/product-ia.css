@@ -428,6 +428,39 @@
   gap: var(--space-7);
 }
 
+.web-test-hub__review {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: var(--stroke-thin) solid var(--role-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--role-surface-inset);
+  color: var(--role-text-primary);
+}
+
+.web-test-hub__review h2 {
+  font-size: var(--size-title-2);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--leading-tight);
+}
+
+.web-test-hub__review p {
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.web-test-hub__review a {
+  display: flex;
+  align-items: center;
+  justify-self: start;
+  min-block-size: var(--tap-min);
+  min-inline-size: var(--tap-min);
+  color: var(--role-text-link);
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+
 .web-test-hub__intro,
 .web-test-hub__families,
 .web-test-hub__category,

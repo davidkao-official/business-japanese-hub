@@ -31,6 +31,7 @@ vi.mock('../i18n/strings', async (importOriginal) => {
 
 afterEach(() => {
   hookLearningUiOverrides.current = null
+  delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView
 })
 
 const revision = '2eb5d0868363c8160693b6410386521054ffcf5c4636125f1f9e74111c0d22ad'
@@ -185,6 +186,44 @@ describe('My Learning page', () => {
       'href',
       '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning&review=question-1&reviewVersion=2',
     )
+  })
+
+  it('scrolls to and focuses the review heading when its hash is present', async () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    const mistakeSnapshot = snapshot({
+      recentAttempts: [{ ...review, correct: false }],
+      actionableMistakes: [review],
+      nextAction: { kind: 'review-mistake', item: review },
+    })
+    renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'ok', snapshot: mistakeSnapshot })} />, {
+      initialEntries: ['/my-learning#my-learning-review-title'],
+      session: { id: 'member-1', email: 'member@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+
+    const heading = await screen.findByRole('heading', { name: '最近間違えた問題' })
+    await waitFor(() => expect(document.activeElement).toBe(heading))
+    expect(scrollIntoView).toHaveBeenCalledOnce()
+  })
+
+  it('does not scroll to the review heading when there is no hash', async () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    const mistakeSnapshot = snapshot({
+      recentAttempts: [{ ...review, correct: false }],
+      actionableMistakes: [review],
+      nextAction: { kind: 'review-mistake', item: review },
+    })
+    renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'ok', snapshot: mistakeSnapshot })} />, {
+      initialEntries: ['/my-learning'],
+      session: { id: 'member-1', email: 'member@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+    })
+
+    const heading = await screen.findByRole('heading', { name: '最近間違えた問題' })
+    expect(scrollIntoView).not.toHaveBeenCalled()
+    expect(document.activeElement).not.toBe(heading)
   })
 
   it('uses a deterministic current-category continuation when no mistake is actionable', async () => {

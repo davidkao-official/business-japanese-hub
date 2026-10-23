@@ -28,6 +28,7 @@ import { FREE_SPI_SAMPLE_CONTENT_ID, FREE_SPI_SAMPLE_REVISION } from '../practic
 import { freeSpiSamplePayload } from '../practice-web-test/freeSpiSamplePayload'
 import { discoveryFreeSampleCount, freeSampleCount, nextFreeSampleUnit, nextPracticeUnit } from '../practice-web-test/freeSampleUnits'
 import { AuthPanel } from '../components/AuthPanel'
+import { WebTestReviewEntry } from './WebTestReviewEntry'
 
 const catalog = validatePracticeDiscoveryCatalog(catalogDocument) ? catalogDocument : null
 
@@ -116,6 +117,7 @@ export function WebTestHubPage() {
         </p>
       </div>
 
+      <WebTestReviewEntry />
       <section className="web-test-hub__families" aria-labelledby="web-test-family-title">
         <h2 id="web-test-family-title">{ui.webChooseTest}</h2>
         <ul>
@@ -152,6 +154,7 @@ export function WebTestFamilyPage() {
         <h1 className="page__title" id="web-test-family-page-title">{labelForFamily(family.testFamily)}</h1>
         <p className="page__lead">{ui.webDomainLead}</p>
       </div>
+      <WebTestReviewEntry />
       <section className="web-test-hub__families" aria-labelledby="web-test-domain-title">
         <h2 id="web-test-domain-title">{ui.webChooseDomain}</h2>
         <ul>
