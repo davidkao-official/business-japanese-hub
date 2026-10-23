@@ -1,7 +1,7 @@
 import { useLocale, useStrings, getActiveLocale, type Locale } from '../i18n/strings'
 import type { LearningUiStrings } from '../i18n/learningUi'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import catalogDocument from '../practice-web-test/released-discovery-catalog.json'
 import {
   findPracticeDiscoveryCategory,
@@ -49,12 +49,28 @@ export function MyLearningPage({
   useDocumentTitle(ui.myDocumentTitle)
   const { user, loading: authLoading, getAccessToken } = useAuth()
   const { state: membershipState, retry: retryMembership } = useMembershipAccess()
+  const location = useLocation()
   const [requestKey, setRequestKey] = useState(0)
   const [pageState, setPageState] = useState<PageState>({ kind: 'idle' })
   const requestGenerationRef = useRef(0)
+  const scrolledLocationRef = useRef<string | null>(null)
   const currentPageState: PageState = user && pageState.kind !== 'idle' && pageState.ownerId === user.id
     ? pageState
     : { kind: 'idle' }
+
+  useEffect(() => {
+    if (currentPageState.kind !== 'ready' || !location.hash) return
+    const navigation = `${location.key}:${location.hash}`
+    if (scrolledLocationRef.current === navigation) return
+    const id = decodeURIComponent(location.hash.slice(1))
+    const target = document.getElementById(id)
+    if (!target) return
+    scrolledLocationRef.current = navigation
+    target.scrollIntoView()
+    if (target instanceof HTMLElement && target.matches('h1, h2, h3, h4, h5, h6')) {
+      target.focus({ preventScroll: true })
+    }
+  }, [currentPageState.kind, location.hash, location.key])
 
   useEffect(() => {
     // Free accounts receive their public-sample Practice evidence; Plus adds the
@@ -127,7 +143,7 @@ function MyLearningContent({ snapshot }: { snapshot: PracticeLearningSnapshot })
   const empty = snapshot.recentAttempts.length === 0
   return <>
     <section className="my-learning-page__next" aria-labelledby="my-learning-next-title"><p className="my-learning-page__section-label">{ui.myNextStep}</p><h2 id="my-learning-next-title">{empty ? ui.myEmptyTitle : nextAction.title}</h2><p>{empty ? ui.myEmptyBody : nextAction.body}</p>{nextAction.href ? <Link className="btn btn--primary" to={nextAction.href}>{nextAction.label}</Link> : <p role="status">{ui.myRecordUnavailable}</p>}</section>
-    {(snapshot.actionableMistakes.length > 0 || !empty) && <section className="my-learning-page__section" aria-labelledby="my-learning-review-title"><div><p className="my-learning-page__section-label">{ui.myReviewLabel}</p><h2 id="my-learning-review-title">{ui.myMistakesTitle}</h2><p>{ui.myMistakesBody}</p></div>{snapshot.actionableMistakes.length > 0 ? <ul className="my-learning-page__review-list">{snapshot.actionableMistakes.map((item) => { const action = actionFor(item, true, ui, locale); return <li key={`${item.contentId}:${item.questionId}`}><span>{categoryLabelFor(item, ui, locale)}</span>{action.href ? <Link to={action.href}>{ui.myReviewQuestion}</Link> : <span role="status">{ui.myCannotOpen}</span>}</li> })}</ul> : <p>{ui.myNoMistakes}</p>}</section>}
+    {(snapshot.actionableMistakes.length > 0 || !empty) && <section className="my-learning-page__section" aria-labelledby="my-learning-review-title"><div><p className="my-learning-page__section-label">{ui.myReviewLabel}</p><h2 id="my-learning-review-title" tabIndex={-1}>{ui.myMistakesTitle}</h2><p>{ui.myMistakesBody}</p></div>{snapshot.actionableMistakes.length > 0 ? <ul className="my-learning-page__review-list">{snapshot.actionableMistakes.map((item) => { const action = actionFor(item, true, ui, locale); return <li key={`${item.contentId}:${item.questionId}`}><span>{categoryLabelFor(item, ui, locale)}</span>{action.href ? <Link to={action.href}>{ui.myReviewQuestion}</Link> : <span role="status">{ui.myCannotOpen}</span>}</li> })}</ul> : <p>{ui.myNoMistakes}</p>}</section>}
     {!empty && <section className="my-learning-page__section" aria-labelledby="my-learning-recent-title"><p className="my-learning-page__section-label">{ui.myEvidenceLabel}</p><h2 id="my-learning-recent-title">{ui.myRecentAttempts}</h2><ul className="my-learning-page__recent-list">{snapshot.recentAttempts.slice(0, 5).map((attempt) => <li key={`${attempt.contentId}:${attempt.questionId}:${attempt.createdAt}`}><span>{categoryLabelFor(attempt, ui, locale)}</span><span>{attempt.correct ? ui.answerCorrect : ui.answerIncorrect}</span><time dateTime={attempt.createdAt}>{new Date(attempt.createdAt).toLocaleDateString(getActiveLocale())}</time></li>)}</ul></section>}
     {!empty && <section className="my-learning-page__section" aria-labelledby="my-learning-signal-title"><p className="my-learning-page__section-label">{ui.myCategoryRecords}</p><h2 id="my-learning-signal-title">{ui.myFocusTitle}</h2>{snapshot.weakArea ? <p>{ui.myWeakAreaSummary(weakAreaCategoryLabel(snapshot.weakArea, ui, locale), snapshot.weakArea.sampleCount, snapshot.weakArea.incorrectCount, snapshot.weakArea.accuracyPercent)}</p> : <p>{ui.myInsufficientData}</p>}</section>}
   </>
