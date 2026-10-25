@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { RefObject } from 'react'
 import { useStrings } from '../i18n/strings'
 
 /** Client-only practice clock preference; never sent to the attempt API. */
@@ -33,96 +34,85 @@ export function formatStopwatch(elapsedMs: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
-export type WebTestStopwatchState = {
+/** Read-only handle so the runner can freeze the question time at submission. */
+export type WebTestStopwatchHandle = { questionElapsedMs: () => number }
+
+type WebTestStopwatchProps = {
   enabled: boolean
-  setEnabled: (next: boolean) => void
-  questionElapsedMs: number
-  unitElapsedMs: number
+  onEnabledChange: (next: boolean) => void
+  /**
+   * Identity of the current question. A change remounts the question clock, so
+   * the new question starts at 00:00 without waiting for a display tick.
+   */
+  questionKey: string
+  /** Registered while a timed question is on screen; read once at submission. */
+  handleRef: RefObject<WebTestStopwatchHandle | null>
 }
 
 /**
- * Optional stopwatch for the Web Test runner. It keeps time in memory only:
- * the unit clock starts when the toggle is switched on, and the question clock
- * restarts whenever `questionKey` changes. Switching the toggle off clears both.
+ * Optional client-only stopwatch for the Web Test runner. Mount it with a unit
+ * identity as its React `key` (selection + run number): a new unit remounts the
+ * component, which resets the unit clock immediately, independently of ticks.
  */
-type StopwatchClock = {
-  questionKey: string | null
-  questionStartedAt: number | null
-  unitStartedAt: number | null
-}
-
-const INACTIVE_CLOCK: StopwatchClock = { questionKey: null, questionStartedAt: null, unitStartedAt: null }
-
-export function useWebTestStopwatch(questionKey: string | null): WebTestStopwatchState {
-  const [enabled, setEnabledState] = useState(readStopwatchEnabled)
-  const [now, setNow] = useState(() => Date.now())
-  const [clock, setClock] = useState<StopwatchClock>(() => enabled && questionKey !== null
-    ? { questionKey, questionStartedAt: now, unitStartedAt: now }
-    : INACTIVE_CLOCK)
-
-  useEffect(() => {
-    if (!enabled) return
-    const interval = globalThis.setInterval(() => {
-      const tickedAt = Date.now()
-      setNow(tickedAt)
-      // The unit clock keeps its first start; the question clock restarts on change.
-      // Outside a running unit (loading, completion) both clocks are idle again.
-      setClock((current) => {
-        if (questionKey === null) return current === INACTIVE_CLOCK ? current : INACTIVE_CLOCK
-        if (current.questionKey === questionKey) return current
-        return { questionKey, questionStartedAt: tickedAt, unitStartedAt: current.unitStartedAt ?? tickedAt }
-      })
-    }, 1000)
-    return () => globalThis.clearInterval(interval)
-  }, [enabled, questionKey])
-
-  // Until the next tick records the new question, report 00:00 rather than the
-  // previous question's running time.
-  const questionElapsedMs = !enabled || clock.questionKey !== questionKey || clock.questionStartedAt === null
-    ? 0
-    : Math.max(0, now - clock.questionStartedAt)
-  const unitElapsedMs = !enabled || clock.unitStartedAt === null ? 0 : Math.max(0, now - clock.unitStartedAt)
-
-  return {
-    enabled,
-    setEnabled: (next: boolean) => {
-      setEnabledState(next)
-      const startedAt = Date.now()
-      setClock(next && questionKey !== null
-        ? { questionKey, questionStartedAt: startedAt, unitStartedAt: startedAt }
-        : INACTIVE_CLOCK)
-      writeStopwatchEnabled(next)
-    },
-    questionElapsedMs,
-    unitElapsedMs,
-  }
-}
-
-export function WebTestStopwatchPanel({ stopwatch }: { stopwatch: WebTestStopwatchState }) {
+export function WebTestStopwatch({ enabled, onEnabledChange, questionKey, handleRef }: WebTestStopwatchProps) {
   const ui = useStrings().learningUi
+  const [unitStartedAt, setUnitStartedAt] = useState<number | null>(() => enabled ? Date.now() : null)
+
+  const toggle = (next: boolean) => {
+    setUnitStartedAt(next ? Date.now() : null)
+    onEnabledChange(next)
+  }
+
   return (
     <div className="web-test-hub__stopwatch">
       <label className="web-test-hub__stopwatch-toggle">
         <input
           type="checkbox"
-          checked={stopwatch.enabled}
-          onChange={(event) => stopwatch.setEnabled(event.currentTarget.checked)}
+          checked={enabled}
+          onChange={(event) => toggle(event.currentTarget.checked)}
         />
         <span>{ui.webStopwatchLabel}</span>
       </label>
-      {stopwatch.enabled && <>
-        <dl className="web-test-hub__stopwatch-readings">
-          <div>
-            <dt>{ui.webStopwatchQuestionTime}</dt>
-            <dd aria-live="off">{formatStopwatch(stopwatch.questionElapsedMs)}</dd>
-          </div>
-          <div>
-            <dt>{ui.webStopwatchUnitTime}</dt>
-            <dd aria-live="off">{formatStopwatch(stopwatch.unitElapsedMs)}</dd>
-          </div>
-        </dl>
+      {enabled && unitStartedAt !== null && <>
+        <WebTestStopwatchReadings key={questionKey} unitStartedAt={unitStartedAt} handleRef={handleRef} />
         <p className="web-test-hub__stopwatch-note">{ui.webStopwatchNote}</p>
       </>}
     </div>
+  )
+}
+
+/**
+ * The ticking part lives here so the runner above it does not rerender every
+ * second, and the interval exists only while a timed question is on screen.
+ */
+function WebTestStopwatchReadings({ unitStartedAt, handleRef }: {
+  unitStartedAt: number
+  handleRef: RefObject<WebTestStopwatchHandle | null>
+}) {
+  const ui = useStrings().learningUi
+  const [questionStartedAt] = useState(() => Date.now())
+  const [now, setNow] = useState(questionStartedAt)
+
+  useEffect(() => {
+    const interval = globalThis.setInterval(() => setNow(Date.now()), 1000)
+    return () => globalThis.clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    handleRef.current = { questionElapsedMs: () => Math.max(0, Date.now() - questionStartedAt) }
+    return () => { handleRef.current = null }
+  }, [handleRef, questionStartedAt])
+
+  return (
+    <dl className="web-test-hub__stopwatch-readings">
+      <div>
+        <dt>{ui.webStopwatchQuestionTime}</dt>
+        <dd aria-live="off">{formatStopwatch(Math.max(0, now - questionStartedAt))}</dd>
+      </div>
+      <div>
+        <dt>{ui.webStopwatchUnitTime}</dt>
+        <dd aria-live="off">{formatStopwatch(Math.max(0, now - unitStartedAt))}</dd>
+      </div>
+    </dl>
   )
 }
