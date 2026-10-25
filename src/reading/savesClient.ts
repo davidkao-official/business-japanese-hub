@@ -22,14 +22,13 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  const actual = Object.keys(value).sort()
-  const expected = [...keys].sort()
-  return actual.length === expected.length && actual.every((key, index) => key === expected[index])
+/** Required response fields; additive extras stay compatible across deploys. */
+function hasKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return keys.every((key) => Object.hasOwn(value, key))
 }
 
 function validSave(value: unknown, expectedItemId: string): ReadingSave | null {
-  if (!record(value) || !hasExactKeys(value, ['itemId', 'revision', 'savedAt']) ||
+  if (!record(value) || !hasKeys(value, ['itemId', 'revision', 'savedAt']) ||
     !ITEM_ID.test(expectedItemId) || value.itemId !== expectedItemId ||
     !(value.revision === null || (typeof value.revision === 'string' && REVISION.test(value.revision))) ||
     typeof value.savedAt !== 'string' || !TIMESTAMP.test(value.savedAt) || !Number.isFinite(Date.parse(value.savedAt))) return null
@@ -141,7 +140,7 @@ export async function fetchReadingSave(
   if (sent.kind === 'status') return resultForStatus(sent.status)
   try {
     const raw: unknown = await Promise.race([sent.response.json() as Promise<unknown>, sent.timeout])
-    if (!record(raw) || !hasExactKeys(raw, ['items']) || !Array.isArray(raw.items) || raw.items.length > 1) return { kind: 'unavailable' }
+    if (!record(raw) || !hasKeys(raw, ['items']) || !Array.isArray(raw.items) || raw.items.length > 1) return { kind: 'unavailable' }
     if (raw.items.length === 0) return { kind: 'ok', save: null }
     const save = validSave(raw.items[0], itemId)
     return save ? { kind: 'ok', save } : { kind: 'unavailable' }
@@ -162,7 +161,7 @@ export async function fetchReadingSaves(
   if (sent.kind === 'status') return resultForStatus(sent.status)
   try {
     const raw: unknown = await Promise.race([sent.response.json() as Promise<unknown>, sent.timeout])
-    if (!record(raw) || !hasExactKeys(raw, ['items']) || !Array.isArray(raw.items) || raw.items.length > 50) return { kind: 'unavailable' }
+    if (!record(raw) || !hasKeys(raw, ['items']) || !Array.isArray(raw.items) || raw.items.length > 50) return { kind: 'unavailable' }
     const items: ReadingSave[] = []
     const seen = new Set<string>()
     for (const value of raw.items) {
@@ -213,7 +212,7 @@ export async function removeReadingSave(
   if (sent.kind === 'status') return resultForStatus(sent.status)
   try {
     const raw: unknown = await Promise.race([sent.response.json() as Promise<unknown>, sent.timeout])
-    if (!record(raw) || !hasExactKeys(raw, ['itemId', 'revision', 'serverTimestamp']) || raw.itemId !== itemId ||
+    if (!record(raw) || !hasKeys(raw, ['itemId', 'revision', 'serverTimestamp']) || raw.itemId !== itemId ||
       !(raw.revision === null || (typeof raw.revision === 'string' && REVISION.test(raw.revision))) ||
       typeof raw.serverTimestamp !== 'string' || !TIMESTAMP.test(raw.serverTimestamp) || !Number.isFinite(Date.parse(raw.serverTimestamp))) {
       return { kind: 'unavailable' }

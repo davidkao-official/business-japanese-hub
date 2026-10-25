@@ -44,7 +44,7 @@ describe('reading saves browser client', () => {
 
   it('rejects wrong subjects and malformed bounded responses without exposing a save', async () => {
     vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.example/functions/v1')
-    const fetchMock = vi.fn().mockResolvedValue(response({ items: [{ itemId, revision, savedAt, body: 'not allowed' }] }))
+    const fetchMock = vi.fn().mockResolvedValue(response({ items: [{ itemId, revision }] }))
     vi.stubGlobal('fetch', fetchMock)
     expect(await fetchReadingSave(itemId, async () => token('another-user'), userId)).toEqual({ kind: 'unavailable' })
     expect(fetchMock).not.toHaveBeenCalled()
@@ -52,6 +52,21 @@ describe('reading saves browser client', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(await saveReadingItem(itemId, 'not-a-sha', async () => token(), userId)).toEqual({ kind: 'stale' })
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('tolerates additive response fields from newer servers', async () => {
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.example/functions/v1')
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(response({ items: [{ itemId, revision, savedAt, body: 'ignored' }], nextCursor: null }))
+      .mockResolvedValueOnce(response({ itemId, revision, savedAt, etag: 'v2' }))
+      .mockResolvedValueOnce(response({ itemId, revision: null, serverTimestamp: savedAt, requestId: 'req-1' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const getToken = async () => token()
+
+    expect(await fetchReadingSave(itemId, getToken, userId)).toEqual({ kind: 'ok', save: { itemId, revision, savedAt } })
+    expect(await saveReadingItem(itemId, revision, getToken, userId)).toEqual({ kind: 'ok' })
+    expect(await removeReadingSave(itemId, getToken, userId)).toEqual({ kind: 'ok' })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
   it('maps server authorization and stale statuses to bounded client states', async () => {
