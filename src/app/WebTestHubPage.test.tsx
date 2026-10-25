@@ -201,6 +201,20 @@ describe('Web Test discovery and runner-entry routes', () => {
     expect(screen.getByTestId('web-test-location').textContent).toBe(`${path}?mode=untimed-learning${hash}`)
   })
 
+  it('ignores unknown query parameters such as tracking tags', async () => {
+    fetchPracticePayloadMock.mockClear()
+    renderWebTestAt('/practice/web-test/spi/verbal/semantic-relation?mode=untimed-learning&utm_source=newsletter&fbclid=abc123')
+
+    await screen.findByText('1／2 問目')
+    expect(screen.queryByRole('heading', { name: 'ページが見つかりません' })).not.toBeInTheDocument()
+  })
+
+  it('still rejects a partial review parameter pair', () => {
+    renderWebTestAt('/practice/web-test/spi/verbal/semantic-relation?mode=untimed-learning&review=spi-free-v-relation-02')
+
+    expect(screen.getByRole('heading', { name: 'ページが見つかりません' })).toBeInTheDocument()
+  })
+
   it('shows the free sample inventory alongside the full bank on hub, domain, and unit cards', () => {
     renderWebTestAt('/practice/web-test')
     expect(screen.getByText('53 問収録 · 無料サンプル 16 問')).toBeInTheDocument()
@@ -1375,12 +1389,10 @@ describe('Web Test discovery and runner-entry routes', () => {
 
   it.each([
     '/practice/web-test/spi/verbal/private-editorial-label',
-    '/practice/web-test/spi/verbal/semantic-relation?foo=1',
     '/practice/web-test/spi/verbal/semantic-relation?mode=bogus',
     '/practice/web-test/spi/verbal/semantic-relation?mode=untimed-learning&review=question',
     '/practice/web-test/spi/verbal/semantic-relation?mode=untimed-learning&reviewVersion=1',
     '/practice/web-test/spi/verbal/vocabulary-in-context?mode=timed-practice',
-    '/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning&extra=1',
     '/practice/web-test/spi/verbal/private-editorial-label?mode=untimed-learning',
     '/practice/web-test/private-family',
   ])('fails closed for stale or unsupported selection: %s', (path) => {

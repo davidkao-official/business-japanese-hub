@@ -88,21 +88,40 @@ describe('Reading private payload client', () => {
     ['wrong content kind', { content: { ...deliveryBody().content, contentKind: 'book' } }],
     ['stale content id', { content: { ...deliveryBody().content, contentId: 'stale-id' } }],
     ['stale revision', { content: { ...deliveryBody().content, revision: 'c'.repeat(64) } }],
-    ['extra envelope field', { ...deliveryBody(), debug: true }],
-    ['malformed payload shape', { content: { ...deliveryBody().content, payload: { reading: runtimeItem, reviewer: { id: 'editor' } } } }],
     ['missing reading item', { content: { ...deliveryBody().content, payload: {} } }],
     ['legacy V1 item schema', deliveryBody({ ...runtimeItem, schemaVersion: 1 })],
     ['leaked reviewer record', deliveryBody({ ...runtimeItem, reviewer: { id: 'editor' } })],
     ['leaked rights record', deliveryBody({ ...runtimeItem, rights: { basis: 'original' } })],
     ['unsafe source URL', deliveryBody({ ...runtimeItem, source: { ...runtimeItem.source, url: 'javascript:alert(1)' } })],
     ['markup in explanation', deliveryBody({ ...runtimeItem, explanationJa: '<script>unsafe</script>' })],
-    ['catalog slug mismatch', deliveryBody({ ...runtimeItem, slug: 'stale-slug' })],
-    ['catalog source mismatch', deliveryBody({ ...runtimeItem, source: { ...runtimeItem.source, label: 'different source' } })],
-    ['catalog date mismatch', deliveryBody({ ...runtimeItem, releasedAt: '2026-09-21' })],
+    ['catalog id mismatch', deliveryBody({ ...runtimeItem, id: 'reading-other-item' })],
   ])('rejects %s', async (_label, body) => {
     vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(200, body)))
     await expect(fetchReadingPayload(entry, async () => tokenFor(userId), userId)).resolves.toEqual({ kind: 'unavailable' })
+  })
+
+  it('tolerates additive envelope fields and editable catalog metadata', async () => {
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
+    const revised = {
+      ...runtimeItem,
+      slug: 'revised-slug',
+      title: '改訂タイトル',
+      releasedAt: '2026-09-21',
+      source: { ...runtimeItem.source, label: 'different source' },
+    }
+    const envelope = deliveryBody(revised)
+    const additive = {
+      ...envelope,
+      requestId: 'req-1',
+      content: {
+        ...envelope.content,
+        servedAt: '2026-09-21T00:00:00.000Z',
+        payload: { reading: revised, reviewer: { id: 'editor' } },
+      },
+    }
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response(200, additive)))
+    await expect(fetchReadingPayload(entry, async () => tokenFor(userId), userId)).resolves.toEqual({ kind: 'ok', item: revised })
   })
 
   it('rejects legacy Chinese-only and missing-Japanese payloads even when support exists', async () => {

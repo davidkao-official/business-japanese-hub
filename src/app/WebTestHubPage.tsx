@@ -29,6 +29,7 @@ import { freeSpiSamplePayload } from '../practice-web-test/freeSpiSamplePayload'
 import { discoveryFreeSampleCount, freeSampleCount, nextFreeSampleUnit, nextPracticeUnit } from '../practice-web-test/freeSampleUnits'
 import { MIXED_PRACTICE_MODE, MIXED_SET_SIZE, selectMixedQuestions } from '../practice-web-test/mixedSet'
 import { AuthPanel } from '../components/AuthPanel'
+import { formatStopwatch, readStopwatchEnabled, WebTestStopwatch, writeStopwatchEnabled, type WebTestStopwatchHandle } from '../components/WebTestStopwatch'
 import { WebTestReviewEntry } from './WebTestReviewEntry'
 
 const catalog = validatePracticeDiscoveryCatalog(catalogDocument) ? catalogDocument : null
@@ -271,9 +272,9 @@ function WebTestRunnerEntry({ mixed = false }: { mixed?: boolean }) {
     typeof reviewQuestionId === 'string' && reviewQuestionId.length > 0 && reviewQuestionId.length <= 128 && reviewQuestionId.trim() === reviewQuestionId &&
     reviewVersion !== null && Number.isSafeInteger(reviewVersion) && reviewVersion > 0
   )
-  const searchKeys = [...searchParams.keys()]
-  const validSearch = mixed || (validReview && searchKeys.length === (hasReviewParams ? 3 : 1) &&
-    searchKeys.includes('mode') && (!hasReviewParams || (searchKeys.includes('review') && searchKeys.includes('reviewVersion'))))
+  // Unknown query parameters (tracking, share links) are ignored: only the
+  // parameters this runner consumes are validated.
+  const validSearch = mixed || (validReview && searchParams.has('mode'))
   const family = catalog && findPracticeDiscoveryFamily(catalog, familyParam)
   const domain = mixed ? undefined : catalog && findPracticeDiscoveryDomain(catalog, familyParam, domainParam)
   const category = mixed ? undefined : catalog && findPracticeDiscoveryCategory(catalog, familyParam, domainParam, categoryParam)
@@ -294,6 +295,11 @@ function WebTestRunnerEntry({ mixed = false }: { mixed?: boolean }) {
   const [checkpointFeedback, setCheckpointFeedback] = useState<boolean | null>(null)
   const [persistence, setPersistence] = useState<'idle' | RunnerPersistence>('idle')
   const [retryAvailable, setRetryAvailable] = useState(false)
+  // Client-only stopwatch: the toggle preference and the frozen per-question
+  // stopwatch time of the answer being shown. Neither reaches the attempt API.
+  const [stopwatchEnabled, setStopwatchEnabled] = useState(readStopwatchEnabled)
+  const [stopwatchAnswer, setStopwatchAnswer] = useState<{ questionId: string; elapsedMs: number } | null>(null)
+  const stopwatchHandleRef = useRef<WebTestStopwatchHandle | null>(null)
   const answersRef = useRef<RunnerAnswer[]>([])
   const startedAt = useRef<number>(0)
   const questionHeadingRef = useRef<HTMLHeadingElement>(null)
@@ -503,7 +509,7 @@ function WebTestRunnerEntry({ mixed = false }: { mixed?: boolean }) {
         : titleFor(labelForCategory(family.testFamily, domain!.domain, category!), (domain!.domain === 'verbal' ? ui.webVerbal : ui.webNonverbal), labelForFamily(family.testFamily))
       : ui.pageNotFound,
   )
-  if (!mixed && catalog && family && domain && category && searchKeys.length === 0) {
+  if (!mixed && catalog && family && domain && category && !searchParams.has('mode') && !hasReviewParams) {
     const defaultMode = category.modes.includes('untimed-learning') ? 'untimed-learning' : category.modes[0]
     return <Navigate replace to={{ search: `?mode=${defaultMode}`, hash: location.hash }} />
   }
@@ -585,12 +591,24 @@ function WebTestRunnerEntry({ mixed = false }: { mixed?: boolean }) {
         <h1 className="page__title" id="web-test-runner-entry-title">{categoryLabel}</h1>
         <p className="page__lead">{mixed ? ui.webMixedLead(MIXED_SET_SIZE) : `${mode === 'untimed-learning' ? ui.webUntimed : ui.webTimed} · ${category!.releasedCount} ${ui.webPublishedCountSuffix}`}</p>
       </div>
+      {viewState.kind === 'ready' && !finish && <WebTestStopwatch
+        key={`${selectionKey}|${runNumber}`}
+        enabled={stopwatchEnabled}
+        onEnabledChange={(next) => { setStopwatchEnabled(next); writeStopwatchEnabled(next) }}
+        questionKey={`${index}|${question?.id ?? ''}`}
+        handleRef={stopwatchHandleRef}
+      />}
       {viewState.kind === 'ready' && viewState.source.freeSample && !finish && <FreeSampleNotice signedIn={Boolean(user)} count={viewState.questions.length} />}
-      <RunnerStateView signedIn={Boolean(user)} nextSampleLink={nextSampleLink} onRestart={() => setRunNumber((current) => current + 1)} questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} completionHeadingRef={completionHeadingRef} checkpointHeadingRef={checkpointHeadingRef} categoryLabel={categoryLabel} categoryLabelFor={mixed ? (answerCategory) => labelForAnswerCategory(family.testFamily, answerCategory) : undefined} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} checkpointIndex={checkpointIndex} checkpointResponse={checkpointResponse} checkpointFeedback={checkpointFeedback} persistence={persistence} canRetryPersist={retryAvailable} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} setCheckpointResponse={setCheckpointResponse} onRetryPersist={retryPersist} onSubmit={() => {
+      <RunnerStateView signedIn={Boolean(user)} stopwatchAnswer={stopwatchAnswer} nextSampleLink={nextSampleLink} onRestart={() => setRunNumber((current) => current + 1)} questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} completionHeadingRef={completionHeadingRef} checkpointHeadingRef={checkpointHeadingRef} categoryLabel={categoryLabel} categoryLabelFor={mixed ? (answerCategory) => labelForAnswerCategory(family.testFamily, answerCategory) : undefined} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} checkpointIndex={checkpointIndex} checkpointResponse={checkpointResponse} checkpointFeedback={checkpointFeedback} persistence={persistence} canRetryPersist={retryAvailable} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} setCheckpointResponse={setCheckpointResponse} onRetryPersist={retryPersist} onSubmit={() => {
         if (!question || state.kind !== 'ready' || response === '') return
         const correct = scoreQuestion(question, response)
         const primaryElapsedMs = Date.now() - startedAt.current
         primaryElapsedMsRef.current = primaryElapsedMs
+        // Freeze the stopwatch's own question time; a timer enabled only after
+        // submission must not retroactively report one.
+        setStopwatchAnswer(stopwatchEnabled && stopwatchHandleRef.current
+          ? { questionId: question.id, elapsedMs: stopwatchHandleRef.current.questionElapsedMs() }
+          : null)
         setLastCorrect(correct)
         setLastExplanation(question.coreExplanation.concise)
         setFeedback({ question, correct })
@@ -673,7 +691,7 @@ function WebTestRunnerEntry({ mixed = false }: { mixed?: boolean }) {
 type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' | 'stale-review' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[]; selectionKey: string; source: RunnerSource }
 type RunnerSource = { contentId: string; revision: string; freeSample: boolean }
 
-function RunnerStateView({ signedIn, nextSampleLink, onRestart, questionHeadingRef, feedbackHeadingRef, completionHeadingRef, checkpointHeadingRef, categoryLabel, categoryLabelFor, state, finish, question, response, answers, feedback, checkpointIndex, checkpointResponse, checkpointFeedback, persistence, canRetryPersist, lastCorrect, lastExplanation, setResponse, setCheckpointResponse, onRetryPersist, onSubmit, onCheckpointSubmit, onCheckpointNext, onNext }: { signedIn: boolean; nextSampleLink?: { free: boolean; href: string; label: string }; onRestart: () => void; questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; completionHeadingRef: RefObject<HTMLHeadingElement | null>; checkpointHeadingRef: RefObject<HTMLHeadingElement | null>; categoryLabel: string; categoryLabelFor?: (category: string) => string; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: RunnerAnswer[]; feedback: { question: RuntimeQuestion; correct: boolean } | null; checkpointIndex: number | null; checkpointResponse: RunnerResponse; checkpointFeedback: boolean | null; persistence: 'idle' | RunnerPersistence; canRetryPersist: boolean; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; setCheckpointResponse: (value: RunnerResponse) => void; onRetryPersist: () => void; onSubmit: () => void; onCheckpointSubmit: () => void; onCheckpointNext: () => void; onNext: () => void }) {
+function RunnerStateView({ signedIn, stopwatchAnswer, nextSampleLink, onRestart, questionHeadingRef, feedbackHeadingRef, completionHeadingRef, checkpointHeadingRef, categoryLabel, categoryLabelFor, state, finish, question, response, answers, feedback, checkpointIndex, checkpointResponse, checkpointFeedback, persistence, canRetryPersist, lastCorrect, lastExplanation, setResponse, setCheckpointResponse, onRetryPersist, onSubmit, onCheckpointSubmit, onCheckpointNext, onNext }: { signedIn: boolean; stopwatchAnswer: { questionId: string; elapsedMs: number } | null; nextSampleLink?: { free: boolean; href: string; label: string }; onRestart: () => void; questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; completionHeadingRef: RefObject<HTMLHeadingElement | null>; checkpointHeadingRef: RefObject<HTMLHeadingElement | null>; categoryLabel: string; categoryLabelFor?: (category: string) => string; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: RunnerAnswer[]; feedback: { question: RuntimeQuestion; correct: boolean } | null; checkpointIndex: number | null; checkpointResponse: RunnerResponse; checkpointFeedback: boolean | null; persistence: 'idle' | RunnerPersistence; canRetryPersist: boolean; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; setCheckpointResponse: (value: RunnerResponse) => void; onRetryPersist: () => void; onSubmit: () => void; onCheckpointSubmit: () => void; onCheckpointNext: () => void; onNext: () => void }) {
   const ui = useStrings().learningUi
 
   if (state.kind === 'signed-out') return <section className="web-test-hub__runner-handoff"><h2>{ui.webSignInTitle}</h2><p>{ui.webSignInBody}</p></section>
@@ -728,7 +746,7 @@ function RunnerStateView({ signedIn, nextSampleLink, onRestart, questionHeadingR
   if (feedback?.question.id === question.id) {
     const checkpoints = state.kind === 'ready' ? resolveQuestionCheckpoints(state.payload, question) ?? [] : []
     const checkpoint = checkpointIndex === null ? undefined : checkpoints[checkpointIndex]
-    return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? ui.answerCorrect : ui.answerIncorrect}</p><h2 ref={feedbackHeadingRef} tabIndex={-1}>{ui.webAnswerExplanation}</h2><h3 className="web-test-hub__prompt" lang="ja">{question.promptJa}</h3>{question.promptRepresentation && <RepresentationView representation={question.promptRepresentation} label={ui.webQuestionRepresentation} />}<p>{ui.webCorrectAnswerLabel}<span lang="ja">{answerLabel(answer)}</span></p><div className="web-test-hub__explanation-layer">
+    return <section className="web-test-hub__runner" aria-live="polite"><p role="status">{feedback.correct ? ui.answerCorrect : ui.answerIncorrect}</p><h2 ref={feedbackHeadingRef} tabIndex={-1}>{ui.webAnswerExplanation}</h2><h3 className="web-test-hub__prompt" lang="ja">{question.promptJa}</h3>{question.promptRepresentation && <RepresentationView representation={question.promptRepresentation} label={ui.webQuestionRepresentation} />}<p>{ui.webCorrectAnswerLabel}<span lang="ja">{answerLabel(answer)}</span></p>{stopwatchAnswer?.questionId === question.id && <p>{ui.webStopwatchAnswerTime(formatStopwatch(stopwatchAnswer.elapsedMs))}</p>}<div className="web-test-hub__explanation-layer">
       <h3 className="web-test-hub__explanation-label">{ui.webWhatIsAskedLabel}</h3>
       <p lang="ja">{question.coreExplanation.whatIsAskedJa}</p>
     </div>

@@ -25,6 +25,11 @@ function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): 
   return actual.length === expected.length && actual.every((key, index) => key === expected[index])
 }
 
+/** Required response fields; additive extras stay compatible across deploys. */
+function hasKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return keys.every((key) => Object.hasOwn(value, key))
+}
+
 function catalogReferenceIsValid(entry: ReadingCatalogEntry): boolean {
   if (!record(entry)) return false
   const reference = entry.releaseReference
@@ -42,23 +47,13 @@ function catalogReferenceIsValid(entry: ReadingCatalogEntry): boolean {
     && PRIVATE_CONTENT_REVISION.test(reference.revision)
 }
 
+/**
+ * The delivery envelope already pins contentId/revision, so only identity and
+ * access need to match the bundled catalog. Editable metadata (slug, title,
+ * tags, source, SEO) must not turn a readable item into an unavailable page.
+ */
 function catalogMatchesItem(entry: ReadingCatalogEntry, item: ReadingRuntimeItem): boolean {
-  if (entry.id !== item.id || entry.slug !== item.slug || entry.access !== item.access) return false
-  if (entry.releasedAt !== item.releasedAt) return false
-  if (!record(entry.source) || !record(entry.seo)) return false
-  return entry.title === item.title
-    && entry.summary === item.summary
-    && entry.category === item.category
-    && Array.isArray(entry.tags)
-    && entry.tags.length === item.tags.length
-    && entry.tags.every((tag, index) => tag === item.tags[index])
-    && entry.source.type === item.source.type
-    && entry.source.label === item.source.label
-    && entry.source.url === item.source.url
-    && entry.source.publishedAt === item.source.publishedAt
-    && entry.seo.title === item.seo.title
-    && entry.seo.description === item.seo.description
-    && entry.sampleLabel === item.sampleLabel
+  return entry.id === item.id && entry.access === item.access
 }
 
 function requestCancellation(controller: AbortController, signal?: AbortSignal): {
@@ -90,12 +85,12 @@ function requestCancellation(controller: AbortController, signal?: AbortSignal):
 }
 
 function parseDeliveryResponse(raw: unknown, entry: ReadingCatalogEntry): ReadingRuntimeItem | null {
-  if (!record(raw) || !hasExactKeys(raw, ['content'])) return null
+  if (!record(raw) || !hasKeys(raw, ['content'])) return null
   const content = raw.content
-  if (!record(content) || !hasExactKeys(content, ['contentId', 'revision', 'contentKind', 'payload'])) return null
+  if (!record(content) || !hasKeys(content, ['contentId', 'revision', 'contentKind', 'payload'])) return null
   const reference = entry.releaseReference
   if (!reference || content.contentKind !== 'reading' || content.contentId !== reference.contentId || content.revision !== reference.revision) return null
-  if (!record(content.payload) || !hasExactKeys(content.payload, ['reading'])) return null
+  if (!record(content.payload) || !hasKeys(content.payload, ['reading'])) return null
   const validated = validateReadingRuntimeItem(content.payload.reading)
   if (!validated.ok || validated.value.access !== 'plus' || !catalogMatchesItem(entry, validated.value)) return null
   return validated.value
