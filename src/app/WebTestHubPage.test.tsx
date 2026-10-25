@@ -6,6 +6,7 @@ import {
   WebTestCategoryPage,
   WebTestFamilyPage,
   WebTestHubPage,
+  WebTestMixedRunnerPage,
   WebTestRunnerEntryPage,
 } from './WebTestHubPage'
 import { preparePrivatePracticeQuestionBankRelease } from '../content-delivery/privatePracticeQuestionBank'
@@ -14,6 +15,7 @@ import { getActiveLocale, getStrings, LOCALE_STORAGE_KEY, setLocalePreference } 
 import { FREE_SPI_SAMPLE_CONTENT_ID, FREE_SPI_SAMPLE_REVISION } from '../practice-web-test/freeSample'
 import type { PracticeQuestion } from '../practice-web-test/contract'
 import * as freeSampleUnits from '../practice-web-test/freeSampleUnits'
+import * as mixedSet from '../practice-web-test/mixedSet'
 
 const hookLearningUiOverrides = vi.hoisted(() => ({
   current: null as { webChooseAnswer?: string; webNumberAnswer?: string } | null,
@@ -53,6 +55,7 @@ function renderWebTestAt(path: string, options: Parameters<typeof renderWithAppP
     <Routes>
       <Route path="/practice/web-test" element={<WebTestHubPage />} />
       <Route path="/practice/web-test/:family" element={<WebTestFamilyPage />} />
+      <Route path="/practice/web-test/:family/mixed" element={<><WebTestMixedRunnerPage /><WebTestLocation /></>} />
       <Route path="/practice/web-test/:family/:domain" element={<WebTestCategoryPage />} />
       <Route path="/practice/web-test/:family/:domain/:category" element={<><WebTestRunnerEntryPage /><WebTestLocation /></>} />
     </Routes>,
@@ -85,6 +88,23 @@ function syntheticRuntimePayload(promptJa: string, category = 'vocabulary-in-con
   return {
     ...release.value.payload,
     questionBank: { ...release.value.payload.questionBank, questions: [question] },
+    supportOverlays: [],
+  }
+}
+
+/** Member payload spanning one verbal and two nonverbal categories for #204. */
+function syntheticMixedPayload() {
+  const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', nonProprietaryPracticeQuestionBankFixture)
+  if (!release.ok) throw new Error(release.reason)
+  const base = release.value.payload.questionBank.questions[0]!
+  const questions = [
+    { ...base, id: 'mixed-verbal-vocab', testFamily: 'spi', domain: 'verbal' as const, category: 'vocabulary-in-context', promptJa: '総合練習の言語問題' },
+    { ...base, id: 'mixed-nonverbal-percent', testFamily: 'spi', domain: 'nonverbal' as const, category: 'percentage-profit-loss', promptJa: '総合練習の非言語問題A' },
+    { ...base, id: 'mixed-nonverbal-rate', testFamily: 'spi', domain: 'nonverbal' as const, category: 'rate-and-work', promptJa: '総合練習の非言語問題B' },
+  ]
+  return {
+    ...release.value.payload,
+    questionBank: { ...release.value.payload.questionBank, questions },
     supportOverlays: [],
   }
 }
@@ -1378,5 +1398,141 @@ describe('Web Test discovery and runner-entry routes', () => {
   ])('fails closed for stale or unsupported selection: %s', (path) => {
     renderWebTestAt(path)
     expect(screen.getByRole('heading', { name: 'ページが見つかりません' })).toBeInTheDocument()
+  })
+})
+
+describe('SPI mixed practice (#204)', () => {
+  it('offers the mixed practice entry on the family page', () => {
+    renderWebTestAt('/practice/web-test/spi')
+    const entry = screen.getByRole('link', { name: /総合練習/ })
+    expect(entry).toHaveAttribute('href', '/practice/web-test/spi/mixed')
+    expect(within(entry).getByText('全分野からランダムに最大 10 問')).toBeInTheDocument()
+  })
+
+  it('draws a capped 10-question set from the public free sample when signed out', async () => {
+    fetchPracticePayloadMock.mockClear()
+    renderWebTestAt('/practice/web-test/spi/mixed')
+
+    await screen.findByText('1／10 問目')
+    expect(screen.getByRole('heading', { name: '総合練習' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '無料サンプル問題' })).toBeInTheDocument()
+    expect(fetchPracticePayloadMock).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getAllByRole('radio')[0]!)
+    fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '次の問題へ' })).toBeEnabled())
+    expect(submitPracticeAttemptMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps a signed-in non-member on the free sample and saves attempts against it', async () => {
+    fetchPracticePayloadMock.mockClear()
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'forbidden' })
+    submitPracticeAttemptMock.mockResolvedValue({ kind: 'ok' })
+    renderWebTestAt('/practice/web-test/spi/mixed', { session: { id: 'free-account' } })
+
+    await screen.findByText('1／10 問目')
+    expect(screen.getByRole('heading', { name: '無料サンプル問題' })).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('radio')[0]!)
+    fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+    await waitFor(() => expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(1))
+    const attempt = submitPracticeAttemptMock.mock.calls[0]![0]
+    expect(attempt.contentId).toBe(FREE_SPI_SAMPLE_CONTENT_ID)
+    expect(attempt.revision).toBe(FREE_SPI_SAMPLE_REVISION)
+  })
+
+  it('draws a member mixed set across categories and saves each attempt under its original question', async () => {
+    const payload = syntheticMixedPayload()
+    fetchPracticePayloadMock.mockClear()
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload })
+    fetchPracticePayloadMock.mockResolvedValueOnce({ kind: 'ok', payload })
+    submitPracticeAttemptMock.mockResolvedValue({ kind: 'ok' })
+    renderWebTestAt('/practice/web-test/spi/mixed', { session: { id: 'plus-member' } })
+
+    await screen.findByText('1／3 問目')
+    for (let index = 0; index < 3; index += 1) {
+      await screen.findByText(`${index + 1}／3 問目`)
+      fireEvent.click(screen.getAllByRole('radio')[0]!)
+      fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+      await waitFor(() => expect(screen.getByRole('button', { name: '次の問題へ' })).toBeEnabled())
+      fireEvent.click(screen.getByRole('button', { name: '次の問題へ' }))
+    }
+
+    const completion = screen.getByRole('heading', { name: '練習が終わりました' }).closest('section')!
+    expect(within(completion).getByText(/^文脈と語句の意味：/)).toBeInTheDocument()
+    expect(within(completion).getByText(/^割合と損益：/)).toBeInTheDocument()
+    expect(within(completion).getByText(/^速さと仕事算：/)).toBeInTheDocument()
+
+    expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(3)
+    const attempts = submitPracticeAttemptMock.mock.calls.map(([input]) => input)
+    expect(attempts.every((input) => input.contentId === 'practice-web-test-spi-v1')).toBe(true)
+    const answered = attempts.map((input) => payload.questionBank.questions.find((entry) => entry.id === input.questionId)!)
+    expect(answered.every(Boolean)).toBe(true)
+    expect(new Set(answered.map((entry) => entry.category)).size).toBe(3)
+    for (const [index, input] of attempts.entries()) {
+      expect(input.questionVersion).toBe(answered[index]!.version)
+      expect(input.revision).toBe('2eb5d0868363c8160693b6410386521054ffcf5c4636125f1f9e74111c0d22ad')
+    }
+
+    fireEvent.click(within(completion).getByRole('button', { name: 'もう一度解く' }))
+    await screen.findByText('1／3 問目')
+  })
+
+  it('keeps a failed mixed attempt retryable across an auth refresh and resubmits the same attempt', async () => {
+    const payload = syntheticMixedPayload()
+    // Any draw after the first member draw returns the reverse order, so a
+    // re-draw on auth refresh would invalidate the retained retry context.
+    let memberDraws = 0
+    vi.spyOn(mixedSet, 'selectMixedQuestions').mockImplementation((candidate) => {
+      const questions = [...candidate.questionBank.questions]
+      if (candidate !== payload) return questions
+      memberDraws += 1
+      return memberDraws === 1 ? questions : questions.reverse()
+    })
+    fetchPracticePayloadMock.mockReset().mockResolvedValue({ kind: 'ok', payload })
+    submitPracticeAttemptMock.mockReset()
+      .mockResolvedValueOnce({ kind: 'unavailable' })
+      .mockResolvedValueOnce({ kind: 'ok' })
+    const userId = 'mixed-refresh-member'
+    const rendered = renderWebTestAt('/practice/web-test/spi/mixed', { session: { id: userId } })
+
+    await screen.findByText('1／3 問目')
+    fireEvent.click(screen.getAllByRole('radio')[0]!)
+    fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '保存を再試行' })).toBeInTheDocument())
+    const originalAttempt = structuredClone(submitPracticeAttemptMock.mock.calls[0]![0])
+
+    act(() => rendered.authClient.emitAuthStateChange(null))
+    act(() => rendered.authClient.emitAuthStateChange({ id: userId }))
+    await waitFor(() => expect(screen.getByRole('heading', { name: '解答と解説' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: '保存を再試行' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '保存を再試行' }))
+    await waitFor(() => expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(2))
+    expect(submitPracticeAttemptMock.mock.calls[1]![0]).toEqual(originalAttempt)
+    expect(submitPracticeAttemptMock.mock.calls[1]![0].clientIdempotencyKey).toBe(originalAttempt.clientIdempotencyKey)
+  })
+
+  it('draws a new mixed set when the learner restarts', async () => {
+    const payload = syntheticMixedPayload()
+    fetchPracticePayloadMock.mockReset().mockResolvedValue({ kind: 'ok', payload })
+    submitPracticeAttemptMock.mockReset().mockResolvedValue({ kind: 'ok' })
+    const selectSpy = vi.spyOn(mixedSet, 'selectMixedQuestions')
+    renderWebTestAt('/practice/web-test/spi/mixed', { session: { id: 'mixed-restart-member' } })
+
+    await screen.findByText('1／3 問目')
+    for (let index = 0; index < 3; index += 1) {
+      await screen.findByText(`${index + 1}／3 問目`)
+      fireEvent.click(screen.getAllByRole('radio')[0]!)
+      fireEvent.click(screen.getByRole('button', { name: '解答する' }))
+      await waitFor(() => expect(screen.getByRole('button', { name: '次の問題へ' })).toBeEnabled())
+      fireEvent.click(screen.getByRole('button', { name: '次の問題へ' }))
+    }
+
+    const completion = screen.getByRole('heading', { name: '練習が終わりました' }).closest('section')!
+    const drawsBeforeRestart = selectSpy.mock.calls.length
+    expect(drawsBeforeRestart).toBeGreaterThan(0)
+    fireEvent.click(within(completion).getByRole('button', { name: 'もう一度解く' }))
+    await screen.findByText('1／3 問目')
+    await waitFor(() => expect(selectSpy.mock.calls.length).toBeGreaterThan(drawsBeforeRestart))
   })
 })

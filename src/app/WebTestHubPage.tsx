@@ -27,6 +27,7 @@ import type { PracticeAnswer } from '../practice-web-test/contract'
 import { FREE_SPI_SAMPLE_CONTENT_ID, FREE_SPI_SAMPLE_REVISION } from '../practice-web-test/freeSample'
 import { freeSpiSamplePayload } from '../practice-web-test/freeSpiSamplePayload'
 import { discoveryFreeSampleCount, freeSampleCount, nextFreeSampleUnit, nextPracticeUnit } from '../practice-web-test/freeSampleUnits'
+import { MIXED_PRACTICE_MODE, MIXED_SET_SIZE, selectMixedQuestions } from '../practice-web-test/mixedSet'
 import { AuthPanel } from '../components/AuthPanel'
 import { formatStopwatch, readStopwatchEnabled, WebTestStopwatch, writeStopwatchEnabled, type WebTestStopwatchHandle } from '../components/WebTestStopwatch'
 import { WebTestReviewEntry } from './WebTestReviewEntry'
@@ -65,6 +66,16 @@ function labelForCategory(
   return catalog
     ? practiceDiscoveryCategoryLabel(catalog.releaseIdentity.contentId, testFamily, domain, category.category, getActiveLocale()) ?? ''
     : ''
+}
+
+/** Resolves a mixed-set result's category label from the release catalog. */
+function labelForAnswerCategory(testFamily: string, category: string): string {
+  const family = catalog ? findPracticeDiscoveryFamily(catalog, testFamily) : undefined
+  for (const domain of family?.domains ?? []) {
+    const match = domain.categories.find((candidate) => candidate.category === category)
+    if (match) return labelForCategory(testFamily, domain.domain, match)
+  }
+  return category
 }
 
 function titleFor(...parts: string[]): string {
@@ -170,6 +181,18 @@ export function WebTestFamilyPage() {
           ))}
         </ul>
       </section>
+      <section className="web-test-hub__families" aria-labelledby="web-test-mixed-title">
+        <h2 id="web-test-mixed-title">{ui.webMixedSectionTitle}</h2>
+        <ul>
+          <li>
+            <Link className="web-test-hub__family-link" to={`/practice/web-test/${family.testFamily}/mixed`}>
+              <span className="web-test-hub__family-title">{ui.webMixedTitle}</span>
+              <span>{ui.webMixedEntryBody(MIXED_SET_SIZE)}</span>
+              <span>{ui.webMixedEntryAction}</span>
+            </Link>
+          </li>
+        </ul>
+      </section>
       <Link className="page__action" to="/practice/web-test">{ui.webBackToTests}</Link>
     </section>
   )
@@ -225,28 +248,39 @@ export function WebTestCategoryPage() {
  * not fetch, render, or infer access to proprietary question content.
  */
 export function WebTestRunnerEntryPage() {
+  return <WebTestRunnerEntry />
+}
+
+/** Cross-category SPI set (#204): the same runner over a mixed question draw. */
+export function WebTestMixedRunnerPage() {
+  return <WebTestRunnerEntry mixed />
+}
+
+function WebTestRunnerEntry({ mixed = false }: { mixed?: boolean }) {
   const ui = useStrings().learningUi
 
   const { family: familyParam, domain: domainParam, category: categoryParam } = useParams()
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const mode = searchParams.get('mode')
-  const reviewQuestionId = searchParams.get('review')
-  const reviewVersionParam = searchParams.get('reviewVersion')
+  const mode = mixed ? MIXED_PRACTICE_MODE : searchParams.get('mode')
+  const reviewQuestionId = mixed ? null : searchParams.get('review')
+  const reviewVersionParam = mixed ? null : searchParams.get('reviewVersion')
   const reviewVersion = reviewVersionParam === null ? null : Number(reviewVersionParam)
-  const hasReviewParams = searchParams.has('review') || searchParams.has('reviewVersion')
-  const validReview = !hasReviewParams || (
+  const hasReviewParams = !mixed && (searchParams.has('review') || searchParams.has('reviewVersion'))
+  const validReview = mixed || !hasReviewParams || (
     searchParams.has('review') && searchParams.has('reviewVersion') &&
     typeof reviewQuestionId === 'string' && reviewQuestionId.length > 0 && reviewQuestionId.length <= 128 && reviewQuestionId.trim() === reviewQuestionId &&
     reviewVersion !== null && Number.isSafeInteger(reviewVersion) && reviewVersion > 0
   )
   // Unknown query parameters (tracking, share links) are ignored: only the
   // parameters this runner consumes are validated.
-  const validSearch = validReview && searchParams.has('mode')
+  const validSearch = mixed || (validReview && searchParams.has('mode'))
   const family = catalog && findPracticeDiscoveryFamily(catalog, familyParam)
-  const domain = catalog && findPracticeDiscoveryDomain(catalog, familyParam, domainParam)
-  const category = catalog && findPracticeDiscoveryCategory(catalog, familyParam, domainParam, categoryParam)
-  const validMode = typeof mode === 'string' && category?.modes.includes(mode as PracticeDiscoveryMode)
+  const domain = mixed ? undefined : catalog && findPracticeDiscoveryDomain(catalog, familyParam, domainParam)
+  const category = mixed ? undefined : catalog && findPracticeDiscoveryCategory(catalog, familyParam, domainParam, categoryParam)
+  const validMode = mixed || (typeof mode === 'string' && Boolean(category?.modes.includes(mode as PracticeDiscoveryMode)))
+  const selectionDomain = mixed ? 'mixed' : domain?.domain ?? ''
+  const selectionCategory = mixed ? 'mixed' : category?.category ?? ''
   const { user, loading: authLoading, getAccessToken } = useAuth()
   const [state, setState] = useState<RunnerState>({ kind: 'idle' })
   const [index, setIndex] = useState(0)
@@ -280,11 +314,14 @@ export function WebTestRunnerEntryPage() {
   const lastAttemptScopeKeyRef = useRef<string | null>(null)
   const lastAttemptPersistenceRef = useRef<RunnerPersistence | null>(null)
   const retryContextRef = useRef<RunnerRetryContext | null>(null)
+  // A mixed run keeps its drawn question identities so an auth-driven effect
+  // re-run rebuilds the same set and the pending-attempt retry still validates.
+  const mixedSelectionRef = useRef<{ runNumber: number; sets: Map<string, RunnerQuestionIdentity[]> } | null>(null)
   const primaryElapsedMsRef = useRef<number | null>(null)
   const persistenceGenerationRef = useRef(0)
   const userId = user?.id
-  const selectionKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? '', reviewQuestionId ?? '', reviewVersionParam ?? '', userId ?? ''].join('|')
-  const selectionScopeKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', domain?.domain ?? '', category?.category ?? '', mode ?? '', reviewQuestionId ?? '', reviewVersionParam ?? ''].join('|')
+  const selectionKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', selectionDomain, selectionCategory, mode ?? '', reviewQuestionId ?? '', reviewVersionParam ?? '', userId ?? ''].join('|')
+  const selectionScopeKey = [catalog?.releaseIdentity.revision ?? '', family?.testFamily ?? '', selectionDomain, selectionCategory, mode ?? '', reviewQuestionId ?? '', reviewVersionParam ?? ''].join('|')
   const updateAnswers = (update: (current: RunnerAnswer[]) => RunnerAnswer[]) => {
     const next = update(answersRef.current)
     answersRef.current = next
@@ -293,7 +330,7 @@ export function WebTestRunnerEntryPage() {
   useEffect(() => {
     persistenceGenerationRef.current += 1
     let cancelled = false
-    if (!catalog || !family || !domain || !category || !validSearch || !validMode) return
+    if (!catalog || !family || (!mixed && (!domain || !category)) || !validSearch || !validMode) return
     const pendingRetry = lastAttemptRef.current !== null &&
       lastAttemptAnswerIndexRef.current !== null &&
       lastAttemptUserIdRef.current !== null &&
@@ -331,7 +368,25 @@ export function WebTestRunnerEntryPage() {
       if (authLoading) return
       // The public Free sample needs no account; a signed-in owner without Plus
       // (or before the member bank is published) practices and saves it too.
-      const sampleQuestions = selectableQuestions(freeSpiSamplePayload, family!.testFamily, domain!.domain, category!.category, mode!)
+      // A mixed draw is only new when the run changes (entry or restart). Any
+      // other effect re-run, such as a token refresh, rebuilds the remembered
+      // identities so retained attempts can still be retried.
+      const selectQuestions = (candidate: PracticeRuntimePayload, contentId: string): RuntimeQuestion[] => {
+        if (!mixed) return selectableQuestions(candidate, family!.testFamily, domain!.domain, category!.category, mode!)
+        if (mixedSelectionRef.current?.runNumber !== runNumber) mixedSelectionRef.current = { runNumber, sets: new Map() }
+        const sets = mixedSelectionRef.current.sets
+        const remembered = sets.get(contentId)
+        if (remembered) {
+          const byIdentity = new Map<string, RuntimeQuestion>()
+          for (const entry of candidate.questionBank.questions) byIdentity.set(`${entry.id}\u0000${entry.version}`, entry)
+          const rebuilt = remembered.map(({ id, version }) => byIdentity.get(`${id}\u0000${version}`))
+          if (rebuilt.every((entry): entry is RuntimeQuestion => entry !== undefined)) return rebuilt
+        }
+        const selected = selectMixedQuestions(candidate, family!.testFamily)
+        sets.set(contentId, selected.map(({ id, version }) => ({ id, version })))
+        return selected
+      }
+      const sampleQuestions = selectQuestions(freeSpiSamplePayload, FREE_SPI_SAMPLE_CONTENT_ID)
       const sampleReview = reviewQuestionId !== null && sampleQuestions.some((entry) => entry.id === reviewQuestionId)
       const sampleSource: RunnerSource = { contentId: FREE_SPI_SAMPLE_CONTENT_ID, revision: FREE_SPI_SAMPLE_REVISION, freeSample: true }
       const retryOnSample = pendingRetry && lastAttemptRef.current?.contentId === FREE_SPI_SAMPLE_CONTENT_ID
@@ -359,7 +414,7 @@ export function WebTestRunnerEntryPage() {
           return
         }
       }
-      const questions = selectableQuestions(payload, family!.testFamily, domain!.domain, category!.category, mode!)
+      const questions = selectQuestions(payload, source.contentId)
       if (questions.length === 0) { setState({ kind: 'unavailable' }); return }
       const selectedQuestions = reviewQuestionId === null
         ? questions
@@ -434,7 +489,7 @@ export function WebTestRunnerEntryPage() {
       startedAt.current = Date.now()
     })
     return () => { cancelled = true; persistenceGenerationRef.current += 1 }
-  }, [authLoading, userId, getAccessToken, selectionKey, selectionScopeKey, family, domain, category, mode, reviewQuestionId, reviewVersion, validMode, validReview, validSearch, runNumber])
+  }, [authLoading, userId, getAccessToken, selectionKey, selectionScopeKey, family, domain, category, mode, mixed, reviewQuestionId, reviewVersion, validMode, validReview, validSearch, runNumber])
   const question = state.kind === 'ready' ? state.questions[index] : undefined
   const finish = index >= (state.kind === 'ready' ? state.questions.length : 0)
   useEffect(() => {
@@ -448,15 +503,17 @@ export function WebTestRunnerEntryPage() {
     else if (finish) completionHeadingRef.current?.focus()
   }, [feedback, checkpointFeedback, checkpointIndex, question, question?.id, finish])
   useDocumentTitle(
-    family && domain && category && validSearch && validMode
-      ? titleFor(labelForCategory(family.testFamily, domain.domain, category), (domain.domain === 'verbal' ? ui.webVerbal : ui.webNonverbal), labelForFamily(family.testFamily))
+    family && validSearch && validMode && (mixed || (domain && category))
+      ? mixed
+        ? titleFor(ui.webMixedTitle, labelForFamily(family.testFamily))
+        : titleFor(labelForCategory(family.testFamily, domain!.domain, category!), (domain!.domain === 'verbal' ? ui.webVerbal : ui.webNonverbal), labelForFamily(family.testFamily))
       : ui.pageNotFound,
   )
-  if (catalog && family && domain && category && !searchParams.has('mode') && !hasReviewParams) {
+  if (!mixed && catalog && family && domain && category && !searchParams.has('mode') && !hasReviewParams) {
     const defaultMode = category.modes.includes('untimed-learning') ? 'untimed-learning' : category.modes[0]
     return <Navigate replace to={{ search: `?mode=${defaultMode}`, hash: location.hash }} />
   }
-  if (!catalog || !family || !domain || !category || !validSearch || !validMode) return <CatalogUnavailable />
+  if (!catalog || !family || (!mixed && (!domain || !category)) || !validSearch || !validMode) return <CatalogUnavailable />
 
   const viewState = !authLoading && !user && !(state.kind === 'ready' && state.source.freeSample && state.selectionKey === selectionKey)
     ? { kind: 'signed-out' as const }
@@ -517,20 +574,22 @@ export function WebTestRunnerEntryPage() {
   const attemptId = () => globalThis.crypto.randomUUID()
   // A signed-in sample review never checked membership, so its destination may be the member bank.
   const nextIsFreeSample = viewState.kind === 'ready' && viewState.source.freeSample && (!userId || reviewQuestionId === null)
-  const nextSample = nextIsFreeSample
-    ? nextFreeSampleUnit(family, domain.domain, category.category)
-    : nextPracticeUnit(family, domain.domain, category.category)
+  // A mixed set has no single "next unit"; learners return to the family page.
+  const nextSample = mixed ? undefined : nextIsFreeSample
+    ? nextFreeSampleUnit(family, domain!.domain, category!.category)
+    : nextPracticeUnit(family, domain!.domain, category!.category)
   const nextSampleLink = nextSample ? {
     free: nextIsFreeSample,
     href: runnerEntryHref(family.testFamily, nextSample.domain, nextSample.category.category, 'untimed-learning'),
     label: labelForCategory(family.testFamily, nextSample.domain, nextSample.category),
   } : undefined
+  const categoryLabel = mixed ? ui.webMixedTitle : labelForCategory(family.testFamily, domain!.domain, category!)
   return (
       <section className="page web-test-hub" lang={getActiveLocale()} aria-labelledby="web-test-runner-entry-title">
       <div className="web-test-hub__intro">
-        <p className="product-mode-page__eyebrow" lang={getActiveLocale()}>{ui.practicePrefix} {labelForFamily(family.testFamily)} · {(domain.domain === 'verbal' ? ui.webVerbal : ui.webNonverbal)}</p>
-        <h1 className="page__title" id="web-test-runner-entry-title">{labelForCategory(family.testFamily, domain.domain, category)}</h1>
-        <p className="page__lead">{(mode === 'untimed-learning' ? ui.webUntimed : ui.webTimed)} · {category.releasedCount} {ui.webPublishedCountSuffix}</p>
+        <p className="product-mode-page__eyebrow" lang={getActiveLocale()}>{ui.practicePrefix} {labelForFamily(family.testFamily)} · {mixed ? ui.webMixedTitle : (domain!.domain === 'verbal' ? ui.webVerbal : ui.webNonverbal)}</p>
+        <h1 className="page__title" id="web-test-runner-entry-title">{categoryLabel}</h1>
+        <p className="page__lead">{mixed ? ui.webMixedLead(MIXED_SET_SIZE) : `${mode === 'untimed-learning' ? ui.webUntimed : ui.webTimed} · ${category!.releasedCount} ${ui.webPublishedCountSuffix}`}</p>
       </div>
       {viewState.kind === 'ready' && !finish && <WebTestStopwatch
         key={`${selectionKey}|${runNumber}`}
@@ -540,7 +599,7 @@ export function WebTestRunnerEntryPage() {
         handleRef={stopwatchHandleRef}
       />}
       {viewState.kind === 'ready' && viewState.source.freeSample && !finish && <FreeSampleNotice signedIn={Boolean(user)} count={viewState.questions.length} />}
-      <RunnerStateView signedIn={Boolean(user)} stopwatchAnswer={stopwatchAnswer} nextSampleLink={nextSampleLink} onRestart={() => setRunNumber((current) => current + 1)} questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} completionHeadingRef={completionHeadingRef} checkpointHeadingRef={checkpointHeadingRef} categoryLabel={labelForCategory(family.testFamily, domain.domain, category)} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} checkpointIndex={checkpointIndex} checkpointResponse={checkpointResponse} checkpointFeedback={checkpointFeedback} persistence={persistence} canRetryPersist={retryAvailable} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} setCheckpointResponse={setCheckpointResponse} onRetryPersist={retryPersist} onSubmit={() => {
+      <RunnerStateView signedIn={Boolean(user)} stopwatchAnswer={stopwatchAnswer} nextSampleLink={nextSampleLink} onRestart={() => setRunNumber((current) => current + 1)} questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} completionHeadingRef={completionHeadingRef} checkpointHeadingRef={checkpointHeadingRef} categoryLabel={categoryLabel} categoryLabelFor={mixed ? (answerCategory) => labelForAnswerCategory(family.testFamily, answerCategory) : undefined} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} checkpointIndex={checkpointIndex} checkpointResponse={checkpointResponse} checkpointFeedback={checkpointFeedback} persistence={persistence} canRetryPersist={retryAvailable} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} setCheckpointResponse={setCheckpointResponse} onRetryPersist={retryPersist} onSubmit={() => {
         if (!question || state.kind !== 'ready' || response === '') return
         const correct = scoreQuestion(question, response)
         const primaryElapsedMs = Date.now() - startedAt.current
@@ -624,7 +683,7 @@ export function WebTestRunnerEntryPage() {
         setLastExplanation(null)
         startedAt.current = Date.now()
       }} />
-      <Link className="page__action" to={`/practice/web-test/${family.testFamily}/${domain.domain}`}>{ui.webBackToCategories}</Link>
+      <Link className="page__action" to={mixed ? `/practice/web-test/${family.testFamily}` : `/practice/web-test/${family.testFamily}/${domain!.domain}`}>{mixed ? ui.webBackToDomains : ui.webBackToCategories}</Link>
     </section>
   )
 }
@@ -632,7 +691,7 @@ export function WebTestRunnerEntryPage() {
 type RunnerState = { kind: 'idle' | 'loading' | 'signed-out' | 'forbidden' | 'unavailable' | 'missing' | 'stale-review' } | { kind: 'ready'; payload: import('../content-delivery/privatePracticeQuestionBank').PracticeRuntimePayload; questions: RuntimeQuestion[]; selectionKey: string; source: RunnerSource }
 type RunnerSource = { contentId: string; revision: string; freeSample: boolean }
 
-function RunnerStateView({ signedIn, stopwatchAnswer, nextSampleLink, onRestart, questionHeadingRef, feedbackHeadingRef, completionHeadingRef, checkpointHeadingRef, categoryLabel, state, finish, question, response, answers, feedback, checkpointIndex, checkpointResponse, checkpointFeedback, persistence, canRetryPersist, lastCorrect, lastExplanation, setResponse, setCheckpointResponse, onRetryPersist, onSubmit, onCheckpointSubmit, onCheckpointNext, onNext }: { signedIn: boolean; stopwatchAnswer: { questionId: string; elapsedMs: number } | null; nextSampleLink?: { free: boolean; href: string; label: string }; onRestart: () => void; questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; completionHeadingRef: RefObject<HTMLHeadingElement | null>; checkpointHeadingRef: RefObject<HTMLHeadingElement | null>; categoryLabel: string; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: RunnerAnswer[]; feedback: { question: RuntimeQuestion; correct: boolean } | null; checkpointIndex: number | null; checkpointResponse: RunnerResponse; checkpointFeedback: boolean | null; persistence: 'idle' | RunnerPersistence; canRetryPersist: boolean; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; setCheckpointResponse: (value: RunnerResponse) => void; onRetryPersist: () => void; onSubmit: () => void; onCheckpointSubmit: () => void; onCheckpointNext: () => void; onNext: () => void }) {
+function RunnerStateView({ signedIn, stopwatchAnswer, nextSampleLink, onRestart, questionHeadingRef, feedbackHeadingRef, completionHeadingRef, checkpointHeadingRef, categoryLabel, categoryLabelFor, state, finish, question, response, answers, feedback, checkpointIndex, checkpointResponse, checkpointFeedback, persistence, canRetryPersist, lastCorrect, lastExplanation, setResponse, setCheckpointResponse, onRetryPersist, onSubmit, onCheckpointSubmit, onCheckpointNext, onNext }: { signedIn: boolean; stopwatchAnswer: { questionId: string; elapsedMs: number } | null; nextSampleLink?: { free: boolean; href: string; label: string }; onRestart: () => void; questionHeadingRef: RefObject<HTMLHeadingElement | null>; feedbackHeadingRef: RefObject<HTMLHeadingElement | null>; completionHeadingRef: RefObject<HTMLHeadingElement | null>; checkpointHeadingRef: RefObject<HTMLHeadingElement | null>; categoryLabel: string; categoryLabelFor?: (category: string) => string; state: RunnerState; finish: boolean; question?: RuntimeQuestion; response: RunnerResponse; answers: RunnerAnswer[]; feedback: { question: RuntimeQuestion; correct: boolean } | null; checkpointIndex: number | null; checkpointResponse: RunnerResponse; checkpointFeedback: boolean | null; persistence: 'idle' | RunnerPersistence; canRetryPersist: boolean; lastCorrect: boolean | null; lastExplanation: string | null; setResponse: (value: RunnerResponse) => void; setCheckpointResponse: (value: RunnerResponse) => void; onRetryPersist: () => void; onSubmit: () => void; onCheckpointSubmit: () => void; onCheckpointNext: () => void; onNext: () => void }) {
   const ui = useStrings().learningUi
 
   if (state.kind === 'signed-out') return <section className="web-test-hub__runner-handoff"><h2>{ui.webSignInTitle}</h2><p>{ui.webSignInBody}</p></section>
@@ -643,7 +702,7 @@ function RunnerStateView({ signedIn, stopwatchAnswer, nextSampleLink, onRestart,
   if (finish) {
     const categoryResults = Array.from(new Set(answers.map((answer) => answer.category))).map((category) => {
       const categoryAnswers = answers.filter((answer) => answer.category === category)
-      return `${categoryLabel}：${categoryAnswers.filter((answer) => answer.correct).length}／${categoryAnswers.length}`
+      return `${categoryLabelFor ? categoryLabelFor(category) : categoryLabel}：${categoryAnswers.filter((answer) => answer.correct).length}／${categoryAnswers.length}`
     })
     const correctCount = answers.filter((answer) => answer.correct).length
     const accuracy = answers.length === 0 ? 0 : Math.round((correctCount / answers.length) * 100)

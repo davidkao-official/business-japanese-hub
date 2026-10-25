@@ -24,6 +24,7 @@ import {
   WebTestCategoryPage,
   WebTestFamilyPage,
   WebTestHubPage,
+  WebTestMixedRunnerPage,
   WebTestRunnerEntryPage,
 } from './app/WebTestHubPage'
 import { PurchaseResultPage } from './app/PurchaseResultPage'
@@ -124,6 +125,7 @@ export default function App() {
                       <Route path="practice/web-test" element={<WebTestHubPage />} />
                       <Route path="practice/web-test/about-spi" element={<SpiExplainerPage />} />
                       <Route path="practice/web-test/:family" element={<WebTestFamilyPage />} />
+                      <Route path="practice/web-test/:family/mixed" element={<WebTestMixedRunnerPage />} />
                       <Route path="practice/web-test/:family/:domain" element={<WebTestCategoryPage />} />
                       <Route path="practice/web-test/:family/:domain/:category" element={<WebTestRunnerEntryPage />} />
                       <Route path="practice/:slug" element={<PracticeActivityPage />} />
