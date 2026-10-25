@@ -240,9 +240,9 @@ export function WebTestRunnerEntryPage() {
     typeof reviewQuestionId === 'string' && reviewQuestionId.length > 0 && reviewQuestionId.length <= 128 && reviewQuestionId.trim() === reviewQuestionId &&
     reviewVersion !== null && Number.isSafeInteger(reviewVersion) && reviewVersion > 0
   )
-  const searchKeys = [...searchParams.keys()]
-  const validSearch = validReview && searchKeys.length === (hasReviewParams ? 3 : 1) &&
-    searchKeys.includes('mode') && (!hasReviewParams || (searchKeys.includes('review') && searchKeys.includes('reviewVersion')))
+  // Unknown query parameters (tracking, share links) are ignored: only the
+  // parameters this runner consumes are validated.
+  const validSearch = validReview && searchParams.has('mode')
   const family = catalog && findPracticeDiscoveryFamily(catalog, familyParam)
   const domain = catalog && findPracticeDiscoveryDomain(catalog, familyParam, domainParam)
   const category = catalog && findPracticeDiscoveryCategory(catalog, familyParam, domainParam, categoryParam)
@@ -452,7 +452,7 @@ export function WebTestRunnerEntryPage() {
       ? titleFor(labelForCategory(family.testFamily, domain.domain, category), (domain.domain === 'verbal' ? ui.webVerbal : ui.webNonverbal), labelForFamily(family.testFamily))
       : ui.pageNotFound,
   )
-  if (catalog && family && domain && category && searchKeys.length === 0) {
+  if (catalog && family && domain && category && !searchParams.has('mode') && !hasReviewParams) {
     const defaultMode = category.modes.includes('untimed-learning') ? 'untimed-learning' : category.modes[0]
     return <Navigate replace to={{ search: `?mode=${defaultMode}`, hash: location.hash }} />
   }
