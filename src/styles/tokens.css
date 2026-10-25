@@ -200,6 +200,10 @@
   --gutter: clamp(16px, 4vw, 40px);
   --content-max: 1200px;
   --header-h: 64px;
+  /* Rendered height of the sticky site header: the `.site-header__inner`
+     min-height (`--space-8` + `--space-3`) plus its bottom border. Used for
+     scroll padding so anchors and focused targets clear the header. */
+  --site-header-h: calc(var(--space-8) + var(--space-3) + var(--stroke-thin));
   --bottom-bar-h: 64px;
   --text-xs: var(--size-caption);
   --text-sm: var(--size-ui);
