@@ -145,6 +145,14 @@ ol {
   }
 }
 
+/* Keep anchor and programmatic scroll targets clear of the sticky site header
+ * (WCAG 2.4.11 Focus Not Obscured). Scoped to the main site shell: the Reader
+ * renders outside `Layout` and already owns its `--reader-topbar-h` scroll
+ * margins. */
+html:has(.app-shell) {
+  scroll-padding-top: calc(var(--site-header-h) + var(--space-4));
+}
+
 /* ---------------------------------------------------------------
  * Application shell layout
  * --------------------------------------------------------------- */
