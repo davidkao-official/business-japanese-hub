@@ -308,6 +308,9 @@ function WebTestRunnerEntry({ mixed = false }: { mixed?: boolean }) {
   const lastAttemptScopeKeyRef = useRef<string | null>(null)
   const lastAttemptPersistenceRef = useRef<RunnerPersistence | null>(null)
   const retryContextRef = useRef<RunnerRetryContext | null>(null)
+  // A mixed run keeps its drawn question identities so an auth-driven effect
+  // re-run rebuilds the same set and the pending-attempt retry still validates.
+  const mixedSelectionRef = useRef<{ runNumber: number; sets: Map<string, RunnerQuestionIdentity[]> } | null>(null)
   const primaryElapsedMsRef = useRef<number | null>(null)
   const persistenceGenerationRef = useRef(0)
   const userId = user?.id
@@ -359,10 +362,25 @@ function WebTestRunnerEntry({ mixed = false }: { mixed?: boolean }) {
       if (authLoading) return
       // The public Free sample needs no account; a signed-in owner without Plus
       // (or before the member bank is published) practices and saves it too.
-      const selectQuestions = (candidate: PracticeRuntimePayload) => mixed
-        ? selectMixedQuestions(candidate, family!.testFamily)
-        : selectableQuestions(candidate, family!.testFamily, domain!.domain, category!.category, mode!)
-      const sampleQuestions = selectQuestions(freeSpiSamplePayload)
+      // A mixed draw is only new when the run changes (entry or restart). Any
+      // other effect re-run, such as a token refresh, rebuilds the remembered
+      // identities so retained attempts can still be retried.
+      const selectQuestions = (candidate: PracticeRuntimePayload, contentId: string): RuntimeQuestion[] => {
+        if (!mixed) return selectableQuestions(candidate, family!.testFamily, domain!.domain, category!.category, mode!)
+        if (mixedSelectionRef.current?.runNumber !== runNumber) mixedSelectionRef.current = { runNumber, sets: new Map() }
+        const sets = mixedSelectionRef.current.sets
+        const remembered = sets.get(contentId)
+        if (remembered) {
+          const byIdentity = new Map<string, RuntimeQuestion>()
+          for (const entry of candidate.questionBank.questions) byIdentity.set(`${entry.id}\u0000${entry.version}`, entry)
+          const rebuilt = remembered.map(({ id, version }) => byIdentity.get(`${id}\u0000${version}`))
+          if (rebuilt.every((entry): entry is RuntimeQuestion => entry !== undefined)) return rebuilt
+        }
+        const selected = selectMixedQuestions(candidate, family!.testFamily)
+        sets.set(contentId, selected.map(({ id, version }) => ({ id, version })))
+        return selected
+      }
+      const sampleQuestions = selectQuestions(freeSpiSamplePayload, FREE_SPI_SAMPLE_CONTENT_ID)
       const sampleReview = reviewQuestionId !== null && sampleQuestions.some((entry) => entry.id === reviewQuestionId)
       const sampleSource: RunnerSource = { contentId: FREE_SPI_SAMPLE_CONTENT_ID, revision: FREE_SPI_SAMPLE_REVISION, freeSample: true }
       const retryOnSample = pendingRetry && lastAttemptRef.current?.contentId === FREE_SPI_SAMPLE_CONTENT_ID
@@ -390,7 +408,7 @@ function WebTestRunnerEntry({ mixed = false }: { mixed?: boolean }) {
           return
         }
       }
-      const questions = selectQuestions(payload)
+      const questions = selectQuestions(payload, source.contentId)
       if (questions.length === 0) { setState({ kind: 'unavailable' }); return }
       const selectedQuestions = reviewQuestionId === null
         ? questions
