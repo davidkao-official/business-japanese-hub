@@ -598,7 +598,7 @@ function WebTestRunnerEntry({ mixed = false }: { mixed?: boolean }) {
         questionKey={`${index}|${question?.id ?? ''}`}
         handleRef={stopwatchHandleRef}
       />}
-      {viewState.kind === 'ready' && viewState.source.freeSample && !finish && <FreeSampleNotice signedIn={Boolean(user)} count={viewState.questions.length} />}
+      {viewState.kind === 'ready' && viewState.source.freeSample && !finish && <FreeSampleNotice signedIn={Boolean(user)} count={viewState.questions.length} mixed={mixed} />}
       <RunnerStateView signedIn={Boolean(user)} stopwatchAnswer={stopwatchAnswer} nextSampleLink={nextSampleLink} onRestart={() => setRunNumber((current) => current + 1)} questionHeadingRef={questionHeadingRef} feedbackHeadingRef={feedbackHeadingRef} completionHeadingRef={completionHeadingRef} checkpointHeadingRef={checkpointHeadingRef} categoryLabel={categoryLabel} categoryLabelFor={mixed ? (answerCategory) => labelForAnswerCategory(family.testFamily, answerCategory) : undefined} state={viewState} finish={finish} question={question} response={response} answers={answers} feedback={feedback} checkpointIndex={checkpointIndex} checkpointResponse={checkpointResponse} checkpointFeedback={checkpointFeedback} persistence={persistence} canRetryPersist={retryAvailable} lastCorrect={lastCorrect} lastExplanation={lastExplanation} setResponse={setResponse} setCheckpointResponse={setCheckpointResponse} onRetryPersist={retryPersist} onSubmit={() => {
         if (!question || state.kind !== 'ready' || response === '') return
         const correct = scoreQuestion(question, response)
@@ -766,12 +766,12 @@ function RunnerStateView({ signedIn, stopwatchAnswer, nextSampleLink, onRestart,
   </section>
 }
 
-function FreeSampleNotice({ signedIn, count }: { signedIn: boolean; count: number }) {
+function FreeSampleNotice({ signedIn, count, mixed = false }: { signedIn: boolean; count: number; mixed?: boolean }) {
   const ui = useStrings().learningUi
   return (
     <section className="web-test-hub__sample-notice" aria-labelledby="web-test-sample-title">
       <h2 id="web-test-sample-title">{ui.webSampleTitle}</h2>
-      <p>{signedIn ? ui.webSampleSignedInBody(count) : ui.webSampleSignedOutBody(count)}</p>
+      <p>{signedIn ? ui.webSampleSignedInBody(count, mixed) : ui.webSampleSignedOutBody(count, mixed)}</p>
       {signedIn
         ? <Link className="page__action" to="/my-learning">{ui.webSampleOpenMyLearning}</Link>
         : <SampleSignIn />}
