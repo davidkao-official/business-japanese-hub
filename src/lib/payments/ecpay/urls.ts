@@ -12,6 +12,10 @@ export interface EcpayUrls {
   checkout: string;
   /** QueryTradeInfo V5 order-query endpoint (§6). */
   queryTradeInfo: string;
+  /** Query recurring credit-card period information. */
+  queryCreditCardPeriodInfo: string;
+  /** Cancel a recurring credit-card period. */
+  creditCardPeriodAction: string;
   /**
    * FundingReconDetail credit-card funding reconciliation CSV (§6) — production
    * only; stage has no real-authorization sandbox so there is no stage URL.
@@ -25,10 +29,14 @@ export const ECPAY_URLS: Record<EcpayEnv, EcpayUrls> = {
   stage: {
     checkout: 'https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5',
     queryTradeInfo: 'https://payment-stage.ecpay.com.tw/Cashier/QueryTradeInfo/V5',
+    queryCreditCardPeriodInfo: 'https://payment-stage.ecpay.com.tw/Cashier/QueryCreditCardPeriodInfo',
+    creditCardPeriodAction: 'https://payment-stage.ecpay.com.tw/Cashier/CreditCardPeriodAction',
   },
   prod: {
     checkout: 'https://payment.ecpay.com.tw/Cashier/AioCheckOut/V5',
     queryTradeInfo: 'https://payment.ecpay.com.tw/Cashier/QueryTradeInfo/V5',
+    queryCreditCardPeriodInfo: 'https://payment.ecpay.com.tw/Cashier/QueryCreditCardPeriodInfo',
+    creditCardPeriodAction: 'https://payment.ecpay.com.tw/Cashier/CreditCardPeriodAction',
     fundingReconDetail: 'https://payment.ecpay.com.tw/CreditDetail/FundingReconDetail',
   },
 };
