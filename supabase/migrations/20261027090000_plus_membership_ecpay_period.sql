@@ -153,9 +153,16 @@ begin
 
   if p_kind = 'authorization' and p_rtn_code = '1'
       and not p_simulate_paid and v_status = 'pending' then
-    update public.plus_membership_ecpay_order
+    -- A second checkout that also succeeded stays pending (the receipt is kept)
+    -- instead of tripping the one-active-order index and losing the receipt.
+    update public.plus_membership_ecpay_order o
     set status = 'active', updated_at = now()
-    where merchant_trade_no = p_merchant_trade_no;
+    where o.merchant_trade_no = p_merchant_trade_no
+      and not exists (
+        select 1 from public.plus_membership_ecpay_order other
+        where other.user_id = o.user_id and other.environment = o.environment
+          and other.status in ('active', 'cancel_requested')
+      );
   end if;
 
   return 'new';
