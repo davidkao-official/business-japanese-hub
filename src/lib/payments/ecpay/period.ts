@@ -73,7 +73,8 @@ export interface PeriodCheckoutInput {
   itemName: string;
   returnUrl: string;
   periodReturnUrl: string;
-  orderResultUrl: string;
+  orderResultUrl?: string;
+  clientBackUrl?: string;
   language: EcpayLanguage;
   hashKey: string;
   hashIV: string;
@@ -100,7 +101,6 @@ export async function buildPeriodCheckoutFields(
     ReturnURL: input.returnUrl,
     ChoosePayment: 'Credit',
     EncryptType: '1',
-    OrderResultURL: input.orderResultUrl,
     NeedExtraPaidInfo: 'N',
     Language: input.language,
     PeriodAmount: String(input.periodAmountTwd),
@@ -109,6 +109,8 @@ export async function buildPeriodCheckoutFields(
     ExecTimes: String(input.execTimes),
     PeriodReturnURL: input.periodReturnUrl,
   };
+  if (input.orderResultUrl) fields.OrderResultURL = input.orderResultUrl;
+  if (input.clientBackUrl) fields.ClientBackURL = input.clientBackUrl;
   const CheckMacValue = await ecpayCheckMac(fields, input.hashKey, input.hashIV);
   return { ...fields, CheckMacValue };
 }

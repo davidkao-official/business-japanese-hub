@@ -69,6 +69,10 @@ export interface Env {
    * (decision-record §6). Not configured → Layer C logs and skips.
    */
   fundingReconCsv: string | undefined;
+  /** Owner gate (#107 P7): Plus checkout opens only when exactly 'true'. */
+  plusCheckoutAdmitted: boolean;
+  /** Consent/disclosure revision bound to each Plus order; unset keeps checkout closed. */
+  plusConsentRevision: string | undefined;
 }
 
 /** Minimal reader over the environment (satisfied by `Deno.env`). */
@@ -141,6 +145,8 @@ export function readEnvFrom(reader: EnvReader): Env {
     supportEmail: reader.get('SUPPORT_EMAIL'),
     legalSellerName: reader.get('LEGAL_SELLER_NAME'),
     fundingReconCsv: reader.get('FUNDING_RECON_CSV'),
+    plusCheckoutAdmitted: reader.get('PLUS_CHECKOUT_ADMITTED') === 'true',
+    plusConsentRevision: reader.get('PLUS_CONSENT_REVISION'),
   };
 }
 
