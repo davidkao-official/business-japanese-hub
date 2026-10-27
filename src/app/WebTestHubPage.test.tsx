@@ -1416,6 +1416,7 @@ describe('SPI mixed practice (#204)', () => {
     await screen.findByText('1／10 問目')
     expect(screen.getByRole('heading', { name: '総合練習' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '無料サンプル問題' })).toBeInTheDocument()
+    expect(screen.getByText(/全分野から選んだ無料サンプル 10 問を、ログインなしで解けます/)).toBeInTheDocument()
     expect(fetchPracticePayloadMock).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getAllByRole('radio')[0]!)
@@ -1432,6 +1433,7 @@ describe('SPI mixed practice (#204)', () => {
 
     await screen.findByText('1／10 問目')
     expect(screen.getByRole('heading', { name: '無料サンプル問題' })).toBeInTheDocument()
+    expect(screen.getByText(/全分野から選んだ無料サンプル 10 問です/)).toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('radio')[0]!)
     fireEvent.click(screen.getByRole('button', { name: '解答する' }))
     await waitFor(() => expect(submitPracticeAttemptMock).toHaveBeenCalledTimes(1))
