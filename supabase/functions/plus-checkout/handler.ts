@@ -34,7 +34,16 @@ function noStore(result: HandlerResult): HandlerResult {
 }
 
 /** True only when every provider secret and the Owner gate admit Plus checkout. */
-function checkoutOpen(env: Env): boolean {
+type OpenCheckoutEnv = Env & {
+  plusConsentRevision: string
+  ecpayMerchantId: string
+  ecpayHashKey: string
+  ecpayHashIV: string
+  ecpayEnv: NonNullable<Env['ecpayEnv']>
+  publicSiteUrl: string
+}
+
+function checkoutOpen(env: Env): env is OpenCheckoutEnv {
   return Boolean(
     env.plusCheckoutAdmitted && env.plusConsentRevision && env.ecpayMerchantId &&
     env.ecpayHashKey && env.ecpayHashIV && env.ecpayEnv && env.publicSiteUrl &&
