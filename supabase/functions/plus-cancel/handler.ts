@@ -63,7 +63,7 @@ export async function handlePlusCancel(
   const sourceSystem = `ecpay_aio_period:${env.ecpayEnv}`
   const order = await db
     .from('plus_membership_ecpay_order')
-    .select('merchant_trade_no,status')
+    .select('merchant_trade_no,status,updated_at')
     .eq('user_id', userId)
     .eq('environment', env.ecpayEnv)
     .in('status', ['active', 'cancel_requested'])
@@ -72,12 +72,25 @@ export async function handlePlusCancel(
   if (!order.data) return noStore(jsonResult(404, { error: 'no active subscription' }))
 
   const merchantTradeNo = String(order.data.merchant_trade_no)
+  let occurredAt = String(order.data.updated_at)
   if (order.data.status === 'active') {
     const { error } = await db.rpc('set_plus_ecpay_order_status', {
       p_merchant_trade_no: merchantTradeNo,
       p_status: 'cancel_requested',
     })
     if (error) return noStore(jsonResult(503, { error: UNAVAILABLE }))
+
+    // A retry must replay the event with the same occurred_at, so bind it to
+    // the stored cancel-request moment instead of the current clock.
+    const cancelRequest = await db
+      .from('plus_membership_ecpay_order')
+      .select('updated_at')
+      .eq('merchant_trade_no', merchantTradeNo)
+      .maybeSingle()
+    if (cancelRequest.error || !cancelRequest.data) {
+      return noStore(jsonResult(503, { error: UNAVAILABLE }))
+    }
+    occurredAt = String(cancelRequest.data.updated_at)
   }
 
   const fields = await buildPeriodCancelFields({
@@ -101,8 +114,12 @@ export async function handlePlusCancel(
 
   const parsed = parseFormUrlEncoded(response.body)
   const rtnCode = parsed.RtnCode
-  const checkMacValid = parsed.CheckMacValue === undefined
-    || (await verifyCheckMac(parsed, env.ecpayHashKey, env.ecpayHashIV, parsed.CheckMacValue))
+  const checkMacValid = await verifyCheckMac(
+    parsed,
+    env.ecpayHashKey,
+    env.ecpayHashIV,
+    parsed.CheckMacValue,
+  )
   if (
     response.status !== 200 ||
     parsed.MerchantTradeNo !== merchantTradeNo ||
@@ -132,7 +149,7 @@ export async function handlePlusCancel(
       p_user_id: userId,
       p_plan_code: 'plus_early_access_monthly',
       p_event_type: 'membership_canceled',
-      p_occurred_at: deps.now().toISOString(),
+      p_occurred_at: occurredAt,
       p_period_start: periodStart,
       p_period_end: periodEnd,
       p_cancel_at_period_end: true,

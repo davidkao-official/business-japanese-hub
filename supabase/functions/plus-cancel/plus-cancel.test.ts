@@ -11,6 +11,7 @@ const HASH_KEY = 'test-hash-key'
 const HASH_IV = 'test-hash-iv'
 const PERIOD_START = '2026-11-01T00:00:00.000Z'
 const PERIOD_END = '2026-12-01T00:00:00.000Z'
+const CANCEL_REQUESTED_AT = '2026-10-31T12:00:00.000Z'
 
 function request(method = 'POST', authorization?: string): HandlerRequest {
   return {
@@ -106,7 +107,11 @@ function deps(overrides: Partial<PlusCancelDeps> = {}): PlusCancelDeps {
   }
 }
 
-const ACTIVE_ORDER = { merchant_trade_no: MTN, status: 'active' }
+const ACTIVE_ORDER = {
+  merchant_trade_no: MTN,
+  status: 'active',
+  updated_at: CANCEL_REQUESTED_AT,
+}
 const SUMMARY = { period_start: PERIOD_START, period_end: PERIOD_END }
 
 describe('Plus cancel Edge handler', () => {
@@ -167,6 +172,7 @@ describe('Plus cancel Edge handler', () => {
       p_user_id: 'verified-user',
       p_plan_code: 'plus_early_access_monthly',
       p_event_type: 'membership_canceled',
+      p_occurred_at: CANCEL_REQUESTED_AT,
       p_period_start: PERIOD_START,
       p_period_end: PERIOD_END,
       p_cancel_at_period_end: true,
@@ -176,6 +182,33 @@ describe('Plus cancel Edge handler', () => {
       p_status: 'canceled',
     })
     expect(log.error).not.toHaveBeenCalled()
+  })
+
+  it('replays the stored cancel-request time for an already cancel_requested order', async () => {
+    const { db, rpcCalls } = fakeDb({
+      order: {
+        merchant_trade_no: MTN,
+        status: 'cancel_requested',
+        updated_at: CANCEL_REQUESTED_AT,
+      },
+      summary: SUMMARY,
+    })
+
+    const result = await handlePlusCancel(
+      request('POST', 'Bearer verified-token'),
+      deps({
+        db,
+        now: () => new Date('2026-11-01T09:00:00Z'),
+        transport: fakeTransport(await providerResponse()),
+      }),
+    )
+
+    expect(result.status).toBe(200)
+    expect(rpcCalls.map((call) => call.fn)).toEqual([
+      'record_plus_membership_event',
+      'set_plus_ecpay_order_status',
+    ])
+    expect(rpcCalls[0].args.p_occurred_at).toBe(CANCEL_REQUESTED_AT)
   })
 
   it('treats the already-terminated provider result as success', async () => {
@@ -212,6 +245,26 @@ describe('Plus cancel Edge handler', () => {
     const result = await handlePlusCancel(
       request('POST', 'Bearer verified-token'),
       deps({ db, transport: fakeTransport(response) }),
+    )
+
+    expect(result.status).toBe(502)
+    expect(rpcCalls.map((call) => call.args.p_status)).toEqual(['cancel_requested'])
+  })
+
+  it('fails closed when the provider response carries no CheckMacValue', async () => {
+    const { db, rpcCalls } = fakeDb({ order: ACTIVE_ORDER, summary: SUMMARY })
+
+    const result = await handlePlusCancel(
+      request('POST', 'Bearer verified-token'),
+      deps({
+        db,
+        transport: fakeTransport({
+          MerchantID: '2000132',
+          MerchantTradeNo: MTN,
+          RtnCode: '1',
+          RtnMsg: 'OK',
+        }),
+      }),
     )
 
     expect(result.status).toBe(502)
