@@ -75,7 +75,8 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.plus-checkout]
-verify_jwt = true
+# GET (the public gate read) carries no JWT; POST self-verifies the bearer.
+verify_jwt = false
 
 [functions.ecpay-plus-callback]
 verify_jwt = false

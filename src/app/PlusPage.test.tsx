@@ -78,4 +78,15 @@ describe('PlusPage', () => {
     const cta = await screen.findByRole('button', { name: 'Plus に申し込む' })
     expect(cta).toBeDisabled()
   })
+
+  it('shows the payment re-check state after returning from ECPay', async () => {
+    fetchPlusCheckoutOpenMock.mockResolvedValue('test-consent-1')
+    renderWithAppProviders(<PlusPage />, {
+      session: { id: 'u-1', email: 'reader@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn(async () => 'non-member' as const) },
+      initialEntries: ['/plus?checkout=returned'],
+    })
+
+    expect(await screen.findByText('お支払い結果を確認しています')).toBeInTheDocument()
+  })
 })

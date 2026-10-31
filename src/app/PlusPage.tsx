@@ -114,6 +114,9 @@ export function PlusPage() {
  * Plus checkout call to action. It stays absent unless the server reports the
  * checkout gate open, so production is unchanged while the gate is shut.
  */
+const PAYMENT_RECHECK_LIMIT = 12
+const PAYMENT_RECHECK_MS = 5000
+
 function PlusCheckoutPanel() {
   const checkout = useStrings().plus.checkout
   const { state, retry } = useMembershipAccess()
@@ -136,18 +139,20 @@ function PlusCheckoutPanel() {
     }
   }, [])
 
+  // After ECPay, re-check access a bounded number of times. The next check is
+  // scheduled only once the previous lookup has answered, so a slow lookup is
+  // never cancelled by the following retry.
+  const [recheckCount, setRecheckCount] = useState(0)
   const awaitingPaymentResult = returned && state.kind !== 'active-member' &&
-    state.kind !== 'signed-out'
+    state.kind !== 'signed-out' && recheckCount < PAYMENT_RECHECK_LIMIT
   useEffect(() => {
-    if (!awaitingPaymentResult) return
-    let attempts = 0
-    const timer = setInterval(() => {
-      attempts += 1
+    if (!awaitingPaymentResult || state.kind === 'checking') return
+    const timer = setTimeout(() => {
+      setRecheckCount((count) => count + 1)
       retry()
-      if (attempts >= 12) clearInterval(timer)
-    }, 5000)
-    return () => clearInterval(timer)
-  }, [awaitingPaymentResult, retry])
+    }, PAYMENT_RECHECK_MS)
+    return () => clearTimeout(timer)
+  }, [awaitingPaymentResult, state.kind, retry])
 
   if (!consentRevision) return null
 
