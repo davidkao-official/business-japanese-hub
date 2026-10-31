@@ -9,7 +9,9 @@
 import { parseFormUrlEncoded, type EcpayTransport } from '../../../src/lib/payments/ecpay/adapter.ts';
 import {
   buildPeriodCancelFields,
+  buildPeriodQueryFields,
   paidPeriodFor,
+  parsePeriodQueryResponse,
   type EcpayPeriodAuthorization,
 } from '../../../src/lib/payments/ecpay/period.ts';
 import { ECPAY_URLS } from '../../../src/lib/payments/ecpay/urls.ts';
@@ -26,14 +28,16 @@ export interface PlusEcpayOrder {
   period_amount_twd: number;
 }
 
+export interface IngestDeps {
+  env: Env;
+  db: DbClient;
+  log: Logger;
+  transport: EcpayTransport;
+  now: () => Date;
+}
+
 export async function ingestPlusPeriodAuthorization(
-  deps: {
-    env: Env;
-    db: DbClient;
-    log: Logger;
-    transport: EcpayTransport;
-    now: () => Date;
-  },
+  deps: IngestDeps,
   order: PlusEcpayOrder,
   auth: EcpayPeriodAuthorization,
 ): Promise<'ok' | 'retry'> {
@@ -162,4 +166,66 @@ export async function ingestPlusPeriodAuthorization(
   const access = await resolvePlusMembershipAccess(db, String(order.user_id));
   log.info({ sourceEventId: auth.sourceEventId, access }, 'ecpay plus membership access resolved');
   return 'ok';
+}
+
+export type PlusReadBack =
+  | { kind: 'failed' }
+  | { kind: 'done'; execStatus: string; authorizations: number; retry: boolean };
+
+/**
+ * Query one Plus order at ECPay (QueryCreditCardPeriodInfo) and ingest every
+ * successful authorization it reports. The scheduled read-back and the
+ * first-authorization callback both use this, so a charge found here has the
+ * same `source_event_id` (`<MTN>:auth:<gwsr>`) and replays instead of
+ * conflicting.
+ */
+export async function readBackPlusOrder(
+  deps: IngestDeps,
+  order: PlusEcpayOrder,
+): Promise<PlusReadBack> {
+  const { env, log, transport, now } = deps;
+  const ecpayEnv = env.ecpayEnv;
+  if (!env.ecpayMerchantId || !env.ecpayHashKey || !env.ecpayHashIV || !ecpayEnv) {
+    log.warn({ merchantTradeNo: order.merchant_trade_no }, 'plus period query unavailable');
+    return { kind: 'failed' };
+  }
+
+  let query: Awaited<ReturnType<typeof parsePeriodQueryResponse>>;
+  try {
+    const fields = await buildPeriodQueryFields({
+      merchantId: env.ecpayMerchantId,
+      merchantTradeNo: order.merchant_trade_no,
+      now: now(),
+      hashKey: env.ecpayHashKey,
+      hashIV: env.ecpayHashIV,
+    });
+    const response = await transport.post(
+      ECPAY_URLS[ecpayEnv].queryCreditCardPeriodInfo,
+      fields,
+      15_000,
+    );
+    if (response.status !== 200) throw new Error(`unexpected query status ${response.status}`);
+    query = await parsePeriodQueryResponse(response.body, order.merchant_trade_no);
+  } catch (error) {
+    log.warn(
+      {
+        merchantTradeNo: order.merchant_trade_no,
+        error: error instanceof Error ? error.message : 'unknown error',
+      },
+      'plus period query failed',
+    );
+    return { kind: 'failed' };
+  }
+
+  let retry = false;
+  for (const auth of query.authorizations) {
+    const outcome = await ingestPlusPeriodAuthorization(deps, order, auth);
+    if (outcome === 'retry') retry = true;
+  }
+  return {
+    kind: 'done',
+    execStatus: query.execStatus,
+    authorizations: query.authorizations.length,
+    retry,
+  };
 }

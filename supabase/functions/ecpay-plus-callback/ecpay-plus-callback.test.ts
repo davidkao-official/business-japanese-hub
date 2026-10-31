@@ -34,6 +34,41 @@ async function signedForm(overrides: Record<string, string> = {}): Promise<strin
   return new URLSearchParams({ ...fields, CheckMacValue }).toString();
 }
 
+/** Signed generic AIO payment-result form (the FIRST authorization, no PeriodType). */
+async function signedAioForm(overrides: Record<string, string> = {}): Promise<string> {
+  const fields = {
+    MerchantID: env.ecpayMerchantId!,
+    MerchantTradeNo: order.merchant_trade_no,
+    StoreID: '',
+    RtnCode: '1',
+    RtnMsg: '交易成功',
+    TradeNo: 'EC12345',
+    TradeAmt: '299',
+    PaymentDate: '2026/10/27 03:45:00',
+    PaymentType: 'Credit_CreditCard',
+    PaymentTypeChargeFee: '8',
+    TradeDate: '2026/10/27 03:45:00',
+    SimulatePaid: '0',
+    CustomField1: '',
+    CustomField2: '',
+    CustomField3: '',
+    CustomField4: '',
+    ...overrides,
+  };
+  const CheckMacValue = await ecpayCheckMac(fields, env.ecpayHashKey!, env.ecpayHashIV!);
+  return new URLSearchParams({ ...fields, CheckMacValue }).toString();
+}
+
+function queryBody(execLog: unknown[]): string {
+  return JSON.stringify({
+    MerchantTradeNo: order.merchant_trade_no,
+    RtnCode: 1,
+    ExecStatus: '1',
+    TotalSuccessTimes: execLog.length,
+    ExecLog: execLog,
+  });
+}
+
 function setup() {
   const mock = createMockDb({
     plus_membership_ecpay_order: { data: order },
@@ -192,5 +227,61 @@ describe('ecpay-plus-callback', () => {
     mock.setRoute('rpc:record_plus_membership_event', { error: 'write failed' });
     expect(await handle(await signedForm())).toMatchObject({ status: 500, body: '0|retry' });
     expect(mock.rpcCalls('set_plus_ecpay_receipt_result')).toHaveLength(0);
+  });
+});
+
+describe('ecpay-plus-callback — first-authorization (AIO) format', () => {
+  it('reads the first charge back from ECPay and starts membership', async () => {
+    const { mock, post, handle } = setup();
+    post.mockResolvedValue({
+      status: 200,
+      body: queryBody([
+        {
+          RtnCode: 1,
+          amount: 299,
+          gwsr: 12345,
+          process_date: '2026/10/27 03:45:00',
+          auth_code: 'ABC123',
+          TradeNo: 'EC12345',
+        },
+      ]),
+    });
+    expect(await handle(await signedAioForm())).toMatchObject({ status: 200, body: '1|OK' });
+    expect(post).toHaveBeenCalledWith(
+      ECPAY_URLS.stage.queryCreditCardPeriodInfo,
+      expect.objectContaining({ MerchantTradeNo: order.merchant_trade_no }),
+      15_000,
+    );
+    expect(mock.rpcCalls('record_plus_ecpay_receipt')[0].args[0]).toMatchObject({
+      p_source_event_id: sourceEventId,
+      p_amount_twd: 299,
+    });
+    expect(mock.rpcCalls('record_plus_membership_event')[0].args[0]).toMatchObject({
+      p_event_type: 'membership_started',
+    });
+  });
+
+  it('asks for a retry when ECPay has not recorded the charge yet', async () => {
+    const { mock, post, handle } = setup();
+    post.mockResolvedValue({ status: 200, body: queryBody([]) });
+    expect(await handle(await signedAioForm())).toMatchObject({ status: 500, body: '0|retry' });
+    expect(mock.calls.filter((call) => call.table === 'rpc')).toHaveLength(0);
+  });
+
+  it('rejects a generic notification with a bad CheckMac', async () => {
+    const { mock, handle } = setup();
+    const form = new URLSearchParams(await signedAioForm());
+    form.set('CheckMacValue', 'invalid');
+    expect(await handle(form.toString())).toMatchObject({ status: 400, body: '0|invalid' });
+    expect(mock.calls.filter((call) => call.table === 'rpc')).toHaveLength(0);
+  });
+
+  it('acknowledges a failed first authorization without querying ECPay', async () => {
+    const { post, handle } = setup();
+    expect(await handle(await signedAioForm({ RtnCode: '10100058' }))).toMatchObject({
+      status: 200,
+      body: '1|OK',
+    });
+    expect(post).not.toHaveBeenCalled();
   });
 });

@@ -10,8 +10,6 @@
  * order row is simply closed.
  */
 import { createDefaultEcpayTransport, type EcpayTransport } from '../../../src/lib/payments/ecpay/adapter.ts';
-import { buildPeriodQueryFields, parsePeriodQueryResponse } from '../../../src/lib/payments/ecpay/period.ts';
-import { ECPAY_URLS } from '../../../src/lib/payments/ecpay/urls.ts';
 import type { DbClient } from '../_shared/db.ts';
 import { isProviderEnvironmentAligned, type Env } from '../_shared/env.ts';
 import {
@@ -23,7 +21,7 @@ import {
   type HandlerResult,
 } from '../_shared/http.ts';
 import type { Logger } from '../_shared/log.ts';
-import { ingestPlusPeriodAuthorization, type PlusEcpayOrder } from '../_shared/plus-ecpay-ingest.ts';
+import { readBackPlusOrder, type PlusEcpayOrder } from '../_shared/plus-ecpay-ingest.ts';
 
 export interface PlusPeriodReconcileDeps {
   env: Env;
@@ -63,9 +61,6 @@ export async function handlePlusPeriodReconcile(
   ) {
     return jsonResult(503, { error: 'unavailable' });
   }
-  const merchantId = env.ecpayMerchantId;
-  const hashKey = env.ecpayHashKey;
-  const hashIV = env.ecpayHashIV;
   const ecpayEnv = env.ecpayEnv;
 
   const { data, error } = await db
@@ -108,56 +103,20 @@ export async function handlePlusPeriodReconcile(
       await updateStatus(order.merchant_trade_no, 'ended');
       continue;
     }
-    let execStatus: string;
-    let authorizations: Awaited<ReturnType<typeof parsePeriodQueryResponse>>['authorizations'];
-    try {
-      const fields = await buildPeriodQueryFields({
-        merchantId,
-        merchantTradeNo: order.merchant_trade_no,
-        now: now(),
-        hashKey,
-        hashIV,
-      });
-      const response = await transport.post(
-        ECPAY_URLS[ecpayEnv].queryCreditCardPeriodInfo,
-        fields,
-        15_000,
-      );
-      if (response.status !== 200) throw new Error(`unexpected query status ${response.status}`);
-      const query = await parsePeriodQueryResponse(response.body, order.merchant_trade_no);
-      execStatus = query.execStatus;
-      authorizations = query.authorizations;
-    } catch (error) {
+    const read = await readBackPlusOrder({ env, db, log, transport, now }, order);
+    if (read.kind === 'failed') {
       failed++;
-      log.warn(
-        {
-          merchantTradeNo: order.merchant_trade_no,
-          error: error instanceof Error ? error.message : 'unknown error',
-        },
-        'plus period query failed',
-      );
       continue;
-    }
-
-    let retryable = false;
-    for (const auth of authorizations) {
-      const outcome = await ingestPlusPeriodAuthorization(
-        { env, db, log, transport, now },
-        order,
-        auth,
-      );
-      if (outcome === 'retry') {
-        failed++;
-        retryable = true;
-      } else {
-        ingested++;
-      }
     }
     // A charge that could not be ingested must keep its order open, or the next
     // run can never recover it (the order drops out of the open-status query).
-    if (retryable) continue;
+    if (read.retry) {
+      failed++;
+      continue;
+    }
+    ingested += read.authorizations;
 
-    if (execStatus === '0' || execStatus === '2') {
+    if (read.execStatus === '0' || read.execStatus === '2') {
       if (order.status === 'active') await updateStatus(order.merchant_trade_no, 'ended');
       else if (order.status === 'cancel_requested') await updateStatus(order.merchant_trade_no, 'canceled');
     }
