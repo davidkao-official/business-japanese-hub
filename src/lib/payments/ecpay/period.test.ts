@@ -4,6 +4,7 @@ import {
   buildPeriodCheckoutFields,
   formatTaipeiDateTime,
   paidPeriodFor,
+  parsePeriodQueryResponse,
   parseTaipeiDateTime,
   periodAuthorizationFacts,
   verifyPeriodNotification,
@@ -120,6 +121,79 @@ describe('ECPay recurring period helpers', () => {
         hashIV: HASH_IV,
       }),
     ).rejects.toThrow('unexpected MerchantID');
+  });
+
+  it('parses a period query response into callback-equivalent authorizations', async () => {
+    const body = JSON.stringify({
+      MerchantTradeNo: 'plus202610270001',
+      RtnCode: 1,
+      ExecStatus: '1',
+      TotalSuccessTimes: 2,
+      ExecLog: [
+        {
+          RtnCode: 1,
+          amount: 299,
+          gwsr: 222,
+          process_date: '2026/11/27 03:00:00',
+          auth_code: 'B',
+          TradeNo: 'EC2',
+        },
+        {
+          RtnCode: 1,
+          amount: 299,
+          gwsr: 111,
+          process_date: '2026/10/27 03:00:00',
+          auth_code: 'A',
+          TradeNo: 'EC1',
+        },
+        {
+          RtnCode: 0,
+          amount: 299,
+          gwsr: 333,
+          process_date: '2026/10/28 03:00:00',
+          auth_code: '',
+          TradeNo: '',
+        },
+      ],
+    });
+    const query = await parsePeriodQueryResponse(body, 'plus202610270001');
+    expect(query).toMatchObject({ merchantTradeNo: 'plus202610270001', rtnCode: '1', execStatus: '1' });
+    expect(query.authorizations.map((a) => a.sourceEventId)).toEqual([
+      'plus202610270001:auth:111',
+      'plus202610270001:auth:222',
+    ]);
+    expect(query.authorizations.map((a) => a.totalSuccessTimes)).toEqual([1, 2]);
+
+    const unsigned = {
+      MerchantID: MERCHANT_ID,
+      MerchantTradeNo: 'plus202610270001',
+      RtnCode: '1',
+      Amount: '299',
+      PeriodType: 'M',
+      gwsr: '111',
+      ProcessDate: '2026/10/27 03:00:00',
+      TotalSuccessTimes: '1',
+      SimulatePaid: '0',
+    };
+    const form = { ...unsigned, CheckMacValue: await ecpayCheckMac(unsigned, HASH_KEY, HASH_IV) };
+    const fromCallback = await verifyPeriodNotification(form, {
+      merchantId: MERCHANT_ID,
+      hashKey: HASH_KEY,
+      hashIV: HASH_IV,
+    });
+    expect(query.authorizations[0].factsSha256).toBe(fromCallback.factsSha256);
+  });
+
+  it('rejects a period query response for a different order', async () => {
+    const body = JSON.stringify({
+      MerchantTradeNo: 'other-order',
+      RtnCode: 1,
+      ExecStatus: '1',
+      ExecLog: [],
+    });
+    await expect(parsePeriodQueryResponse(body, 'plus202610270001')).rejects.toThrow(
+      'unexpected MerchantTradeNo',
+    );
   });
 
   it('signs period cancellation fields', async () => {

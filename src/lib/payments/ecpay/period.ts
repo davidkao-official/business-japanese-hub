@@ -212,6 +212,86 @@ export async function buildPeriodQueryFields(
   return { ...fields, CheckMacValue };
 }
 
+export interface EcpayPeriodQuery {
+  merchantTradeNo: string;
+  rtnCode: string;
+  execStatus: string;
+  authorizations: EcpayPeriodAuthorization[];
+}
+
+interface PeriodQueryExecLogItem {
+  RtnCode?: unknown;
+  amount?: unknown;
+  gwsr?: unknown;
+  process_date?: unknown;
+  TradeNo?: unknown;
+}
+
+/**
+ * Parse a QueryCreditCardPeriodInfo JSON response (no CheckMacValue) into the
+ * same authorization shape the callback produces, so both paths hash and ingest
+ * identically. Only successful ExecLog entries become authorizations.
+ */
+export async function parsePeriodQueryResponse(
+  body: string,
+  expectedMerchantTradeNo: string,
+): Promise<EcpayPeriodQuery> {
+  const payload = JSON.parse(body) as {
+    MerchantTradeNo?: unknown;
+    RtnCode?: unknown;
+    ExecStatus?: unknown;
+    ExecLog?: unknown;
+  };
+  if (payload.MerchantTradeNo !== expectedMerchantTradeNo) {
+    throw new Error('unexpected MerchantTradeNo');
+  }
+  if (payload.ExecLog !== undefined && !Array.isArray(payload.ExecLog)) {
+    throw new Error('invalid ExecLog');
+  }
+
+  const entries = (Array.isArray(payload.ExecLog) ? payload.ExecLog : []) as PeriodQueryExecLogItem[];
+  const successful = entries
+    .filter((item) => String(item.RtnCode) === '1')
+    .map((item) => {
+      const processAt = parseTaipeiDateTime(String(item.process_date));
+      return { item, processAt };
+    })
+    .sort((a, b) => a.processAt.getTime() - b.processAt.getTime());
+
+  const authorizations: EcpayPeriodAuthorization[] = [];
+  for (let index = 0; index < successful.length; index++) {
+    const { item, processAt } = successful[index];
+    const rtnCode = '1';
+    const amountTwd = Number(item.amount);
+    const gwsr = String(item.gwsr);
+    authorizations.push({
+      merchantTradeNo: expectedMerchantTradeNo,
+      rtnCode,
+      amountTwd,
+      gwsr,
+      tradeNo: typeof item.TradeNo === 'string' && item.TradeNo ? item.TradeNo : null,
+      processAt,
+      totalSuccessTimes: index + 1,
+      simulatePaid: false,
+      sourceEventId: `${expectedMerchantTradeNo}:auth:${gwsr}`,
+      factsSha256: await periodAuthorizationFacts({
+        merchantTradeNo: expectedMerchantTradeNo,
+        rtnCode,
+        amountTwd,
+        gwsr,
+        processAt,
+      }),
+    });
+  }
+
+  return {
+    merchantTradeNo: expectedMerchantTradeNo,
+    rtnCode: String(payload.RtnCode),
+    execStatus: String(payload.ExecStatus),
+    authorizations,
+  };
+}
+
 export async function buildPeriodCancelFields(
   input: PeriodMutationInput,
 ): Promise<Record<string, string>> {

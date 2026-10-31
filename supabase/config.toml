@@ -65,6 +65,9 @@ verify_jwt = false
 [functions.repair-reconcile]
 verify_jwt = false
 
+[functions.plus-period-reconcile]
+verify_jwt = false
+
 [functions.order-email]
 verify_jwt = false
 
