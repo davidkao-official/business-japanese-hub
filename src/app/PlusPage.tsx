@@ -4,6 +4,7 @@ import { useAuth } from '@business-japanese-hub/platform-auth'
 import { AuthPanel } from '../components/AuthPanel'
 import { PlusAccessBoundary } from '../components/PlusAccessBoundary'
 import { useLocale, useStrings } from '../i18n/strings'
+import { cancelPlusMembership, type PlusCancelResult } from '../lib/membership/cancel'
 import {
   fetchPlusCheckoutOpen,
   startPlusCheckout,
@@ -45,6 +46,7 @@ export function PlusPage() {
         </div>
         <p>{plus.availabilityBody}</p>
         <PlusCheckoutPanel />
+        <PlusCancelPanel />
       </section>
 
       <section className="plus-audience" aria-labelledby="plus-audience-title">
@@ -220,6 +222,85 @@ function PlusCheckoutPanel() {
       >
         {busy ? checkout.starting : checkout.cta}
       </button>
+    </div>
+  )
+}
+
+/**
+ * Cancellation is separate from the checkout gate: an active member needs it
+ * even while subscriptions are closed. Access stays until the paid period ends,
+ * so a successful cancellation does not re-check membership.
+ */
+function PlusCancelPanel() {
+  const cancel = useStrings().plus.cancel
+  const locale = useLocale()
+  const { state } = useMembershipAccess()
+  const { getAccessToken } = useAuth()
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<PlusCancelResult | null>(null)
+
+  if (state.kind !== 'active-member') return null
+
+  const confirm = async () => {
+    if (busy) return
+    setBusy(true)
+    setResult(await cancelPlusMembership(getAccessToken))
+    setConfirming(false)
+    setBusy(false)
+  }
+
+  const accessDate = result?.kind === 'canceled' && result.accessUntil
+    ? new Date(result.accessUntil)
+    : null
+  const doneText =
+    result?.kind === 'canceled'
+      ? accessDate && !Number.isNaN(accessDate.getTime())
+        ? cancel.doneUntil.replace(
+            '{date}',
+            new Intl.DateTimeFormat(locale, {
+              dateStyle: 'long',
+              timeZone: 'Asia/Taipei',
+            }).format(accessDate),
+          )
+        : cancel.done
+      : null
+
+  return (
+    <div className="plus-checkout plus-cancel">
+      <h3>{cancel.title}</h3>
+      <p>{cancel.body}</p>
+      {doneText ? (
+        <p>{doneText}</p>
+      ) : result?.kind === 'no-subscription' ? (
+        <p>{cancel.noSubscription}</p>
+      ) : result?.kind === 'failed' ? (
+        <p role="alert">{cancel.failed}</p>
+      ) : confirming ? (
+        <>
+          <p>{cancel.confirm}</p>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            disabled={busy}
+            onClick={() => void confirm()}
+          >
+            {busy ? cancel.busy : cancel.confirmCta}
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary"
+            disabled={busy}
+            onClick={() => setConfirming(false)}
+          >
+            {cancel.back}
+          </button>
+        </>
+      ) : (
+        <button type="button" className="btn btn--secondary" onClick={() => setConfirming(true)}>
+          {cancel.cta}
+        </button>
+      )}
     </div>
   )
 }
