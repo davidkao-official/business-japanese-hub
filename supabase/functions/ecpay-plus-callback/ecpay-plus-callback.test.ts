@@ -212,6 +212,11 @@ describe('ecpay-plus-callback', () => {
       p_result: 'not_mapped',
     });
     expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(0);
+    expect(mock.calls.filter((call) => call.table === 'rpc').map((call) => call.method)).toEqual([
+      'record_plus_ecpay_receipt',
+      'set_plus_ecpay_receipt_result',
+      'set_plus_ecpay_order_status',
+    ]);
   });
 
   it('retries when ECPay does not acknowledge the duplicate cancellation', async () => {

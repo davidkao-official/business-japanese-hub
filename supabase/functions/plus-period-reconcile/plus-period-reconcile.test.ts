@@ -118,20 +118,41 @@ describe('plus-period-reconcile', () => {
     expect(mock.rpcCalls('set_plus_ecpay_order_status')).toHaveLength(0);
   });
 
-  it('ends a stale pending order without querying ECPay', async () => {
+  it('ends a stale pending order ECPay cannot query', async () => {
     const staleOrder = {
       ...activeOrder,
       status: 'pending',
       created_at: '2026-10-30T23:00:00.000Z',
     };
-    const { mock, post, handle } = setup({ orders: [staleOrder] });
+    const { mock, post, handle } = setup({
+      orders: [staleOrder],
+      post: vi.fn().mockRejectedValue(new Error('not found')),
+    });
     const result = await handle();
-    expect(JSON.parse(result.body)).toEqual({ checked: 1, ingested: 0, failed: 0 });
-    expect(post).not.toHaveBeenCalled();
+    expect(JSON.parse(result.body)).toEqual({ checked: 1, ingested: 0, failed: 1 });
+    expect(post).toHaveBeenCalledTimes(1);
     expect(mock.rpcCalls('set_plus_ecpay_order_status')[0].args[0]).toEqual({
       p_merchant_trade_no: activeOrder.merchant_trade_no,
       p_status: 'ended',
     });
+  });
+
+  it('ingests a stale pending order ECPay has a charge for and leaves it open', async () => {
+    const staleOrder = {
+      ...activeOrder,
+      status: 'pending',
+      created_at: '2026-10-30T23:00:00.000Z',
+    };
+    const { mock, handle } = setup({ orders: [staleOrder] });
+    // The receipt RPC activates the first order; the mock returns the status
+    // the ingest reads after that write.
+    mock.setRoute('plus_membership_ecpay_order', {
+      data: [staleOrder],
+      singleData: [{ ...staleOrder, status: 'active' }],
+    });
+    const result = await handle();
+    expect(JSON.parse(result.body)).toEqual({ checked: 1, ingested: 1, failed: 0 });
+    expect(mock.rpcCalls('set_plus_ecpay_order_status')).toHaveLength(0);
   });
 
   it('queries a pending order that is only an hour old', async () => {

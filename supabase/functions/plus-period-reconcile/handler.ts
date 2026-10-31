@@ -42,6 +42,7 @@ interface PlusEcpayOrderRow extends PlusEcpayOrder {
 
 const OPEN_STATUSES = ['pending', 'active', 'cancel_requested'];
 const STALE_PENDING_MS = 24 * 60 * 60 * 1000;
+const RECONCILE_BATCH_SIZE = 1000;
 
 export async function handlePlusPeriodReconcile(
   req: HandlerRequest,
@@ -69,10 +70,16 @@ export async function handlePlusPeriodReconcile(
     .eq('environment', ecpayEnv)
     .in('status', OPEN_STATUSES)
     .order('created_at', { ascending: true })
-    .limit(200);
+    .limit(RECONCILE_BATCH_SIZE);
   if (error) return jsonResult(500, { error: 'query failed' });
 
   const orders = (data ?? []) as unknown as PlusEcpayOrderRow[];
+  if (orders.length === RECONCILE_BATCH_SIZE) {
+    log.warn(
+      { count: RECONCILE_BATCH_SIZE },
+      'plus period reconcile batch is full; later orders wait for the next run',
+    );
+  }
   let checked = 0;
   let ingested = 0;
   let failed = 0;
@@ -94,18 +101,16 @@ export async function handlePlusPeriodReconcile(
 
   for (const order of orders) {
     checked++;
-    // A checkout abandoned before ECPay's page is unknown to ECPay, so the
-    // query throws every run. Close it on the age alone, without a query.
-    if (
+    const stalePending =
       order.status === 'pending' &&
-      at.getTime() - new Date(order.created_at).getTime() > STALE_PENDING_MS
-    ) {
-      await updateStatus(order.merchant_trade_no, 'ended');
-      continue;
-    }
+      at.getTime() - new Date(order.created_at).getTime() > STALE_PENDING_MS;
+
     const read = await readBackPlusOrder({ env, db, log, transport, now }, order);
     if (read.kind === 'failed') {
       failed++;
+      // ECPay does not know a checkout abandoned before its page; a stale
+      // pending order that cannot be queried is closed on that basis alone.
+      if (stalePending) await updateStatus(order.merchant_trade_no, 'ended');
       continue;
     }
     // A charge that could not be ingested must keep its order open, or the next
@@ -115,6 +120,16 @@ export async function handlePlusPeriodReconcile(
       continue;
     }
     ingested += read.authorizations;
+
+    if (order.status === 'pending') {
+      if (
+        stalePending &&
+        (read.authorizations === 0 || read.execStatus === '0' || read.execStatus === '2')
+      ) {
+        await updateStatus(order.merchant_trade_no, 'ended');
+      }
+      continue;
+    }
 
     if (read.execStatus === '0' || read.execStatus === '2') {
       if (order.status === 'active') await updateStatus(order.merchant_trade_no, 'ended');

@@ -113,16 +113,16 @@ export async function ingestPlusPeriodAuthorization(
     }
     if (cancelRtnCode !== '1' && cancelRtnCode !== '90100149') return 'retry';
 
-    const ended = await db.rpc('set_plus_ecpay_order_status', {
-      p_merchant_trade_no: order.merchant_trade_no,
-      p_status: 'ended',
-    });
-    if (ended.error) return 'retry';
     const saved = await db.rpc('set_plus_ecpay_receipt_result', {
       p_source_event_id: auth.sourceEventId,
       p_result: 'not_mapped',
     });
     if (saved.error) return 'retry';
+    const ended = await db.rpc('set_plus_ecpay_order_status', {
+      p_merchant_trade_no: order.merchant_trade_no,
+      p_status: 'ended',
+    });
+    if (ended.error) return 'retry';
     log.error(
       { merchantTradeNo: order.merchant_trade_no, sourceEventId: auth.sourceEventId },
       'duplicate plus subscription canceled at ECPay; refund this charge manually',
