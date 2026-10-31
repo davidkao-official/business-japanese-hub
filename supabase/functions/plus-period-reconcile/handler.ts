@@ -73,6 +73,7 @@ export async function handlePlusPeriodReconcile(
     .select('merchant_trade_no,user_id,plan_code,environment,period_amount_twd,status,created_at')
     .eq('environment', ecpayEnv)
     .in('status', OPEN_STATUSES)
+    .order('created_at', { ascending: true })
     .limit(200);
   if (error) return jsonResult(500, { error: 'query failed' });
 
@@ -98,6 +99,15 @@ export async function handlePlusPeriodReconcile(
 
   for (const order of orders) {
     checked++;
+    // A checkout abandoned before ECPay's page is unknown to ECPay, so the
+    // query throws every run. Close it on the age alone, without a query.
+    if (
+      order.status === 'pending' &&
+      at.getTime() - new Date(order.created_at).getTime() > STALE_PENDING_MS
+    ) {
+      await updateStatus(order.merchant_trade_no, 'ended');
+      continue;
+    }
     let execStatus: string;
     let authorizations: Awaited<ReturnType<typeof parsePeriodQueryResponse>>['authorizations'];
     try {
@@ -150,13 +160,6 @@ export async function handlePlusPeriodReconcile(
     if (execStatus === '0' || execStatus === '2') {
       if (order.status === 'active') await updateStatus(order.merchant_trade_no, 'ended');
       else if (order.status === 'cancel_requested') await updateStatus(order.merchant_trade_no, 'canceled');
-    }
-    if (
-      order.status === 'pending' &&
-      authorizations.length === 0 &&
-      at.getTime() - new Date(order.created_at).getTime() > STALE_PENDING_MS
-    ) {
-      await updateStatus(order.merchant_trade_no, 'ended');
     }
   }
 

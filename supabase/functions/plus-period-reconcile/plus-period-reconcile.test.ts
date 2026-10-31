@@ -118,6 +118,38 @@ describe('plus-period-reconcile', () => {
     expect(mock.rpcCalls('set_plus_ecpay_order_status')).toHaveLength(0);
   });
 
+  it('ends a stale pending order without querying ECPay', async () => {
+    const staleOrder = {
+      ...activeOrder,
+      status: 'pending',
+      created_at: '2026-10-30T23:00:00.000Z',
+    };
+    const { mock, post, handle } = setup({ orders: [staleOrder] });
+    const result = await handle();
+    expect(JSON.parse(result.body)).toEqual({ checked: 1, ingested: 0, failed: 0 });
+    expect(post).not.toHaveBeenCalled();
+    expect(mock.rpcCalls('set_plus_ecpay_order_status')[0].args[0]).toEqual({
+      p_merchant_trade_no: activeOrder.merchant_trade_no,
+      p_status: 'ended',
+    });
+  });
+
+  it('queries a pending order that is only an hour old', async () => {
+    const freshOrder = {
+      ...activeOrder,
+      status: 'pending',
+      created_at: '2026-10-31T23:00:00.000Z',
+    };
+    const { mock, post, handle } = setup({
+      orders: [freshOrder],
+      post: vi.fn().mockRejectedValue(new Error('not found')),
+    });
+    const result = await handle();
+    expect(JSON.parse(result.body)).toEqual({ checked: 1, ingested: 0, failed: 1 });
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(mock.rpcCalls('set_plus_ecpay_order_status')).toHaveLength(0);
+  });
+
   it('counts a failed provider query without aborting the run', async () => {
     const { handle } = setup({ post: vi.fn().mockRejectedValue(new Error('timeout')) });
     const result = await handle();
