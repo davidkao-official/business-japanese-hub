@@ -42,12 +42,21 @@ function checkoutOpen(env: Env): boolean {
   )
 }
 
+function consentRevisionFrom(bodyText: string): unknown {
+  try {
+    return (JSON.parse(bodyText) as { consentRevision?: unknown } | null)?.consentRevision
+  } catch {
+    return undefined
+  }
+}
+
 export async function handlePlusCheckout(
   req: HandlerRequest,
   deps: PlusCheckoutDeps,
 ): Promise<HandlerResult> {
   if (req.method === 'GET') {
-    return noStore(jsonResult(200, { open: checkoutOpen(deps.env) }))
+    const open = checkoutOpen(deps.env)
+    return noStore(jsonResult(200, { open, consentRevision: open ? deps.env.plusConsentRevision : null }))
   }
   if (req.method !== 'POST') return noStore(methodNotAllowed('POST'))
 
@@ -57,6 +66,10 @@ export async function handlePlusCheckout(
   const { env } = deps
   if (!checkoutOpen(env)) {
     return noStore(jsonResult(503, { error: 'plus checkout closed' }))
+  }
+  // The order binds the consent revision the user actually agreed to (#112).
+  if (consentRevisionFrom(req.bodyText) !== env.plusConsentRevision) {
+    return noStore(jsonResult(400, { error: 'consent required' }))
   }
 
   const access = await deps.membershipAccessFor(userId)

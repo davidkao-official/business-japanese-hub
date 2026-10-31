@@ -4,12 +4,16 @@ import type { HandlerRequest } from '../_shared/http.ts'
 import { testEnv } from '../_shared/testing.ts'
 import { handlePlusCheckout, PLUS_CHECKOUT_PLAN_CODE } from './handler.ts'
 
-function request(method = 'POST', authorization?: string): HandlerRequest {
+function request(
+  method = 'POST',
+  authorization?: string,
+  bodyText = JSON.stringify({ consentRevision: 'test-consent-1' }),
+): HandlerRequest {
   return {
     method,
     url: 'https://example.test/plus-checkout',
     headers: authorization ? { authorization } : {},
-    bodyText: '',
+    bodyText,
   }
 }
 
@@ -66,7 +70,7 @@ describe('Plus checkout Edge handler', () => {
     const { db } = dbWith()
     const result = await handlePlusCheckout(request('GET'), deps(db))
     expect(result.status).toBe(200)
-    expect(body(result)).toEqual({ open: true })
+    expect(body(result)).toEqual({ open: true, consentRevision: 'test-consent-1' })
     expect(result.headers?.['Cache-Control']).toBe('private, no-store')
   })
 
@@ -77,7 +81,7 @@ describe('Plus checkout Edge handler', () => {
       deps(db, { plusCheckoutAdmitted: false }),
     )
     expect(result.status).toBe(200)
-    expect(body(result)).toEqual({ open: false })
+    expect(body(result)).toEqual({ open: false, consentRevision: null })
   })
 
   it('requires a verified bearer session', async () => {
@@ -98,6 +102,19 @@ describe('Plus checkout Edge handler', () => {
       deps(db, overrides),
     )
     expect(result.status).toBe(503)
+    expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['no body', ''],
+    ['a stale consent revision', JSON.stringify({ consentRevision: 'old-consent' })],
+  ])('rejects checkout with %s before creating an order', async (_label, bodyText) => {
+    const { db, rpc } = dbWith()
+    const result = await handlePlusCheckout(
+      request('POST', 'Bearer valid-session', bodyText),
+      deps(db),
+    )
+    expect(result.status).toBe(400)
     expect(rpc).not.toHaveBeenCalled()
   })
 

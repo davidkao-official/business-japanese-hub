@@ -19,7 +19,7 @@ const shopCss = readFileSync(join(process.cwd(), 'src/styles/shop.css'), 'utf8')
 
 beforeEach(() => {
   fetchPlusCheckoutOpenMock.mockReset()
-  fetchPlusCheckoutOpenMock.mockResolvedValue(false)
+  fetchPlusCheckoutOpenMock.mockResolvedValue(null)
 })
 
 describe('PlusPage', () => {
@@ -59,14 +59,14 @@ describe('PlusPage', () => {
   })
 
   it('shows the checkout sign-in prompt only when the server reports checkout open', async () => {
-    fetchPlusCheckoutOpenMock.mockResolvedValue(true)
+    fetchPlusCheckoutOpenMock.mockResolvedValue('test-consent-1')
     renderWithAppProviders(<PlusPage />)
 
     expect(await screen.findByText('お申し込みにはログインが必要です。')).toBeInTheDocument()
   })
 
   it('keeps the CTA disabled until the recurring-billing consent is checked', async () => {
-    fetchPlusCheckoutOpenMock.mockResolvedValue(true)
+    fetchPlusCheckoutOpenMock.mockResolvedValue('test-consent-1')
     const membershipAccessRepository: PlusMembershipAccessRepository = {
       getAccess: vi.fn(async () => 'non-member' as const),
     }

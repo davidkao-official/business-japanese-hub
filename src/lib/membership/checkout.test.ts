@@ -25,11 +25,11 @@ describe('Plus checkout browser client', () => {
   it('reports checkout as open only on an explicit server yes', async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ open: true }))
-      .mockResolvedValueOnce(jsonResponse({ open: false }))
+      .mockResolvedValueOnce(jsonResponse({ open: true, consentRevision: 'consent-1' }))
+      .mockResolvedValueOnce(jsonResponse({ open: false, consentRevision: null }))
 
-    await expect(fetchPlusCheckoutOpen(fetchImpl)).resolves.toBe(true)
-    await expect(fetchPlusCheckoutOpen(fetchImpl)).resolves.toBe(false)
+    await expect(fetchPlusCheckoutOpen(fetchImpl)).resolves.toBe('consent-1')
+    await expect(fetchPlusCheckoutOpen(fetchImpl)).resolves.toBeNull()
     expect(fetchImpl).toHaveBeenNthCalledWith(1, `${BASE}/plus-checkout`, {
       method: 'GET',
       cache: 'no-store',
@@ -38,7 +38,7 @@ describe('Plus checkout browser client', () => {
 
   it('treats a network error as closed', async () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error('offline'))
-    await expect(fetchPlusCheckoutOpen(fetchImpl)).resolves.toBe(false)
+    await expect(fetchPlusCheckoutOpen(fetchImpl)).resolves.toBeNull()
   })
 
   it('returns the ECPay hosted checkout action and fields', async () => {
@@ -46,7 +46,7 @@ describe('Plus checkout browser client', () => {
       jsonResponse({ action: STAGE_ACTION, fields: { MerchantID: '2000132' } }),
     )
 
-    await expect(startPlusCheckout(async () => 'session-token', fetchImpl)).resolves.toEqual({
+    await expect(startPlusCheckout(async () => 'session-token', 'consent-1', fetchImpl)).resolves.toEqual({
       kind: 'redirect',
       action: STAGE_ACTION,
       fields: { MerchantID: '2000132' },
@@ -54,13 +54,14 @@ describe('Plus checkout browser client', () => {
     expect(fetchImpl).toHaveBeenCalledWith(`${BASE}/plus-checkout`, {
       method: 'POST',
       cache: 'no-store',
-      headers: { Authorization: 'Bearer session-token' },
+      headers: { Authorization: 'Bearer session-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ consentRevision: 'consent-1' }),
     })
   })
 
   it('maps an active membership conflict to already-member', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ error: 'already a member' }, 409))
-    await expect(startPlusCheckout(async () => 'session-token', fetchImpl)).resolves.toEqual({
+    await expect(startPlusCheckout(async () => 'session-token', 'consent-1', fetchImpl)).resolves.toEqual({
       kind: 'already-member',
     })
   })
@@ -69,7 +70,7 @@ describe('Plus checkout browser client', () => {
     const fetchImpl = vi
       .fn()
       .mockResolvedValue(jsonResponse({ error: 'plus checkout closed' }, 503))
-    await expect(startPlusCheckout(async () => 'session-token', fetchImpl)).resolves.toEqual({
+    await expect(startPlusCheckout(async () => 'session-token', 'consent-1', fetchImpl)).resolves.toEqual({
       kind: 'closed',
     })
   })
@@ -78,7 +79,7 @@ describe('Plus checkout browser client', () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       jsonResponse({ action: 'https://evil.example/checkout', fields: { A: '1' } }),
     )
-    await expect(startPlusCheckout(async () => 'session-token', fetchImpl)).resolves.toEqual({
+    await expect(startPlusCheckout(async () => 'session-token', 'consent-1', fetchImpl)).resolves.toEqual({
       kind: 'failed',
     })
   })

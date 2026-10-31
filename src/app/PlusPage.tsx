@@ -120,7 +120,7 @@ function PlusCheckoutPanel() {
   const { getAccessToken } = useAuth()
   const location = useLocation()
   const returned = new URLSearchParams(location.search).get('checkout') === 'returned'
-  const [open, setOpen] = useState(false)
+  const [consentRevision, setConsentRevision] = useState<string | null>(null)
   const [agreed, setAgreed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [closed, setClosed] = useState(false)
@@ -129,7 +129,7 @@ function PlusCheckoutPanel() {
   useEffect(() => {
     let cancelled = false
     void fetchPlusCheckoutOpen().then((value) => {
-      if (!cancelled) setOpen(value)
+      if (!cancelled) setConsentRevision(value)
     })
     return () => {
       cancelled = true
@@ -149,7 +149,7 @@ function PlusCheckoutPanel() {
     return () => clearInterval(timer)
   }, [awaitingPaymentResult, retry])
 
-  if (!open) return null
+  if (!consentRevision) return null
 
   if (state.kind === 'signed-out') {
     return (
@@ -180,7 +180,7 @@ function PlusCheckoutPanel() {
     setBusy(true)
     setClosed(false)
     setFailed(false)
-    const result = await startPlusCheckout(getAccessToken)
+    const result = await startPlusCheckout(getAccessToken, consentRevision)
     if (result.kind === 'redirect') {
       submitHostedCheckout(result.action, result.fields)
     } else if (result.kind === 'already-member') {

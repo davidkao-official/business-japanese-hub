@@ -17,22 +17,27 @@ function isEcpayHostedAction(action: string): boolean {
   return ECPAY_CHECKOUT_PREFIXES.some((prefix) => action.startsWith(prefix))
 }
 
-/** Whether the server currently admits Plus checkout. Any error means no. */
+/**
+ * The consent revision the server currently admits Plus checkout under, or
+ * null when checkout is closed. Any error means closed.
+ */
 export async function fetchPlusCheckoutOpen(
   fetchImpl: typeof fetch = fetch,
-): Promise<boolean> {
+): Promise<string | null> {
   const baseUrl = functionsBaseUrl()
-  if (!baseUrl) return false
+  if (!baseUrl) return null
   try {
     const response = await fetchImpl(`${baseUrl}/plus-checkout`, {
       method: 'GET',
       cache: 'no-store',
     })
-    if (!response.ok) return false
-    const body = (await response.json()) as { open?: unknown }
-    return body?.open === true
+    if (!response.ok) return null
+    const body = (await response.json()) as { open?: unknown; consentRevision?: unknown }
+    return body?.open === true && typeof body.consentRevision === 'string' && body.consentRevision
+      ? body.consentRevision
+      : null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -48,6 +53,7 @@ export type PlusCheckoutStart =
  */
 export async function startPlusCheckout(
   getAccessToken: () => Promise<string | null>,
+  consentRevision: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<PlusCheckoutStart> {
   const baseUrl = functionsBaseUrl()
@@ -58,7 +64,8 @@ export async function startPlusCheckout(
     const response = await fetchImpl(`${baseUrl}/plus-checkout`, {
       method: 'POST',
       cache: 'no-store',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ consentRevision }),
     })
 
     if (response.status === 409) return { kind: 'already-member' }
