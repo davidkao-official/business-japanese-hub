@@ -6,7 +6,13 @@
  * one function, so receipts stay idempotent on `source_event_id` and lifecycle
  * events are written exactly once.
  */
-import { paidPeriodFor, type EcpayPeriodAuthorization } from '../../../src/lib/payments/ecpay/period.ts';
+import { parseFormUrlEncoded, type EcpayTransport } from '../../../src/lib/payments/ecpay/adapter.ts';
+import {
+  buildPeriodCancelFields,
+  paidPeriodFor,
+  type EcpayPeriodAuthorization,
+} from '../../../src/lib/payments/ecpay/period.ts';
+import { ECPAY_URLS } from '../../../src/lib/payments/ecpay/urls.ts';
 import type { DbClient } from './db.ts';
 import type { Env } from './env.ts';
 import type { Logger } from './log.ts';
@@ -21,11 +27,17 @@ export interface PlusEcpayOrder {
 }
 
 export async function ingestPlusPeriodAuthorization(
-  deps: { env: Env; db: DbClient; log: Logger },
+  deps: {
+    env: Env;
+    db: DbClient;
+    log: Logger;
+    transport: EcpayTransport;
+    now: () => Date;
+  },
   order: PlusEcpayOrder,
   auth: EcpayPeriodAuthorization,
 ): Promise<'ok' | 'retry'> {
-  const { env, db, log } = deps;
+  const { env, db, log, transport, now } = deps;
 
   const receipt = await db.rpc('record_plus_ecpay_receipt', {
     p_source_event_id: auth.sourceEventId,
@@ -65,6 +77,52 @@ export async function ingestPlusPeriodAuthorization(
       p_result: 'not_mapped',
     });
     if (saved.error) return 'retry';
+    return 'ok';
+  }
+
+  // A real charge on an order that is still `pending` means another order of
+  // this user already activated the membership: this is a duplicate paid
+  // subscription. Stop ECPay from charging it again and close the order row.
+  const current = await db.from('plus_membership_ecpay_order')
+    .select('status')
+    .eq('merchant_trade_no', order.merchant_trade_no)
+    .maybeSingle();
+  if (current.error) return 'retry';
+  if (current.data?.status === 'pending') {
+    const cancelFields = await buildPeriodCancelFields({
+      merchantId: env.ecpayMerchantId!,
+      merchantTradeNo: order.merchant_trade_no,
+      now: now(),
+      hashKey: env.ecpayHashKey!,
+      hashIV: env.ecpayHashIV!,
+    });
+    let cancelRtnCode: string | undefined;
+    try {
+      const response = await transport.post(
+        ECPAY_URLS[env.ecpayEnv!].creditCardPeriodAction,
+        cancelFields,
+        15_000,
+      );
+      cancelRtnCode = parseFormUrlEncoded(response.body).RtnCode;
+    } catch {
+      return 'retry';
+    }
+    if (cancelRtnCode !== '1' && cancelRtnCode !== '90100149') return 'retry';
+
+    const ended = await db.rpc('set_plus_ecpay_order_status', {
+      p_merchant_trade_no: order.merchant_trade_no,
+      p_status: 'ended',
+    });
+    if (ended.error) return 'retry';
+    const saved = await db.rpc('set_plus_ecpay_receipt_result', {
+      p_source_event_id: auth.sourceEventId,
+      p_result: 'not_mapped',
+    });
+    if (saved.error) return 'retry';
+    log.error(
+      { merchantTradeNo: order.merchant_trade_no, sourceEventId: auth.sourceEventId },
+      'duplicate plus subscription canceled at ECPay; refund this charge manually',
+    );
     return 'ok';
   }
 

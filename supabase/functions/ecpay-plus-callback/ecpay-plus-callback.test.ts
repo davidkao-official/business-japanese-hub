@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { EcpayTransport } from '../../../src/lib/payments/ecpay/adapter.ts';
 import { ecpayCheckMac } from '../../../src/lib/payments/ecpay/checkmac.ts';
+import { ECPAY_URLS } from '../../../src/lib/payments/ecpay/urls.ts';
 import { createMockDb, fakeLogger, handlerRequest, testEnv } from '../_shared/testing.ts';
 import { handleEcpayPlusCallback } from './handler.ts';
 
@@ -10,6 +12,7 @@ const order = {
   plan_code: 'plus_early_access_monthly',
   environment: 'stage',
   period_amount_twd: 299,
+  status: 'active',
 };
 const sourceEventId = `${order.merchant_trade_no}:auth:12345`;
 
@@ -40,11 +43,13 @@ function setup() {
     'rpc:resolve_plus_membership_access': { data: { access_status: 'active' } },
   });
   const log = fakeLogger();
+  const post = vi.fn();
+  const transport = { post } as unknown as EcpayTransport;
   const handle = (body: string, method = 'POST') => handleEcpayPlusCallback(
     handlerRequest(method, 'https://test.example/ecpay-plus-callback', body),
-    { env, db: mock.db, log },
+    { env, db: mock.db, log, transport, now: () => new Date('2026-10-27T00:00:00.000Z') },
   );
-  return { mock, log, handle };
+  return { mock, log, post, handle };
 }
 
 describe('ecpay-plus-callback', () => {
@@ -148,6 +153,38 @@ describe('ecpay-plus-callback', () => {
     expect(await handle(await signedForm())).toMatchObject({ status: 200, body: '1|OK' });
     expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(1);
     expect(mock.rpcCalls('set_plus_ecpay_receipt_result')[0].args[0]).toMatchObject({ p_result: 'applied' });
+  });
+
+  it('cancels a duplicate paid subscription at ECPay without a lifecycle event', async () => {
+    const { mock, post, handle } = setup();
+    mock.setRoute('plus_membership_ecpay_order', { data: { ...order, status: 'pending' } });
+    post.mockResolvedValue({ status: 200, body: 'RtnCode=1&RtnMsg=Success' });
+    expect(await handle(await signedForm())).toMatchObject({ status: 200, body: '1|OK' });
+    expect(post).toHaveBeenCalledWith(
+      ECPAY_URLS.stage.creditCardPeriodAction,
+      expect.objectContaining({
+        Action: 'Cancel',
+        MerchantTradeNo: order.merchant_trade_no,
+      }),
+      15_000,
+    );
+    expect(mock.rpcCalls('set_plus_ecpay_order_status')[0].args[0]).toEqual({
+      p_merchant_trade_no: order.merchant_trade_no,
+      p_status: 'ended',
+    });
+    expect(mock.rpcCalls('set_plus_ecpay_receipt_result')[0].args[0]).toEqual({
+      p_source_event_id: sourceEventId,
+      p_result: 'not_mapped',
+    });
+    expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(0);
+  });
+
+  it('retries when ECPay does not acknowledge the duplicate cancellation', async () => {
+    const { mock, post, handle } = setup();
+    mock.setRoute('plus_membership_ecpay_order', { data: { ...order, status: 'pending' } });
+    post.mockResolvedValue({ status: 200, body: 'RtnCode=0&RtnMsg=Failed' });
+    expect(await handle(await signedForm())).toMatchObject({ status: 500, body: '0|retry' });
+    expect(mock.rpcCalls('set_plus_ecpay_order_status')).toHaveLength(0);
   });
 
   it('requests a retry on writer error and leaves the receipt result unset', async () => {

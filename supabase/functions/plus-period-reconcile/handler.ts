@@ -131,7 +131,11 @@ export async function handlePlusPeriodReconcile(
 
     let retryable = false;
     for (const auth of authorizations) {
-      const outcome = await ingestPlusPeriodAuthorization({ env, db, log }, order, auth);
+      const outcome = await ingestPlusPeriodAuthorization(
+        { env, db, log, transport, now },
+        order,
+        auth,
+      );
       if (outcome === 'retry') {
         failed++;
         retryable = true;

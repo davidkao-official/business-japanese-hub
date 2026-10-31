@@ -1,4 +1,8 @@
-import { parseFormUrlEncoded } from '../../../src/lib/payments/ecpay/adapter.ts';
+import {
+  createDefaultEcpayTransport,
+  parseFormUrlEncoded,
+  type EcpayTransport,
+} from '../../../src/lib/payments/ecpay/adapter.ts';
 import { verifyPeriodNotification } from '../../../src/lib/payments/ecpay/period.ts';
 import type { DbClient } from '../_shared/db.ts';
 import { isProviderEnvironmentAligned, type Env } from '../_shared/env.ts';
@@ -13,15 +17,17 @@ export interface EcpayPlusCallbackDeps {
   env: Env;
   db: DbClient;
   log: Logger;
+  transport: EcpayTransport;
+  now: () => Date;
 }
 
 export function ecpayPlusCallbackDeps(env: Env, db: DbClient, log: Logger): EcpayPlusCallbackDeps {
-  return { env, db, log };
+  return { env, db, log, transport: createDefaultEcpayTransport(), now: () => new Date() };
 }
 
 export async function handleEcpayPlusCallback(
   req: HandlerRequest,
-  { env, db, log }: EcpayPlusCallbackDeps,
+  { env, db, log, transport, now }: EcpayPlusCallbackDeps,
 ): Promise<HandlerResult> {
   if (req.method !== 'POST') return methodNotAllowed('POST');
   if (
@@ -52,6 +58,10 @@ export async function handleEcpayPlusCallback(
   if (orderError) return textResult(500, '0|retry');
   if (!order || order.environment !== env.ecpayEnv) return textResult(400, '0|unknown order');
 
-  const outcome = await ingestPlusPeriodAuthorization({ env, db, log }, order as PlusEcpayOrder, auth);
+  const outcome = await ingestPlusPeriodAuthorization(
+    { env, db, log, transport, now },
+    order as PlusEcpayOrder,
+    auth,
+  );
   return outcome === 'ok' ? textResult(200, '1|OK') : textResult(500, '0|retry');
 }
