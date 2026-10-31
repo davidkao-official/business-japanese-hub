@@ -77,7 +77,7 @@ export async function handlePlusPeriodReconcile(
     .limit(200);
   if (error) return jsonResult(500, { error: 'query failed' });
 
-  const orders = (data ?? []) as PlusEcpayOrderRow[];
+  const orders = (data ?? []) as unknown as PlusEcpayOrderRow[];
   let checked = 0;
   let ingested = 0;
   let failed = 0;

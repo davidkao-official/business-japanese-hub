@@ -60,7 +60,7 @@ export async function handleEcpayPlusCallback(
 
   const outcome = await ingestPlusPeriodAuthorization(
     { env, db, log, transport, now },
-    order as PlusEcpayOrder,
+    order as unknown as PlusEcpayOrder,
     auth,
   );
   return outcome === 'ok' ? textResult(200, '1|OK') : textResult(500, '0|retry');

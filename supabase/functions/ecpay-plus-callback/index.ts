@@ -7,7 +7,7 @@ import { readEnvFrom } from '../_shared/env.ts';
 import { createServiceRoleClient, type DbClient } from '../_shared/db.ts';
 import { createSanitizedLogger } from '../_shared/log.ts';
 import { toHandlerRequest, toResponse } from '../_shared/deno.ts';
-import { handleEcpayPlusCallback } from './handler.ts';
+import { ecpayPlusCallbackDeps, handleEcpayPlusCallback } from './handler.ts';
 
 Deno.serve(async (req) => {
   const env = readEnvFrom(Deno.env);
@@ -15,5 +15,5 @@ Deno.serve(async (req) => {
   const log = createSanitizedLogger();
   const request = toHandlerRequest(req);
   request.bodyText = await req.text();
-  return toResponse(await handleEcpayPlusCallback(request, { env, db, log }));
+  return toResponse(await handleEcpayPlusCallback(request, ecpayPlusCallbackDeps(env, db, log)));
 });
