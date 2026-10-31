@@ -33,21 +33,29 @@ function noStore(result: HandlerResult): HandlerResult {
   return { ...result, headers: { ...result.headers, 'Cache-Control': 'private, no-store' } }
 }
 
+/** True only when every provider secret and the Owner gate admit Plus checkout. */
+function checkoutOpen(env: Env): boolean {
+  return Boolean(
+    env.plusCheckoutAdmitted && env.plusConsentRevision && env.ecpayMerchantId &&
+    env.ecpayHashKey && env.ecpayHashIV && env.ecpayEnv && env.publicSiteUrl &&
+    isProviderEnvironmentAligned(env.deploymentEnv, env.ecpayEnv, 'prod', 'stage'),
+  )
+}
+
 export async function handlePlusCheckout(
   req: HandlerRequest,
   deps: PlusCheckoutDeps,
 ): Promise<HandlerResult> {
+  if (req.method === 'GET') {
+    return noStore(jsonResult(200, { open: checkoutOpen(deps.env) }))
+  }
   if (req.method !== 'POST') return noStore(methodNotAllowed('POST'))
 
   const userId = await authenticateBearer(deps.db, headerValue(req.headers, 'authorization'))
   if (!userId) return noStore(unauthorized())
 
   const { env } = deps
-  if (
-    !env.plusCheckoutAdmitted || !env.plusConsentRevision || !env.ecpayMerchantId ||
-    !env.ecpayHashKey || !env.ecpayHashIV || !env.ecpayEnv || !env.publicSiteUrl ||
-    !isProviderEnvironmentAligned(env.deploymentEnv, env.ecpayEnv, 'prod', 'stage')
-  ) {
+  if (!checkoutOpen(env)) {
     return noStore(jsonResult(503, { error: 'plus checkout closed' }))
   }
 

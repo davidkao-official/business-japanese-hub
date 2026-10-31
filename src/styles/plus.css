@@ -112,6 +112,24 @@
   gap: var(--space-3);
 }
 
+.plus-checkout {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.plus-checkout__consent {
+  display: flex;
+  align-items: start;
+  gap: var(--space-3);
+  max-width: var(--measure-reading);
+  color: var(--color-text-muted);
+  line-height: var(--leading-relaxed);
+}
+
+.plus-checkout .btn {
+  justify-self: start;
+}
+
 .plus-journey h3,
 .plus-value__learning-system h3,
 .plus-surfaces h3 {

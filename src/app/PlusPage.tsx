@@ -1,6 +1,15 @@
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '@business-japanese-hub/platform-auth'
+import { AuthPanel } from '../components/AuthPanel'
 import { PlusAccessBoundary } from '../components/PlusAccessBoundary'
 import { useLocale, useStrings } from '../i18n/strings'
+import {
+  fetchPlusCheckoutOpen,
+  startPlusCheckout,
+  submitHostedCheckout,
+} from '../lib/membership/checkout'
+import { useMembershipAccess } from '../lib/membership/MembershipAccessContext'
 import { useDocumentTitle } from '../lib/useDocumentTitle'
 import { PRODUCT_MODES } from './productModes'
 
@@ -35,6 +44,7 @@ export function PlusPage() {
           <h2 id="plus-availability-title">{plus.availabilityTitle}</h2>
         </div>
         <p>{plus.availabilityBody}</p>
+        <PlusCheckoutPanel />
       </section>
 
       <section className="plus-audience" aria-labelledby="plus-audience-title">
@@ -97,6 +107,115 @@ export function PlusPage() {
         </PlusAccessBoundary>
       </section>
     </section>
+  )
+}
+
+/**
+ * Plus checkout call to action. It stays absent unless the server reports the
+ * checkout gate open, so production is unchanged while the gate is shut.
+ */
+function PlusCheckoutPanel() {
+  const checkout = useStrings().plus.checkout
+  const { state, retry } = useMembershipAccess()
+  const { getAccessToken } = useAuth()
+  const location = useLocation()
+  const returned = new URLSearchParams(location.search).get('checkout') === 'returned'
+  const [open, setOpen] = useState(false)
+  const [agreed, setAgreed] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [closed, setClosed] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchPlusCheckoutOpen().then((value) => {
+      if (!cancelled) setOpen(value)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const awaitingPaymentResult = returned && state.kind !== 'active-member' &&
+    state.kind !== 'signed-out'
+  useEffect(() => {
+    if (!awaitingPaymentResult) return
+    let attempts = 0
+    const timer = setInterval(() => {
+      attempts += 1
+      retry()
+      if (attempts >= 12) clearInterval(timer)
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [awaitingPaymentResult, retry])
+
+  if (!open) return null
+
+  if (state.kind === 'signed-out') {
+    return (
+      <div className="plus-checkout">
+        <p>{checkout.signInPrompt}</p>
+        <AuthPanel />
+      </div>
+    )
+  }
+
+  if (awaitingPaymentResult) {
+    return (
+      <div className="plus-checkout">
+        <h3>{checkout.returnedTitle}</h3>
+        <p>{checkout.returnedBody}</p>
+      </div>
+    )
+  }
+
+  if (state.kind === 'active-member') {
+    return <p className="plus-checkout">{checkout.alreadyMember}</p>
+  }
+
+  if (state.kind !== 'non-member') return null
+
+  const start = async () => {
+    if (busy) return
+    setBusy(true)
+    setClosed(false)
+    setFailed(false)
+    const result = await startPlusCheckout(getAccessToken)
+    if (result.kind === 'redirect') {
+      submitHostedCheckout(result.action, result.fields)
+    } else if (result.kind === 'already-member') {
+      retry()
+    } else if (result.kind === 'closed') {
+      setClosed(true)
+    } else {
+      setFailed(true)
+    }
+    setBusy(false)
+  }
+
+  return (
+    <div className="plus-checkout">
+      <h3>{checkout.openTitle}</h3>
+      <p>{checkout.openBody}</p>
+      <label className="plus-checkout__consent">
+        <input
+          type="checkbox"
+          checked={agreed}
+          onChange={(event) => setAgreed(event.target.checked)}
+        />
+        <span>{checkout.consent}</span>
+      </label>
+      {closed ? <p>{checkout.closed}</p> : null}
+      {failed ? <p role="alert">{checkout.failed}</p> : null}
+      <button
+        type="button"
+        className="btn btn--primary"
+        disabled={!agreed || busy}
+        onClick={() => void start()}
+      >
+        {busy ? checkout.starting : checkout.cta}
+      </button>
+    </div>
   )
 }
 

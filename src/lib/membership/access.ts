@@ -22,7 +22,7 @@ export interface PlusMembershipAccessRequestOptions {
 const LOOKUP_DEADLINE_MS = 10_000
 const DEADLINE_REACHED = Symbol('membership lookup deadline reached')
 
-function functionsBaseUrl(): string | null {
+export function functionsBaseUrl(): string | null {
   const explicit = import.meta.env.VITE_EDGE_FUNCTIONS_BASE_URL as string | undefined
   const supabase = import.meta.env.VITE_SUPABASE_URL as string | undefined
   return (

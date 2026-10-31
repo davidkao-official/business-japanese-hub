@@ -10,7 +10,7 @@ Deno.serve(async (req) => {
   const env = readEnvFrom(Deno.env)
   const request = toHandlerRequest(req)
   request.bodyText = await req.text()
-  const cors = browserCors(request, env, ['POST'])
+  const cors = browserCors(request, env, ['GET', 'POST'])
   if (cors.response) return toResponse(cors.response)
 
   const db = createServiceRoleClient(

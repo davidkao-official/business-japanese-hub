@@ -55,11 +55,29 @@ function body(result: { body: string }): Record<string, unknown> {
 }
 
 describe('Plus checkout Edge handler', () => {
-  it('allows POST only and disables caching', async () => {
+  it('allows GET and POST only and disables caching', async () => {
     const { db } = dbWith()
-    const result = await handlePlusCheckout(request('GET'), deps(db))
+    const result = await handlePlusCheckout(request('PUT'), deps(db))
     expect(result.status).toBe(405)
     expect(result.headers?.['Cache-Control']).toBe('private, no-store')
+  })
+
+  it('reports the checkout gate as open without authentication', async () => {
+    const { db } = dbWith()
+    const result = await handlePlusCheckout(request('GET'), deps(db))
+    expect(result.status).toBe(200)
+    expect(body(result)).toEqual({ open: true })
+    expect(result.headers?.['Cache-Control']).toBe('private, no-store')
+  })
+
+  it('reports the checkout gate as closed when the Owner gate is shut', async () => {
+    const { db } = dbWith()
+    const result = await handlePlusCheckout(
+      request('GET'),
+      deps(db, { plusCheckoutAdmitted: false }),
+    )
+    expect(result.status).toBe(200)
+    expect(body(result)).toEqual({ open: false })
   })
 
   it('requires a verified bearer session', async () => {
