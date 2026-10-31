@@ -63,11 +63,12 @@ export async function handleEcpayPlusCallback(
     p_facts_sha256: auth.factsSha256,
   });
   if (receipt.error) return textResult(500, '0|retry');
-  if (receipt.data === 'conflict') {
+  const receiptStatus: unknown = receipt.data;
+  if (receiptStatus === 'conflict') {
     log.error({ sourceEventId: auth.sourceEventId }, 'ecpay plus receipt conflict');
     return textResult(200, '1|OK');
   }
-  if (receipt.data === 'replayed') {
+  if (receiptStatus === 'replayed') {
     const existing = await db.from('plus_membership_ecpay_receipt')
       .select('lifecycle_result')
       .eq('source_event_id', auth.sourceEventId)
@@ -122,7 +123,7 @@ export async function handleEcpayPlusCallback(
   });
   if (saved.error) return textResult(500, '0|retry');
 
-  const access = await resolvePlusMembershipAccess(db, order.user_id);
+  const access = await resolvePlusMembershipAccess(db, String(order.user_id));
   log.info({ sourceEventId: auth.sourceEventId, access }, 'ecpay plus membership access resolved');
   return textResult(200, '1|OK');
 }
