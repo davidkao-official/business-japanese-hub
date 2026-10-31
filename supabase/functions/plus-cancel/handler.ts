@@ -140,23 +140,25 @@ export async function handlePlusCancel(
 
   const periodStart = summary.data?.period_start
   const periodEnd = summary.data?.period_end
-  if (summary.data && periodStart && periodEnd) {
-    const { error } = await db.rpc('record_plus_membership_event', {
-      p_source_system: sourceSystem,
-      p_source_customer_id: merchantTradeNo,
-      p_source_subscription_id: merchantTradeNo,
-      p_source_event_id: `${merchantTradeNo}:cancel`,
-      p_user_id: userId,
-      p_plan_code: 'plus_early_access_monthly',
-      p_event_type: 'membership_canceled',
-      p_occurred_at: occurredAt,
-      p_period_start: periodStart,
-      p_period_end: periodEnd,
-      p_cancel_at_period_end: true,
-      p_metadata: {},
-    })
-    if (error) return noStore(jsonResult(503, { error: UNAVAILABLE }))
-  }
+  // ECPay has stopped charging, but the paid period has not been recorded yet
+  // (its callback is still pending). Stay cancel_requested; a retry or the
+  // reconcile job finishes once the period exists.
+  if (!periodStart || !periodEnd) return noStore(jsonResult(503, { error: UNAVAILABLE }))
+  const recorded = await db.rpc('record_plus_membership_event', {
+    p_source_system: sourceSystem,
+    p_source_customer_id: merchantTradeNo,
+    p_source_subscription_id: merchantTradeNo,
+    p_source_event_id: `${merchantTradeNo}:cancel`,
+    p_user_id: userId,
+    p_plan_code: 'plus_early_access_monthly',
+    p_event_type: 'membership_canceled',
+    p_occurred_at: occurredAt,
+    p_period_start: periodStart,
+    p_period_end: periodEnd,
+    p_cancel_at_period_end: true,
+    p_metadata: {},
+  })
+  if (recorded.error) return noStore(jsonResult(503, { error: UNAVAILABLE }))
 
   const finalized = await db.rpc('set_plus_ecpay_order_status', {
     p_merchant_trade_no: merchantTradeNo,
@@ -164,7 +166,7 @@ export async function handlePlusCancel(
   })
   if (finalized.error) return noStore(jsonResult(503, { error: UNAVAILABLE }))
 
-  return noStore(jsonResult(200, { status: 'canceled', accessUntil: periodEnd ?? null }))
+  return noStore(jsonResult(200, { status: 'canceled', accessUntil: periodEnd }))
 }
 
 /** Deno entry composition helper, exported here so tests stay node-only. */

@@ -24,7 +24,7 @@ function request(method = 'POST', authorization?: string): HandlerRequest {
 
 type Chain = {
   select: () => Chain
-  eq: () => Chain
+  eq: (column: string, value: unknown) => Chain
   in: () => Chain
   maybeSingle: () => Promise<{
     data: Record<string, unknown> | null
@@ -41,10 +41,14 @@ interface FakeDbOptions {
 
 function fakeDb(options: FakeDbOptions = {}) {
   const rpcCalls: Array<{ fn: string; args: Record<string, unknown> }> = []
+  const filters: Array<{ table: string; column: string; value: unknown }> = []
   const chain = (table: string): Chain => {
     const builder: Chain = {
       select: () => builder,
-      eq: () => builder,
+      eq: (column, value) => {
+        filters.push({ table, column, value })
+        return builder
+      },
       in: () => builder,
       maybeSingle: () =>
         Promise.resolve(
@@ -71,7 +75,7 @@ function fakeDb(options: FakeDbOptions = {}) {
       getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'verified-user' } }, error: null }),
     },
   } as unknown as DbClient
-  return { db, rpcCalls }
+  return { db, rpcCalls, filters }
 }
 
 function fakeTransport(fields: Record<string, string>, status = 200): EcpayTransport {
@@ -143,7 +147,7 @@ describe('Plus cancel Edge handler', () => {
   })
 
   it('cancels the subscription at period end and returns the current access window', async () => {
-    const { db, rpcCalls } = fakeDb({ order: ACTIVE_ORDER, summary: SUMMARY })
+    const { db, rpcCalls, filters } = fakeDb({ order: ACTIVE_ORDER, summary: SUMMARY })
     const log = fakeLogger()
     const transport = fakeTransport(await providerResponse())
 
@@ -154,6 +158,11 @@ describe('Plus cancel Edge handler', () => {
 
     expect(result.status).toBe(200)
     expect(JSON.parse(result.body)).toEqual({ status: 'canceled', accessUntil: PERIOD_END })
+    expect(filters).toContainEqual({
+      table: 'plus_membership_ecpay_order',
+      column: 'user_id',
+      value: 'verified-user',
+    })
     expect(result.headers?.['Cache-Control']).toBe('private, no-store')
     expect(rpcCalls.map((call) => call.fn)).toEqual([
       'set_plus_ecpay_order_status',
@@ -270,4 +279,18 @@ describe('Plus cancel Edge handler', () => {
     expect(result.status).toBe(502)
     expect(rpcCalls.map((call) => call.args.p_status)).toEqual(['cancel_requested'])
   })
+
+  it('stays cancel_requested when the paid period is not recorded yet', async () => {
+    const { db, rpcCalls } = fakeDb({ order: ACTIVE_ORDER, summary: null })
+    const transport = fakeTransport(await providerResponse())
+
+    const result = await handlePlusCancel(
+      request('POST', 'Bearer verified-token'),
+      deps({ db, log: fakeLogger(), transport }),
+    )
+
+    expect(result.status).toBe(503)
+    expect(rpcCalls.map((call) => call.args.p_status).filter(Boolean)).toEqual(['cancel_requested'])
+  })
+
 })
