@@ -220,6 +220,8 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
     supportEmail: 'support@example.com',
     legalSellerName: 'Example Seller',
     fundingReconCsv: undefined,
+    plusCheckoutAdmitted: true,
+    plusConsentRevision: 'test-consent-1',
     ...overrides,
   };
 }

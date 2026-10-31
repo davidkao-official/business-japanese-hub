@@ -173,6 +173,19 @@ export interface AppStrings {
     priceDisclosure: string
     availabilityTitle: string
     availabilityBody: string
+    checkout: {
+      openTitle: string
+      openBody: string
+      consent: string
+      cta: string
+      starting: string
+      signInPrompt: string
+      alreadyMember: string
+      closed: string
+      failed: string
+      returnedTitle: string
+      returnedBody: string
+    }
     audienceTitle: string
     audienceBody: string
     journeyTitle: string
@@ -581,6 +594,19 @@ const ja: AppStrings = {
     priceDisclosure: 'Early Access は月額のみです。年額プランは現在購入できません。料金や提供内容を自動で変更することはありません。',
     availabilityTitle: 'Early Access は準備中です',
     availabilityBody: 'Plus の正式な会員向け教材は準備中です。公開中の Read と職場の日本語は、架空のオリジナル教材サンプルです。Plus の支払いはまだこの画面から利用できず、会員状態を確認できない場合は対象教材をロックします。',
+    checkout: {
+      openTitle: 'Early Access のお申し込み',
+      openBody: '月額 NT$299 の定期課金です。毎月自動で更新され、決済は綠界科技（ECPay）のクレジットカード決済ページで行います。',
+      consent: '毎月自動更新される定期課金であること、解約後も支払済み期間の終了まで利用できることを確認しました。',
+      cta: 'Plus に申し込む',
+      starting: '決済ページへ移動しています…',
+      signInPrompt: 'お申し込みにはログインが必要です。',
+      alreadyMember: 'すでに Plus 会員です。',
+      closed: '現在お申し込みを受け付けていません。',
+      failed: 'お申し込みを開始できませんでした。時間をおいて再度お試しください。',
+      returnedTitle: 'お支払い結果を確認しています',
+      returnedBody: '決済の反映には数分かかる場合があります。会員状態は自動で更新されます。',
+    },
     audienceTitle: '対象となる方',
     audienceBody: 'JLPT N1 に合格し、日本での就職・転職、企業資料の読解、職場での日本語を学びたい方。母語を問わず利用できます。',
     journeyTitle: '日本での仕事につながる学び',
@@ -991,6 +1017,19 @@ const en: AppStrings = {
     priceDisclosure: 'Early Access is monthly only. Annual billing is not currently available, and the price will not change automatically.',
     availabilityTitle: 'Early Access is being prepared',
     availabilityBody: 'Plus payment is not available from this page yet. We only describe learning features that can be delivered, and we keep Plus content locked when membership cannot be confirmed.',
+    checkout: {
+      openTitle: 'Apply for Early Access',
+      openBody: 'This is a recurring monthly charge of NT$299. It renews automatically every month, and payment is made on the ECPay (Green World FinTech Service) credit card checkout page.',
+      consent: 'I understand this is a recurring monthly subscription that renews automatically, and that after cancellation I can keep using the service until the end of the paid period.',
+      cta: 'Subscribe to Plus',
+      starting: 'Taking you to the checkout page…',
+      signInPrompt: 'You need to sign in to subscribe.',
+      alreadyMember: 'You are already a Plus member.',
+      closed: 'Subscriptions are not currently being accepted.',
+      failed: 'We could not start the checkout. Please try again later.',
+      returnedTitle: 'Checking your payment result',
+      returnedBody: 'It may take a few minutes for the payment to be reflected. Your membership status updates automatically.',
+    },
     audienceTitle: 'Who it is for',
     audienceBody: 'Chinese-speaking learners around JLPT N2 to N1 who need Japanese for job hunting, reading business materials, or workplace communication after joining a Japanese company.',
     journeyTitle: 'Learning that follows the work journey',
@@ -1401,6 +1440,19 @@ const zhTW: AppStrings = {
     priceDisclosure: 'Early Access 目前僅提供月繳，年繳尚未開放購買。價格與提供內容不會自動變更。',
     availabilityTitle: 'Early Access 正在準備中',
     availabilityBody: '目前還不能在此頁開始 Plus 付款。這裡只會說明實際可提供的學習功能；無法確認會員狀態時，Plus 內容會維持鎖定。',
+    checkout: {
+      openTitle: '申請 Early Access',
+      openBody: '每月 NT$299 的定期扣款。每月自動續訂，付款在綠界科技（ECPay）的信用卡付款頁面完成。',
+      consent: '我了解這是每月自動續訂的定期扣款，取消後仍可使用至已付款期間結束。',
+      cta: '訂閱 Plus',
+      starting: '正在前往付款頁面…',
+      signInPrompt: '訂閱需要先登入。',
+      alreadyMember: '你已經是 Plus 會員。',
+      closed: '目前未開放訂閱。',
+      failed: '無法開始訂閱，請稍後再試。',
+      returnedTitle: '正在確認付款結果',
+      returnedBody: '付款反映可能需要幾分鐘。會員狀態會自動更新。',
+    },
     audienceTitle: '適合誰',
     audienceBody: '日文程度約 JLPT N2 至 N1，正在準備日本求職、閱讀日本企業資料，或需要適應入社後職場日文的華語學習者。',
     journeyTitle: '跟著日本工作旅程累積',
