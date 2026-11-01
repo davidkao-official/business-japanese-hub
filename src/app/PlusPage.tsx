@@ -18,6 +18,7 @@ export function PlusPage() {
   const locale = useLocale()
   const strings = useStrings()
   const plus = strings.plus
+  const { user } = useAuth()
   useDocumentTitle(`${strings.app.name} Plus`)
 
   return (
@@ -46,7 +47,8 @@ export function PlusPage() {
         </div>
         <p>{plus.availabilityBody}</p>
         <PlusCheckoutPanel />
-        <PlusCancelPanel />
+        {/* Keyed by account so one user's cancel result never shows to the next. */}
+        <PlusCancelPanel key={user?.id ?? 'signed-out'} />
       </section>
 
       <section className="plus-audience" aria-labelledby="plus-audience-title">
