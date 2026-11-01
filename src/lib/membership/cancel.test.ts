@@ -44,6 +44,13 @@ describe('Plus cancel browser client', () => {
     })
   })
 
+  it('treats a route 404 without the handler error as a failure', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response('Not Found', { status: 404 }))
+    await expect(cancelPlusMembership(async () => 'session-token', fetchImpl)).resolves.toEqual({
+      kind: 'failed',
+    })
+  })
+
   it('fails closed on a provider error', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ error: 'provider cancel failed' }, 502))
     await expect(cancelPlusMembership(async () => 'session-token', fetchImpl)).resolves.toEqual({

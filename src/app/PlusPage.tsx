@@ -274,8 +274,6 @@ function PlusCancelPanel() {
         <p>{doneText}</p>
       ) : result?.kind === 'no-subscription' ? (
         <p>{cancel.noSubscription}</p>
-      ) : result?.kind === 'failed' ? (
-        <p role="alert">{cancel.failed}</p>
       ) : confirming ? (
         <>
           <p>{cancel.confirm}</p>
@@ -297,9 +295,12 @@ function PlusCancelPanel() {
           </button>
         </>
       ) : (
-        <button type="button" className="btn btn--secondary" onClick={() => setConfirming(true)}>
-          {cancel.cta}
-        </button>
+        <>
+          {result?.kind === 'failed' && <p role="alert">{cancel.failed}</p>}
+          <button type="button" className="btn btn--secondary" onClick={() => setConfirming(true)}>
+            {cancel.cta}
+          </button>
+        </>
       )}
     </div>
   )

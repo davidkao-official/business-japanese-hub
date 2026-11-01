@@ -29,7 +29,12 @@ export async function cancelPlusMembership(
       headers: { Authorization: `Bearer ${token}` },
     })
 
-    if (response.status === 404) return { kind: 'no-subscription' }
+    if (response.status === 404) {
+      // Only the handler's own answer means "nothing to cancel"; any other 404
+      // (missing route, undeployed function) is a failure.
+      const body = (await response.json().catch(() => null)) as { error?: unknown } | null
+      return body?.error === 'no active subscription' ? { kind: 'no-subscription' } : { kind: 'failed' }
+    }
     if (!response.ok) return { kind: 'failed' }
 
     const body = (await response.json()) as { status?: unknown; accessUntil?: unknown }
