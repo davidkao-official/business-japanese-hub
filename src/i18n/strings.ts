@@ -186,6 +186,19 @@ export interface AppStrings {
       returnedTitle: string
       returnedBody: string
     }
+    cancel: {
+      title: string
+      body: string
+      cta: string
+      confirm: string
+      confirmCta: string
+      back: string
+      busy: string
+      doneUntil: string
+      done: string
+      noSubscription: string
+      failed: string
+    }
     audienceTitle: string
     audienceBody: string
     journeyTitle: string
@@ -606,6 +619,19 @@ const ja: AppStrings = {
       failed: 'お申し込みを開始できませんでした。時間をおいて再度お試しください。',
       returnedTitle: 'お支払い結果を確認しています',
       returnedBody: '決済の反映には数分かかる場合があります。会員状態は自動で更新されます。',
+    },
+    cancel: {
+      title: '解約',
+      body: '解約すると次回以降の自動課金が停止します。支払済みの期間が終わるまでは Plus をそのまま利用できます。',
+      cta: '解約する',
+      confirm: '解約しますか？次回以降の課金は行われません。',
+      confirmCta: '解約を確定する',
+      back: 'やめる',
+      busy: '処理しています…',
+      doneUntil: '解約しました。{date} まで Plus を利用できます。',
+      done: '解約しました。',
+      noSubscription: 'このアカウントには解約できる定期課金がありません。',
+      failed: '解約を完了できませんでした。時間をおいて再度お試しください。',
     },
     audienceTitle: '対象となる方',
     audienceBody: 'JLPT N1 に合格し、日本での就職・転職、企業資料の読解、職場での日本語を学びたい方。母語を問わず利用できます。',
@@ -1030,6 +1056,19 @@ const en: AppStrings = {
       returnedTitle: 'Checking your payment result',
       returnedBody: 'It may take a few minutes for the payment to be reflected. Your membership status updates automatically.',
     },
+    cancel: {
+      title: 'Cancel subscription',
+      body: 'Cancelling stops future automatic charges. You can keep using Plus until the paid period ends.',
+      cta: 'Cancel subscription',
+      confirm: 'Cancel your subscription? You will not be charged again.',
+      confirmCta: 'Confirm cancellation',
+      back: 'Keep it',
+      busy: 'Processing…',
+      doneUntil: 'Your subscription is cancelled. You can use Plus until {date}.',
+      done: 'Your subscription is cancelled.',
+      noSubscription: 'This account has no recurring subscription to cancel.',
+      failed: 'We could not complete the cancellation. Please try again later.',
+    },
     audienceTitle: 'Who it is for',
     audienceBody: 'Chinese-speaking learners around JLPT N2 to N1 who need Japanese for job hunting, reading business materials, or workplace communication after joining a Japanese company.',
     journeyTitle: 'Learning that follows the work journey',
@@ -1452,6 +1491,19 @@ const zhTW: AppStrings = {
       failed: '無法開始訂閱，請稍後再試。',
       returnedTitle: '正在確認付款結果',
       returnedBody: '付款反映可能需要幾分鐘。會員狀態會自動更新。',
+    },
+    cancel: {
+      title: '解約',
+      body: '解約後將停止之後的自動扣款。在已付款期間結束前，你仍可繼續使用 Plus。',
+      cta: '解約',
+      confirm: '確定要解約嗎？之後不會再扣款。',
+      confirmCta: '確定解約',
+      back: '取消',
+      busy: '處理中…',
+      doneUntil: '已解約。在 {date} 之前仍可使用 Plus。',
+      done: '已解約。',
+      noSubscription: '這個帳號沒有可解約的定期扣款。',
+      failed: '無法完成解約，請稍後再試。',
     },
     audienceTitle: '適合誰',
     audienceBody: '日文程度約 JLPT N2 至 N1，正在準備日本求職、閱讀日本企業資料，或需要適應入社後職場日文的華語學習者。',
