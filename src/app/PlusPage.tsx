@@ -318,8 +318,10 @@ function PlusCancelPanel() {
   // The server could not project a subscription.
   if (subscription === null) return null
 
+  // Only an active member can be promised the remaining period: a later
+  // revocation or refund can end a non-member's access early.
   if (subscription !== undefined && subscription.status === 'canceled') {
-    const doneText = untilText(subscription.accessUntil)
+    const doneText = isMember ? untilText(subscription.accessUntil) : null
     if (!doneText) return null
     return (
       <div className="plus-checkout plus-cancel">

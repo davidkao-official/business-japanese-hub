@@ -149,6 +149,20 @@ describe('PlusPage', () => {
     expect(screen.queryByRole('button', { name: '解約する' })).not.toBeInTheDocument()
   })
 
+  it('does not promise remaining access to a non-member whose order is cancelled', async () => {
+    const membershipAccessRepository = membershipRepository('non-member', {
+      status: 'canceled',
+      accessUntil: '2099-12-01T00:00:00.000Z',
+    })
+    renderWithAppProviders(<PlusPage />, {
+      session: { id: 'u-1', email: 'reader@example.com' },
+      membershipAccessRepository,
+    })
+
+    await waitFor(() => expect(membershipAccessRepository.getAccess).toHaveBeenCalled())
+    expect(screen.queryByText(getStrings('ja').plus.cancel.body)).not.toBeInTheDocument()
+  })
+
   it('renders nothing for a cancelled subscription whose paid period has ended', async () => {
     const membershipAccessRepository = membershipRepository('non-member', {
       status: 'canceled',

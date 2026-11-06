@@ -29,7 +29,8 @@ export interface PlusMembershipDeps {
   db: DbClient
   env: Env
   membershipAccessFor: (userId: string) => Promise<PlusMembershipAccess>
-  subscriptionFor: (userId: string) => Promise<PlusSubscription | null>
+  /** `null` means no order; `undefined` means the read failed. */
+  subscriptionFor: (userId: string) => Promise<PlusSubscription | null | undefined>
 }
 
 function noStore(result: HandlerResult): HandlerResult {
@@ -54,29 +55,31 @@ export async function handlePlusMembership(
     return noStore(jsonResult(503, { error: 'membership access unavailable' }))
   }
 
-  // The panel projection is additive: a failed or missing read must never
-  // change the access decision.
-  let subscription: PlusSubscription | null = null
+  // The panel projection is additive: a failed read must never change the
+  // access decision, and omitting the field keeps the client on its previous
+  // access-only behaviour.
+  let subscription: PlusSubscription | null | undefined
   try {
     subscription = await deps.subscriptionFor(userId)
   } catch {
-    subscription = null
+    subscription = undefined
   }
-  return noStore(jsonResult(200, { access, subscription }))
+  return noStore(jsonResult(200, subscription === undefined ? { access } : { access, subscription }))
 }
 
 /**
  * Newest ECPay recurring order for the user in the current provider
  * environment, with the period end recorded by the same subscription summary
- * the cancel handler uses. Any read failure fails closed to no projection.
+ * the cancel handler uses. `null` means no order; `undefined` means the
+ * projection could not be read.
  */
 async function resolvePlusSubscription(
   db: DbClient,
   env: Env,
   userId: string,
-): Promise<PlusSubscription | null> {
+): Promise<PlusSubscription | null | undefined> {
   const ecpayEnv = env.ecpayEnv
-  if (!ecpayEnv) return null
+  if (!ecpayEnv) return undefined
 
   const order = await db
     .from('plus_membership_ecpay_order')
@@ -87,10 +90,11 @@ async function resolvePlusSubscription(
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle()
-  if (order.error || !order.data) return null
+  if (order.error) return undefined
+  if (!order.data) return null
 
   const status = order.data.status
-  if (status !== 'active' && status !== 'cancel_requested' && status !== 'canceled') return null
+  if (status !== 'active' && status !== 'cancel_requested' && status !== 'canceled') return undefined
 
   const summary = await db
     .from('plus_membership_stream_summary')
@@ -98,7 +102,7 @@ async function resolvePlusSubscription(
     .eq('source_system', `ecpay_aio_period:${ecpayEnv}`)
     .eq('source_subscription_id', String(order.data.merchant_trade_no))
     .maybeSingle()
-  if (summary.error) return null
+  if (summary.error) return undefined
 
   const periodEnd = summary.data?.period_end
   return {

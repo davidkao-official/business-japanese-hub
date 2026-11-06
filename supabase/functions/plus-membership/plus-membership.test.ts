@@ -160,7 +160,7 @@ describe('Plus membership status Edge handler', () => {
     })
   })
 
-  it('returns no subscription projection when either read fails', async () => {
+  it('omits the subscription field when either read fails', async () => {
     for (const options of [{ orderError: true }, { summaryError: true }]) {
       const { db } = dbWith(
         { access_status: 'active' },
@@ -176,11 +176,11 @@ describe('Plus membership status Edge handler', () => {
       )
 
       expect(result.status).toBe(200)
-      expect(JSON.parse(result.body)).toEqual({ access: 'active', subscription: null })
+      expect(JSON.parse(result.body)).toEqual({ access: 'active' })
     }
   })
 
-  it('returns no subscription projection when the provider environment is unset', async () => {
+  it('omits the subscription field when the provider environment is unset', async () => {
     const { db, from } = dbWith(
       { access_status: 'active' },
       { order: { merchant_trade_no: 'BJHP0123456789ABCDEF', status: 'active' } },
@@ -190,11 +190,11 @@ describe('Plus membership status Edge handler', () => {
       plusMembershipDeps(db, testEnv({ ecpayEnv: undefined })),
     )
 
-    expect(JSON.parse(result.body)).toEqual({ access: 'active', subscription: null })
+    expect(JSON.parse(result.body)).toEqual({ access: 'active' })
     expect(from).not.toHaveBeenCalled()
   })
 
-  it('keeps access when the subscription read throws', async () => {
+  it('keeps access and omits the field when the subscription read throws', async () => {
     const deps: PlusMembershipDeps = {
       ...plusMembershipDeps(dbWith(null).db, env),
       membershipAccessFor: vi.fn(async () => 'active' as const),
@@ -203,6 +203,6 @@ describe('Plus membership status Edge handler', () => {
     const result = await handlePlusMembership(request('GET', 'Bearer verified-token'), deps)
 
     expect(result.status).toBe(200)
-    expect(JSON.parse(result.body)).toEqual({ access: 'active', subscription: null })
+    expect(JSON.parse(result.body)).toEqual({ access: 'active' })
   })
 })
