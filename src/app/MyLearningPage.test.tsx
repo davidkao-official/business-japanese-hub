@@ -89,7 +89,7 @@ describe('My Learning page', () => {
     mockSnapshot(snapshot())
     renderWithAppProviders(<MyLearningPage />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getByRole('heading', { name: "最初の一問から、記録を始めましょう" })).toBeInTheDocument())
@@ -102,7 +102,7 @@ describe('My Learning page', () => {
     mockSnapshot(snapshot())
     renderWithAppProviders(<MyLearningPage />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getByRole('link', { name: "Web テストを始める" })).toBeInTheDocument())
@@ -116,7 +116,7 @@ describe('My Learning page', () => {
       .mockImplementationOnce(() => new Promise<PracticeLearningFetchResult>(() => {}))
     const rendered = renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} />, {
       session: { id: 'member-a', email: 'a@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getAllByText("文脈と語句の意味").length).toBeGreaterThan(0))
@@ -131,7 +131,7 @@ describe('My Learning page', () => {
   })
 
   it('binds membership access to the current owner during an in-place A to B switch', async () => {
-    const getAccess = vi.fn().mockResolvedValue('active')
+    const getAccess = vi.fn().mockResolvedValue({ access: 'active', subscription: undefined })
     const rendered = renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'unavailable' })} />, {
       session: { id: 'member-a', email: 'a@example.com' },
       membershipAccessRepository: { getAccess },
@@ -153,7 +153,7 @@ describe('My Learning page', () => {
       .mockResolvedValueOnce({ kind: 'ok' as const, snapshot: continuationSnapshot('semantic-relation') })
     const rendered = renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} />, {
       session: { id: 'member-a', email: 'a@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(fetchSnapshot).toHaveBeenCalledTimes(1))
@@ -174,7 +174,7 @@ describe('My Learning page', () => {
     }))
     renderWithAppProviders(<MyLearningPage />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getAllByRole('link', { name: "この問題を復習" })[0]).toBeInTheDocument())
@@ -199,7 +199,7 @@ describe('My Learning page', () => {
     renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'ok', snapshot: mistakeSnapshot })} />, {
       initialEntries: ['/my-learning#my-learning-review-title'],
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     const heading = await screen.findByRole('heading', { name: '最近間違えた問題' })
@@ -218,7 +218,7 @@ describe('My Learning page', () => {
     renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'ok', snapshot: mistakeSnapshot })} />, {
       initialEntries: ['/my-learning'],
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     const heading = await screen.findByRole('heading', { name: '最近間違えた問題' })
@@ -235,7 +235,7 @@ describe('My Learning page', () => {
     }))
     renderWithAppProviders(<MyLearningPage />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getByRole('link', { name: "この単元を練習" })).toBeInTheDocument())
@@ -251,7 +251,7 @@ describe('My Learning page', () => {
     mockSnapshot(snapshot({ recentAttempts: [{ ...review, correct: false }] }))
     renderWithAppProviders(<MyLearningPage />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getByText("分野ごとの傾向を示すには、まだ解答数が足りません。")).toBeInTheDocument())
@@ -271,7 +271,7 @@ describe('My Learning page', () => {
     }))
     renderWithAppProviders(<MyLearningPage />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getByText("文脈と語句の意味：最近の 5 問中 2 問が不正解（正答率 60%）。")).toBeInTheDocument())
@@ -287,7 +287,7 @@ describe('My Learning page', () => {
     mockSnapshot(snapshot({ recentAttempts: [earlierReleaseAttempt] }))
     renderWithAppProviders(<MyLearningPage />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getByText("文脈と語句の意味")).toBeInTheDocument())
@@ -304,7 +304,7 @@ describe('My Learning page', () => {
     }))
     renderWithAppProviders(<MyLearningPage />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getByText("この単元")).toBeInTheDocument())
@@ -326,7 +326,7 @@ describe('My Learning page', () => {
     }))
     renderWithAppProviders(<MyLearningPage />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Hook snapshot review title' })).toBeInTheDocument())
@@ -363,7 +363,7 @@ describe('My Learning page', () => {
     }))
     renderWithAppProviders(<MyLearningPage />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Hook snapshot continue title' })).toBeInTheDocument())
@@ -382,7 +382,7 @@ describe('My Learning page', () => {
     const fetchSnapshot = vi.fn().mockResolvedValue({ kind: 'non-member' as const })
     renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getByRole('heading', { name: "Plus でできること" })).toBeInTheDocument())
@@ -393,7 +393,7 @@ describe('My Learning page', () => {
   it('offers sign-in again when a free account session expires during the snapshot request', async () => {
     renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'signed-out' as const })} />, {
       session: { id: 'free-1', email: 'free@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('non-member') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'non-member', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getByRole('heading', { name: "ログインして学習記録を確認" })).toBeInTheDocument())
@@ -410,7 +410,7 @@ describe('My Learning page', () => {
     const fetchSaves = vi.fn()
     renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} fetchSaves={fetchSaves} />, {
       session: { id: 'free-1', email: 'free@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('non-member') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'non-member', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getAllByRole('link', { name: "この問題を復習" })[0]).toBeInTheDocument())
@@ -427,7 +427,7 @@ describe('My Learning page', () => {
     const fetchSnapshot = vi.fn().mockResolvedValue({ kind: 'signed-out' as const })
     renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     await waitFor(() => expect(screen.getByRole('heading', { name: "ログインして学習記録を確認" })).toBeInTheDocument())
@@ -436,7 +436,7 @@ describe('My Learning page', () => {
   })
 
   it('renders membership and endpoint failures as truthful recovery states', async () => {
-    const membership = { getAccess: vi.fn().mockResolvedValue('non-member') }
+    const membership = { getAccess: vi.fn().mockResolvedValue({ access: 'non-member', subscription: undefined }) }
     renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'non-member' as const })} />, {
       session: { id: 'member-1', email: 'member@example.com' },
       membershipAccessRepository: membership,
@@ -448,7 +448,7 @@ describe('My Learning page', () => {
     const fetchSnapshot = vi.fn().mockResolvedValue({ kind: 'unavailable' as const })
     renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
     await waitFor(() => expect(fetchSnapshot).toHaveBeenCalled())
     await waitFor(() => expect(screen.getByRole('heading', { name: "解答記録を読み込めません" })).toBeInTheDocument())
@@ -467,7 +467,7 @@ describe('My Learning page', () => {
     const deleteSave = vi.fn(async () => ({ kind: 'ok' as const }))
     renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'ok', snapshot: snapshot() })} fetchSaves={fetchSaves} deleteSave={deleteSave} />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
     const sampleLink = await screen.findByRole('link', { name: sampleReadingItem.title })
     expect(sampleLink).toHaveAttribute('href', `/read/${sampleReadingItem.slug}`)
@@ -497,7 +497,7 @@ describe('My Learning page', () => {
     const deleteSave = vi.fn().mockResolvedValue({ kind: 'ok' as const })
     renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'ok', snapshot: snapshot() })} fetchSaves={fetchSaves} deleteSave={deleteSave} />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
     expect(await screen.findAllByText("この保存済みの項目は、現在開けません。")).toHaveLength(50)
     fireEvent.click(screen.getAllByRole('button', { name: "保存を解除" })[0]!)
@@ -514,7 +514,7 @@ describe('My Learning page', () => {
     })
     renderWithAppProviders(<MyLearningPage fetchSnapshot={fetchSnapshot} fetchSaves={fetchSaves} />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
     expect(await screen.findByRole('heading', { name: "解答記録を読み込めません" })).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: sampleReadingItem.title })).toHaveAttribute('href', `/read/${sampleReadingItem.slug}`)
@@ -526,7 +526,7 @@ describe('My Learning page', () => {
       .mockResolvedValueOnce({ kind: 'ok' as const, items: [] })
     renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'ok', snapshot: snapshot() })} fetchSaves={fetchSaves} />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
     expect(await screen.findByText("保存した記事を読み込めません。")).toBeInTheDocument()
     fireEvent.click(screen.getByRole('heading', { name: "最近保存した記事（最大 50 件）" }).closest('section')!.querySelector('button')!)
@@ -544,7 +544,7 @@ describe('My Learning page', () => {
     })
     const rendered = renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockImplementation(() => new Promise(() => {}))} fetchSaves={fetchSaves} />, {
       session: { id: 'member-a', email: 'a@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
     await waitFor(() => expect(fetchSaves).toHaveBeenCalledTimes(1))
     act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b', email: 'b@example.com' }))
@@ -564,7 +564,7 @@ describe('My Learning page', () => {
     })
     const rendered = renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockImplementation(() => new Promise(() => {}))} fetchSaves={fetchSaves} />, {
       session: { id: 'member-a', email: 'a@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
     await waitFor(() => expect(fetchSaves).toHaveBeenCalledTimes(1))
     act(() => rendered.authClient.emitAuthStateChange(null))
@@ -579,7 +579,7 @@ describe('My Learning page', () => {
     const fetchSaves = vi.fn().mockResolvedValue({ kind: 'forbidden' as const })
     renderWithAppProviders(<MyLearningPage fetchSnapshot={vi.fn().mockResolvedValue({ kind: 'ok', snapshot: snapshot() })} fetchSaves={fetchSaves} />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
     expect(await screen.findByText("現在、Plus の会員資格を確認できません。")).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: sampleReadingItem.title })).not.toBeInTheDocument()
@@ -604,7 +604,7 @@ describe('My Learning page', () => {
       deleteWorkplaceItem={deleteWorkplaceItem}
     />, {
       session: { id: 'member-1', email: 'member@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
 
     expect(await screen.findByRole('link', { name: sampleWorkplaceLearnItem.title })).toHaveAttribute('href', `/learn/workplace/${sampleWorkplaceLearnItem.slug}`)
@@ -630,7 +630,7 @@ describe('My Learning page', () => {
       fetchWorkplaceItems={fetchWorkplaceItems}
     />, {
       session: { id: 'member-a', email: 'a@example.com' },
-      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+      membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
     })
     await waitFor(() => expect(fetchWorkplaceItems).toHaveBeenCalledTimes(1))
     act(() => rendered.authClient.emitAuthStateChange({ id: 'member-b', email: 'b@example.com' }))
