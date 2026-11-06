@@ -28,7 +28,7 @@ const plusItem: ReadingRuntimeItem = {
 const plusEntry = toReadingCatalogEntry(plusItem, { contentId: plusItem.id, revision })
 const plusCatalog: readonly ReadingCatalogEntry[] = [plusEntry]
 const membership = (access: 'active' | 'non-member' | 'unavailable'): PlusMembershipAccessRepository => ({
-  getAccess: vi.fn(async () => access),
+  getAccess: vi.fn(async () => ({ access, subscription: undefined })),
 })
 
 function routeSet(

@@ -10,8 +10,27 @@ import { tokenSubject } from '../auth/tokenSubject'
 
 export type PlusMembershipAccess = 'active' | 'non-member' | 'unavailable'
 
+export type PlusSubscriptionStatus = 'active' | 'cancel_requested' | 'canceled'
+
+/** Panel-only projection of the newest recurring subscription. */
+export interface PlusSubscription {
+  status: PlusSubscriptionStatus
+  accessUntil: string | null
+}
+
+/**
+ * `undefined` means the server did not send the field (an older deployment),
+ * `null` means the server could not project a subscription.
+ */
+export type PlusSubscriptionProjection = PlusSubscription | null | undefined
+
+export interface PlusMembershipStatus {
+  access: PlusMembershipAccess
+  subscription: PlusSubscriptionProjection
+}
+
 export interface PlusMembershipAccessRepository {
-  getAccess(expectedUserId: string): Promise<PlusMembershipAccess>
+  getAccess(expectedUserId: string): Promise<PlusMembershipStatus>
 }
 
 export interface PlusMembershipAccessRequestOptions {
@@ -38,6 +57,24 @@ export function parsePlusMembershipAccess(value: unknown): PlusMembershipAccess 
 }
 
 /**
+ * A missing field is `undefined` (unknown), an explicit `null` is a failed
+ * projection, and a malformed value is treated as unknown so the panel falls
+ * back to its access-only behaviour.
+ */
+export function parsePlusSubscription(value: unknown): PlusSubscriptionProjection {
+  if (value === null) return null
+  if (!value || typeof value !== 'object') return undefined
+  const { status, accessUntil } = value as { status?: unknown; accessUntil?: unknown }
+  if (status !== 'active' && status !== 'cancel_requested' && status !== 'canceled') {
+    return undefined
+  }
+  if (accessUntil !== null && typeof accessUntil !== 'string') return undefined
+  return { status, accessUntil }
+}
+
+const UNAVAILABLE: PlusMembershipStatus = { access: 'unavailable', subscription: undefined }
+
+/**
  * One authenticated read of the narrow server projection. Any missing token,
  * network error, non-success response, or malformed body fails closed.
  */
@@ -45,7 +82,7 @@ export async function fetchPlusMembershipAccess(
   getAccessToken: () => Promise<string | null>,
   expectedUserId: string,
   options: PlusMembershipAccessRequestOptions = {},
-): Promise<PlusMembershipAccess> {
+): Promise<PlusMembershipStatus> {
   const controller = typeof AbortController === 'function' ? new AbortController() : null
   let timer: ReturnType<typeof setTimeout> | undefined
   let resolveDeadline!: (value: typeof DEADLINE_REACHED) => void
@@ -63,11 +100,11 @@ export async function fetchPlusMembershipAccess(
     }, LOOKUP_DEADLINE_MS)
 
     const tokenResult = await raceDeadline(Promise.resolve().then(getAccessToken))
-    if (tokenResult === DEADLINE_REACHED || !tokenResult) return 'unavailable'
-    if (tokenSubject(tokenResult) !== expectedUserId) return 'unavailable'
+    if (tokenResult === DEADLINE_REACHED || !tokenResult) return UNAVAILABLE
+    if (tokenSubject(tokenResult) !== expectedUserId) return UNAVAILABLE
 
     const baseUrl = options.baseUrl === undefined ? functionsBaseUrl() : options.baseUrl
-    if (!baseUrl) return 'unavailable'
+    if (!baseUrl) return UNAVAILABLE
 
     const request = options.fetchImpl ?? fetch
     const responseResult = await raceDeadline(
@@ -78,14 +115,17 @@ export async function fetchPlusMembershipAccess(
         ...(controller ? { signal: controller.signal } : {}),
       })),
     )
-    if (responseResult === DEADLINE_REACHED || !responseResult.ok) return 'unavailable'
+    if (responseResult === DEADLINE_REACHED || !responseResult.ok) return UNAVAILABLE
 
     const bodyResult = await raceDeadline(Promise.resolve().then(() => responseResult.json()))
-    if (bodyResult === DEADLINE_REACHED) return 'unavailable'
-    const body = bodyResult as { access?: unknown }
-    return parsePlusMembershipAccess(body?.access)
+    if (bodyResult === DEADLINE_REACHED) return UNAVAILABLE
+    const body = bodyResult as { access?: unknown; subscription?: unknown }
+    return {
+      access: parsePlusMembershipAccess(body?.access),
+      subscription: parsePlusSubscription(body?.subscription),
+    }
   } catch {
-    return 'unavailable'
+    return UNAVAILABLE
   } finally {
     if (timer !== undefined) clearTimeout(timer)
   }
@@ -97,7 +137,7 @@ export class HttpPlusMembershipAccessRepository implements PlusMembershipAccessR
     private readonly options: PlusMembershipAccessRequestOptions = {},
   ) {}
 
-  getAccess(expectedUserId: string): Promise<PlusMembershipAccess> {
+  getAccess(expectedUserId: string): Promise<PlusMembershipStatus> {
     return fetchPlusMembershipAccess(this.getAccessToken, expectedUserId, this.options)
   }
 }
