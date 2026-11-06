@@ -241,6 +241,9 @@ function PlusCancelPanel() {
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<PlusCancelResult | null>(null)
+  // Read the clock once for this render tree instead of calling Date.now()
+  // during render.
+  const [now] = useState(() => Date.now())
 
   const isMember = state.kind === 'active-member'
   // Unknown or unavailable access keeps the previous behaviour: only an active
@@ -260,7 +263,7 @@ function PlusCancelPanel() {
   const untilText = (value: string | null): string | null => {
     if (!value) return null
     const date = new Date(value)
-    if (Number.isNaN(date.getTime()) || date.getTime() <= Date.now()) return null
+    if (Number.isNaN(date.getTime()) || date.getTime() <= now) return null
     return cancel.doneUntil.replace(
       '{date}',
       new Intl.DateTimeFormat(locale, {
