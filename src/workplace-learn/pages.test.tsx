@@ -258,7 +258,7 @@ describe('Workplace Learn routes and details', () => {
     }
     const revision = 'd'.repeat(64)
     const plusEntry = toWorkplaceLearnCatalogEntry(privateItem, { contentId: privateItem.id, revision })
-    const repo = { getAccess: vi.fn().mockResolvedValue('active' as const) }
+    const repo = { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) }
     const loadPayload = vi.fn().mockResolvedValue({ kind: 'ok' as const, item: privateItem })
     const view = renderWithAppProviders(
       <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[plusEntry]} publicItems={[]} loadPayload={loadPayload} />} /></Routes>,
@@ -291,7 +291,7 @@ describe('Workplace Learn routes and details', () => {
     }))
     renderWithAppProviders(
       <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[plusEntry]} publicItems={[]} loadPayload={vi.fn().mockResolvedValue({ kind: 'ok', item: privateItem })} />} /></Routes>,
-      { initialEntries: [`/learn/workplace/${plusEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      { initialEntries: [`/learn/workplace/${plusEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
     )
 
     const saveButton = await screen.findByRole('button', { name: '儲存到 My Learning' })
@@ -323,7 +323,7 @@ describe('Workplace Learn routes and details', () => {
     }))
     renderWithAppProviders(
       <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[plusEntry]} publicItems={[]} loadPayload={vi.fn().mockResolvedValue({ kind: 'ok', item: privateItem })} />} /></Routes>,
-      { initialEntries: [`/learn/workplace/${plusEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      { initialEntries: [`/learn/workplace/${plusEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
     )
 
     fireEvent.click(await screen.findByRole('button', { name: '儲存到 My Learning' }))
@@ -351,7 +351,7 @@ describe('Workplace Learn routes and details', () => {
     }))
     renderWithAppProviders(
       <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[plusEntry]} publicItems={[]} loadPayload={vi.fn().mockResolvedValue({ kind: 'ok', item: privateItem })} />} /></Routes>,
-      { initialEntries: [`/learn/workplace/${plusEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      { initialEntries: [`/learn/workplace/${plusEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
     )
 
     expect(await screen.findByText('已儲存的教材版本目前無法使用；你可以移除這筆儲存。')).toBeInTheDocument()
@@ -407,7 +407,7 @@ describe('Workplace Learn routes and details', () => {
         <Routes><Route path={kind === 'lesson' ? '/learn/workplace/:slug' : '/learn/vocabulary/:slug'} element={
           <Page catalogEntries={[entry]} publicItems={[item]} />
         } /></Routes>,
-        { initialEntries: [route], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+        { initialEntries: [route], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
       )
 
       if (failedMethod === 'PUT') {
@@ -466,7 +466,7 @@ describe('Workplace Learn routes and details', () => {
         <Routes><Route path={kind === 'lesson' ? '/learn/workplace/:slug' : '/learn/vocabulary/:slug'} element={
           <Page catalogEntries={[entry]} publicItems={[item]} />
         } /></Routes>,
-        { initialEntries: [route], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+        { initialEntries: [route], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
       )
 
       expect(await screen.findByText('目前無法確認儲存狀態。')).toBeInTheDocument()
@@ -524,7 +524,7 @@ describe('Workplace Learn routes and details', () => {
     }))
     const view = renderWithAppProviders(
       <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
-      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
     )
 
     await waitFor(() => expect(methods).toEqual(['GET']))
@@ -589,7 +589,7 @@ describe('Workplace Learn routes and details', () => {
         <Routes><Route path={kind === 'lesson' ? '/learn/workplace/:slug' : '/learn/vocabulary/:slug'} element={
           <Page catalogEntries={[entry]} publicItems={[item]} />
         } /></Routes>,
-        { initialEntries: [route], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+        { initialEntries: [route], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
       )
 
       const mutationButton = method === 'PUT' ? '儲存到 My Learning' : '移除儲存'
@@ -676,7 +676,7 @@ describe('Workplace Learn routes and details', () => {
         <Routes><Route path={kind === 'lesson' ? '/learn/workplace/:slug' : '/learn/vocabulary/:slug'} element={
           <Page catalogEntries={[entry]} publicItems={[item]} />
         } /></Routes>,
-        { initialEntries: [route], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+        { initialEntries: [route], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
       )
 
       const actionButton = method === 'PUT' ? '儲存到 My Learning' : '移除儲存'
@@ -763,7 +763,7 @@ describe('Workplace Learn routes and details', () => {
     }))
     const view = renderWithAppProviders(
       <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
-      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
     )
 
     fireEvent.click(await screen.findByRole('button', { name: '儲存到 My Learning' }))
@@ -809,7 +809,7 @@ describe('Workplace Learn routes and details', () => {
     }))
     const view = renderWithAppProviders(
       <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
-      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
     )
 
     fireEvent.click(await screen.findByRole('button', { name: '儲存到 My Learning' }))
@@ -870,7 +870,7 @@ describe('Workplace Learn routes and details', () => {
     }))
     const view = renderWithAppProviders(
       <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[originalEntry]} publicItems={[originalItem]} />} /></Routes>,
-      { initialEntries: [`/learn/workplace/${originalEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      { initialEntries: [`/learn/workplace/${originalEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
     )
 
     fireEvent.click(await screen.findByRole('button', { name: '儲存到 My Learning' }))
@@ -927,7 +927,7 @@ describe('Workplace Learn routes and details', () => {
     }))
     const view = renderWithAppProviders(
       <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
-      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
     )
 
     const saveButton = await screen.findByRole('button', { name: '儲存到 My Learning' })
@@ -1020,7 +1020,7 @@ describe('Workplace Learn routes and details', () => {
     }))
     const view = renderWithAppProviders(
       <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
-      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
     )
 
     const saveButton = await screen.findByRole('button', { name: '儲存到 My Learning' })
@@ -1074,7 +1074,7 @@ describe('Workplace Learn routes and details', () => {
     }))
     const view = renderWithAppProviders(
       <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
-      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      { initialEntries: [`/learn/workplace/${entry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
     )
 
     fireEvent.click(await screen.findByRole('button', { name: '儲存到 My Learning' }))
@@ -1136,7 +1136,7 @@ describe('Workplace Learn routes and details', () => {
     const loadPayload = vi.fn().mockResolvedValue({ kind: 'ok', item: privateItem })
     const view = renderWithAppProviders(
       <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[firstEntry]} publicItems={[]} loadPayload={loadPayload} />} /></Routes>,
-      { initialEntries: [`/learn/workplace/${firstEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') } },
+      { initialEntries: [`/learn/workplace/${firstEntry.slug}`], session: { id: 'member-1', email: 'member@example.com' }, membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) } },
     )
 
     fireEvent.click(await screen.findByRole('button', { name: '儲存到 My Learning' }))
@@ -1178,7 +1178,7 @@ describe('Workplace Learn routes and details', () => {
       return pendingRecovery
     }))
     const membershipRepository = {
-      getAccess: vi.fn(async (userId: string) => userId === 'member-1' ? 'active' as const : 'non-member' as const),
+      getAccess: vi.fn(async (userId: string) => ({ access: userId === 'member-1' ? 'active' as const : 'non-member' as const, subscription: undefined })),
     }
     const view = renderWithAppProviders(
       <Routes><Route path="/learn/workplace/:slug" element={<WorkplaceLessonPage catalogEntries={[entry]} publicItems={[item]} />} /></Routes>,
@@ -1244,7 +1244,7 @@ describe('Injected member Workplace Learn body admission', () => {
       {
         initialEntries: [`/learn/workplace/${entry.slug}`],
         session: { id: 'member-1', email: 'member@example.com' },
-        membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue('active') },
+        membershipAccessRepository: { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
       },
     )
 
