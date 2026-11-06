@@ -7,6 +7,16 @@ const sql = readFileSync(
   'utf8',
 );
 
+const plusReconcileSql = readFileSync(
+  join(
+    process.cwd(),
+    'supabase',
+    'migrations',
+    '20261107090000_plus_period_reconcile_schedule.sql',
+  ),
+  'utf8',
+);
+
 describe('paid launch scheduler readiness migration', () => {
   it('requires exact repair and email function URLs plus the Vault secret hash', () => {
     expect(sql).toMatch(/create or replace function public\.is_paid_launch_scheduler_ready\(/);
@@ -46,5 +56,34 @@ describe('paid launch scheduler readiness migration', () => {
     expect(sql).toContain(`revoke all on function ${fn} from anon`);
     expect(sql).toContain(`revoke all on function ${fn} from authenticated`);
     expect(sql).toContain(`grant execute on function ${fn} to service_role`);
+  });
+});
+
+describe('Plus period reconcile schedule migration', () => {
+  it('seeds the function URL placeholder without overwriting a configured value', () => {
+    expect(plusReconcileSql).toContain("'plus_period_reconcile_function_url'");
+    expect(plusReconcileSql).toContain(
+      'https://<project-ref>.supabase.co/functions/v1/plus-period-reconcile',
+    );
+    expect(plusReconcileSql).toContain('on conflict (key) do nothing');
+  });
+
+  it('skips until the URL and Vault secret are configured', () => {
+    expect(plusReconcileSql).toContain("function_url like 'https://<project-ref>%'");
+    expect(plusReconcileSql).toContain("name = coalesce(secret_name, 'scheduled_job_secret')");
+  });
+
+  it('requires the active hourly job with its exact schedule and command', () => {
+    expect(plusReconcileSql).toContain("jobname = 'plus-period-reconcile'");
+    expect(plusReconcileSql).toContain("'17 * * * *'");
+    expect(plusReconcileSql).toContain("'select public.scheduled_plus_period_reconcile_call();'");
+  });
+
+  it('keeps the cron wrapper service-role-only', () => {
+    const fn = 'public.scheduled_plus_period_reconcile_call()';
+    expect(plusReconcileSql).toContain(`revoke all on function ${fn} from public`);
+    expect(plusReconcileSql).toContain(`revoke all on function ${fn} from anon`);
+    expect(plusReconcileSql).toContain(`revoke all on function ${fn} from authenticated`);
+    expect(plusReconcileSql).toContain(`grant execute on function ${fn} to service_role`);
   });
 });

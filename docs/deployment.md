@@ -403,9 +403,14 @@ sanitized logs.
 ### 2.6 Configure scheduled jobs
 
 In server-only SQL/operator context, replace placeholder rows in
-`scheduled_job_config` with this project's deployed `repair-reconcile` and
-`order-email` function URLs. Create Vault secret `scheduled_job_secret` with the
-same value as `SCHEDULED_JOB_SECRET`.
+`scheduled_job_config` with this project's deployed `repair-reconcile`,
+`order-email`, and `plus-period-reconcile` function URLs. Create Vault secret
+`scheduled_job_secret` with the same value as `SCHEDULED_JOB_SECRET`.
+
+Backend deploy must set `plus_period_reconcile_function_url`
+(`https://<project-ref>.supabase.co/functions/v1/plus-period-reconcile`) after
+deploying the `plus-period-reconcile` Edge Function; until it is set, the hourly
+job logs and skips.
 
 Keep these active jobs:
 
@@ -414,6 +419,7 @@ Keep these active jobs:
 | `payments-repair-layer-b` | `*/10 * * * *` | `select public.scheduled_repair_call();` |
 | `payments-recon-layer-c` | `0 3 * * *` | `select public.scheduled_reconciliation_call();` |
 | `order-email-outbox` | `* * * * *` | `select public.scheduled_order_email_call();` |
+| `plus-period-reconcile` | `17 * * * *` | `select public.scheduled_plus_period_reconcile_call();` |
 
 Compute only the scheduled-job secret digest in a trusted shell:
 
