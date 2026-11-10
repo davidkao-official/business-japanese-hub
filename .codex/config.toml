@@ -1,0 +1,4 @@
+# Repo-scoped Codex plugin policy.
+# This project marketplace pins REA to the qualified 6.8.0 release from morluto/rea.
+[plugins."rea@business-japanese-hub"]
+enabled = true
