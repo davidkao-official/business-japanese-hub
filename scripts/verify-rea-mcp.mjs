@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { log } from "node:console";
 import { resolve } from "node:path";
+import process from "node:process";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 
@@ -46,7 +48,7 @@ try {
     `REA binary_session returned an error: ${JSON.stringify(result)}`,
   );
 
-  console.log(
+  log(
     JSON.stringify(
       {
         server: serverVersion,
