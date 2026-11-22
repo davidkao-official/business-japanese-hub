@@ -6,16 +6,15 @@
 
 **Production boundary:** until the deployment owner verifies a separate release control, **every merge to `main` is a potential production release**, including docs-only changes. GitHub CI, preview success, Oracle review, or an unchanged runtime diff does not authorize production. Read [#186](https://github.com/davidkao-official/business-japanese-hub/issues/186) and [#97](https://github.com/davidkao-official/business-japanese-hub/issues/97) before any merge or production-affecting action.
 
-## Multi-agent coordination（兩個 agent team 共用本 repo）
+## Multi-agent coordination（兩個 AI team 共用本 repo）
 
-tachiko（Claude lead + Codex workers）與 David 的 Codex 同時在本 repo 開發。規則全文與目前分工表在 [#166 agent-coordination:v1](https://github.com/davidkao-official/business-japanese-hub/issues/166#issuecomment-7075703533)；摘要：
+tachiko（Claude lead + Codex workers）與 David 的 Codex 同時開發本 repo。溝通只用 GitHub：
 
-1. **先 claim 再動工**：先查 `gh pr list --search "<issue#>"` 與 issue 上最新的 `agent-claim:v1`；未被 claim 才在 issue 留 `<!-- agent-claim:v1 --> <team> · <branch> · <scope>`。引用該 issue 的 open PR 也算 claim。
-2. **PR branch 屬於開它的 team**：不要 push 到對方的 branch（對方 worker 可能正在 resume）；改留 review comment，或開一個 base 在對方 branch 上的 PR。對方在 PR 寫 `agent-open-for-push:v1` 才可直接 push。
-3. **檔案重疊**：改到對方 open PR 也在改的檔案時，stack 在該 PR 上，或在 PR 中寫明誰先 land。
-4. **決策在 issue 上**：lead 決策是 `bjh-lead-decision` comment，Owner 決策在 `plan.yaml` 的 `owner_decisions`；動工前先讀，不要開始等待 OPEN Owner 決策的工作。
-5. **沒有 Owner 對該次 merge 的明確核准，誰都不 merge 到 `main`**；PR 保持 draft。
-6. **Handoff**：一批工作結束時，在 #166 貼 `agent-handoff:v1`（進行中的 claim、PR、下一步）。
+- **誰負責什麼**：issue／PR 上的 label `team:tachiko`／`team:david`。動工前先查 `gh issue list --label team:<team>` 與 `gh pr list --search "<issue#>"`；沒有 label 也沒有 PR 才是空的，先加上自己的 team label 再開始。
+- **目前狀態**：[#166 的 `agent-status:v1` 留言](https://github.com/davidkao-official/business-japanese-hub/issues/166#issuecomment-7075703533)，原地更新、不往下追加；各 team 開工與收工時更新自己的段落。
+- **提議、請求、意見不同**：在 #166 或該 issue／PR 留言；不要直接改對方的 branch 或 PR。
+- **收尾規則**：同一問題來回兩輪沒有共識，就停下交給人決定（tachiko 方：Owner；David 方：David）。
+- **合併**：沒有 Owner 對該次合併的核准，不 merge 到 `main`；PR 保持 draft。
 
 ## 專案身份
 
