@@ -53,6 +53,12 @@ owner_decisions:
     recommendation: 延後第二題型家族
     deadline: 2026-12-07 JST
     state: OPEN
+  - id: D-SPI-IMPORT
+    question: "是否核准將2026-11-22 SPI稽核修正（private authoring PR #6，revision abeda021，53題ID不變）匯入production並發布？Lead驗收與validator已通過。 https://github.com/davidkao-official/business-japanese-hub/issues/253"
+    options: [核准匯入並於匯入後跑雙站smoke, 暫緩且production維持現行題庫]
+    recommendation: 核准匯入並於匯入後跑雙站smoke
+    deadline: 2026-12-07 JST
+    state: OPEN
 workstreams:
   - id: LAUNCH
     title: Plus Early Access 上線驗收
@@ -97,7 +103,7 @@ workstreams:
     lead: BJH lead / Content Owner
     phases: [{id: free, title: 免費價值迴路}, {id: member, title: Plus題庫與真實會員驗收}]
     current_phase: member
-    next_step: 以真實Plus身分開啟一題新增非言語題並回訪既有錯題，補320px／keyboard QA。
+    next_step: 待D-SPI-IMPORT匯入稽核修正；以真實Plus身分開啟一題新增非言語題並回訪既有錯題，補320px／keyboard QA。
     references:
       - {label: 真實value spine, url: "https://github.com/davidkao-official/business-japanese-hub/issues/187"}
       - {label: 非言語題庫擴充, url: "https://github.com/davidkao-official/business-japanese-hub/issues/253"}
@@ -134,6 +140,7 @@ workstreams:
     next_step: Owner提供stage project及商戶／consent前提，驗證已合併的checkout、callback、cancel與reconcile。
     context:
       - 2026-11-01 JST收據：briefs 1–7及解約按鈕已合併；新migration／functions尚未部署Supabase，checkout不得據此啟用。
+      - 2026-11-22 JST pre-deploy review：BLOCKER #275（CheckMacValue，draft PR #277已驗收）與#270須隨backend一起出貨；majors在#276，M1期間計算已由lead決定（錨定扣款日＋2日結算緩衝）。
     references:
       - {label: 最新付款與外部gate清單, url: "https://github.com/davidkao-official/business-japanese-hub/issues/111#issuecomment-6449954643"}
       - {label: Recurring contract, url: "https://github.com/davidkao-official/business-japanese-hub/issues/107"}
@@ -201,13 +208,13 @@ workstreams:
         requirement: 練習分類及使用者介面文案走ja i18n，V1固定ja且無language selector；沒有raw key或未完成locale可進入。
         judge: QA走Practice／Read／Learn／My Learning並檢查分類與窄版header
         status: PENDING
-        status_detail: 2026-11-22 JST稽核S1部分完成；八個SPI分類label仍hard-coded。
+        status_detail: 2026-11-22 JST稽核S1部分完成；八個SPI分類label改走ja i18n的draft PR #274已通過CI，待合併授權。
         watch: [src/i18n/**, src/practice-web-test/**, src/components/Header.tsx]
       - id: JAPANESE-CORE
         requirement: 發布的Reading／Workplace／Practice材料有必需日文coreExplanation及適用分析；可選母語overlay不能取代日文core。
         judge: 內容審閱者檢查本次材料，Lead以各domain validator拒絕缺日文core的輸入
         status: PENDING
-        status_detail: 195舊candidate不延續；Workplace依2026-11-07 JST決定從main重建。
+        status_detail: 195舊candidate不延續；Read／Workplace contracts於2026-11-22 JST驗收通過，sample解説draft PR #279已核准待合併授權；meeting-japanese舊Book章節仍為zh-TW解説（#280）。
         watch: [src/reading/**, src/**, src/practice-web-test/**, scripts/private-content/**]
   - id: DESIGN
     title: Source & Gloss 分階段收斂
