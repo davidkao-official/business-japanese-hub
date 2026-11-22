@@ -236,7 +236,10 @@ export async function readBackPlusOrder(
     const receipts = await deps.db.from('plus_membership_ecpay_receipt')
       .select('source_event_id,facts_sha256,lifecycle_result')
       .in('source_event_id', query.authorizations.map(auth => auth.sourceEventId));
-    if (receipts.error) return { kind: 'failed' };
+    if (receipts.error) return {
+      kind: 'done', execStatus: query.execStatus,
+      authorizations: query.authorizations.length, retry: true,
+    };
     for (const row of Array.isArray(receipts.data) ? receipts.data : []) {
       if (row.lifecycle_result != null) completed.set(String(row.source_event_id), String(row.facts_sha256));
     }

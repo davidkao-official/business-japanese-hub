@@ -248,6 +248,14 @@ describe('bounded durable reconciliation', () => {
     expect(mock.rpcCalls('record_plus_ecpay_receipt')).toHaveLength(1);
   });
 
+  it('keeps a stale pending order recoverable if the receipt-resume lookup fails', async () => {
+    const { mock, handle } = setup({ orders: [{ ...activeOrder, status: 'pending' }] });
+    mock.setRoute('plus_membership_ecpay_receipt', { error: 'receipt lookup unavailable' });
+    expect(JSON.parse((await handle()).body)).toEqual({ checked: 1, ingested: 0, failed: 1 });
+    expect(mock.rpcCalls('set_plus_ecpay_order_status')).toHaveLength(0);
+    expect(mock.rpcCalls('release_plus_ecpay_reconcile_order')).toHaveLength(1);
+  });
+
   it('fails closed if the durable claim is unavailable', async () => {
     const { mock, post, handle } = setup();
     mock.setRoute('rpc:claim_plus_ecpay_reconcile_order', { error: 'database offline' });
