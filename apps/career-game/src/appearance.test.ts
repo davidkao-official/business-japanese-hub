@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { build } from 'vite'
 
 let outputDirectory = ''
@@ -9,8 +9,6 @@ let builtHtml = ''
 let builtCss = ''
 
 beforeAll(async () => {
-  // tachi-run source snapshots omit .git; this CSS build uses a test identity.
-  vi.stubEnv('CF_PAGES_COMMIT_SHA', '3333333333333333333333333333333333333333')
   outputDirectory = mkdtempSync(join(tmpdir(), 'bjh-career-game-appearance-'))
   await build({
     configFile: join(process.cwd(), 'vite.career-game.config.ts'),
@@ -27,7 +25,6 @@ beforeAll(async () => {
 }, 30_000)
 
 afterAll(() => {
-  vi.unstubAllEnvs()
   if (outputDirectory) rmSync(outputDirectory, { recursive: true, force: true })
 })
 

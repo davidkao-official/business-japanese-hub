@@ -71,7 +71,7 @@ export async function ingestPlusPeriodAuthorization(
   order: PlusEcpayOrder,
   auth: EcpayPeriodAuthorization,
 ): Promise<'ok' | 'retry'> {
-  const { env, db, log, transport, now } = deps;
+  const { env, db, log } = deps;
 
   const receipt = await db.rpc('record_plus_ecpay_authorization', {
     p_source_event_id: auth.sourceEventId,
