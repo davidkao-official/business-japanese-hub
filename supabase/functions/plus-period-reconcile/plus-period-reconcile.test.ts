@@ -44,6 +44,9 @@ async function cancelResponse(code = '1') {
 function setup(options: { orders?: unknown[]; post?: ReturnType<typeof vi.fn> } = {}) {
   const mock = createMockDb({
     plus_membership_ecpay_order: { data: options.orders ?? [activeOrder] },
+    'rpc:claim_plus_ecpay_reconcile_order': { data: null, rpcResults: [
+      ...(options.orders ?? [activeOrder]).map((data) => ({ data })), { data: null },
+    ] },
     'rpc:record_plus_ecpay_authorization': { data: { status: 'new', source_event_id: `${activeOrder.merchant_trade_no}:auth:12345`, total_success_times: 1 } },
     'rpc:record_plus_membership_event': { data: 'applied' },
     'rpc:set_plus_ecpay_receipt_result': { data: null },
@@ -62,6 +65,62 @@ function setup(options: { orders?: unknown[]; post?: ReturnType<typeof vi.fn> } 
 }
 
 describe('plus-period-reconcile', () => {
+  it('stops claiming new work once its time budget is used', async () => {
+    const mock = createMockDb();
+    const clock = vi.fn().mockReturnValueOnce(NOW).mockReturnValue(new Date(NOW.getTime() + 60_000));
+    const post = vi.fn();
+    const result = await handlePlusPeriodReconcile(
+      handlerRequest('POST', 'https://test.example/reconcile', '', { 'x-scheduled-job-secret': 'test-scheduled-secret' }),
+      { env, db: mock.db, log: fakeLogger(), now: clock, transport: { post } },
+    );
+    expect(JSON.parse(result.body)).toEqual({ checked: 0, ingested: 0, failed: 0 });
+    expect(mock.rpcCalls('claim_plus_ecpay_reconcile_order')).toHaveLength(0);
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('keeps failed final read-back queued even after billing is canceled', async () => {
+    const { mock, handle } = setup({ orders: [{ ...activeOrder, status: 'canceled' }],
+      post: vi.fn().mockRejectedValue(new Error('provider unavailable')) });
+    expect(JSON.parse((await handle()).body)).toEqual({ checked: 1, ingested: 0, failed: 1 });
+    expect(mock.rpcCalls('complete_plus_ecpay_cancel_readback')).toHaveLength(0);
+    expect(mock.rpcCalls('set_plus_ecpay_order_status')).toHaveLength(0);
+  });
+
+  it('recovers an interrupted customer cancel with durable stop evidence', async () => {
+    const post = vi.fn().mockResolvedValueOnce(await cancelResponse()).mockResolvedValueOnce({
+      status: 200, body: JSON.stringify({ MerchantTradeNo: activeOrder.merchant_trade_no,
+        RtnCode: 1, ExecStatus: '0', ExecLog: [] }),
+    });
+    const { mock, handle } = setup({ orders: [{ ...activeOrder, status: 'cancel_requested' }], post });
+    mock.setRoute('rpc:confirm_plus_ecpay_customer_cancel', { data: { provider_canceled_at: NOW.toISOString() } });
+    expect(JSON.parse((await handle()).body)).toEqual({ checked: 1, ingested: 0, failed: 0 });
+    expect(mock.rpcCalls('confirm_plus_ecpay_customer_cancel')).toHaveLength(1);
+    expect(mock.rpcCalls('complete_plus_ecpay_cancel_readback')).toHaveLength(1);
+    expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(0);
+  });
+
+  it('uses the durable claim queue, including retries that remain open', async () => {
+    const { mock, handle } = setup({ post: vi.fn().mockRejectedValue(new Error('timeout')) });
+    await handle();
+    expect(mock.rpcCalls('claim_plus_ecpay_reconcile_order')[0].args[0]).toEqual({ p_environment: 'stage' });
+    expect(mock.callsFor('plus_membership_ecpay_order', 'order')).toHaveLength(0);
+  });
+
+  it('reaches a paying order beyond 1,000 retained failed checkouts on the next run', async () => {
+    const abandoned = Array.from({ length: 1000 }, (_, i) => ({
+      ...activeOrder, merchant_trade_no: `abandoned-${i}`, status: 'pending',
+    }));
+    const post = vi.fn(async (_url: string, fields: Record<string, string>) => {
+      if (fields.MerchantTradeNo.startsWith('abandoned-')) throw new Error('provider unavailable');
+      return { status: 200, body: oneCharge };
+    });
+    const { mock, handle } = setup({ orders: [...abandoned, activeOrder], post });
+    expect(JSON.parse((await handle()).body)).toMatchObject({ checked: 1000, ingested: 0 });
+    mock.setRoute('plus_membership_ecpay_order', { data: activeOrder });
+    expect(JSON.parse((await handle()).body)).toEqual({ checked: 1, ingested: 1, failed: 0 });
+    expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(1);
+  });
+
   it('rejects a missing or wrong scheduled-job secret', async () => {
     const { mock, handle } = setup();
     expect((await handle({ 'x-scheduled-job-secret': 'wrong' })).status).toBe(401);

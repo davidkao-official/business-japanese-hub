@@ -14,7 +14,7 @@ import {
   parsePeriodQueryResponse,
   type EcpayPeriodAuthorization,
 } from '../../../src/lib/payments/ecpay/period.ts';
-import { verifyCheckMac } from '../../../src/lib/payments/ecpay/checkmac.ts';
+import { sha256Hex, verifyCheckMac } from '../../../src/lib/payments/ecpay/checkmac.ts';
 import { ECPAY_URLS } from '../../../src/lib/payments/ecpay/urls.ts';
 import type { DbClient } from './db.ts';
 import type { Env } from './env.ts';
@@ -40,10 +40,15 @@ export interface IngestDeps {
 /** Only a signed, order-bound Cancel acknowledgement can release a local order.
  * ECPay: https://developers.ecpay.com.tw/2900/ (1 success; 90100149 disabled).
  */
-export async function stopPlusEcpayOrder(
+export interface PlusStopConfirmation {
+  fields: Record<string, string>;
+  confirmedAt: Date;
+}
+
+export async function requestPlusEcpayStop(
   { env, transport, now, log }: IngestDeps,
   merchantTradeNo: string,
-): Promise<boolean> {
+): Promise<PlusStopConfirmation | null> {
   try {
     const fields = await buildPeriodCancelFields({
       merchantId: env.ecpayMerchantId!, merchantTradeNo, now: now(),
@@ -59,11 +64,35 @@ export async function stopPlusEcpayOrder(
       !await verifyCheckMac(result, env.ecpayHashKey!, env.ecpayHashIV!, result.CheckMacValue)) {
       throw new Error(`Cancel rejected: ${result.RtnCode}`);
     }
-    return true;
+    return { fields: result, confirmedAt: now() };
   } catch (error) {
     log.error({ merchantTradeNo, error: String(error) }, 'ecpay plus stop unconfirmed; order kept open');
+    return null;
+  }
+}
+
+export async function stopPlusEcpayOrder(deps: IngestDeps, merchantTradeNo: string): Promise<boolean> {
+  return (await requestPlusEcpayStop(deps, merchantTradeNo)) !== null;
+}
+
+/** The input is a verified Cancel response, never browser-supplied fields. */
+export async function persistPlusCustomerCancel(
+  { db, log }: Pick<IngestDeps, 'db' | 'log'>,
+  merchantTradeNo: string,
+  confirmation: PlusStopConfirmation,
+): Promise<boolean> {
+  const result = await db.rpc('confirm_plus_ecpay_customer_cancel', {
+    p_merchant_trade_no: merchantTradeNo,
+    p_rtn_code: confirmation.fields.RtnCode,
+    p_facts_sha256: await sha256Hex(JSON.stringify(Object.entries(confirmation.fields).sort())),
+    p_confirmed_at: confirmation.confirmedAt.toISOString(),
+  });
+  if (result.error || typeof result.data?.provider_canceled_at !== 'string' ||
+    !Number.isFinite(Date.parse(result.data.provider_canceled_at))) {
+    log.error({ merchantTradeNo }, 'ecpay plus verified stop could not be persisted');
     return false;
   }
+  return true;
 }
 
 export async function ingestPlusPeriodAuthorization(
@@ -106,12 +135,18 @@ export async function ingestPlusPeriodAuthorization(
   // A new charge on a duplicate or closed order must be visible to operators
   // and stopped at ECPay; it must never create an unqualified lifecycle stream.
   const current = await db.from('plus_membership_ecpay_order')
-    .select('status')
+    .select('status,provider_canceled_at')
     .eq('merchant_trade_no', order.merchant_trade_no)
     .maybeSingle();
-  if (current.error) return 'retry';
+  if (current.error || !current.data) return 'retry';
+  const stopAt = typeof current.data.provider_canceled_at === 'string'
+    ? Date.parse(current.data.provider_canceled_at) : NaN;
+  // Cancel returns no provider timestamp. The persisted, verified acknowledgement
+  // is our observed stop boundary; receipt arrival time is never charge time.
+  const delayedPreStopCharge = current.data.status === 'canceled' &&
+    Number.isFinite(stopAt) && auth.processAt.getTime() <= stopAt;
   if (!auth.simulatePaid && auth.rtnCode === '1' &&
-    ['pending', 'canceled', 'ended'].includes(String(current.data?.status))) {
+    ['pending', 'canceled', 'ended'].includes(String(current.data.status)) && !delayedPreStopCharge) {
     log.error(
       { merchantTradeNo: order.merchant_trade_no, sourceEventId: auth.sourceEventId },
       'duplicate or closed plus subscription charged; refund this charge manually',
@@ -150,7 +185,24 @@ export async function ingestPlusPeriodAuthorization(
   }
 
   const eventType = auth.totalSuccessTimes === 1 ? 'membership_started' : 'membership_renewed';
-  const { start, end } = paidPeriodFor(auth.processAt);
+  let firstAuthorizationAt = auth.processAt;
+  if (auth.totalSuccessTimes !== 1) {
+    const first = await db.from('plus_membership_ecpay_receipt')
+      .select('process_at')
+      .eq('merchant_trade_no', order.merchant_trade_no)
+      .eq('kind', 'authorization')
+      .eq('total_success_times', 1)
+      .eq('rtn_code', '1')
+      .eq('simulate_paid', false)
+      .eq('amount_twd', order.period_amount_twd)
+      .maybeSingle();
+    if (first.error || !first.data) {
+      log.error({ sourceEventId: auth.sourceEventId }, 'ecpay plus first authorization unavailable');
+      return 'retry';
+    }
+    firstAuthorizationAt = new Date(String(first.data.process_at));
+  }
+  const { start, end } = paidPeriodFor(auth.processAt, firstAuthorizationAt);
   let result: unknown;
   try {
     const written = await db.rpc('record_plus_membership_event', {
