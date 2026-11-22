@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EcpayTransport } from '../../../src/lib/payments/ecpay/adapter.ts';
+import { parsePeriodQueryResponse } from '../../../src/lib/payments/ecpay/period.ts';
 import { ECPAY_URLS } from '../../../src/lib/payments/ecpay/urls.ts';
 import { createMockDb, fakeLogger, handlerRequest, testEnv } from '../_shared/testing.ts';
 import { handlePlusPeriodReconcile } from './handler.ts';
@@ -14,6 +15,7 @@ const activeOrder = {
   environment: 'stage',
   period_amount_twd: 299,
   status: 'active',
+  reconcile_lease_token: 'lease-1',
   created_at: '2026-10-01T00:00:00.000Z',
 };
 
@@ -37,6 +39,11 @@ const oneCharge = JSON.stringify({
 function setup(options: { orders?: unknown[]; post?: ReturnType<typeof vi.fn> } = {}) {
   const mock = createMockDb({
     plus_membership_ecpay_order: { data: options.orders ?? [activeOrder] },
+    'rpc:claim_plus_ecpay_reconcile_order': { rpcResults: [
+      { data: options.orders ?? [activeOrder] }, { data: [] },
+    ] },
+    'rpc:release_plus_ecpay_reconcile_order': { data: true },
+    'rpc:request_plus_ecpay_finance_case': { data: 'case-1' },
     'rpc:record_plus_ecpay_receipt': { data: 'new' },
     'rpc:record_plus_membership_event': { data: 'applied' },
     'rpc:set_plus_ecpay_receipt_result': { data: null },
@@ -58,7 +65,7 @@ describe('plus-period-reconcile', () => {
   it('rejects a missing or wrong scheduled-job secret', async () => {
     const { mock, handle } = setup();
     expect((await handle({ 'x-scheduled-job-secret': 'wrong' })).status).toBe(401);
-    expect(mock.callsFor('plus_membership_ecpay_order')).toHaveLength(0);
+    expect(mock.rpcCalls('claim_plus_ecpay_reconcile_order')).toHaveLength(0);
   });
 
   it('ingests every successful authorization through the shared callback path', async () => {
@@ -69,7 +76,7 @@ describe('plus-period-reconcile', () => {
     expect(post).toHaveBeenCalledWith(
       ECPAY_URLS.stage.queryCreditCardPeriodInfo,
       expect.objectContaining({ MerchantTradeNo: activeOrder.merchant_trade_no }),
-      15_000,
+      5_000,
     );
     expect(mock.rpcCalls('record_plus_ecpay_receipt')[0].args[0]).toMatchObject({
       p_source_event_id: `${activeOrder.merchant_trade_no}:auth:12345`,
@@ -175,5 +182,82 @@ describe('plus-period-reconcile', () => {
     const { handle } = setup({ post: vi.fn().mockRejectedValue(new Error('timeout')) });
     const result = await handle();
     expect(JSON.parse(result.body)).toEqual({ checked: 1, ingested: 0, failed: 1 });
+  });
+});
+
+describe('bounded durable reconciliation', () => {
+  it('claims environment-bound work and releases the exact lease even after an unexpected failure', async () => {
+    const { mock, handle } = setup();
+    const rpc = mock.db.rpc.bind(mock.db);
+    mock.db.rpc = vi.fn(async (name, args) => {
+      if (name === 'record_plus_ecpay_receipt') throw new Error('connection lost');
+      return rpc(name, args);
+    });
+    const result = await handle();
+    expect(JSON.parse(result.body)).toEqual({ checked: 1, ingested: 0, failed: 1 });
+    expect(mock.rpcCalls('claim_plus_ecpay_reconcile_order')[0].args[0])
+      .toEqual({ p_environment: 'stage' });
+    expect(mock.rpcCalls('release_plus_ecpay_reconcile_order')[0].args[0])
+      .toEqual({ p_merchant_trade_no: activeOrder.merchant_trade_no, p_lease_token: 'lease-1' });
+  });
+
+  it('caps each invocation instead of draining a growing queue', async () => {
+    const { mock, handle, post } = setup();
+    mock.setRoute('rpc:claim_plus_ecpay_reconcile_order', { data: [activeOrder] });
+    await handle();
+    expect(mock.rpcCalls('claim_plus_ecpay_reconcile_order')).toHaveLength(12);
+    expect(mock.rpcCalls('release_plus_ecpay_reconcile_order')).toHaveLength(12);
+    expect(post).toHaveBeenCalledTimes(12);
+  });
+
+  it('stops claiming new work at the run deadline and clamps the provider timeout', async () => {
+    const { mock, log } = setup();
+    let elapsed = 0;
+    const post = vi.fn(async () => {
+      elapsed = 40_001;
+      return { status: 200, body: oneCharge };
+    });
+    const result = await handlePlusPeriodReconcile(
+      handlerRequest('POST', 'https://test.example/plus-period-reconcile', '', {
+        'x-scheduled-job-secret': 'test-scheduled-secret',
+      }),
+      { env, db: mock.db, log, now: () => NOW, transport: { post }, monotonicNow: () => elapsed },
+    );
+    expect(post.mock.calls[0]).toBeDefined();
+    expect(mock.rpcCalls('claim_plus_ecpay_reconcile_order')).toHaveLength(1);
+    expect(mock.rpcCalls('release_plus_ecpay_reconcile_order')).toHaveLength(1);
+    // No charge is ACKed as ingested after the budget; next invocation retries it.
+    expect(mock.rpcCalls('record_plus_ecpay_receipt')).toHaveLength(0);
+    expect(JSON.parse(result.body)).toMatchObject({ checked: 1, failed: 1 });
+  });
+
+  it('resumes past equivalent completed receipts while still checking changed facts', async () => {
+    const parsed = await parsePeriodQueryResponse(oneCharge, activeOrder.merchant_trade_no);
+    const auth = parsed.authorizations[0];
+    const { mock, handle } = setup();
+    mock.setRoute('plus_membership_ecpay_receipt', { data: [{
+      source_event_id: auth.sourceEventId, facts_sha256: auth.factsSha256, lifecycle_result: 'applied',
+    }] });
+    await handle();
+    expect(mock.rpcCalls('record_plus_ecpay_receipt')).toHaveLength(0);
+    mock.setRoute('rpc:claim_plus_ecpay_reconcile_order', { rpcResults: [{ data: [activeOrder] }, { data: [] }] });
+    mock.setRoute('plus_membership_ecpay_receipt', { data: [{
+      source_event_id: auth.sourceEventId, facts_sha256: 'changed', lifecycle_result: 'applied',
+    }] });
+    await handle();
+    expect(mock.rpcCalls('record_plus_ecpay_receipt')).toHaveLength(1);
+  });
+
+  it('fails closed if the durable claim is unavailable', async () => {
+    const { mock, post, handle } = setup();
+    mock.setRoute('rpc:claim_plus_ecpay_reconcile_order', { error: 'database offline' });
+    expect((await handle()).status).toBe(500);
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('reports release failure while leaving expiry-based recovery to the database', async () => {
+    const { mock, handle } = setup();
+    mock.setRoute('rpc:release_plus_ecpay_reconcile_order', { data: false });
+    expect(JSON.parse((await handle()).body)).toMatchObject({ failed: 1 });
   });
 });

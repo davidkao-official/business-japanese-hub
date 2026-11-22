@@ -29,6 +29,7 @@ export interface PlusPeriodReconcileDeps {
   log: Logger;
   now: () => Date;
   transport: EcpayTransport;
+  monotonicNow?: () => number;
 }
 
 export function plusPeriodReconcileDeps(env: Env, db: DbClient, log: Logger): PlusPeriodReconcileDeps {
@@ -38,15 +39,17 @@ export function plusPeriodReconcileDeps(env: Env, db: DbClient, log: Logger): Pl
 interface PlusEcpayOrderRow extends PlusEcpayOrder {
   status: string;
   created_at: string;
+  reconcile_lease_token: string;
 }
 
-const OPEN_STATUSES = ['pending', 'active', 'cancel_requested'];
 const STALE_PENDING_MS = 24 * 60 * 60 * 1000;
-const RECONCILE_BATCH_SIZE = 1000;
+const MAX_ORDERS_PER_RUN = 12;
+const RUN_BUDGET_MS = 40_000;
+const PROVIDER_TIMEOUT_MS = 5_000;
 
 export async function handlePlusPeriodReconcile(
   req: HandlerRequest,
-  { env, db, log, now, transport }: PlusPeriodReconcileDeps,
+  { env, db, log, now, transport, monotonicNow = () => performance.now() }: PlusPeriodReconcileDeps,
 ): Promise<HandlerResult> {
   if (req.method !== 'POST') return methodNotAllowed('POST');
 
@@ -64,22 +67,16 @@ export async function handlePlusPeriodReconcile(
   }
   const ecpayEnv = env.ecpayEnv;
 
-  const { data, error } = await db
-    .from('plus_membership_ecpay_order')
-    .select('merchant_trade_no,user_id,plan_code,environment,period_amount_twd,status,created_at')
-    .eq('environment', ecpayEnv)
-    .in('status', OPEN_STATUSES)
-    .order('created_at', { ascending: true })
-    .limit(RECONCILE_BATCH_SIZE);
-  if (error) return jsonResult(500, { error: 'query failed' });
-
-  const orders = (data ?? []) as unknown as PlusEcpayOrderRow[];
-  if (orders.length === RECONCILE_BATCH_SIZE) {
-    log.warn(
-      { count: RECONCILE_BATCH_SIZE },
-      'plus period reconcile batch is full; later orders wait for the next run',
-    );
-  }
+  const deadline = monotonicNow() + RUN_BUDGET_MS;
+  const remainingMs = () => Math.max(0, deadline - monotonicNow());
+  // The default transport aborts the underlying fetch, including its body read.
+  const boundedTransport: EcpayTransport = {
+    post: (url, fields, timeoutMs) => {
+      const remaining = remainingMs();
+      if (remaining <= 0) return Promise.reject(new Error('reconcile budget exhausted'));
+      return transport.post(url, fields, Math.min(timeoutMs, PROVIDER_TIMEOUT_MS, remaining));
+    },
+  };
   let checked = 0;
   let ingested = 0;
   let failed = 0;
@@ -99,43 +96,69 @@ export async function handlePlusPeriodReconcile(
     }
   };
 
-  for (const order of orders) {
+  while (checked < MAX_ORDERS_PER_RUN && remainingMs() > 0) {
+    // Claim just one row: unstarted work is never leased when the budget ends.
+    const claim = await db.rpc('claim_plus_ecpay_reconcile_order', { p_environment: ecpayEnv });
+    if (claim.error) return jsonResult(500, { error: 'query failed' });
+    const rows = claim.data as unknown as PlusEcpayOrderRow[] | null;
+    if (!Array.isArray(rows)) return jsonResult(500, { error: 'invalid reconcile claim' });
+    if (rows.length === 0) break;
+    const order = rows[0];
+    if (!order.reconcile_lease_token) return jsonResult(500, { error: 'invalid reconcile lease' });
     checked++;
-    const stalePending =
-      order.status === 'pending' &&
-      at.getTime() - new Date(order.created_at).getTime() > STALE_PENDING_MS;
+    try {
+      if (remainingMs() <= 0) continue;
+      const stalePending =
+        order.status === 'pending' &&
+        at.getTime() - new Date(order.created_at).getTime() > STALE_PENDING_MS;
 
-    const read = await readBackPlusOrder({ env, db, log, transport, now }, order);
-    if (read.kind === 'failed') {
-      failed++;
-      // ECPay does not know a checkout abandoned before its page; a stale
-      // pending order that cannot be queried is closed on that basis alone.
-      if (stalePending) await updateStatus(order.merchant_trade_no, 'ended');
-      continue;
-    }
-    // A charge that could not be ingested must keep its order open, or the next
-    // run can never recover it (the order drops out of the open-status query).
-    if (read.retry) {
-      failed++;
-      continue;
-    }
-    ingested += read.authorizations;
-
-    if (order.status === 'pending') {
-      if (
-        stalePending &&
-        (read.authorizations === 0 || read.execStatus === '0' || read.execStatus === '2')
-      ) {
-        await updateStatus(order.merchant_trade_no, 'ended');
+      const read = await readBackPlusOrder({ env, db, log, transport: boundedTransport, now, remainingMs }, order);
+      if (read.kind === 'failed') {
+        failed++;
+        // ECPay does not know a checkout abandoned before its page; a stale
+        // pending order that cannot be queried is closed on that basis alone.
+        if (stalePending && remainingMs() > 0) await updateStatus(order.merchant_trade_no, 'ended');
+        continue;
       }
-      continue;
-    }
+      // A charge that could not be ingested must keep its order open, or the next
+      // run can never recover it (the order drops out of the open-status query).
+      if (read.retry) {
+        failed++;
+        continue;
+      }
+      ingested += read.authorizations;
 
-    if (read.execStatus === '0' || read.execStatus === '2') {
-      if (order.status === 'active') await updateStatus(order.merchant_trade_no, 'ended');
-      else if (order.status === 'cancel_requested') await updateStatus(order.merchant_trade_no, 'canceled');
+      if (order.status === 'pending') {
+        if (
+          stalePending &&
+          (read.authorizations === 0 || read.execStatus === '0' || read.execStatus === '2')
+        ) {
+          await updateStatus(order.merchant_trade_no, 'ended');
+        }
+        continue;
+      }
+
+      if (read.execStatus === '0' || read.execStatus === '2') {
+        if (order.status === 'active') await updateStatus(order.merchant_trade_no, 'ended');
+        else if (order.status === 'cancel_requested') await updateStatus(order.merchant_trade_no, 'canceled');
+      }
+    } catch {
+      failed++;
+      log.error({ merchantTradeNo: order.merchant_trade_no }, 'plus period reconcile order failed');
+    } finally {
+      const released = await db.rpc('release_plus_ecpay_reconcile_order', {
+        p_merchant_trade_no: order.merchant_trade_no,
+        p_lease_token: order.reconcile_lease_token,
+      });
+      if (released.error || released.data !== true) {
+        failed++;
+        log.warn({ merchantTradeNo: order.merchant_trade_no }, 'plus reconcile lease release failed');
+      }
     }
   }
 
+  if (checked === MAX_ORDERS_PER_RUN || remainingMs() <= 0) {
+    log.warn({ checked, failed }, 'plus reconcile run bound reached; durable queue resumes next invocation');
+  }
   return jsonResult(200, { checked, ingested, failed });
 }
