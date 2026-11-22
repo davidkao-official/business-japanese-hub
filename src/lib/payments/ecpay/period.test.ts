@@ -23,16 +23,43 @@ describe('ECPay recurring period helpers', () => {
     expect(() => parseTaipeiDateTime('2026/02/30 00:00:00')).toThrow();
   });
 
-  it('clamps paid periods to the target month calendar', () => {
-    expect(paidPeriodFor(new Date('2026-01-31T02:00:00.000Z')).end).toEqual(
-      new Date('2026-02-28T02:00:00.000Z'),
-    );
-    expect(paidPeriodFor(new Date('2028-01-31T02:00:00.000Z')).end).toEqual(
-      new Date('2028-02-29T02:00:00.000Z'),
-    );
-    expect(paidPeriodFor(new Date('2026-12-15T02:00:00.000Z')).end).toEqual(
-      new Date('2027-01-15T02:00:00.000Z'),
-    );
+  it.each([
+    ['2027/01/31', [
+      ['2027/01/31 00:30:00', '2027/03/02 00:00:00'],
+      ['2027/02/28 23:59:59', '2027/04/02 00:00:00'],
+      ['2027/03/31 23:59:59', '2027/05/02 00:00:00'],
+      ['2027/04/30 23:59:59', '2027/06/02 00:00:00'],
+      ['2027/05/31 23:59:59', '2027/07/02 00:00:00'],
+    ]],
+    ['2027/01/29', [
+      ['2027/01/29 00:30:00', '2027/03/02 00:00:00'],
+      ['2027/02/28 23:59:59', '2027/03/31 00:00:00'],
+      ['2027/03/29 23:59:59', '2027/05/01 00:00:00'],
+    ]],
+    ['2027/01/30', [
+      ['2027/01/30 00:30:00', '2027/03/02 00:00:00'],
+      ['2027/02/28 23:59:59', '2027/04/01 00:00:00'],
+      ['2027/03/30 23:59:59', '2027/05/02 00:00:00'],
+    ]],
+  ])('keeps anchor %s through late-day renewals without gaps (Asia/Taipei)', (firstDay, charges) => {
+    const first = parseTaipeiDateTime(`${firstDay} 00:30:00`);
+    let previousEnd: Date | undefined;
+    for (const [chargedAt, expectedEnd] of charges) {
+      const processAt = parseTaipeiDateTime(chargedAt);
+      const period = paidPeriodFor(processAt, first);
+      expect(period.start).toEqual(processAt);
+      expect(period.end).toEqual(parseTaipeiDateTime(expectedEnd));
+      if (previousEnd) expect(period.start.getTime()).toBeLessThan(previousEnd.getTime());
+      previousEnd = period.end;
+    }
+  });
+
+  it.each([
+    ['2028/01/31 10:00:00', '2028/03/02 00:00:00'],
+    ['2026/12/15 10:00:00', '2027/01/17 00:00:00'],
+  ])('ends a missed renewal at the buffered cutoff after %s (Asia/Taipei)', (chargedAt, cutoff) => {
+    const first = parseTaipeiDateTime(chargedAt);
+    expect(paidPeriodFor(first, first).end).toEqual(parseTaipeiDateTime(cutoff));
   });
 
   it('builds signed recurring checkout fields and validates execution count', async () => {

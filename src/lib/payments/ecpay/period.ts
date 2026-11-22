@@ -3,6 +3,7 @@ import type { EcpayLanguage } from './types.ts';
 
 export const PLUS_TRADE_DESC = 'Business Japanese Hub Plus';
 export const PLUS_PERIOD_EXEC_TIMES = 99;
+export const PLUS_PERIOD_SETTLEMENT_BUFFER_DAYS = 2;
 const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000;
 
 export function formatTaipeiDateTime(date: Date): string {
@@ -39,26 +40,23 @@ export function parseTaipeiDateTime(value: string): Date {
   return new Date(localAsUtc.getTime() - TAIPEI_OFFSET_MS);
 }
 
-export function paidPeriodFor(processAt: Date): { start: Date; end: Date } {
+export function paidPeriodFor(processAt: Date, firstAuthorizationAt: Date): { start: Date; end: Date } {
   const taipei = new Date(processAt.getTime() + TAIPEI_OFFSET_MS);
+  const anchorDay = new Date(firstAuthorizationAt.getTime() + TAIPEI_OFFSET_MS).getUTCDate();
   const year = taipei.getUTCFullYear();
   const month = taipei.getUTCMonth();
   const targetMonthIndex = month + 1;
   const targetYear = year + Math.floor(targetMonthIndex / 12);
   const targetMonth = targetMonthIndex % 12;
   const day = Math.min(
-    taipei.getUTCDate(),
+    anchorDay,
     new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate(),
   );
   const end = new Date(
     Date.UTC(
       targetYear,
       targetMonth,
-      day,
-      taipei.getUTCHours(),
-      taipei.getUTCMinutes(),
-      taipei.getUTCSeconds(),
-      taipei.getUTCMilliseconds(),
+      day + PLUS_PERIOD_SETTLEMENT_BUFFER_DAYS,
     ) - TAIPEI_OFFSET_MS,
   );
   return { start: new Date(processAt), end };

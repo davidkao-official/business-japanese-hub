@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { ecpayCheckMac } from '../../../src/lib/payments/ecpay/checkmac.ts'
+import { ECPAY_URLS } from '../../../src/lib/payments/ecpay/urls.ts'
 import type { EcpayTransport } from '../../../src/lib/payments/ecpay/adapter.ts'
 import type { DbClient } from '../_shared/db.ts'
 import type { HandlerRequest } from '../_shared/http.ts'
-import { fakeLogger, testEnv } from '../_shared/testing.ts'
+import { createMockDb, fakeLogger, testEnv } from '../_shared/testing.ts'
 import { handlePlusCancel, type PlusCancelDeps } from './handler.ts'
 
 const MTN = 'BJHP0123456789ABCDEF'
@@ -80,7 +81,10 @@ function fakeDb(options: FakeDbOptions = {}) {
 
 function fakeTransport(fields: Record<string, string>, status = 200): EcpayTransport {
   return {
-    post: vi.fn().mockResolvedValue({
+    post: vi.fn(async (url: string) => url === ECPAY_URLS.stage.queryCreditCardPeriodInfo ? {
+      status: 200,
+      body: JSON.stringify({ MerchantTradeNo: MTN, RtnCode: 1, ExecStatus: '0', ExecLog: [] }),
+    } : {
       status,
       body: new URLSearchParams(fields).toString(),
     }),
@@ -113,6 +117,10 @@ function deps(overrides: Partial<PlusCancelDeps> = {}): PlusCancelDeps {
 
 const ACTIVE_ORDER = {
   merchant_trade_no: MTN,
+  user_id: 'verified-user',
+  plan_code: 'plus_early_access_monthly',
+  environment: 'stage',
+  period_amount_twd: 299,
   status: 'active',
   updated_at: CANCEL_REQUESTED_AT,
 }
@@ -218,6 +226,85 @@ describe('Plus cancel Edge handler', () => {
       'set_plus_ecpay_order_status',
     ])
     expect(rpcCalls[0].args.p_occurred_at).toBe(CANCEL_REQUESTED_AT)
+  })
+
+  it('ingests every read-back success before choosing the cancellation cutoff', async () => {
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'verified-user' } },
+      plus_membership_ecpay_order: { data: ACTIVE_ORDER },
+      plus_membership_ecpay_receipt: { data: { process_at: '2027-01-30T16:30:00.000Z' } },
+      plus_membership_stream_summary: { data: SUMMARY },
+      'rpc:record_plus_ecpay_receipt': { data: 'new' },
+      'rpc:record_plus_membership_event': { data: 'applied' },
+      'rpc:resolve_plus_membership_access': { data: { access_status: 'active' } },
+    })
+    const renewalEnd = '2027-04-01T16:00:00.000Z'
+    const rpc = mock.db.rpc
+    mock.db.rpc = vi.fn(async (fn, args) => {
+      const result = await rpc(fn, args)
+      if (fn === 'record_plus_membership_event' && args.p_event_type === 'membership_renewed') {
+        mock.setRoute('plus_membership_stream_summary', { data: {
+          period_start: args.p_period_start, period_end: args.p_period_end,
+        } })
+      }
+      return result
+    })
+    const transport = fakeTransport(await providerResponse())
+    vi.mocked(transport.post).mockResolvedValueOnce({
+      status: 200, body: new URLSearchParams(await providerResponse()).toString(),
+    }).mockResolvedValueOnce({
+      status: 200,
+      body: JSON.stringify({ MerchantTradeNo: MTN, RtnCode: 1, ExecStatus: '0', ExecLog: [
+        { RtnCode: 1, amount: 299, gwsr: 2, process_date: '2027/02/28 23:00:00' },
+        { RtnCode: 1, amount: 299, gwsr: 1, process_date: '2027/01/31 00:30:00' },
+      ] }),
+    })
+    const result = await handlePlusCancel(
+      request('POST', 'Bearer verified-token'), deps({ db: mock.db, transport }),
+    )
+    expect(result.status).toBe(200)
+    expect(JSON.parse(result.body).accessUntil).toBe(renewalEnd)
+    expect(vi.mocked(transport.post).mock.calls.map(([url]) => url)).toEqual([
+      ECPAY_URLS.stage.creditCardPeriodAction, ECPAY_URLS.stage.queryCreditCardPeriodInfo,
+    ])
+    expect(mock.rpcCalls('record_plus_ecpay_receipt')).toHaveLength(2)
+    expect(mock.rpcCalls('record_plus_membership_event').map((call) => call.args[0]))
+      .toEqual([
+        expect.objectContaining({ p_event_type: 'membership_started' }),
+        expect.objectContaining({ p_event_type: 'membership_renewed', p_period_end: renewalEnd }),
+        expect.objectContaining({ p_event_type: 'membership_canceled', p_period_end: renewalEnd }),
+      ])
+  })
+
+  it.each(['query', 'ingest', 'exception'])('still cancels and logs an error if read-back fails (%s)', async (failure) => {
+    const { db } = fakeDb({ order: ACTIVE_ORDER, summary: SUMMARY })
+    const log = fakeLogger()
+    const transport = fakeTransport(await providerResponse())
+    vi.mocked(transport.post).mockResolvedValueOnce({
+      status: 200, body: new URLSearchParams(await providerResponse()).toString(),
+    }).mockResolvedValueOnce(failure === 'query' ? { status: 500, body: '' } : {
+      status: 200,
+      body: JSON.stringify({ MerchantTradeNo: MTN, RtnCode: 1, ExecStatus: '0', ExecLog: [
+        { RtnCode: 1, amount: 299, gwsr: 1, process_date: '2027/01/31 00:30:00' },
+      ] }),
+    })
+    const rpc = db.rpc
+    db.rpc = vi.fn(async (fn, args) => {
+      if (fn === 'record_plus_ecpay_receipt') {
+        if (failure === 'exception') throw new Error('database connection lost')
+        return { data: null, error: { message: 'database unavailable' } }
+      }
+      return rpc(fn, args)
+    })
+    const result = await handlePlusCancel(
+      request('POST', 'Bearer verified-token'), deps({ db, log, transport }),
+    )
+    expect(result.status).toBe(200)
+    expect(JSON.parse(result.body).accessUntil).toBe(PERIOD_END)
+    expect(log.error).toHaveBeenCalledWith(
+      expect.objectContaining({ merchantTradeNo: MTN }),
+      'ecpay plus cancel read-back failed; using recorded paid period',
+    )
   })
 
   it('treats the already-terminated provider result as success', async () => {

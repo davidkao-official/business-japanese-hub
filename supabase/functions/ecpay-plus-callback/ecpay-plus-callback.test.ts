@@ -107,7 +107,7 @@ describe('ecpay-plus-callback', () => {
     expect(await handle(await signedForm())).toMatchObject({ status: 400, body: '0|unknown order' });
   });
 
-  it('persists the receipt, starts membership for one calendar month, then saves the result', async () => {
+  it('persists the receipt, starts membership through the settlement buffer, then saves the result', async () => {
     const { mock, handle } = setup();
     expect(await handle(await signedForm())).toMatchObject({ status: 200, body: '1|OK' });
     expect(mock.rpcCalls('record_plus_ecpay_receipt')[0].args[0]).toMatchObject({
@@ -128,7 +128,7 @@ describe('ecpay-plus-callback', () => {
       p_event_type: 'membership_started',
       p_occurred_at: '2026-10-26T19:45:00.000Z',
       p_period_start: '2026-10-26T19:45:00.000Z',
-      p_period_end: '2026-11-26T19:45:00.000Z',
+      p_period_end: '2026-11-28T16:00:00.000Z',
       p_cancel_at_period_end: false,
       p_metadata: { gwsr: '12345', total_success_times: 1 },
     });
@@ -146,8 +146,27 @@ describe('ecpay-plus-callback', () => {
 
   it('maps subsequent successful charges to membership_renewed', async () => {
     const { mock, handle } = setup();
-    expect(await handle(await signedForm({ TotalSuccessTimes: '2' }))).toMatchObject({ status: 200, body: '1|OK' });
-    expect(mock.rpcCalls('record_plus_membership_event')[0].args[0]).toMatchObject({ p_event_type: 'membership_renewed' });
+    mock.setRoute('plus_membership_ecpay_receipt', { data: { process_at: '2027-01-30T16:30:00.000Z' } });
+    expect(await handle(await signedForm({
+      TotalSuccessTimes: '2', ProcessDate: '2027/02/28 23:59:59',
+    }))).toMatchObject({ status: 200, body: '1|OK' });
+    expect(mock.rpcCalls('record_plus_membership_event')[0].args[0]).toMatchObject({
+      p_event_type: 'membership_renewed',
+      p_period_start: '2027-02-28T15:59:59.000Z',
+      p_period_end: '2027-04-01T16:00:00.000Z',
+    });
+    expect(mock.callsFor('plus_membership_ecpay_receipt', 'eq').map((call) => call.args))
+      .toContainEqual(['merchant_trade_no', order.merchant_trade_no]);
+    expect(mock.callsFor('plus_membership_ecpay_receipt', 'eq').map((call) => call.args))
+      .toContainEqual(['total_success_times', 1]);
+  });
+
+  it('retries a renewal without its first authorization until read-back recovers the anchor', async () => {
+    const { mock, log, handle } = setup();
+    expect(await handle(await signedForm({ TotalSuccessTimes: '2' }))).toMatchObject({ status: 500, body: '0|retry' });
+    expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(0);
+    expect(mock.rpcCalls('set_plus_ecpay_receipt_result')).toHaveLength(0);
+    expect(log.error).toHaveBeenCalledWith({ sourceEventId }, 'ecpay plus first authorization unavailable');
   });
 
   it.each([
