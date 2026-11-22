@@ -527,3 +527,45 @@ Repository authority: `AGENTS.md`, `docs/product-contract.md`,
 `docs/legal-tax-launch-brief.md`, `docs/deployment.md`,
 `supabase/migrations/20260922370000_plus_membership_lifecycle_observation_admission.sql`,
 and `supabase/migrations/20260923050000_plus_membership_temporal_access_windows.sql`.
+
+## #276 M3/M4/M7 adapter correction — 2026-11-22 JST
+
+The adapter closes an order only after an HTTP 200, CheckMac-verified,
+merchant/order-bound CreditCardPeriodAction `Cancel` response with `RtnCode=1`
+or `90100149`. The [official action contract](https://developers.ecpay.com.tw/2900/)
+defines `1` as success, `90100149` as an already-disabled order, and says a
+successfully canceled order cannot be re-enabled. No other failure, including
+an undocumented not-found code, releases the local row. Unconfirmed stops log
+at error level and retain the row for reconciliation.
+
+The [official query contract](https://developers.ecpay.com.tw/2892/) defines
+`ExecStatus=3` as paused, alongside 0 terminated, 1 executing, and 2 completed.
+Reconciliation explicitly cancels paused orders before closing them; pause
+alone is not an irreversible stop. A non-member with an active/cancel-requested
+order gets `409 subscription open` and is directed to the existing cancel
+panel before starting a new order with another card.
+
+The CheckMac-verified server ReturnURL (never the browser return) supplies
+`TradeNo`, `TradeAmt`, and `PaymentDate` for first-period admission without
+waiting for ExecLog. The additive authorization binder serializes on the order
+and aliases later query entries by the documented per-charge `TradeNo` (or
+known `gwsr`), comparing shared immutable charge facts. It preserves one receipt,
+one lifecycle identity, and the stored ordinal. When ExecLog omits the first
+charge, earlier recorded successes still make the second charge a renewal.
+Period computation remains owned by the separate M1 work.
+
+Operator query (service-role/operator SQL only): new charges on closed or
+duplicate orders log an error before attempting Cancel, and remain visible
+whether Cancel succeeded (`not_mapped`) or needs retry (`NULL`). Refund review
+is manual; this patch never refunds a charge.
+
+```sql
+select r.source_event_id, r.merchant_trade_no, o.status, r.amount_twd,
+       r.trade_no, r.process_at, r.lifecycle_result
+from public.plus_membership_ecpay_receipt r
+join public.plus_membership_ecpay_order o using (merchant_trade_no)
+where r.kind = 'authorization' and r.rtn_code = '1' and not r.simulate_paid
+  and (r.lifecycle_result = 'not_mapped'
+       or (r.lifecycle_result is null and o.status in ('pending', 'canceled', 'ended')))
+order by r.received_at;
+```

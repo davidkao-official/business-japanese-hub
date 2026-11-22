@@ -132,6 +132,7 @@ function PlusCheckoutPanel() {
   const [busy, setBusy] = useState(false)
   const [closed, setClosed] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [subscriptionOpen, setSubscriptionOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -189,11 +190,14 @@ function PlusCheckoutPanel() {
     setBusy(true)
     setClosed(false)
     setFailed(false)
+    setSubscriptionOpen(false)
     const result = await startPlusCheckout(getAccessToken, consentRevision)
     if (result.kind === 'redirect') {
       submitHostedCheckout(result.action, result.fields)
     } else if (result.kind === 'already-member') {
       retry()
+    } else if (result.kind === 'subscription-open') {
+      setSubscriptionOpen(true)
     } else if (result.kind === 'closed') {
       setClosed(true)
     } else {
@@ -214,6 +218,7 @@ function PlusCheckoutPanel() {
         />
         <span>{checkout.consent}</span>
       </label>
+      {subscriptionOpen ? <p role="alert">{checkout.subscriptionOpen}</p> : null}
       {closed ? <p>{checkout.closed}</p> : null}
       {failed ? <p role="alert">{checkout.failed}</p> : null}
       <button

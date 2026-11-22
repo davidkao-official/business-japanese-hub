@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { EcpayTransport } from '../../../src/lib/payments/ecpay/adapter.ts';
+import { ecpayCheckMac } from '../../../src/lib/payments/ecpay/checkmac.ts';
 import { ECPAY_URLS } from '../../../src/lib/payments/ecpay/urls.ts';
 import { createMockDb, fakeLogger, handlerRequest, testEnv } from '../_shared/testing.ts';
 import { handlePlusPeriodReconcile } from './handler.ts';
@@ -34,10 +35,16 @@ const oneCharge = JSON.stringify({
   ],
 });
 
+async function cancelResponse(code = '1') {
+  const fields = { MerchantID: env.ecpayMerchantId!, MerchantTradeNo: activeOrder.merchant_trade_no, RtnCode: code };
+  const CheckMacValue = await ecpayCheckMac(fields, env.ecpayHashKey!, env.ecpayHashIV!);
+  return { status: 200, body: new URLSearchParams({ ...fields, CheckMacValue }).toString() };
+}
+
 function setup(options: { orders?: unknown[]; post?: ReturnType<typeof vi.fn> } = {}) {
   const mock = createMockDb({
     plus_membership_ecpay_order: { data: options.orders ?? [activeOrder] },
-    'rpc:record_plus_ecpay_receipt': { data: 'new' },
+    'rpc:record_plus_ecpay_authorization': { data: { status: 'new', source_event_id: `${activeOrder.merchant_trade_no}:auth:12345`, total_success_times: 1 } },
     'rpc:record_plus_membership_event': { data: 'applied' },
     'rpc:set_plus_ecpay_receipt_result': { data: null },
     'rpc:resolve_plus_membership_access': { data: { access_status: 'active' } },
@@ -71,23 +78,24 @@ describe('plus-period-reconcile', () => {
       expect.objectContaining({ MerchantTradeNo: activeOrder.merchant_trade_no }),
       15_000,
     );
-    expect(mock.rpcCalls('record_plus_ecpay_receipt')[0].args[0]).toMatchObject({
+    expect(mock.rpcCalls('record_plus_ecpay_authorization')[0].args[0]).toMatchObject({
       p_source_event_id: `${activeOrder.merchant_trade_no}:auth:12345`,
       p_amount_twd: 299,
     });
     expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(1);
   });
 
-  it('closes an active order when the provider terminates the period program', async () => {
+  it.each(['0', '2', '3'])('cancels before closing an active order with ExecStatus %s', async (execStatus) => {
     const body = JSON.stringify({
       MerchantTradeNo: activeOrder.merchant_trade_no,
       RtnCode: 1,
-      ExecStatus: '0',
+      ExecStatus: execStatus,
       TotalSuccessTimes: 1,
       ExecLog: [],
     });
-    const { mock, handle } = setup({ post: vi.fn().mockResolvedValue({ status: 200, body }) });
+    const { mock, post, handle } = setup({ post: vi.fn().mockResolvedValueOnce({ status: 200, body }).mockResolvedValueOnce(await cancelResponse()) });
     expect((await handle()).status).toBe(200);
+    expect(post).toHaveBeenLastCalledWith(ECPAY_URLS.stage.creditCardPeriodAction, expect.objectContaining({ Action: 'Cancel' }), 15_000);
     expect(mock.rpcCalls('set_plus_ecpay_order_status')[0].args[0]).toEqual({
       p_merchant_trade_no: activeOrder.merchant_trade_no,
       p_status: 'ended',
@@ -112,13 +120,13 @@ describe('plus-period-reconcile', () => {
       ],
     });
     const { mock, handle } = setup({ post: vi.fn().mockResolvedValue({ status: 200, body }) });
-    mock.setRoute('rpc:record_plus_ecpay_receipt', { error: 'write failed' });
+    mock.setRoute('rpc:record_plus_ecpay_authorization', { error: 'write failed' });
     const result = await handle();
     expect(JSON.parse(result.body)).toEqual({ checked: 1, ingested: 0, failed: 1 });
     expect(mock.rpcCalls('set_plus_ecpay_order_status')).toHaveLength(0);
   });
 
-  it('ends a stale pending order ECPay cannot query', async () => {
+  it.each(['1', '90100149'])('ends a stale unqueryable pending order only after verified Cancel %s', async (code) => {
     const staleOrder = {
       ...activeOrder,
       status: 'pending',
@@ -126,15 +134,29 @@ describe('plus-period-reconcile', () => {
     };
     const { mock, post, handle } = setup({
       orders: [staleOrder],
-      post: vi.fn().mockRejectedValue(new Error('not found')),
+      post: vi.fn().mockRejectedValueOnce(new Error('not found')).mockResolvedValueOnce(await cancelResponse(code)),
     });
     const result = await handle();
     expect(JSON.parse(result.body)).toEqual({ checked: 1, ingested: 0, failed: 1 });
-    expect(post).toHaveBeenCalledTimes(1);
+    expect(post).toHaveBeenCalledTimes(2);
     expect(mock.rpcCalls('set_plus_ecpay_order_status')[0].args[0]).toEqual({
       p_merchant_trade_no: activeOrder.merchant_trade_no,
       p_status: 'ended',
     });
+  });
+
+  it.each(['query failed', 'empty log', 'paused'])('keeps %s orders open when Cancel is not confirmed', async (scenario) => {
+    const post = vi.fn();
+    if (scenario === 'query failed') post.mockRejectedValueOnce(new Error('timeout'));
+    else post.mockResolvedValueOnce({ status: 200, body: JSON.stringify({
+      MerchantTradeNo: activeOrder.merchant_trade_no, RtnCode: 1,
+      ExecStatus: scenario === 'paused' ? '3' : '1', ExecLog: [],
+    }) });
+    post.mockResolvedValueOnce({ status: 200, body: 'RtnCode=1' }); // unsigned success is insufficient
+    const { mock, log, handle } = setup({ orders: [{ ...activeOrder, status: 'pending' }], post });
+    await handle();
+    expect(mock.rpcCalls('set_plus_ecpay_order_status')).toHaveLength(0);
+    expect(log.error).toHaveBeenCalled();
   });
 
   it('ingests a stale pending order ECPay has a charge for and leaves it open', async () => {

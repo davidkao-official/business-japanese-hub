@@ -44,6 +44,7 @@ export async function fetchPlusCheckoutOpen(
 export type PlusCheckoutStart =
   | { kind: 'redirect'; action: string; fields: Record<string, string> }
   | { kind: 'already-member' }
+  | { kind: 'subscription-open' }
   | { kind: 'closed' }
   | { kind: 'failed' }
 
@@ -68,7 +69,10 @@ export async function startPlusCheckout(
       body: JSON.stringify({ consentRevision }),
     })
 
-    if (response.status === 409) return { kind: 'already-member' }
+    if (response.status === 409) {
+      const body = await response.json() as { error: string }
+      return body.error === 'subscription open' ? { kind: 'subscription-open' } : { kind: 'already-member' }
+    }
     if (response.status === 503) {
       const body = (await response.json().catch(() => null)) as { error?: unknown } | null
       return body?.error === 'plus checkout closed' ? { kind: 'closed' } : { kind: 'failed' }

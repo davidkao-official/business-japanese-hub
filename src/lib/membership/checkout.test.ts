@@ -66,6 +66,13 @@ describe('Plus checkout browser client', () => {
     })
   })
 
+  it('distinguishes an open non-granting subscription from active membership', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ error: 'subscription open' }, 409))
+    await expect(startPlusCheckout(async () => 'session-token', 'consent-1', fetchImpl)).resolves.toEqual({
+      kind: 'subscription-open',
+    })
+  })
+
   it('maps the closed gate to closed', async () => {
     const fetchImpl = vi
       .fn()

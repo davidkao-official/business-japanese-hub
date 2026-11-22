@@ -7,7 +7,7 @@
  * through the SAME ingest path the callback uses, so receipts stay idempotent.
  * Provider stop (ExecStatus 0 terminated / 2 completed) needs no lifecycle
  * event: no renewal arrives, so access lapses at period_end by itself — the
- * order row is simply closed.
+ * order row is closed only after a verified Cancel acknowledgement.
  */
 import { createDefaultEcpayTransport, type EcpayTransport } from '../../../src/lib/payments/ecpay/adapter.ts';
 import type { DbClient } from '../_shared/db.ts';
@@ -21,7 +21,7 @@ import {
   type HandlerResult,
 } from '../_shared/http.ts';
 import type { Logger } from '../_shared/log.ts';
-import { readBackPlusOrder, type PlusEcpayOrder } from '../_shared/plus-ecpay-ingest.ts';
+import { readBackPlusOrder, stopPlusEcpayOrder, type PlusEcpayOrder } from '../_shared/plus-ecpay-ingest.ts';
 
 export interface PlusPeriodReconcileDeps {
   env: Env;
@@ -92,7 +92,7 @@ export async function handlePlusPeriodReconcile(
     });
     if (result.error) {
       failed++;
-      log.warn(
+      log.error(
         { merchantTradeNo, status, error: result.error.message },
         'plus period order status update failed',
       );
@@ -108,9 +108,9 @@ export async function handlePlusPeriodReconcile(
     const read = await readBackPlusOrder({ env, db, log, transport, now }, order);
     if (read.kind === 'failed') {
       failed++;
-      // ECPay does not know a checkout abandoned before its page; a stale
-      // pending order that cannot be queried is closed on that basis alone.
-      if (stalePending) await updateStatus(order.merchant_trade_no, 'ended');
+      if (stalePending && await stopPlusEcpayOrder({ env, db, log, transport, now }, order.merchant_trade_no)) {
+        await updateStatus(order.merchant_trade_no, 'ended');
+      }
       continue;
     }
     // A charge that could not be ingested must keep its order open, or the next
@@ -124,14 +124,21 @@ export async function handlePlusPeriodReconcile(
     if (order.status === 'pending') {
       if (
         stalePending &&
-        (read.authorizations === 0 || read.execStatus === '0' || read.execStatus === '2')
+        (read.authorizations === 0 || ['0', '2', '3'].includes(read.execStatus))
       ) {
-        await updateStatus(order.merchant_trade_no, 'ended');
+        if (await stopPlusEcpayOrder({ env, db, log, transport, now }, order.merchant_trade_no)) {
+          await updateStatus(order.merchant_trade_no, 'ended');
+        } else failed++;
       }
       continue;
     }
 
-    if (read.execStatus === '0' || read.execStatus === '2') {
+    // ExecStatus 3 is paused (2892), not an irreversible stop. Cancel it too.
+    if (['0', '2', '3'].includes(read.execStatus)) {
+      if (!await stopPlusEcpayOrder({ env, db, log, transport, now }, order.merchant_trade_no)) {
+        failed++;
+        continue;
+      }
       if (order.status === 'active') await updateStatus(order.merchant_trade_no, 'ended');
       else if (order.status === 'cancel_requested') await updateStatus(order.merchant_trade_no, 'canceled');
     }
