@@ -84,6 +84,32 @@ function simulateResponsiveFocusLoss() {
 }
 
 describe('Header mobile navigation', () => {
+  it('announces a failed appearance save inside the mobile dialog and retains keyboard focus', async () => {
+    const user = userEvent.setup()
+    const media = installHeaderMediaQueryHarness(false)
+    const write = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied') })
+    try {
+      renderWithAppProviders(<Header />)
+      const trigger = screen.getByRole('button', { name: 'メニューを開く' })
+      await user.click(trigger)
+      const dialog = screen.getByRole('dialog', { name: 'メニュー' })
+      const system = within(dialog).getByRole('radio', { name: 'システム' })
+      system.focus()
+      await user.keyboard('{ArrowRight}')
+      const light = within(dialog).getByRole('radio', { name: 'ライト' })
+      expect(light).toBeChecked()
+      expect(light).toHaveFocus()
+      const status = within(dialog).getByRole('status')
+      expect(status).toHaveTextContent('外観設定を保存できませんでした')
+      expect(within(dialog).getByRole('radiogroup')).toHaveAttribute('aria-describedby', status.id)
+      await user.keyboard('{Escape}')
+      expect(trigger).toHaveFocus()
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    } finally {
+      write.mockRestore()
+      media.restore()
+    }
+  })
   it.each([true, false])('keeps one appearance group in the header across desktop/mobile transitions (desktop=%s)', (desktop) => {
     const media = installHeaderMediaQueryHarness(desktop)
     try {

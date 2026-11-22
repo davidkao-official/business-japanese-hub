@@ -2,8 +2,8 @@
  * Appearance preference — application-wide System / Light / Dark theme (#42).
  *
  * Pure, framework-free logic shared by the React provider and the pre-paint
- * inline script in index.html. Every read/write of persisted state fails safe
- * to `system` and never throws, so restricted storage contexts (privacy mode,
+ * inline script in index.html. Reads fail safe to `system`; writes report
+ * failure without throwing, so restricted storage contexts (privacy mode,
  * iframe sandbox) cannot break rendering.
  */
 
@@ -40,24 +40,37 @@ export function resolveEffectiveTheme(
   return prefersDark ? 'dark' : 'light'
 }
 
-/** Safe persisted-preference read; invalid/missing storage resolves to `system`. */
-export function readStoredPreference(): AppearancePreference {
-  if (typeof window === 'undefined') return 'system'
+export type AppearanceStorageNotice = 'readFailed' | 'invalidStored' | 'writeFailed'
+
+/** Missing storage is normal; unreadable or invalid storage needs a notice. */
+export function readAppearancePreference(): {
+  preference: AppearancePreference
+  notice: AppearanceStorageNotice | null
+} {
+  if (typeof window === 'undefined') return { preference: 'system', notice: null }
   try {
     const raw = window.localStorage.getItem(APPEARANCE_STORAGE_KEY)
-    return isAppearancePreference(raw) ? raw : 'system'
+    if (raw === null) return { preference: 'system', notice: null }
+    if (isAppearancePreference(raw)) return { preference: raw, notice: null }
+    return { preference: 'system', notice: 'invalidStored' }
   } catch {
-    return 'system'
+    return { preference: 'system', notice: 'readFailed' }
   }
 }
 
-/** Safe persisted-preference write; storage failure leaves the session default. */
-export function writeStoredPreference(preference: AppearancePreference): void {
-  if (typeof window === 'undefined') return
+/** Compatibility helper for consumers that only need the safe preference. */
+export function readStoredPreference(): AppearancePreference {
+  return readAppearancePreference().preference
+}
+
+/** A failed write must not undo the current tab's in-memory choice. */
+export function writeStoredPreference(preference: AppearancePreference): boolean {
+  if (typeof window === 'undefined') return false
   try {
     window.localStorage.setItem(APPEARANCE_STORAGE_KEY, preference)
+    return true
   } catch {
-    // Storage unavailable — the in-memory preference still applies this session.
+    return false
   }
 }
 

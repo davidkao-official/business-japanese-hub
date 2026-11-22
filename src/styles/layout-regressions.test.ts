@@ -56,7 +56,7 @@ describe('bounded layout and typography regressions', () => {
       expect(identity.get('min-width')).toMatch(/^0(?:px)?$/)
       expect(declarations(rules, '.account-control__identity', width).get('text-overflow')).toBe('ellipsis')
       expect(declarations(rules, '.site-header__tools .account-control > .btn', width).get('flex')).toBe('0 0 auto')
-      expect(declarations(rules, '.site-header__tools > .appearance-control', width).get('flex')).toBe('0 0 auto')
+      expect(declarations(rules, '.site-header__tools > .appearance-preference', width).get('flex')).toBe('0 0 auto')
       expect(declarations(rules, '.site-nav', width).get('flex')).toBe('0 0 auto')
       expect(declarations(rules, '.site-nav__list', width).get('flex-wrap')).toBe('nowrap')
       expect(declarations(rules, '.site-nav__link', width).get('white-space')).toBe('nowrap')

@@ -1692,7 +1692,7 @@
     white-space: nowrap;
   }
 
-  .site-header__tools > .appearance-control,
+  .site-header__tools > .appearance-preference,
   .site-header__tools > .language-control--desktop {
     flex: 0 0 auto;
   }
