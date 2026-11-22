@@ -160,24 +160,41 @@ describe('Plus membership status Edge handler', () => {
     })
   })
 
-  it('omits the subscription field when either read fails', async () => {
-    for (const options of [{ orderError: true }, { summaryError: true }]) {
-      const { db } = dbWith(
-        { access_status: 'active' },
-        {
-          ...options,
-          order: { merchant_trade_no: 'BJHP0123456789ABCDEF', status: 'active' },
-          summary: { period_end: '2026-12-01T00:00:00.000Z' },
-        },
-      )
-      const result = await handlePlusMembership(
-        request('GET', 'Bearer verified-token'),
-        plusMembershipDeps(db, env),
-      )
+  it.each([
+    ['active', { orderError: true }],
+    ['active', { summaryError: true }],
+    ['non-member', { orderError: true }],
+    ['non-member', { summaryError: true }],
+  ])('reports a failed subscription read as unavailable, never as no subscription (%s, %o)', async (access, options) => {
+    const { db } = dbWith(
+      { access_status: access },
+      {
+        ...options,
+        order: { merchant_trade_no: 'BJHP0123456789ABCDEF', status: 'active' },
+        summary: { period_end: '2026-12-01T00:00:00.000Z' },
+      },
+    )
+    const result = await handlePlusMembership(
+      request('GET', 'Bearer verified-token'),
+      plusMembershipDeps(db, env),
+    )
 
-      expect(result.status).toBe(200)
-      expect(JSON.parse(result.body)).toEqual({ access: 'active' })
-    }
+    expect(result.status).toBe(200)
+    expect(result.headers?.['Cache-Control']).toBe('private, no-store')
+    expect(JSON.parse(result.body)).toEqual({ access, subscription: 'unavailable' })
+  })
+
+  it('reports an unexpected order status as unavailable', async () => {
+    const { db } = dbWith(
+      { access_status: 'non-member' },
+      { order: { merchant_trade_no: 'BJHP0123456789ABCDEF', status: 'pending' } },
+    )
+    const result = await handlePlusMembership(
+      request('GET', 'Bearer verified-token'),
+      plusMembershipDeps(db, env),
+    )
+
+    expect(JSON.parse(result.body)).toEqual({ access: 'non-member', subscription: 'unavailable' })
   })
 
   it('omits the subscription field when the provider environment is unset', async () => {
@@ -194,15 +211,15 @@ describe('Plus membership status Edge handler', () => {
     expect(from).not.toHaveBeenCalled()
   })
 
-  it('keeps access and omits the field when the subscription read throws', async () => {
+  it('keeps access and reports unavailable when the subscription read throws', async () => {
     const deps: PlusMembershipDeps = {
       ...plusMembershipDeps(dbWith(null).db, env),
-      membershipAccessFor: vi.fn(async () => 'active' as const),
+      membershipAccessFor: vi.fn(async () => 'non-member' as const),
       subscriptionFor: vi.fn(async () => { throw new Error('projection unavailable') }),
     }
     const result = await handlePlusMembership(request('GET', 'Bearer verified-token'), deps)
 
     expect(result.status).toBe(200)
-    expect(JSON.parse(result.body)).toEqual({ access: 'active' })
+    expect(JSON.parse(result.body)).toEqual({ access: 'non-member', subscription: 'unavailable' })
   })
 })

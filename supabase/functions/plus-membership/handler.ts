@@ -25,12 +25,18 @@ export interface PlusSubscription {
   accessUntil: string | null
 }
 
+/**
+ * `null` means no order, `'unavailable'` means the read failed (never reported
+ * as "no subscription"), and `undefined` means this deployment has no
+ * recurring provider configured, so the field is omitted.
+ */
+export type PlusSubscriptionProjection = PlusSubscription | null | 'unavailable' | undefined
+
 export interface PlusMembershipDeps {
   db: DbClient
   env: Env
   membershipAccessFor: (userId: string) => Promise<PlusMembershipAccess>
-  /** `null` means no order; `undefined` means the read failed. */
-  subscriptionFor: (userId: string) => Promise<PlusSubscription | null | undefined>
+  subscriptionFor: (userId: string) => Promise<PlusSubscriptionProjection>
 }
 
 function noStore(result: HandlerResult): HandlerResult {
@@ -55,14 +61,14 @@ export async function handlePlusMembership(
     return noStore(jsonResult(503, { error: 'membership access unavailable' }))
   }
 
-  // The panel projection is additive: a failed read must never change the
-  // access decision, and omitting the field keeps the client on its previous
-  // access-only behaviour.
-  let subscription: PlusSubscription | null | undefined
+  // The panel projection is additive: a failed read never changes the access
+  // decision, and it is reported as unavailable rather than as no
+  // subscription, so the panel can still offer cancellation (#273).
+  let subscription: PlusSubscriptionProjection
   try {
     subscription = await deps.subscriptionFor(userId)
   } catch {
-    subscription = undefined
+    subscription = 'unavailable'
   }
   return noStore(jsonResult(200, subscription === undefined ? { access } : { access, subscription }))
 }
@@ -70,14 +76,15 @@ export async function handlePlusMembership(
 /**
  * Newest ECPay recurring order for the user in the current provider
  * environment, with the period end recorded by the same subscription summary
- * the cancel handler uses. `null` means no order; `undefined` means the
- * projection could not be read.
+ * the cancel handler uses. Without a provider environment there is no order
+ * to project and the cancel handler cannot act either, so the field is
+ * omitted; a failed read is `'unavailable'`.
  */
 async function resolvePlusSubscription(
   db: DbClient,
   env: Env,
   userId: string,
-): Promise<PlusSubscription | null | undefined> {
+): Promise<PlusSubscriptionProjection> {
   const ecpayEnv = env.ecpayEnv
   if (!ecpayEnv) return undefined
 
@@ -90,11 +97,13 @@ async function resolvePlusSubscription(
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle()
-  if (order.error) return undefined
+  if (order.error) return 'unavailable'
   if (!order.data) return null
 
   const status = order.data.status
-  if (status !== 'active' && status !== 'cancel_requested' && status !== 'canceled') return undefined
+  if (status !== 'active' && status !== 'cancel_requested' && status !== 'canceled') {
+    return 'unavailable'
+  }
 
   const summary = await db
     .from('plus_membership_stream_summary')
@@ -102,7 +111,7 @@ async function resolvePlusSubscription(
     .eq('source_system', `ecpay_aio_period:${ecpayEnv}`)
     .eq('source_subscription_id', String(order.data.merchant_trade_no))
     .maybeSingle()
-  if (summary.error) return undefined
+  if (summary.error) return 'unavailable'
 
   const periodEnd = summary.data?.period_end
   return {

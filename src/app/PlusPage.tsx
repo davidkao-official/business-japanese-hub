@@ -236,7 +236,7 @@ function PlusCheckoutPanel() {
 function PlusCancelPanel() {
   const cancel = useStrings().plus.cancel
   const locale = useLocale()
-  const { state, subscription } = useMembershipAccess()
+  const { state, subscription, retry } = useMembershipAccess()
   const { getAccessToken } = useAuth()
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -315,12 +315,12 @@ function PlusCancelPanel() {
     )
   }
 
-  // The server could not project a subscription.
+  // The server confirmed there is no subscription.
   if (subscription === null) return null
 
   // Only an active member can be promised the remaining period: a later
   // revocation or refund can end a non-member's access early.
-  if (subscription !== undefined && subscription.status === 'canceled') {
+  if (subscription && subscription !== 'unavailable' && subscription.status === 'canceled') {
     const doneText = isMember ? untilText(subscription.accessUntil) : null
     if (!doneText) return null
     return (
@@ -340,6 +340,15 @@ function PlusCancelPanel() {
     <div className="plus-checkout plus-cancel">
       <h3>{cancel.title}</h3>
       <p>{cancel.body}</p>
+      {subscription === 'unavailable' && (
+        <div className="plus-cancel__notice" role="status">
+          <span aria-hidden="true">?</span>
+          <p>{cancel.statusUnavailable}</p>
+          <button type="button" className="btn btn--secondary" onClick={retry}>
+            {cancel.retry}
+          </button>
+        </div>
+      )}
       {confirming ? (
         <>
           <p>{cancel.confirm}</p>
@@ -362,7 +371,7 @@ function PlusCancelPanel() {
         </>
       ) : (
         <>
-          {!isMember && <p>{cancel.lapsedNote}</p>}
+          {!isMember && subscription !== 'unavailable' && <p>{cancel.lapsedNote}</p>}
           <button type="button" className="btn btn--secondary" onClick={() => setConfirming(true)}>
             {cancel.cta}
           </button>
