@@ -150,7 +150,8 @@ export async function handlePlusPeriodReconcile(
         p_merchant_trade_no: order.merchant_trade_no,
         p_lease_token: order.reconcile_lease_token,
       });
-      if (released.error || released.data !== true) {
+      const leaseReleased: unknown = released.data;
+      if (released.error || leaseReleased !== true) {
         failed++;
         log.warn({ merchantTradeNo: order.merchant_trade_no }, 'plus reconcile lease release failed');
       }
