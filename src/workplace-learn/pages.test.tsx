@@ -1272,8 +1272,8 @@ describe('Workplace fictional sample editorial regressions', () => {
       { initialEntries: ['/learn/workplace/sample-status-update-with-next-step'] },
     )
 
-    expect(screen.getByText('先方への確認がまだ終わっていません。回答を受け取り次第、共有します。回答がまだ届いていなくても、今日の16時までに確認状況を共有します。')).toHaveAttribute('lang', 'ja')
-    expect(screen.getByText('確認が終わっていない事実を伝え、回答の共有と、回答の有無にかかわらず行う状況報告を分けています。')).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText('先方に確認中で、まだ回答をいただいていません。回答をいただき次第、共有します。16時までに回答をいただけなかった場合も、その時点で状況をお伝えします。')).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText('「まだ回答をいただいていません」で現状を伝えたうえで、「回答をいただき次第」という条件付きの共有と、回答がない場合でも16時に行う状況報告を分けています。回答が遅れても16時には連絡が来ると分かるため、同僚は自分の作業の段取りを決めやすくなります。')).toHaveAttribute('lang', 'ja')
   })
 
   it('renders the vocabulary forecast with a separate progress-report commitment', () => {
@@ -1284,6 +1284,6 @@ describe('Workplace fictional sample editorial regressions', () => {
     )
 
     expect(screen.getByText('資料の確認に時間がかかっており、共有は明日になる見込みです。本日15時までに、確認の進み具合を改めてご報告します。')).toHaveAttribute('lang', 'ja')
-    expect(screen.getByText('現時点では明日の共有を予測していますが、確定した予定とは区別しています。また、確認の進み具合を本日15時までに報告すると伝えています。')).toHaveAttribute('lang', 'ja')
+    expect(screen.getByText('「明日になる見込みです」は、現時点の判断では明日になると考えているものの、まだ確定ではないことを示します。「明日になります」と言い切るより正確で、「明日になるかもしれません」より見通しがはっきり伝わります。さらに本日15時までの報告を約束し、見込みが変わった場合に知らせる機会を示しています。')).toHaveAttribute('lang', 'ja')
   })
 })
