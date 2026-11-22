@@ -249,7 +249,8 @@ describe('Web Test discovery and runner-entry routes', () => {
 
     fireEvent.click(within(completion).getByRole('button', { name: 'もう一度解く' }))
     await screen.findByText('1／2 問目')
-    expect(screen.getByRole('heading', { name: /分速 80m で歩くと/ })).toHaveFocus()
+    // The reloaded question renders before its focus effect has necessarily run.
+    await waitFor(() => expect(screen.getByRole('heading', { name: /分速 80m で歩くと/ })).toHaveFocus())
     expect(screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)
     expect(screen.queryByRole('heading', { name: '練習が終わりました' })).not.toBeInTheDocument()
     const restartedCompletion = await completeSampleUnit()
