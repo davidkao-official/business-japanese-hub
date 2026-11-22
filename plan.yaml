@@ -68,7 +68,7 @@ workstreams:
         requirement: /plus 清楚說明實際可用的 Plus 學習價值與 NT$299／月，沒有自動切換 NT$399 或虛構 Reading／Workplace 庫存。
         judge: Owner 在正式站檢查 offer、可用內容與 checkout 金額一致
         status: PENDING
-        watch: [src/pages/PlusPage.tsx, src/i18n/**, docs/product-contract.md]
+        watch: [src/**, docs/product-contract.md]
       - id: LAUNCH-LOOP
         requirement: 真實 Plus 會員完成 SPI入口→Practice→解答／解説→保存→My Learning→正確版本回訪。
         judge: Owner 依187與179記錄真實會員操作、重載與回訪收據
@@ -144,7 +144,7 @@ workstreams:
         judge: Lead執行111 brief 8，對照provider結果、receipt及server access逐項記錄
         status: BLOCKED
         status_detail: 待D-STAGING；code合併不是provider E2E。
-        watch: [supabase/**, src/pages/PlusPage.tsx, packages/**]
+        watch: [supabase/**, src/**, packages/**]
       - id: COMMERCE-CONSENT
         requirement: Checkout綁定已批准consent revision，金額由server決定；條款、續扣／解約／退款與必要通知一致且有送達證據。
         judge: Legal reviewer批准確切版本，Owner以正常流程核對畫面、server receipt與email
@@ -208,7 +208,7 @@ workstreams:
         judge: 內容審閱者檢查本次材料，Lead以各domain validator拒絕缺日文core的輸入
         status: PENDING
         status_detail: 195舊candidate不延續；Workplace依2026-11-07 JST決定從main重建。
-        watch: [src/business-reading/**, src/workplace-learn/**, src/practice-web-test/**, scripts/private-content/**]
+        watch: [src/reading/**, src/**, src/practice-web-test/**, scripts/private-content/**]
   - id: DESIGN
     title: Source & Gloss 分階段收斂
     outcome: 原文、解説與學習紀錄在成熟一致的桌面／手機介面中清楚可辨。
@@ -230,7 +230,7 @@ workstreams:
         verified_sha: 25c92739c956230d620ac3fa6018b3f38c408880
         evidence:
           - {label: S0／S2 code-scope audit, url: "https://github.com/davidkao-official/business-japanese-hub/issues/190#issuecomment-7071186757"}
-        watch: [src/styles/**, src/reader-styles.test.ts, src/workplace-learn/**, apps/career-game/**]
+        watch: [src/**, apps/career-game/**]
       - id: DESIGN-SHELL
         requirement: S3 header／位置標示、appearance失敗通知與跨tab穩定、320px account control、tab bar／その他Dialog、focus bar與footer符合設計規範。
         judge: Design Owner在桌面及320px實際操作、鍵盤走訪，依design-system的S3逐項驗收
@@ -259,13 +259,13 @@ workstreams:
         judge: Content Owner審閱來源權利與日文品質，合法會員在手機／桌面完成122流程
         status: BLOCKED
         status_detail: 待確切內容／rights批准、publication floor與正常會員access；既有renderer不等於完整value slice。
-        watch: [src/business-reading/**, supabase/functions/content-delivery/**, supabase/functions/reading-saves/**]
+        watch: [src/reading/**, supabase/functions/content-delivery/**, supabase/functions/reading-saves/**]
       - id: EXPANSION-WORKPLACE
         requirement: 一個入社後情境具日文語用解説與bounded practice／rubric，能save／review並回訪正確revision與下一能力；save不冒充mastery。
         judge: Content Owner審閱情境與rubric，合法會員依124在手機／桌面完成practice與回訪
         status: BLOCKED
         status_detail: 待批准private item、日文core、publication floor及會員access；沿用現有Learn runtime。
-        watch: [src/workplace-learn/**, supabase/functions/content-delivery/**, supabase/functions/workplace-learn-saves/**]
+        watch: [src/**, supabase/functions/content-delivery/**, supabase/functions/workplace-saves/**]
       - id: EXPANSION-DELIVERY
         requirement: 兩slice的private body／assets只由server依publication與membership授權送出，不進public Git／frontend artifacts；retired revision不誤連新內容。
         judge: Lead核對hosted clean checkout的check:public-content-boundary與授權member／denial及retired-reference實測
