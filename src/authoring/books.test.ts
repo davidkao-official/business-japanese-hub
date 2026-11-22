@@ -137,13 +137,13 @@ describe('commercial Book', () => {
         '持ち帰る',
       ]),
     )
-    expect(serialized).toContain('承接 → Pivot → 收斂')
+    expect(serialized).toContain('受け止め → Pivot → 収束')
     expect(serialized).toContain('文法上は正しいが直接的')
     expect(serialized).toContain('進行役 → 全員')
     expect(serialized).toContain('同僚 → 同僚')
     expect(serialized).toContain('後輩 → 先輩・上司')
-    expect(serialized).toContain('語氣：')
-    expect(serialized).toContain('選項是「此情境較合適」的判斷')
+    expect(serialized).toContain('丁寧体を基調とした穏やかな表現')
+    expect(serialized).toContain('これは状況に合う表現を選ぶ問題')
     expect(manifest.learning?.chapters?.['mj-ch-09']).toBeUndefined()
     expect(manifest.notes).toContain('mode=Learn')
     expect(manifest.notes).toContain('primary domain=Meeting & Discussion')
