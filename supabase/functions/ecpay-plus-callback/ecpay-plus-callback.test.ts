@@ -72,6 +72,7 @@ function queryBody(execLog: unknown[]): string {
 function setup() {
   const mock = createMockDb({
     plus_membership_ecpay_order: { data: order },
+    'rpc:request_plus_ecpay_finance_case': { data: 'case-1' },
     'rpc:record_plus_ecpay_receipt': { data: 'new' },
     'rpc:record_plus_membership_event': { data: 'applied' },
     'rpc:set_plus_ecpay_receipt_result': { data: null },
@@ -214,9 +215,20 @@ describe('ecpay-plus-callback', () => {
     expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(0);
     expect(mock.calls.filter((call) => call.table === 'rpc').map((call) => call.method)).toEqual([
       'record_plus_ecpay_receipt',
+      'request_plus_ecpay_finance_case',
       'set_plus_ecpay_receipt_result',
       'set_plus_ecpay_order_status',
     ]);
+  });
+
+  it('still stops future duplicate charges but requests retry if the financial queue is unavailable', async () => {
+    const { mock, post, handle } = setup();
+    mock.setRoute('plus_membership_ecpay_order', { data: { ...order, status: 'pending' } });
+    mock.setRoute('rpc:request_plus_ecpay_finance_case', { error: 'database offline' });
+    post.mockResolvedValue({ status: 200, body: 'RtnCode=1&RtnMsg=Success' });
+    expect(await handle(await signedForm())).toMatchObject({ status: 500, body: '0|retry' });
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(mock.rpcCalls('set_plus_ecpay_receipt_result')).toHaveLength(0);
   });
 
   it('retries when ECPay does not acknowledge the duplicate cancellation', async () => {

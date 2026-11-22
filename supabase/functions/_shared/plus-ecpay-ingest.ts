@@ -34,6 +34,8 @@ export interface IngestDeps {
   log: Logger;
   transport: EcpayTransport;
   now: () => Date;
+  /** Cooperative scheduled-run budget; callbacks retain their existing deadline. */
+  remainingMs?: () => number;
 }
 
 export async function ingestPlusPeriodAuthorization(
@@ -93,6 +95,12 @@ export async function ingestPlusPeriodAuthorization(
     .maybeSingle();
   if (current.error) return 'retry';
   if (current.data?.status === 'pending') {
+    // Durable before ACK/result completion: a log is not an actionable refund queue.
+    const financeCase = await db.rpc('request_plus_ecpay_finance_case', {
+      p_source_event_id: auth.sourceEventId,
+      p_reason: 'duplicate_charge',
+      p_actor: null,
+    });
     const cancelFields = await buildPeriodCancelFields({
       merchantId: env.ecpayMerchantId!,
       merchantTradeNo: order.merchant_trade_no,
@@ -112,6 +120,9 @@ export async function ingestPlusPeriodAuthorization(
       return 'retry';
     }
     if (cancelRtnCode !== '1' && cancelRtnCode !== '90100149') return 'retry';
+    // Attempt the provider stop even if queue persistence failed, then request
+    // retry without completing the receipt until the case is durable.
+    if (financeCase.error || !financeCase.data) return 'retry';
 
     const saved = await db.rpc('set_plus_ecpay_receipt_result', {
       p_source_event_id: auth.sourceEventId,
@@ -125,7 +136,7 @@ export async function ingestPlusPeriodAuthorization(
     if (ended.error) return 'retry';
     log.error(
       { merchantTradeNo: order.merchant_trade_no, sourceEventId: auth.sourceEventId },
-      'duplicate plus subscription canceled at ECPay; refund this charge manually',
+      'duplicate plus subscription canceled at ECPay; financial review queued',
     );
     return 'ok';
   }
@@ -217,8 +228,29 @@ export async function readBackPlusOrder(
     return { kind: 'failed' };
   }
 
+  // Skip only byte-equivalent completed receipts in one bounded read. This
+  // lets a run resume a long ExecLog without spending its entire budget on old
+  // receipts. Changed facts still take the normal conflict path.
+  const completed = new Map<string, string>();
+  if (deps.remainingMs && query.authorizations.length > 0) {
+    const receipts = await deps.db.from('plus_membership_ecpay_receipt')
+      .select('source_event_id,facts_sha256,lifecycle_result')
+      .in('source_event_id', query.authorizations.map(auth => auth.sourceEventId));
+    if (receipts.error) return {
+      kind: 'done', execStatus: query.execStatus,
+      authorizations: query.authorizations.length, retry: true,
+    };
+    for (const row of Array.isArray(receipts.data) ? receipts.data : []) {
+      if (row.lifecycle_result != null) completed.set(String(row.source_event_id), String(row.facts_sha256));
+    }
+  }
   let retry = false;
   for (const auth of query.authorizations) {
+    if (completed.get(auth.sourceEventId) === auth.factsSha256) continue;
+    if (deps.remainingMs && deps.remainingMs() <= 0) {
+      retry = true;
+      break;
+    }
     const outcome = await ingestPlusPeriodAuthorization(deps, order, auth);
     if (outcome === 'retry') retry = true;
   }

@@ -137,6 +137,17 @@ describe('Plus checkout Edge handler', () => {
     expect(result.status).toBe(409)
   })
 
+  it.each(['plus checkout rate limited', 'plus pending order limit reached'])(
+    'returns 429 with retry guidance when the atomic order RPC reports %s', async (message) => {
+      const { db, rpc } = dbWith({ error: { message } })
+      const result = await handlePlusCheckout(request('POST', 'Bearer valid-session'), deps(db))
+      expect(result.status).toBe(429)
+      expect(result.headers).toMatchObject({ 'Retry-After': '60', 'Cache-Control': 'private, no-store' })
+      expect(body(result)).not.toHaveProperty('fields')
+      expect(rpc).toHaveBeenCalledTimes(1)
+    },
+  )
+
   it('creates a signed stage checkout using the verified identity and consent revision', async () => {
     const { db, rpc } = dbWith()
     const result = await handlePlusCheckout(

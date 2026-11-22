@@ -55,6 +55,14 @@ export async function handleFinance(
   const role = await fetchFinanceRole(deps.db, uid);
   if (!role) return forbidden('finance role required');
 
+  if (req.method === 'GET' && new URL(req.url).searchParams.get('scope') === 'plus') {
+    const result = await deps.db.from('plus_ecpay_finance_open_case')
+      .select('id,source_event_id,reason,created_at,merchant_trade_no,trade_no,amount_twd,environment,finance_policy_revision')
+      .order('created_at', { ascending: true }).limit(200);
+    return result.error
+      ? jsonResult(502, { error: 'plus finance read failed' })
+      : { ...jsonResult(200, { cases: result.data ?? [] }), headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' } };
+  }
   if (req.method === 'GET') {
     return await buildFinanceReadModel(deps, role);
   }
@@ -240,6 +248,18 @@ async function handleFinanceAction(
     return badRequest('invalid JSON body');
   }
   const raw = (body ?? {}) as Record<string, unknown>;
+  if (raw.action === 'request_plus_finance_case') {
+    if (typeof raw.sourceEventId !== 'string' || !raw.sourceEventId ||
+        typeof raw.reason !== 'string' || !['refund', 'reversal', 'dispute'].includes(raw.reason)) {
+      return badRequest('sourceEventId and a valid reason are required');
+    }
+    const result = await deps.db.rpc('request_plus_ecpay_finance_case', {
+      p_source_event_id: raw.sourceEventId, p_reason: raw.reason, p_actor: actorUid,
+    });
+    return result.error || !result.data
+      ? jsonResult(409, { error: 'plus finance request rejected' })
+      : jsonResult(200, { caseId: result.data, status: 'requested' });
+  }
   if (raw.action === 'request_refund') {
     if (typeof raw.paymentId !== 'string' || raw.paymentId.length === 0) {
       return badRequest('paymentId is required');

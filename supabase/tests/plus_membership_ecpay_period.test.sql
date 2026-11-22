@@ -54,6 +54,13 @@ select ok(has_function_privilege('service_role', 'public.set_plus_ecpay_receipt_
 
 select ok(has_function_privilege('service_role', 'public.set_plus_ecpay_order_status(text,text)', 'execute'), 'service_role can execute set_plus_ecpay_order_status');
 
+-- Synthetic disposable-DB policy fixture; not production admission.
+insert into public.plus_ecpay_finance_policy(environment, revision, outcome, plan_code, consent_revision,
+ access_effect, approval_sha256, approved_by, approved_at)
+select 'stage', 'fixture-policy', outcome, 'plus_early_access_monthly', 'consent-v1',
+ 'preserve', repeat('f',64), '65000000-0000-0000-0000-000000000701', now()
+from unnest(array['refund','void','reversal','dispute']) outcome;
+
 set local role service_role;
 
 insert into ecpay_test_orders
@@ -81,12 +88,11 @@ select throws_ok($$
   )
 $$, 'P0001', 'plus plan not active', 'inactive plan cannot create an order');
 
-select lives_ok($$
-  insert into ecpay_test_orders
-  select 'abandoned', o.* from public.create_plus_ecpay_order(
+select throws_ok($$
+  select * from public.create_plus_ecpay_order(
     '65000000-0000-0000-0000-000000000701', 'plus_early_access_monthly', 'stage', 'consent-v1'
-  ) o
-$$, 'multiple pending checkouts are allowed');
+  )
+$$, 'P0001', 'plus checkout rate limited', 'immediate repeated checkout is rate limited');
 
 select is(public.record_plus_ecpay_receipt(
   (select merchant_trade_no || ':auth:1' from ecpay_test_orders where label = 'primary'),
