@@ -101,7 +101,6 @@ export async function ingestPlusPeriodAuthorization(
       p_reason: 'duplicate_charge',
       p_actor: null,
     });
-    if (financeCase.error || !financeCase.data) return 'retry';
     const cancelFields = await buildPeriodCancelFields({
       merchantId: env.ecpayMerchantId!,
       merchantTradeNo: order.merchant_trade_no,
@@ -121,6 +120,9 @@ export async function ingestPlusPeriodAuthorization(
       return 'retry';
     }
     if (cancelRtnCode !== '1' && cancelRtnCode !== '90100149') return 'retry';
+    // Attempt the provider stop even if queue persistence failed, then request
+    // retry without completing the receipt until the case is durable.
+    if (financeCase.error || !financeCase.data) return 'retry';
 
     const saved = await db.rpc('set_plus_ecpay_receipt_result', {
       p_source_event_id: auth.sourceEventId,

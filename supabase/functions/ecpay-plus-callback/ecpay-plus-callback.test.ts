@@ -221,12 +221,13 @@ describe('ecpay-plus-callback', () => {
     ]);
   });
 
-  it('requests retry before cancel or ACK when the financial queue cannot be persisted', async () => {
+  it('still stops future duplicate charges but requests retry if the financial queue is unavailable', async () => {
     const { mock, post, handle } = setup();
     mock.setRoute('plus_membership_ecpay_order', { data: { ...order, status: 'pending' } });
     mock.setRoute('rpc:request_plus_ecpay_finance_case', { error: 'database offline' });
+    post.mockResolvedValue({ status: 200, body: 'RtnCode=1&RtnMsg=Success' });
     expect(await handle(await signedForm())).toMatchObject({ status: 500, body: '0|retry' });
-    expect(post).not.toHaveBeenCalled();
+    expect(post).toHaveBeenCalledTimes(1);
     expect(mock.rpcCalls('set_plus_ecpay_receipt_result')).toHaveLength(0);
   });
 

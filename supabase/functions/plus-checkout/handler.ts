@@ -102,7 +102,7 @@ export async function handlePlusCheckout(
     if (['plus checkout rate limited', 'plus pending order limit reached'].includes(result.error.message)) {
       return noStore({
         ...jsonResult(429, { error: 'plus checkout rate limited' }),
-        headers: { 'Retry-After': '60' },
+        headers: { 'Content-Type': 'application/json', 'Retry-After': '60' },
       })
     }
     if (result.error.message.includes('already active')) {
