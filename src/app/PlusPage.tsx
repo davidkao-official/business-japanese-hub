@@ -70,7 +70,7 @@ export function PlusPage() {
         <h2 id="plus-value-title">{plus.valueTitle}</h2>
         <div className="plus-value__grid">
           <article>
-            <p className="plus-value__label" lang="en">
+            <p className="plus-value__label" lang={locale}>
               {plus.freeTitle}
             </p>
             <p>{plus.freeBody}</p>

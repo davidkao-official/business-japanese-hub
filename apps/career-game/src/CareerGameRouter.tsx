@@ -41,8 +41,8 @@ export function CareerGameRouter({
         <ProductHeader libraryOriginValue={libraryOriginValue} />
         <main className="career-game-main" id="career-game-main" tabIndex={-1}>
           <section className="progress-status-panel" aria-labelledby="case-unavailable-title">
-            <p className="section-label" lang="en">
-              Case unavailable
+            <p className="section-label">
+              ケースの利用状況
             </p>
             <h1 id="case-unavailable-title">ケースを開けません</h1>
             <p>指定されたケースは存在しないか、現在は利用できません。</p>
@@ -52,7 +52,7 @@ export function CareerGameRouter({
                 <span aria-hidden="true">→</span>
               </a>
               <a className="unavailable-library-link" href={libraryHomeHref(libraryOriginValue)}>
-                Libraryへ移動
+                学習サイトへ
               </a>
             </div>
           </section>

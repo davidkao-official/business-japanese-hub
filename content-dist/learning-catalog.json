@@ -4,7 +4,7 @@
     {
       "bookId": "book-sample-bj-email",
       "bookSlug": "email-manners",
-      "releaseId": "email-manners@e1-r1-d3680cfbef17",
+      "releaseId": "email-manners@e1-r2-a99974793219",
       "chapters": [
         {
           "chapterId": "bm-ch-1",
@@ -31,7 +31,7 @@
     {
       "bookId": "book-sample-bj-keigo",
       "bookSlug": "keigo-essentials",
-      "releaseId": "keigo-essentials@e1-r1-5a21f380dd97",
+      "releaseId": "keigo-essentials@e1-r2-6f8feb192e16",
       "chapters": [
         {
           "chapterId": "ch-1",

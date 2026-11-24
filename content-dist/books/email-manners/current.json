@@ -1,14 +1,14 @@
 {
   "schema": "publish-snapshot-v1",
   "descriptor": {
-    "id": "email-manners@e1-r1-d3680cfbef17",
+    "id": "email-manners@e1-r2-a99974793219",
     "slug": "email-manners",
     "editionNumber": 1,
-    "revision": 1,
-    "contentHash": "d3680cfbef175b1a2c3c281e357f6c9f94251e3089a6b354823e103f11726e0f",
+    "revision": 2,
+    "contentHash": "a99974793219eedff8ce90d1ae3c9b754197bf8179807c712229b2dad91aebf4",
     "status": "published",
     "releasedAt": "2026-08-01",
-    "createdAt": "2026-08-19T22:55:31.119Z"
+    "createdAt": "2026-11-24T11:05:10.076Z"
   },
   "catalog": {
     "order": 30
@@ -126,8 +126,7 @@
             "id": "bm-ch3-blk-03",
             "type": "example",
             "text": "お手数をおかけしますが、ご確認のほどよろしくお願いいたします。",
-            "translation": "麻煩您確認，謝謝。",
-            "note": "依頼を締めくくる定番表現です。"
+            "note": "「お手数をおかけしますが」で相手にかかる手間に触れ、「ご確認のほど」でお願いする行動を示したうえで、丁寧に締めくくっています。確認の対象や期限は本文で具体的に伝えます。"
           },
           {
             "id": "bm-ch3-blk-04",
@@ -322,8 +321,7 @@
             "id": "bm-ch3-blk-03",
             "type": "example",
             "text": "お手数をおかけしますが、ご確認のほどよろしくお願いいたします。",
-            "translation": "麻煩您確認，謝謝。",
-            "note": "依頼を締めくくる定番表現です。"
+            "note": "「お手数をおかけしますが」で相手にかかる手間に触れ、「ご確認のほど」でお願いする行動を示したうえで、丁寧に締めくくっています。確認の対象や期限は本文で具体的に伝えます。"
           },
           {
             "id": "bm-ch3-blk-04",

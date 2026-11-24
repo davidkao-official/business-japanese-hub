@@ -175,8 +175,8 @@ function fixedDecisionPath(scenario: Scenario): DecisionScene[] | undefined {
 function ProgressRail({ entries }: { entries: ProgressRailEntry[] }) {
   return (
     <nav className="case-progress" aria-label="ケース進行">
-      <p className="case-progress__label" lang="en">
-        Case record
+      <p className="case-progress__label">
+        進行記録
       </p>
       <ol>
         {entries.map((entry, index) => {
@@ -217,8 +217,8 @@ function CaseDirectory({
       aria-labelledby="case-directory-title"
     >
       <div className="case-directory__header">
-        <p className="section-label" lang="en">
-          Case register
+        <p className="section-label">
+          ケース一覧
         </p>
         <h2 id="case-directory-title">ケースを選ぶ</h2>
         <p>同じ職場でも、相手と状況が変われば判断の軸も変わります。</p>
@@ -233,8 +233,8 @@ function CaseDirectory({
                 href={careerGameCasePath(candidate)}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <span className="case-directory__meta" lang="en">
-                  CASE {formatFileNumber(index + 1)} · v{candidate.contentVersion}
+                <span className="case-directory__meta">
+                  ケース {formatFileNumber(index + 1)} · 第{candidate.contentVersion}版
                 </span>
                 <span className="case-directory__title">{candidate.title}</span>
                 {candidate.subtitle ? (
@@ -396,9 +396,9 @@ export default function App({
   }, [decisions, model.gameState.history])
   const linearDecisionPath = useMemo(() => fixedDecisionPath(scenario), [scenario])
   const caseFileSummary = linearDecisionPath
-    ? `${linearDecisionPath.length} files`
+    ? `全${linearDecisionPath.length}場面`
     : '経路により変動'
-  const completedAnnouncement = `ケース内のファイル${model.gameState.history.length}件を完了しました。`
+  const completedAnnouncement = `${model.gameState.history.length}場面を完了しました。`
   const currentScene = getCurrentScene(scenario, model.gameState)
   const progressEntries = useMemo<ProgressRailEntry[]>(() => {
     const historyLength = model.gameState.history.length
@@ -462,8 +462,8 @@ export default function App({
     progressEntries.findIndex((entry) => entry.state === 'active') + 1,
   )
   const fileIndexLabel = linearDecisionPath
-    ? `FILE ${formatFileNumber(activeFile)} / ${formatFileNumber(linearDecisionPath.length)}`
-    : `FILE ${formatFileNumber(activeFile)}`
+    ? `場面 ${formatFileNumber(activeFile)} / ${formatFileNumber(linearDecisionPath.length)}`
+    : `場面 ${formatFileNumber(activeFile)}`
 
   useEffect(() => {
     if (visibleSourceStatus !== 'ready') return
@@ -658,7 +658,7 @@ export default function App({
     const startsComplete = gameState.status === 'completed'
     const startAnnouncement = startsComplete
       ? 'ケースを開始し、完了画面を表示しました。'
-      : 'FILE 01を開始しました。'
+      : '最初の場面を開始しました。'
     if (usesRemoteProgress) {
       runRemoteProgressAction(
         () => progressRepository!.start(scenario.id, scenario.contentVersion),
@@ -745,7 +745,7 @@ export default function App({
     })
 
     if (result.kind !== 'advanced' && result.kind !== 'completed') {
-      setAnnouncement('選択を反映できませんでした。現在のファイルでもう一度お試しください。')
+      setAnnouncement('選択を反映できませんでした。現在の場面でもう一度お試しください。')
       return
     }
 
@@ -778,7 +778,7 @@ export default function App({
         ),
         model.gameState.status === 'completed'
           ? completedAnnouncement
-          : `FILE ${formatFileNumber(model.gameState.history.length + 1)}へ進みました。`,
+          : `場面 ${formatFileNumber(model.gameState.history.length + 1)}へ進みました。`,
         (progress) => {
           if (progress.model.view !== 'complete') return
           trackTransition(
@@ -795,7 +795,7 @@ export default function App({
       { view, gameState: model.gameState },
       view === 'complete'
         ? completedAnnouncement
-        : `FILE ${formatFileNumber(model.gameState.history.length + 1)}へ進みました。`,
+        : `場面 ${formatFileNumber(model.gameState.history.length + 1)}へ進みました。`,
     )
     if (view === 'complete') {
       trackTransition(`completed:guest:${model.gameState.history.length}`, {
@@ -942,7 +942,7 @@ export default function App({
     if (visibleSourceStatus === 'auth-loading' || visibleSourceStatus === 'remote-loading') {
       return (
         <section className="progress-status-panel" aria-labelledby="progress-loading-title" role="status">
-          <p className="section-label">Progress</p>
+          <p className="section-label">進行状況</p>
           <h1 id="progress-loading-title">進行を確認しています</h1>
           <p>保存済みのケース記録を安全に読み込んでいます。</p>
         </section>
@@ -951,7 +951,7 @@ export default function App({
     if (visibleSourceStatus === 'load-error') {
       return (
         <section className="progress-status-panel" aria-labelledby="progress-error-title">
-          <p className="section-label">Progress unavailable</p>
+          <p className="section-label">進行状況</p>
           <h1 id="progress-error-title">進行を読み込めませんでした</h1>
           <p>ゲスト記録へは切り替えず、共通アカウントの進行をもう一度確認します。</p>
           <button className="primary-action" type="button" onClick={retryRemoteLoad}>
@@ -964,7 +964,7 @@ export default function App({
     if (visibleSourceStatus === 'client-update-required') {
       return (
         <section className="progress-status-panel" aria-labelledby="client-update-title">
-          <p className="section-label">Client update required</p>
+          <p className="section-label">アプリの更新</p>
           <h1 id="client-update-title">アプリを更新してください</h1>
           <p>
             このページのケースデータは古いため、保存済みの進行には変更を加えていません。
@@ -981,7 +981,7 @@ export default function App({
       const mismatch = resetRequired?.reason === 'content-version-mismatch'
       return (
         <section className="progress-status-panel" aria-labelledby="progress-reset-title">
-          <p className="section-label">Reset required</p>
+          <p className="section-label">進行状況</p>
           <h1 id="progress-reset-title">進行をリセットしてください</h1>
           <p>
             {mismatch
@@ -1012,12 +1012,12 @@ export default function App({
     return (
       <section className="case-cover" aria-labelledby="case-title">
         <div className="case-cover__registry" aria-hidden="true">
-          <span lang="en">Case file</span>
+          <span>ケース資料</span>
           <span>機密区分｜学習用</span>
         </div>
         <div className="case-cover__content">
-          <p className="case-eyebrow" lang="en">
-            Workplace simulation
+          <p className="case-eyebrow">
+            職場シミュレーション
           </p>
           <h1 id="case-title" ref={viewHeading} tabIndex={-1}>
             {scenario.title}
@@ -1190,14 +1190,14 @@ export default function App({
         </section>
 
         {pendingOutcome.libraryLinks?.[0] ? (
-          <aside className="library-follow-up" aria-label="関連するLibraryコンテンツ">
-            <p className="section-label">Continue learning</p>
+          <aside className="library-follow-up" aria-label="関連教材">
+            <p className="section-label">次に学ぶ</p>
             <a
               href={libraryLinkHref(pendingOutcome.libraryLinks[0], libraryOriginValue)}
               onClick={trackGameToLibrary}
               onAuxClick={trackGameToLibrary}
             >
-              Libraryで関連内容を読む
+              関連教材を読む
               <span aria-hidden="true">→</span>
             </a>
           </aside>
@@ -1214,7 +1214,7 @@ export default function App({
               ? '保存中…'
               : model.gameState.status === 'completed'
                 ? '結果を見る'
-                : '次のファイルへ'}
+                : '次の場面へ'}
             <span aria-hidden="true">→</span>
           </button>
         </div>
@@ -1236,8 +1236,8 @@ export default function App({
     return (
       <article className="case-sheet completion-sheet" aria-labelledby="completion-title">
         <header className="case-sheet__header">
-          <p className="file-index" lang="en">
-            Case closed
+          <p className="file-index">
+            終了
           </p>
           <p className="case-sheet__context">{terminal?.context}</p>
           <h1 id="completion-title" ref={viewHeading} tabIndex={-1}>
@@ -1249,7 +1249,7 @@ export default function App({
 
         <div className="result-ledger" aria-label="プレイ結果">
           <div>
-            <span>完了ファイル</span>
+            <span>完了した場面</span>
             <strong>{model.gameState.history.length} / {pathVisits.length}</strong>
           </div>
           {(scenario.meters ?? []).map((meter) => (
