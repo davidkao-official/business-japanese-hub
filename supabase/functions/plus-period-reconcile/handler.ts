@@ -5,9 +5,7 @@
  * ECPay period notifications can be missed. This job queries every open Plus
  * order with QueryCreditCardPeriodInfo and feeds each successful authorization
  * through the SAME ingest path the callback uses, so receipts stay idempotent.
- * Provider stop (ExecStatus 0 terminated / 2 completed) needs no lifecycle
- * event: no renewal arrives, so access lapses at period_end by itself — the
- * order row is simply closed.
+ * A requested cancellation records its lifecycle event before closing the order.
  */
 import { createDefaultEcpayTransport, type EcpayTransport } from '../../../src/lib/payments/ecpay/adapter.ts';
 import type { DbClient } from '../_shared/db.ts';
@@ -38,6 +36,7 @@ export function plusPeriodReconcileDeps(env: Env, db: DbClient, log: Logger): Pl
 interface PlusEcpayOrderRow extends PlusEcpayOrder {
   status: string;
   created_at: string;
+  updated_at: string;
 }
 
 const OPEN_STATUSES = ['pending', 'active', 'cancel_requested'];
@@ -66,7 +65,7 @@ export async function handlePlusPeriodReconcile(
 
   const { data, error } = await db
     .from('plus_membership_ecpay_order')
-    .select('merchant_trade_no,user_id,plan_code,environment,period_amount_twd,status,created_at')
+    .select('merchant_trade_no,user_id,plan_code,environment,period_amount_twd,status,created_at,updated_at')
     .eq('environment', ecpayEnv)
     .in('status', OPEN_STATUSES)
     .order('created_at', { ascending: true })
@@ -133,7 +132,37 @@ export async function handlePlusPeriodReconcile(
 
     if (read.execStatus === '0' || read.execStatus === '2') {
       if (order.status === 'active') await updateStatus(order.merchant_trade_no, 'ended');
-      else if (order.status === 'cancel_requested') await updateStatus(order.merchant_trade_no, 'canceled');
+      else if (order.status === 'cancel_requested') {
+        const sourceSystem = `ecpay_aio_period:${ecpayEnv}`;
+        const summary = await db.from('plus_membership_stream_summary')
+          .select('period_start,period_end')
+          .eq('source_system', sourceSystem)
+          .eq('source_subscription_id', order.merchant_trade_no)
+          .maybeSingle();
+        if (summary.error || !summary.data?.period_start || !summary.data?.period_end) {
+          failed++;
+          continue;
+        }
+        const recorded = await db.rpc('record_plus_membership_event', {
+          p_source_system: sourceSystem,
+          p_source_customer_id: order.merchant_trade_no,
+          p_source_subscription_id: order.merchant_trade_no,
+          p_source_event_id: `${order.merchant_trade_no}:cancel`,
+          p_user_id: order.user_id,
+          p_plan_code: 'plus_early_access_monthly',
+          p_event_type: 'membership_canceled',
+          p_occurred_at: order.updated_at,
+          p_period_start: summary.data.period_start,
+          p_period_end: summary.data.period_end,
+          p_cancel_at_period_end: true,
+          p_metadata: {},
+        });
+        if (recorded.error) {
+          failed++;
+          continue;
+        }
+        await updateStatus(order.merchant_trade_no, 'canceled');
+      }
     }
   }
 

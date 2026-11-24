@@ -6,6 +6,7 @@ import type { DbClient } from '../_shared/db.ts'
 import type { HandlerRequest } from '../_shared/http.ts'
 import { createMockDb, fakeLogger, testEnv } from '../_shared/testing.ts'
 import { handlePlusCancel, type PlusCancelDeps } from './handler.ts'
+import { handlePlusPeriodReconcile } from '../plus-period-reconcile/handler.ts'
 
 const MTN = 'BJHP0123456789ABCDEF'
 const HASH_KEY = 'test-hash-key'
@@ -27,6 +28,8 @@ type Chain = {
   select: () => Chain
   eq: (column: string, value: unknown) => Chain
   in: () => Chain
+  order: () => Chain
+  limit: () => Chain
   maybeSingle: () => Promise<{
     data: Record<string, unknown> | null
     error: { message: string } | null
@@ -51,6 +54,8 @@ function fakeDb(options: FakeDbOptions = {}) {
         return builder
       },
       in: () => builder,
+      order: () => builder,
+      limit: () => builder,
       maybeSingle: () =>
         Promise.resolve(
           table === 'plus_membership_ecpay_order'
@@ -127,6 +132,39 @@ const ACTIVE_ORDER = {
 const SUMMARY = { period_start: PERIOD_START, period_end: PERIOD_END }
 
 describe('Plus cancel Edge handler', () => {
+  it('reconciles a failed read-back and returns the recorded cancellation on retry', async () => {
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'verified-user' } },
+      plus_membership_ecpay_order: { data: [ACTIVE_ORDER], singleData: [ACTIVE_ORDER, ACTIVE_ORDER] },
+      plus_membership_stream_summary: { data: SUMMARY },
+    })
+    const transport = fakeTransport(await providerResponse())
+    vi.mocked(transport.post).mockImplementationOnce(async () => ({
+      status: 200, body: new URLSearchParams(await providerResponse()).toString(),
+    })).mockRejectedValueOnce(new Error('read-back failed'))
+    const cancelDeps = deps({ db: mock.db, transport })
+    expect((await handlePlusCancel(request('POST', 'Bearer token'), cancelDeps)).status).toBe(503)
+
+    const pending = { ...ACTIVE_ORDER, status: 'cancel_requested', created_at: PERIOD_START }
+    mock.setRoute('plus_membership_ecpay_order', { data: [pending] })
+    const reconcile = await handlePlusPeriodReconcile({
+      method: 'POST', url: 'https://example.test/reconcile',
+      headers: { 'x-scheduled-job-secret': 'test-scheduled-secret' }, bodyText: '',
+    }, cancelDeps)
+    expect(JSON.parse(reconcile.body)).toEqual({ checked: 1, ingested: 0, failed: 0 })
+    expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(1)
+    expect(mock.rpcCalls('record_plus_membership_event')[0].args[0]).toMatchObject({
+      p_source_event_id: `${MTN}:cancel`, p_occurred_at: CANCEL_REQUESTED_AT,
+      p_event_type: 'membership_canceled', p_period_end: PERIOD_END,
+    })
+    expect(mock.rpcCalls('set_plus_ecpay_order_status').at(-1)?.args[0]).toMatchObject({ p_status: 'canceled' })
+
+    mock.setRoute('plus_membership_ecpay_order', { singleData: [null, { ...pending, status: 'canceled' }] })
+    const retry = await handlePlusCancel(request('POST', 'Bearer token'), cancelDeps)
+    expect(retry.status).toBe(200)
+    expect(JSON.parse(retry.body)).toEqual({ status: 'canceled', accessUntil: PERIOD_END })
+    expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(1)
+  })
   it('allows only the cancel method', async () => {
     const result = await handlePlusCancel(request('GET'), deps())
     expect(result.status).toBe(405)
