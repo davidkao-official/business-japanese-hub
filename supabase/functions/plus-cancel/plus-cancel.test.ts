@@ -276,8 +276,8 @@ describe('Plus cancel Edge handler', () => {
       ])
   })
 
-  it.each(['query', 'ingest', 'exception'])('still cancels and logs an error if read-back fails (%s)', async (failure) => {
-    const { db } = fakeDb({ order: ACTIVE_ORDER, summary: SUMMARY })
+  it.each(['query', 'ingest', 'exception'])('keeps cancellation open and logs an error if read-back fails (%s)', async (failure) => {
+    const { db, rpcCalls } = fakeDb({ order: ACTIVE_ORDER, summary: SUMMARY })
     const log = fakeLogger()
     const transport = fakeTransport(await providerResponse())
     vi.mocked(transport.post).mockResolvedValueOnce({
@@ -299,11 +299,16 @@ describe('Plus cancel Edge handler', () => {
     const result = await handlePlusCancel(
       request('POST', 'Bearer verified-token'), deps({ db, log, transport }),
     )
-    expect(result.status).toBe(200)
-    expect(JSON.parse(result.body).accessUntil).toBe(PERIOD_END)
+    expect(result.status).toBe(503)
+    expect(JSON.parse(result.body)).toEqual({ error: 'plus cancel unavailable' })
+    expect(rpcCalls).toEqual([{
+      fn: 'set_plus_ecpay_order_status',
+      args: { p_merchant_trade_no: MTN, p_status: 'cancel_requested' },
+    }])
+    expect(db.from).not.toHaveBeenCalledWith('plus_membership_stream_summary')
     expect(log.error).toHaveBeenCalledWith(
       expect.objectContaining({ merchantTradeNo: MTN }),
-      'ecpay plus cancel read-back failed; using recorded paid period',
+      'ecpay plus cancel read-back failed; retry required',
     )
   })
 

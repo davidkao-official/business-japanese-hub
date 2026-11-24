@@ -132,15 +132,16 @@ export async function handlePlusCancel(
   }
 
   // Recover charges made before the provider stopped billing before freezing
-  // the access cutoff. A read-back failure must not undo a successful cancel.
+  // the access cutoff. Keep cancel_requested open for reconciliation on failure.
   try {
     const read = await readBackPlusOrder(deps, order.data as unknown as PlusEcpayOrder)
     if (read.kind === 'failed' || read.retry) throw new Error('order read-back incomplete')
   } catch (error) {
     log.error(
       { merchantTradeNo, error: error instanceof Error ? error.message : String(error) },
-      'ecpay plus cancel read-back failed; using recorded paid period',
+      'ecpay plus cancel read-back failed; retry required',
     )
+    return noStore(jsonResult(503, { error: UNAVAILABLE }))
   }
 
   const summary = await db
