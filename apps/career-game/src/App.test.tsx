@@ -352,12 +352,12 @@ describe('Career Game playable slice', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: '新人社員生存戦' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('Workplace simulation')).toHaveAttribute('lang', 'en')
+    expect(screen.getByText('職場シミュレーション')).toBeInTheDocument()
     expect(screen.getByText('無料・ゲストプレイ')).toBeInTheDocument()
     expect(
       screen.getByText(/判断するたびに、その場の結果と職場語用論の解説を確認/),
     ).toBeInTheDocument()
-    expect(screen.getByText('5 files')).toBeInTheDocument()
+    expect(screen.getByText('全5場面')).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'ケースを開始' })).toBeEnabled()
   })
 
@@ -379,13 +379,13 @@ describe('Career Game playable slice', () => {
     const branching = renderGame(null, undefined, undefined, false, branchingScenario)
     expect(await screen.findByRole('heading', { name: '分岐ケース' })).toBeInTheDocument()
     expect(screen.getByText('経路により変動')).toBeInTheDocument()
-    expect(screen.queryByText(/^\d+ files$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^全\d+場面$/)).not.toBeInTheDocument()
     branching.unmount()
 
     renderGame(null, undefined, undefined, false, loopingScenario)
     expect(await screen.findByRole('heading', { name: '繰り返して完了するケース' })).toBeInTheDocument()
     expect(screen.getByText('経路により変動')).toBeInTheDocument()
-    expect(screen.queryByText(/^\d+ files$/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^全\d+場面$/)).not.toBeInTheDocument()
   })
 
   it('moves a valid terminal-start guest case directly from intro to completion', async () => {
@@ -479,7 +479,7 @@ describe('Career Game playable slice', () => {
       expect(screen.getByRole('heading', { name: '判断の結果' })).toHaveFocus()
 
       const continueButton = screen.getByRole('button', {
-        name: file === 5 ? '結果を見る' : '次のファイルへ',
+        name: file === 5 ? '結果を見る' : '次の場面へ',
       })
       continueButton.focus()
       await user.keyboard('{Enter}')
@@ -487,7 +487,7 @@ describe('Career Game playable slice', () => {
       if (file === 5) {
         expect(screen.getByRole('heading', { name: 'ケース完了' })).toHaveFocus()
       } else {
-        expect(screen.getByText(`FILE ${String(file + 1).padStart(2, '0')} / 05`)).toBeInTheDocument()
+        expect(screen.getByText(`場面 ${String(file + 1).padStart(2, '0')} / 05`)).toBeInTheDocument()
         expect(screen.getByRole('heading', { level: 1 })).toHaveFocus()
       }
     }
@@ -499,14 +499,14 @@ describe('Career Game playable slice', () => {
     await startCase()
 
     for (let file = 1; file <= 5; file += 1) {
-      expect(screen.getByText(`FILE ${String(file).padStart(2, '0')} / 05`)).toBeInTheDocument()
+      expect(screen.getByText(`場面 ${String(file).padStart(2, '0')} / 05`)).toBeInTheDocument()
       chooseFirstOption()
       expect(
         screen.getByRole('heading', { level: 1, name: '判断の結果' }),
       ).toBeInTheDocument()
       expect(screen.getByText('信頼 +1')).toBeInTheDocument()
       fireEvent.click(
-        screen.getByRole('button', { name: file === 5 ? '結果を見る' : '次のファイルへ' }),
+        screen.getByRole('button', { name: file === 5 ? '結果を見る' : '次の場面へ' }),
       )
     }
 
@@ -548,7 +548,7 @@ describe('Career Game playable slice', () => {
 
     expect(branchingScenario.scenes.filter((scene) => scene.kind === 'decision')).toHaveLength(2)
     expect(loadGameSession(branchingScenario, window.localStorage)?.state.history).toHaveLength(1)
-    expect(screen.getByText('ケース内のファイル1件を完了しました。')).toBeInTheDocument()
+    expect(screen.getByText('1場面を完了しました。')).toBeInTheDocument()
     expectCompletedBranchPath()
   })
 
@@ -559,8 +559,8 @@ describe('Career Game playable slice', () => {
     })
     renderGame(null, undefined, undefined, false, skipThenContinueScenario)
     await startCase()
-    expect(screen.getByText('FILE 01')).toBeInTheDocument()
-    expect(screen.queryByText(/^FILE 01 \/ /)).not.toBeInTheDocument()
+    expect(screen.getByText('場面 01')).toBeInTheDocument()
+    expect(screen.queryByText(/^場面 01 \/ /)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /代替ファイルを飛ばす/ }))
     let progress = screen.getByRole('navigation', { name: 'ケース進行' })
@@ -573,9 +573,9 @@ describe('Career Game playable slice', () => {
     expect(files[1]).toHaveTextContent('最後の判断')
     expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
     expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
-    expect(screen.getByText('FILE 01')).toBeInTheDocument()
+    expect(screen.getByText('場面 01')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
+    fireEvent.click(screen.getByRole('button', { name: '次の場面へ' }))
     expect(screen.getByRole('heading', { level: 1, name: '最後の判断' })).toBeInTheDocument()
     progress = screen.getByRole('navigation', { name: 'ケース進行' })
     files = within(progress).getAllByRole('listitem')
@@ -587,7 +587,7 @@ describe('Career Game playable slice', () => {
     expect(files[1]).toHaveTextContent('最後の判断')
     expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
     expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
-    expect(screen.getByText('FILE 02')).toBeInTheDocument()
+    expect(screen.getByText('場面 02')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /ケースを完了する/ }))
     progress = screen.getByRole('navigation', { name: 'ケース進行' })
@@ -598,7 +598,7 @@ describe('Career Game playable slice', () => {
     expect(files[1]).toHaveTextContent('最後の判断')
     expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
     expect(within(progress).queryByText('代替の判断')).not.toBeInTheDocument()
-    expect(screen.getByText('FILE 02')).toBeInTheDocument()
+    expect(screen.getByText('場面 02')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '結果を見る' }))
     progress = screen.getByRole('navigation', { name: 'ケース進行' })
@@ -617,8 +617,8 @@ describe('Career Game playable slice', () => {
     try {
       renderGame(null, undefined, undefined, false, loopingScenario)
       await startCase()
-      expect(screen.getByText('FILE 01')).toBeInTheDocument()
-      expect(screen.queryByText(/^FILE 01 \/ /)).not.toBeInTheDocument()
+      expect(screen.getByText('場面 01')).toBeInTheDocument()
+      expect(screen.queryByText(/^場面 01 \/ /)).not.toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: /もう一度確認する/ }))
 
       let progress = screen.getByRole('navigation', { name: 'ケース進行' })
@@ -628,10 +628,10 @@ describe('Career Game playable slice', () => {
       expect(files[1]).toHaveAttribute('data-state', 'pending')
       expect(within(progress).getAllByText('繰り返す判断')).toHaveLength(2)
       expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
-      expect(screen.getByText('FILE 01')).toBeInTheDocument()
+      expect(screen.getByText('場面 01')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
-      expect(screen.getByText('FILE 02')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: '次の場面へ' }))
+      expect(screen.getByText('場面 02')).toBeInTheDocument()
       progress = screen.getByRole('navigation', { name: 'ケース進行' })
       files = within(progress).getAllByRole('listitem')
       expect(files).toHaveLength(2)
@@ -648,7 +648,7 @@ describe('Career Game playable slice', () => {
       expect(files[0]).toHaveAttribute('data-state', 'complete')
       expect(files[1]).toHaveAttribute('data-state', 'active')
       expect(within(progress).getAllByRole('listitem', { current: 'step' })).toHaveLength(1)
-      expect(screen.getByText('FILE 02')).toBeInTheDocument()
+      expect(screen.getByText('場面 02')).toBeInTheDocument()
 
       fireEvent.click(screen.getByRole('button', { name: '結果を見る' }))
       progress = screen.getByRole('navigation', { name: 'ケース進行' })
@@ -675,12 +675,12 @@ describe('Career Game playable slice', () => {
 
       renderGame(null, undefined, undefined, false, scenario)
       expect(await screen.findByRole('heading', { name: '判断の結果' })).toBeInTheDocument()
-      expect(screen.getByText('FILE 01 / 05')).toBeInTheDocument()
+      expect(screen.getByText('場面 01 / 05')).toBeInTheDocument()
       expect(document.querySelector('[aria-current="step"]')).toHaveTextContent(
         scenario.scenes.find((scene) => scene.id === scenario.startSceneId)?.title ?? '',
       )
-      fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
-      expect(screen.getByText('FILE 02 / 05')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: '次の場面へ' }))
+      expect(screen.getByText('場面 02 / 05')).toBeInTheDocument()
     },
   )
 
@@ -688,13 +688,13 @@ describe('Career Game playable slice', () => {
     const firstRender = renderGame()
     await startCase()
     chooseFirstOption()
-    fireEvent.click(screen.getByRole('button', { name: '次のファイルへ' }))
+    fireEvent.click(screen.getByRole('button', { name: '次の場面へ' }))
     expect(screen.getByRole('heading', { name: '曖昧な依頼を受ける' })).toBeInTheDocument()
     firstRender.unmount()
 
     renderGame()
     expect(await screen.findByRole('heading', { name: '曖昧な依頼を受ける' })).toBeInTheDocument()
-    expect(screen.getByText('FILE 02 / 05')).toBeInTheDocument()
+    expect(screen.getByText('場面 02 / 05')).toBeInTheDocument()
   })
 
   it('commits a rapid repeated choice only once', async () => {
@@ -724,7 +724,7 @@ describe('Career Game playable slice', () => {
       for (let file = 1; file <= 5; file += 1) {
         chooseFirstOption()
         fireEvent.click(
-          screen.getByRole('button', { name: file === 5 ? '結果を見る' : '次のファイルへ' }),
+          screen.getByRole('button', { name: file === 5 ? '結果を見る' : '次の場面へ' }),
         )
       }
 
@@ -776,7 +776,7 @@ describe('Career Game playable slice', () => {
     const { analytics, track } = createAnalytics()
     renderGame(null, undefined, analytics)
 
-    const productSwitch = await screen.findByRole('link', { name: /Library/ })
+    const productSwitch = await screen.findByRole('link', { name: /学習サイトへ/ })
     expect(productSwitch).toHaveAttribute('href', 'https://business-japanese-hub.pages.dev/')
     clickWithoutNavigation(productSwitch)
     clickWithoutNavigation(productSwitch)
@@ -800,7 +800,7 @@ describe('Career Game playable slice', () => {
 
     await startCase()
     chooseFirstOption()
-    const relatedReading = screen.getByRole('link', { name: 'Libraryで関連内容を読む' })
+    const relatedReading = screen.getByRole('link', { name: '関連教材を読む' })
     expect(relatedReading).toHaveAttribute(
       'href',
       'https://business-japanese-hub.pages.dev/library-link?bookId=book-sample-bj-keigo&chapterId=ch-2',
@@ -825,13 +825,13 @@ describe('Career Game playable slice', () => {
     const { analytics, track } = createAnalytics()
     renderGame(null, undefined, analytics)
 
-    const productSwitch = await screen.findByRole('link', { name: /Library/ })
+    const productSwitch = await screen.findByRole('link', { name: /学習サイトへ/ })
     auxiliaryClickWithoutNavigation(productSwitch)
     auxiliaryClickWithoutNavigation(productSwitch)
 
     await startCase()
     chooseFirstOption()
-    const relatedReading = screen.getByRole('link', { name: 'Libraryで関連内容を読む' })
+    const relatedReading = screen.getByRole('link', { name: '関連教材を読む' })
     auxiliaryClickWithoutNavigation(relatedReading)
     auxiliaryClickWithoutNavigation(relatedReading)
     auxiliaryClickWithoutNavigation(relatedReading, 2)
@@ -862,13 +862,13 @@ describe('Career Game playable slice', () => {
     const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000)
 
     try {
-      const productSwitch = await screen.findByRole('link', { name: /Library/ })
+      const productSwitch = await screen.findByRole('link', { name: /学習サイトへ/ })
       clickWithoutNavigation(productSwitch, { metaKey: true })
       clickWithoutNavigation(productSwitch, { metaKey: true })
 
       await startCase()
       chooseFirstOption()
-      const relatedReading = screen.getByRole('link', { name: 'Libraryで関連内容を読む' })
+      const relatedReading = screen.getByRole('link', { name: '関連教材を読む' })
       clickWithoutNavigation(relatedReading, { ctrlKey: true })
       clickWithoutNavigation(relatedReading, { ctrlKey: true })
 
@@ -1123,7 +1123,7 @@ describe('authenticated Career Game progress', () => {
     renderGame(signedIn, repository, undefined, false, branchingScenario)
     fireEvent.click(await screen.findByRole('button', { name: '結果を見る' }))
 
-    expect(await screen.findByText('ケース内のファイル1件を完了しました。')).toBeInTheDocument()
+    expect(await screen.findByText('1場面を完了しました。')).toBeInTheDocument()
     expectCompletedBranchPath()
   })
 
@@ -1177,7 +1177,7 @@ describe('authenticated Career Game progress', () => {
       )
       const libraryLink = pendingOutcome?.libraryLinks?.[0]
       if (!libraryLink) throw new Error(`expected a Library link for ${scenario.id}`)
-      expect(screen.getByRole('link', { name: 'Libraryで関連内容を読む' })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: '関連教材を読む' })).toHaveAttribute(
         'href',
         libraryLinkHref(libraryLink, undefined),
       )

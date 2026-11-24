@@ -9,6 +9,16 @@
       "status": "published",
       "releasedAt": "2026-08-01",
       "createdAt": "2026-08-19T22:55:31.119Z"
+    },
+    {
+      "id": "email-manners@e1-r2-a99974793219",
+      "slug": "email-manners",
+      "editionNumber": 1,
+      "revision": 2,
+      "contentHash": "a99974793219eedff8ce90d1ae3c9b754197bf8179807c712229b2dad91aebf4",
+      "status": "published",
+      "releasedAt": "2026-08-01",
+      "createdAt": "2026-11-24T11:05:10.076Z"
     }
   ]
 }

@@ -74,7 +74,7 @@ describe('Career Game router surface', () => {
     ).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: '新人社員生存戦' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '現在のケースを開く' })).toHaveAttribute('href', '/')
-    expect(screen.getByRole('link', { name: 'Libraryへ移動' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '学習サイトへ' })).toHaveAttribute(
       'href',
       'https://business-japanese-hub.pages.dev/',
     )

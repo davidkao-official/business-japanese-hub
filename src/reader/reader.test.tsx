@@ -438,6 +438,15 @@ describe('navigation', () => {
     ).toBeInTheDocument()
   })
 
+  it.each([
+    ['/books/keigo-essentials/read/practice', '「明日までに」で期限を明示', '麻煩您百忙之中抽空'],
+    ['/books/email-manners/read/requests-and-closings', '確認の対象や期限は本文で具体的に', '麻煩您確認，謝謝。'],
+  ])('shows a Japanese example explanation at %s', async (route, explanation, oldGloss) => {
+    renderReaderRoutes(route)
+    expect(await screen.findByText(explanation, { exact: false })).toBeInTheDocument()
+    expect(screen.queryByText(oldGloss, { exact: false })).not.toBeInTheDocument()
+  })
+
   it('links prev/next chapters and navigates between them (owned)', async () => {
     renderReaderRoutes('/books/keigo-essentials/read/keigo-in-meetings', { owned: true })
     expect(

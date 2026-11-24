@@ -1,14 +1,14 @@
 {
   "schema": "publish-snapshot-v1",
   "descriptor": {
-    "id": "keigo-essentials@e1-r1-5a21f380dd97",
+    "id": "keigo-essentials@e1-r2-6f8feb192e16",
     "slug": "keigo-essentials",
     "editionNumber": 1,
-    "revision": 1,
-    "contentHash": "5a21f380dd97330eac694b4cd7e76ad9c27f219d8b07bf9f95a1d0a0f4dc7dcc",
+    "revision": 2,
+    "contentHash": "6f8feb192e16df31cba4be1d3efd095bcf3212a98d210b689cb802b45bd0b59c",
     "status": "published",
     "releasedAt": "2026-08-01",
-    "createdAt": "2026-08-19T22:55:31.122Z"
+    "createdAt": "2026-11-24T11:05:09.623Z"
   },
   "catalog": {
     "order": 20
@@ -237,8 +237,7 @@
             "id": "ch3-blk-04",
             "type": "example",
             "text": "お忙しいところ恐れ入りますが、明日までにご確認のほどお願い申し上げます。",
-            "translation": "麻煩您百忙之中抽空，麻煩請在明天前確認。",
-            "note": "依頼の場面で使える丁寧な定型表現です。"
+            "note": "「お忙しいところ恐れ入りますが」で相手の都合に配慮し、「明日までに」で期限を明示しています。「ご確認のほどお願い申し上げます」は、取引先などに確認を求める際の改まった言い方です。"
           },
           {
             "id": "ch3-blk-05",
@@ -545,8 +544,7 @@
             "id": "ch3-blk-04",
             "type": "example",
             "text": "お忙しいところ恐れ入りますが、明日までにご確認のほどお願い申し上げます。",
-            "translation": "麻煩您百忙之中抽空，麻煩請在明天前確認。",
-            "note": "依頼の場面で使える丁寧な定型表現です。"
+            "note": "「お忙しいところ恐れ入りますが」で相手の都合に配慮し、「明日までに」で期限を明示しています。「ご確認のほどお願い申し上げます」は、取引先などに確認を求める際の改まった言い方です。"
           },
           {
             "id": "ch3-blk-05",

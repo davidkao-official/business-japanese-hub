@@ -25,7 +25,7 @@ export function ProductHeader({
             onClick={onLibraryClick}
             onAuxClick={onLibraryClick}
           >
-            <span lang="en">Library</span>
+            <span>学習サイトへ</span>
             <span className="product-switch__context">読む・調べる</span>
           </a>
         </nav>

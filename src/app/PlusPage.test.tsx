@@ -42,7 +42,8 @@ describe('PlusPage', () => {
     expect(priceAmount.parentElement).toHaveClass('plus-price__amount')
     expect(shopCss).toMatch(/\.price\s*\{[^}]*font-variant-numeric:\s*tabular-nums/s)
     expect(screen.getByText('/ 月')).toBeInTheDocument()
-    expect(screen.getByText(/年額プランは現在購入できません/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '先行提供は準備中です' })).toBeInTheDocument()
+    expect(screen.getByText(/年額プランは現在お申し込みいただけません/)).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/NT\$399|NT\$3,990/)
     expect(screen.queryByRole('button', { name: /購入|支払い/ })).not.toBeInTheDocument()
 

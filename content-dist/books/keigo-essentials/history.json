@@ -9,6 +9,16 @@
       "status": "published",
       "releasedAt": "2026-08-01",
       "createdAt": "2026-08-19T22:55:31.122Z"
+    },
+    {
+      "id": "keigo-essentials@e1-r2-6f8feb192e16",
+      "slug": "keigo-essentials",
+      "editionNumber": 1,
+      "revision": 2,
+      "contentHash": "6f8feb192e16df31cba4be1d3efd095bcf3212a98d210b689cb802b45bd0b59c",
+      "status": "published",
+      "releasedAt": "2026-08-01",
+      "createdAt": "2026-11-24T11:05:09.623Z"
     }
   ]
 }

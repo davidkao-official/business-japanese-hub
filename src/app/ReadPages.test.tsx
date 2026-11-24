@@ -258,7 +258,7 @@ describe('Business Reading surfaces', () => {
       membershipAccessRepository: membership('non-member'),
       initialEntries: ['/read/synthetic-plus'],
     })
-    expect(await screen.findByText('現在は Free 状態です')).toBeInTheDocument()
+    expect(await screen.findByText('現在は無料でご利用中です')).toBeInTheDocument()
     expect(load).not.toHaveBeenCalled()
   })
 

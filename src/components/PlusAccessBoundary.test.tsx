@@ -68,7 +68,7 @@ describe('PlusAccessBoundary', () => {
     await waitFor(() =>
       expect(view.container.querySelector('[data-access-state="non-member"]')).not.toBeNull(),
     )
-    expect(screen.getByText('現在は Free 状態です')).toBeInTheDocument()
+    expect(screen.getByText('現在は無料でご利用中です')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '無料の学習を始める' })).toHaveAttribute('href', '/learn')
     expect(screen.queryByText('Unlocked Plus content')).not.toBeInTheDocument()
   })
