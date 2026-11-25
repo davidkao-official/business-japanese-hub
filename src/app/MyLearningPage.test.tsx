@@ -34,7 +34,7 @@ afterEach(() => {
   delete (HTMLElement.prototype as Partial<HTMLElement>).scrollIntoView
 })
 
-const revision = '2eb5d0868363c8160693b6410386521054ffcf5c4636125f1f9e74111c0d22ad'
+const revision = 'abeda021f0fef4edfc96c9d7e9c307f4863c32e71c5c5abad91aa0f337bba60c'
 
 const review: PracticeReviewItem = {
   contentId: 'practice-web-test-spi-v1',
