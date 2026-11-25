@@ -266,7 +266,7 @@ function EditorialSamples({ samples }: { samples: HomeContentSample[] }) {
   if (samples.length === 0) return null
 
   return (
-    <section className="storefront-samples" aria-labelledby="storefront-samples-title">
+    <section className="storefront-samples">
       <div className="storefront-section-heading">
         <p className="storefront-section-heading__label">{strings.home.samplesLabel}</p>
         <h2 id="storefront-samples-title" aria-label={strings.home.samplesTitle}>
