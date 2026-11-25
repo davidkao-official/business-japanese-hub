@@ -10,7 +10,7 @@
 
 tachiko（Claude lead + Codex workers）與 David 的 Codex 同時開發本 repo。溝通只用 GitHub：
 
-- **誰負責什麼**：issue／PR 上的 label `team:tachiko`／`team:david`。動工前先查 `gh issue list --label team:<team>` 與 `gh pr list --search "<issue#>"`；沒有 label 也沒有 PR 才是空的，先加上自己的 team label 再開始。
+- **誰負責什麼**：claim 前直接確認目標 issue 的實際 labels（`gh issue view <issue#> --json labels`）與相關 open PR（`gh pr list --state open --search "<issue#>"`）。任何 `team:tachiko` 或 `team:david` label（含雙方 labels），或任何相關 open PR，都代表它不在 unclaimed queue；只有兩種 team label 都沒有且沒有相關 open PR 時，才依原流程先加上自己的 team label 再開始。
 - **目前狀態**：[#166 的 `agent-status:v1` 留言](https://github.com/davidkao-official/business-japanese-hub/issues/166#issuecomment-7075703533)，原地更新、不往下追加；各 team 開工與收工時更新自己的段落。
 - **提議、請求、意見不同**：在 #166 或該 issue／PR 留言；不要直接改對方的 branch 或 PR。
 - **收尾規則**：同一問題來回兩輪沒有共識，就停下交給人決定（tachiko 方：Owner；David 方：David）。
