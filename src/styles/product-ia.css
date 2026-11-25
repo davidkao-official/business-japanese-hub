@@ -672,6 +672,7 @@
 
 .web-test-hub__runner {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
   gap: var(--space-5);
   padding: var(--space-5);
@@ -682,6 +683,7 @@
 
 .web-test-hub__runner fieldset {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
   gap: var(--space-3);
   padding: var(--space-4);
@@ -690,6 +692,7 @@
 
 .web-test-hub__explanation-layer {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
   gap: var(--space-2);
   color: var(--bjh-text-gloss);
@@ -715,6 +718,7 @@
 
 .web-test-hub__runner ol {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   padding-inline-start: var(--space-6);
   list-style: decimal;
@@ -753,19 +757,18 @@
   background: var(--color-surface-muted);
 }
 
-.web-test-hub__runner pre,
-.web-test-hub__runner table {
-  max-inline-size: 100%;
-  overflow: auto;
+.web-test-hub__representation-scroll {
+  overflow-x: auto;
 }
 
 .web-test-hub__runner pre {
+  max-inline-size: 100%;
+  overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .web-test-hub__runner table {
-  display: block;
   border-collapse: collapse;
 }
 
