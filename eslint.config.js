@@ -37,6 +37,8 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       ...jsxA11y.configs.recommended.rules,
+      // Named scroll regions need a Tab stop for keyboard scrolling.
+      'jsx-a11y/no-noninteractive-tabindex': ['error', { roles: ['region'] }],
     },
   },
 )
