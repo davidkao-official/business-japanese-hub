@@ -100,7 +100,7 @@ export async function handlePlusCheckout(
   }
   if (result.error) {
     if (result.error.message.includes('already active')) {
-      return noStore(jsonResult(409, { error: 'already a member' }))
+      return noStore(jsonResult(409, { error: 'subscription open' }))
     }
     return noStore(jsonResult(503, { error: 'plus checkout unavailable' }))
   }

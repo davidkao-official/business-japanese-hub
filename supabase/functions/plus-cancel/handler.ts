@@ -2,8 +2,9 @@
  * Authenticated Plus membership cancellation (ECPay recurring period cancel).
  *
  * The verified bearer subject may cancel its own active ECPay subscription:
- * the server asks ECPay to stop future charges and records a period-end
- * `membership_canceled` event, so access lasts until the paid period ends.
+ * the server asks ECPay to stop future charges and persists its verified
+ * stop evidence. Paid access continues to be derived from verified charges,
+ * including delayed pre-stop renewals; no guessed terminal cutoff is written.
  * The browser never supplies order identity, amounts or access state.
  */
 import { authenticateBearer } from '../_shared/auth.ts'
@@ -26,7 +27,7 @@ import {
 import { buildPeriodCancelFields } from '../../../src/lib/payments/ecpay/period.ts'
 import { verifyCheckMac } from '../../../src/lib/payments/ecpay/checkmac.ts'
 import { ECPAY_URLS } from '../../../src/lib/payments/ecpay/urls.ts'
-import { readBackPlusOrder, type PlusEcpayOrder } from '../_shared/plus-ecpay-ingest.ts'
+import { persistPlusCustomerCancel, readBackPlusOrder, type PlusEcpayOrder } from '../_shared/plus-ecpay-ingest.ts'
 
 export interface PlusCancelDeps {
   env: Env
@@ -62,141 +63,104 @@ export async function handlePlusCancel(
   }
 
   const sourceSystem = `ecpay_aio_period:${env.ecpayEnv}`
-  const order = await db
+  let order = await db
     .from('plus_membership_ecpay_order')
-    .select('merchant_trade_no,user_id,plan_code,environment,period_amount_twd,status,updated_at')
+    .select('merchant_trade_no,user_id,plan_code,environment,period_amount_twd,status,provider_canceled_at')
     .eq('user_id', userId)
     .eq('environment', env.ecpayEnv)
     .in('status', ['active', 'cancel_requested'])
     .maybeSingle()
   if (order.error) return noStore(jsonResult(503, { error: UNAVAILABLE }))
   if (!order.data) {
-    const canceled = await db.from('plus_membership_ecpay_order')
-      .select('merchant_trade_no')
-      .eq('user_id', userId)
-      .eq('environment', env.ecpayEnv)
-      .eq('status', 'canceled')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    if (canceled.error) return noStore(jsonResult(503, { error: UNAVAILABLE }))
-    if (!canceled.data) return noStore(jsonResult(404, { error: 'no active subscription' }))
-    const summary = await db.from('plus_membership_stream_summary')
-      .select('period_end')
-      .eq('source_system', sourceSystem)
-      .eq('source_subscription_id', canceled.data.merchant_trade_no)
-      .maybeSingle()
-    if (summary.error || !summary.data?.period_end) return noStore(jsonResult(503, { error: UNAVAILABLE }))
-    return noStore(jsonResult(200, { status: 'canceled', accessUntil: summary.data.period_end }))
+    order = await db.from('plus_membership_ecpay_order')
+      .select('merchant_trade_no,user_id,plan_code,environment,period_amount_twd,status,provider_canceled_at')
+      .eq('user_id', userId).eq('environment', env.ecpayEnv).eq('status', 'canceled')
+      .order('updated_at', { ascending: false }).limit(1).maybeSingle()
+    if (order.error) return noStore(jsonResult(503, { error: UNAVAILABLE }))
+    if (!order.data?.provider_canceled_at) return noStore(jsonResult(404, { error: 'no active subscription' }))
   }
 
   const merchantTradeNo = String(order.data.merchant_trade_no)
-  let occurredAt = String(order.data.updated_at)
   if (order.data.status === 'active') {
     const { error } = await db.rpc('set_plus_ecpay_order_status', {
       p_merchant_trade_no: merchantTradeNo,
       p_status: 'cancel_requested',
     })
     if (error) return noStore(jsonResult(503, { error: UNAVAILABLE }))
+  }
 
-    // A retry must replay the event with the same occurred_at, so bind it to
-    // the stored cancel-request moment instead of the current clock.
-    const cancelRequest = await db
-      .from('plus_membership_ecpay_order')
-      .select('updated_at')
-      .eq('merchant_trade_no', merchantTradeNo)
-      .maybeSingle()
-    if (cancelRequest.error || !cancelRequest.data) {
+  if (!order.data.provider_canceled_at) {
+    const fields = await buildPeriodCancelFields({
+      merchantId: env.ecpayMerchantId,
+      merchantTradeNo,
+      now: deps.now(),
+      hashKey: env.ecpayHashKey,
+      hashIV: env.ecpayHashIV,
+    })
+
+    let response: { status: number; body: string }
+    try {
+      response = await deps.transport.post(
+        ECPAY_URLS[env.ecpayEnv].creditCardPeriodAction,
+        fields,
+        15_000,
+      )
+    } catch {
+      return noStore(jsonResult(502, { error: 'provider cancel failed' }))
+    }
+
+    const parsed = parseFormUrlEncoded(response.body)
+    const rtnCode = parsed.RtnCode
+    const checkMacValid = await verifyCheckMac(
+      parsed,
+      env.ecpayHashKey,
+      env.ecpayHashIV,
+      parsed.CheckMacValue,
+    )
+    if (
+      response.status !== 200 ||
+      parsed.MerchantID !== env.ecpayMerchantId ||
+      parsed.MerchantTradeNo !== merchantTradeNo ||
+      (rtnCode !== '1' && rtnCode !== '90100149') ||
+      !checkMacValid
+    ) {
+      log.error({ merchantTradeNo, rtnCode }, 'ecpay plus cancel rejected')
+      return noStore(jsonResult(502, { error: 'provider cancel failed' }))
+    }
+
+    if (!await persistPlusCustomerCancel(deps, merchantTradeNo, { fields: parsed, confirmedAt: deps.now() })) {
       return noStore(jsonResult(503, { error: UNAVAILABLE }))
     }
-    occurredAt = String(cancelRequest.data.updated_at)
   }
 
-  const fields = await buildPeriodCancelFields({
-    merchantId: env.ecpayMerchantId,
-    merchantTradeNo,
-    now: deps.now(),
-    hashKey: env.ecpayHashKey,
-    hashIV: env.ecpayHashIV,
-  })
-
-  let response: { status: number; body: string }
-  try {
-    response = await deps.transport.post(
-      ECPAY_URLS[env.ecpayEnv].creditCardPeriodAction,
-      fields,
-      15_000,
-    )
-  } catch {
-    return noStore(jsonResult(502, { error: 'provider cancel failed' }))
-  }
-
-  const parsed = parseFormUrlEncoded(response.body)
-  const rtnCode = parsed.RtnCode
-  const checkMacValid = await verifyCheckMac(
-    parsed,
-    env.ecpayHashKey,
-    env.ecpayHashIV,
-    parsed.CheckMacValue,
-  )
-  if (
-    response.status !== 200 ||
-    parsed.MerchantTradeNo !== merchantTradeNo ||
-    (rtnCode !== '1' && rtnCode !== '90100149') ||
-    !checkMacValid
-  ) {
-    log.error({ merchantTradeNo, rtnCode }, 'ecpay plus cancel rejected')
-    return noStore(jsonResult(502, { error: 'provider cancel failed' }))
-  }
-
-  // Recover charges made before the provider stopped billing before freezing
-  // the access cutoff. Keep cancel_requested open for reconciliation on failure.
+  // Recover pre-stop charges before reporting the known paid window. A failed
+  // read-back leaves durable recovery work; it cannot undo the provider stop.
   try {
     const read = await readBackPlusOrder(deps, order.data as unknown as PlusEcpayOrder)
-    if (read.kind === 'failed' || read.retry) throw new Error('order read-back incomplete')
+    if (read.kind === 'failed' || read.retry || !['0', '2'].includes(read.execStatus)) {
+      throw new Error('order read-back incomplete')
+    }
+    const completed = await db.rpc('complete_plus_ecpay_cancel_readback', { p_merchant_trade_no: merchantTradeNo })
+    if (completed.error) throw new Error('read-back completion not persisted')
   } catch (error) {
     log.error(
       { merchantTradeNo, error: error instanceof Error ? error.message : String(error) },
-      'ecpay plus cancel read-back failed; retry required',
+      'ecpay plus cancel read-back failed; using recorded paid period',
     )
-    return noStore(jsonResult(503, { error: UNAVAILABLE }))
   }
 
   const summary = await db
     .from('plus_membership_stream_summary')
-    .select('period_start,period_end')
+    .select('access_period_end')
     .eq('source_system', sourceSystem)
     .eq('source_subscription_id', merchantTradeNo)
     .maybeSingle()
   if (summary.error) return noStore(jsonResult(503, { error: UNAVAILABLE }))
 
-  const periodStart = summary.data?.period_start
-  const periodEnd = summary.data?.period_end
-  // ECPay has stopped charging, but the paid period has not been recorded yet
-  // (its callback is still pending). Stay cancel_requested; a retry or the
-  // reconcile job finishes once the period exists.
-  if (!periodStart || !periodEnd) return noStore(jsonResult(503, { error: UNAVAILABLE }))
-  const recorded = await db.rpc('record_plus_membership_event', {
-    p_source_system: sourceSystem,
-    p_source_customer_id: merchantTradeNo,
-    p_source_subscription_id: merchantTradeNo,
-    p_source_event_id: `${merchantTradeNo}:cancel`,
-    p_user_id: userId,
-    p_plan_code: 'plus_early_access_monthly',
-    p_event_type: 'membership_canceled',
-    p_occurred_at: occurredAt,
-    p_period_start: periodStart,
-    p_period_end: periodEnd,
-    p_cancel_at_period_end: true,
-    p_metadata: {},
-  })
-  if (recorded.error) return noStore(jsonResult(503, { error: UNAVAILABLE }))
-
-  const finalized = await db.rpc('set_plus_ecpay_order_status', {
-    p_merchant_trade_no: merchantTradeNo,
-    p_status: 'canceled',
-  })
-  if (finalized.error) return noStore(jsonResult(503, { error: UNAVAILABLE }))
+  // This is the currently known paid-through time, not a frozen terminal fact.
+  // Later verified pre-stop receipts may extend it; terminal financial events
+  // remain authoritative in the existing membership resolver.
+  const periodEnd = summary.data?.access_period_end ?? null
 
   return noStore(jsonResult(200, { status: 'canceled', accessUntil: periodEnd }))
 }

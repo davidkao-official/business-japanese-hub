@@ -10,14 +10,15 @@ import type {
 import { renderWithAppProviders } from '../test/appProviders'
 import { PlusPage } from './PlusPage'
 
-const { fetchPlusCheckoutOpenMock, cancelPlusMembershipMock } = vi.hoisted(() => ({
+const { fetchPlusCheckoutOpenMock, cancelPlusMembershipMock, startPlusCheckoutMock } = vi.hoisted(() => ({
   fetchPlusCheckoutOpenMock: vi.fn(),
+  startPlusCheckoutMock: vi.fn(),
   cancelPlusMembershipMock: vi.fn(),
 }))
 
 vi.mock('../lib/membership/checkout', () => ({
   fetchPlusCheckoutOpen: fetchPlusCheckoutOpenMock,
-  startPlusCheckout: vi.fn(),
+  startPlusCheckout: startPlusCheckoutMock,
   submitHostedCheckout: vi.fn(),
 }))
 
@@ -31,6 +32,7 @@ beforeEach(() => {
   fetchPlusCheckoutOpenMock.mockReset()
   fetchPlusCheckoutOpenMock.mockResolvedValue(null)
   cancelPlusMembershipMock.mockReset()
+  startPlusCheckoutMock.mockReset()
 })
 
 describe('PlusPage', () => {
@@ -88,6 +90,23 @@ describe('PlusPage', () => {
 
     const cta = await screen.findByRole('button', { name: 'Plus に申し込む' })
     expect(cta).toBeDisabled()
+  })
+
+  it('places the cancel-first checkout error next to the lapsed subscription cancel panel', async () => {
+    fetchPlusCheckoutOpenMock.mockResolvedValue('test-consent-1')
+    startPlusCheckoutMock.mockResolvedValue({ kind: 'subscription-open' })
+    renderWithAppProviders(<PlusPage />, {
+      session: { id: 'u-1', email: 'reader@example.com' },
+      membershipAccessRepository: { getAccess: vi.fn(async () => ({
+        access: 'non-member' as const,
+        subscription: { status: 'active' as const, accessUntil: '2026-10-01T00:00:00.000Z' },
+      })) },
+    })
+    const cta = await screen.findByRole('button', { name: 'Plus に申し込む' })
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(cta)
+    expect(await screen.findByRole('alert')).toHaveTextContent(getStrings('ja').plus.checkout.subscriptionOpen)
+    expect(screen.getByRole('button', { name: '解約する' })).toBeInTheDocument()
   })
 
   it('shows the payment re-check state after returning from ECPay', async () => {

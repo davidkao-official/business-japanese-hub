@@ -181,6 +181,7 @@ export interface AppStrings {
       starting: string
       signInPrompt: string
       alreadyMember: string
+      subscriptionOpen: string
       closed: string
       failed: string
       returnedTitle: string
@@ -618,6 +619,7 @@ const ja: AppStrings = {
       starting: '決済ページへ移動しています…',
       signInPrompt: 'お申し込みにはログインが必要です。',
       alreadyMember: 'すでに Plus 会員です。',
+      subscriptionOpen: '再度お申し込みになるには、先に下の解約パネルで現在の定期購読を解約してください。',
       closed: '現在お申し込みを受け付けていません。',
       failed: 'お申し込みを開始できませんでした。時間をおいて再度お試しください。',
       returnedTitle: 'お支払い結果を確認しています',
@@ -1057,6 +1059,7 @@ const en: AppStrings = {
       starting: 'Taking you to the checkout page…',
       signInPrompt: 'You need to sign in to subscribe.',
       alreadyMember: 'You are already a Plus member.',
+      subscriptionOpen: 'Cancel your current subscription in the panel below before subscribing again.',
       closed: 'Subscriptions are not currently being accepted.',
       failed: 'We could not start the checkout. Please try again later.',
       returnedTitle: 'Checking your payment result',
@@ -1496,6 +1499,7 @@ const zhTW: AppStrings = {
       starting: '正在前往付款頁面…',
       signInPrompt: '訂閱需要先登入。',
       alreadyMember: '你已經是 Plus 會員。',
+      subscriptionOpen: '請先在下方解約面板取消目前的訂閱，再重新訂閱。',
       closed: '目前未開放訂閱。',
       failed: '無法開始訂閱，請稍後再試。',
       returnedTitle: '正在確認付款結果',

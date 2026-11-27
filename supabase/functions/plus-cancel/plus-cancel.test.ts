@@ -75,6 +75,10 @@ function fakeDb(options: FakeDbOptions = {}) {
     from: vi.fn((table: string) => chain(table)),
     rpc: vi.fn((fn: string, args: Record<string, unknown>) => {
       rpcCalls.push({ fn, args })
+      if (fn === 'confirm_plus_ecpay_customer_cancel') {
+        options.order = { ...options.order, status: 'canceled', provider_canceled_at: args.p_confirmed_at }
+        return Promise.resolve({ data: { provider_canceled_at: args.p_confirmed_at }, error: null })
+      }
       return Promise.resolve({ data: null, error: null })
     }),
     auth: {
@@ -129,42 +133,9 @@ const ACTIVE_ORDER = {
   status: 'active',
   updated_at: CANCEL_REQUESTED_AT,
 }
-const SUMMARY = { period_start: PERIOD_START, period_end: PERIOD_END }
+const SUMMARY = { period_start: PERIOD_START, period_end: PERIOD_END, access_period_end: PERIOD_END }
 
 describe('Plus cancel Edge handler', () => {
-  it('reconciles a failed read-back and returns the recorded cancellation on retry', async () => {
-    const mock = createMockDb({
-      'auth:getUser': { data: { id: 'verified-user' } },
-      plus_membership_ecpay_order: { data: [ACTIVE_ORDER], singleData: [ACTIVE_ORDER, ACTIVE_ORDER] },
-      plus_membership_stream_summary: { data: SUMMARY },
-    })
-    const transport = fakeTransport(await providerResponse())
-    vi.mocked(transport.post).mockImplementationOnce(async () => ({
-      status: 200, body: new URLSearchParams(await providerResponse()).toString(),
-    })).mockRejectedValueOnce(new Error('read-back failed'))
-    const cancelDeps = deps({ db: mock.db, transport })
-    expect((await handlePlusCancel(request('POST', 'Bearer token'), cancelDeps)).status).toBe(503)
-
-    const pending = { ...ACTIVE_ORDER, status: 'cancel_requested', created_at: PERIOD_START }
-    mock.setRoute('plus_membership_ecpay_order', { data: [pending] })
-    const reconcile = await handlePlusPeriodReconcile({
-      method: 'POST', url: 'https://example.test/reconcile',
-      headers: { 'x-scheduled-job-secret': 'test-scheduled-secret' }, bodyText: '',
-    }, cancelDeps)
-    expect(JSON.parse(reconcile.body)).toEqual({ checked: 1, ingested: 0, failed: 0 })
-    expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(1)
-    expect(mock.rpcCalls('record_plus_membership_event')[0].args[0]).toMatchObject({
-      p_source_event_id: `${MTN}:cancel`, p_occurred_at: CANCEL_REQUESTED_AT,
-      p_event_type: 'membership_canceled', p_period_end: PERIOD_END,
-    })
-    expect(mock.rpcCalls('set_plus_ecpay_order_status').at(-1)?.args[0]).toMatchObject({ p_status: 'canceled' })
-
-    mock.setRoute('plus_membership_ecpay_order', { singleData: [null, { ...pending, status: 'canceled' }] })
-    const retry = await handlePlusCancel(request('POST', 'Bearer token'), cancelDeps)
-    expect(retry.status).toBe(200)
-    expect(JSON.parse(retry.body)).toEqual({ status: 'canceled', accessUntil: PERIOD_END })
-    expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(1)
-  })
   it('allows only the cancel method', async () => {
     const result = await handlePlusCancel(request('GET'), deps())
     expect(result.status).toBe(405)
@@ -192,7 +163,18 @@ describe('Plus cancel Edge handler', () => {
     expect(rpcCalls).toEqual([])
   })
 
-  it('cancels the subscription at period end and returns the current access window', async () => {
+  it('returns 404 for a legacy canceled order without stop evidence', async () => {
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'verified-user' } },
+      plus_membership_ecpay_order: { singleData: [null, { ...ACTIVE_ORDER, status: 'canceled' }] },
+    })
+    const transport = fakeTransport({})
+    const result = await handlePlusCancel(request('POST', 'Bearer token'), deps({ db: mock.db, transport }))
+    expect(result.status).toBe(404)
+    expect(transport.post).not.toHaveBeenCalled()
+  })
+
+  it('persists the provider stop and returns the known paid window without freezing a terminal cutoff', async () => {
     const { db, rpcCalls, filters } = fakeDb({ order: ACTIVE_ORDER, summary: SUMMARY })
     const log = fakeLogger()
     const transport = fakeTransport(await providerResponse())
@@ -211,35 +193,18 @@ describe('Plus cancel Edge handler', () => {
     })
     expect(result.headers?.['Cache-Control']).toBe('private, no-store')
     expect(rpcCalls.map((call) => call.fn)).toEqual([
-      'set_plus_ecpay_order_status',
-      'record_plus_membership_event',
-      'set_plus_ecpay_order_status',
+      'set_plus_ecpay_order_status', 'confirm_plus_ecpay_customer_cancel',
+      'complete_plus_ecpay_cancel_readback',
     ])
-    expect(rpcCalls[0].args).toEqual({
-      p_merchant_trade_no: MTN,
-      p_status: 'cancel_requested',
+    expect(rpcCalls[0].args).toEqual({ p_merchant_trade_no: MTN, p_status: 'cancel_requested' })
+    expect(rpcCalls[1].args).toMatchObject({ p_merchant_trade_no: MTN, p_rtn_code: '1',
+      p_confirmed_at: '2026-11-01T00:00:00.000Z',
     })
-    expect(rpcCalls[1].args).toMatchObject({
-      p_source_system: 'ecpay_aio_period:stage',
-      p_source_customer_id: MTN,
-      p_source_subscription_id: MTN,
-      p_source_event_id: `${MTN}:cancel`,
-      p_user_id: 'verified-user',
-      p_plan_code: 'plus_early_access_monthly',
-      p_event_type: 'membership_canceled',
-      p_occurred_at: CANCEL_REQUESTED_AT,
-      p_period_start: PERIOD_START,
-      p_period_end: PERIOD_END,
-      p_cancel_at_period_end: true,
-    })
-    expect(rpcCalls[2].args).toEqual({
-      p_merchant_trade_no: MTN,
-      p_status: 'canceled',
-    })
+    expect(rpcCalls[1].args.p_facts_sha256).toMatch(/^[0-9a-f]{64}$/)
     expect(log.error).not.toHaveBeenCalled()
   })
 
-  it('replays the stored cancel-request time for an already cancel_requested order', async () => {
+  it('persists the verified stop for an already requested cancellation', async () => {
     const { db, rpcCalls } = fakeDb({
       order: {
         merchant_trade_no: MTN,
@@ -260,19 +225,22 @@ describe('Plus cancel Edge handler', () => {
 
     expect(result.status).toBe(200)
     expect(rpcCalls.map((call) => call.fn)).toEqual([
-      'record_plus_membership_event',
-      'set_plus_ecpay_order_status',
+      'confirm_plus_ecpay_customer_cancel', 'complete_plus_ecpay_cancel_readback',
     ])
-    expect(rpcCalls[0].args.p_occurred_at).toBe(CANCEL_REQUESTED_AT)
+    expect(rpcCalls[0].args.p_confirmed_at).toBe('2026-11-01T09:00:00.000Z')
   })
 
-  it('ingests every read-back success before choosing the cancellation cutoff', async () => {
+  it('integrates #281 read-back and anchor periods after persisting the verified stop', async () => {
     const mock = createMockDb({
       'auth:getUser': { data: { id: 'verified-user' } },
       plus_membership_ecpay_order: { data: ACTIVE_ORDER },
       plus_membership_ecpay_receipt: { data: { process_at: '2027-01-30T16:30:00.000Z' } },
       plus_membership_stream_summary: { data: SUMMARY },
-      'rpc:record_plus_ecpay_receipt': { data: 'new' },
+      'rpc:confirm_plus_ecpay_customer_cancel': { data: { provider_canceled_at: '2027-03-01T00:00:00.000Z' } },
+      'rpc:record_plus_ecpay_authorization': { rpcResults: [
+        { data: { status: 'new', source_event_id: `${MTN}:auth:1`, total_success_times: 1 } },
+        { data: { status: 'new', source_event_id: `${MTN}:auth:2`, total_success_times: 2 } },
+      ] },
       'rpc:record_plus_membership_event': { data: 'applied' },
       'rpc:resolve_plus_membership_access': { data: { access_status: 'active' } },
     })
@@ -282,7 +250,7 @@ describe('Plus cancel Edge handler', () => {
       const result = await rpc(fn, args)
       if (fn === 'record_plus_membership_event' && args.p_event_type === 'membership_renewed') {
         mock.setRoute('plus_membership_stream_summary', { data: {
-          period_start: args.p_period_start, period_end: args.p_period_end,
+          period_start: args.p_period_start, period_end: args.p_period_end, access_period_end: args.p_period_end,
         } })
       }
       return result
@@ -298,24 +266,23 @@ describe('Plus cancel Edge handler', () => {
       ] }),
     })
     const result = await handlePlusCancel(
-      request('POST', 'Bearer verified-token'), deps({ db: mock.db, transport }),
+      request('POST', 'Bearer verified-token'), deps({ db: mock.db, transport, now: () => new Date('2027-03-01T00:00:00.000Z') }),
     )
     expect(result.status).toBe(200)
     expect(JSON.parse(result.body).accessUntil).toBe(renewalEnd)
     expect(vi.mocked(transport.post).mock.calls.map(([url]) => url)).toEqual([
       ECPAY_URLS.stage.creditCardPeriodAction, ECPAY_URLS.stage.queryCreditCardPeriodInfo,
     ])
-    expect(mock.rpcCalls('record_plus_ecpay_receipt')).toHaveLength(2)
+    expect(mock.rpcCalls('record_plus_ecpay_authorization')).toHaveLength(2)
     expect(mock.rpcCalls('record_plus_membership_event').map((call) => call.args[0]))
       .toEqual([
         expect.objectContaining({ p_event_type: 'membership_started' }),
         expect.objectContaining({ p_event_type: 'membership_renewed', p_period_end: renewalEnd }),
-        expect.objectContaining({ p_event_type: 'membership_canceled', p_period_end: renewalEnd }),
       ])
   })
 
-  it.each(['query', 'ingest', 'exception'])('keeps cancellation open and logs an error if read-back fails (%s)', async (failure) => {
-    const { db, rpcCalls } = fakeDb({ order: ACTIVE_ORDER, summary: SUMMARY })
+  it.each(['query', 'ingest', 'exception'])('still cancels and logs an error if read-back fails (%s)', async (failure) => {
+    const { db } = fakeDb({ order: ACTIVE_ORDER, summary: SUMMARY })
     const log = fakeLogger()
     const transport = fakeTransport(await providerResponse())
     vi.mocked(transport.post).mockResolvedValueOnce({
@@ -328,7 +295,7 @@ describe('Plus cancel Edge handler', () => {
     })
     const rpc = db.rpc
     db.rpc = vi.fn(async (fn, args) => {
-      if (fn === 'record_plus_ecpay_receipt') {
+      if (fn === 'record_plus_ecpay_authorization') {
         if (failure === 'exception') throw new Error('database connection lost')
         return { data: null, error: { message: 'database unavailable' } }
       }
@@ -337,17 +304,49 @@ describe('Plus cancel Edge handler', () => {
     const result = await handlePlusCancel(
       request('POST', 'Bearer verified-token'), deps({ db, log, transport }),
     )
-    expect(result.status).toBe(503)
-    expect(JSON.parse(result.body)).toEqual({ error: 'plus cancel unavailable' })
-    expect(rpcCalls).toEqual([{
-      fn: 'set_plus_ecpay_order_status',
-      args: { p_merchant_trade_no: MTN, p_status: 'cancel_requested' },
-    }])
-    expect(db.from).not.toHaveBeenCalledWith('plus_membership_stream_summary')
+    expect(result.status).toBe(200)
+    expect(JSON.parse(result.body).accessUntil).toBe(PERIOD_END)
     expect(log.error).toHaveBeenCalledWith(
       expect.objectContaining({ merchantTradeNo: MTN }),
-      'ecpay plus cancel read-back failed; retry required',
+      'ecpay plus cancel read-back failed; using recorded paid period',
     )
+  })
+
+  it('reconciles a failed read-back after returning the recorded paid window', async () => {
+    const providerCanceledAt = '2026-11-01T00:00:00.000Z'
+    const canceledOrder = { ...ACTIVE_ORDER, status: 'canceled', provider_canceled_at: providerCanceledAt }
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'verified-user' } },
+      plus_membership_ecpay_order: { singleData: [ACTIVE_ORDER, null, canceledOrder] },
+      plus_membership_stream_summary: { data: SUMMARY },
+      'rpc:confirm_plus_ecpay_customer_cancel': { data: { provider_canceled_at: providerCanceledAt } },
+      'rpc:claim_plus_ecpay_reconcile_order': { rpcResults: [{ data: canceledOrder }, { data: null }] },
+    })
+    const fields = await providerResponse()
+    const transport = fakeTransport(fields)
+    vi.mocked(transport.post)
+      .mockResolvedValueOnce({ status: 200, body: new URLSearchParams(fields).toString() })
+      .mockRejectedValueOnce(new Error('read-back failed'))
+    const cancelDeps = deps({ db: mock.db, transport })
+    const cancel = () => handlePlusCancel(request('POST', 'Bearer token'), cancelDeps)
+    const first = await cancel()
+    expect(first.status).toBe(200)
+    expect(JSON.parse(first.body)).toEqual({ status: 'canceled', accessUntil: PERIOD_END })
+    expect(mock.rpcCalls('confirm_plus_ecpay_customer_cancel')).toHaveLength(1)
+    expect(mock.rpcCalls('complete_plus_ecpay_cancel_readback')).toHaveLength(0)
+
+    const reconcile = await handlePlusPeriodReconcile({
+      method: 'POST', url: 'https://example.test/reconcile',
+      headers: { 'x-scheduled-job-secret': 'test-scheduled-secret' }, bodyText: '',
+    }, cancelDeps)
+    expect(JSON.parse(reconcile.body)).toEqual({ checked: 1, ingested: 0, failed: 0 })
+    expect(mock.rpcCalls('complete_plus_ecpay_cancel_readback')).toHaveLength(1)
+
+    const retry = await cancel()
+    expect(retry.status).toBe(200)
+    expect(JSON.parse(retry.body)).toEqual({ status: 'canceled', accessUntil: PERIOD_END })
+    expect(mock.rpcCalls('confirm_plus_ecpay_customer_cancel')).toHaveLength(1)
+    expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(0)
   })
 
   it('treats the already-terminated provider result as success', async () => {
@@ -410,7 +409,7 @@ describe('Plus cancel Edge handler', () => {
     expect(rpcCalls.map((call) => call.args.p_status)).toEqual(['cancel_requested'])
   })
 
-  it('stays cancel_requested when the paid period is not recorded yet', async () => {
+  it('confirms the provider stop without inventing access when no paid period is recorded', async () => {
     const { db, rpcCalls } = fakeDb({ order: ACTIVE_ORDER, summary: null })
     const transport = fakeTransport(await providerResponse())
 
@@ -419,8 +418,9 @@ describe('Plus cancel Edge handler', () => {
       deps({ db, log: fakeLogger(), transport }),
     )
 
-    expect(result.status).toBe(503)
-    expect(rpcCalls.map((call) => call.args.p_status).filter(Boolean)).toEqual(['cancel_requested'])
+    expect(result.status).toBe(200)
+    expect(JSON.parse(result.body)).toEqual({ status: 'canceled', accessUntil: null })
+    expect(rpcCalls.some((call) => call.fn === 'record_plus_membership_event')).toBe(false)
   })
 
 })
