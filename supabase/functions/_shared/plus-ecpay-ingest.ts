@@ -131,7 +131,24 @@ export async function ingestPlusPeriodAuthorization(
   }
 
   const eventType = auth.totalSuccessTimes === 1 ? 'membership_started' : 'membership_renewed';
-  const { start, end } = paidPeriodFor(auth.processAt);
+  let firstAuthorizationAt = auth.processAt;
+  if (auth.totalSuccessTimes !== 1) {
+    const first = await db.from('plus_membership_ecpay_receipt')
+      .select('process_at')
+      .eq('merchant_trade_no', order.merchant_trade_no)
+      .eq('kind', 'authorization')
+      .eq('total_success_times', 1)
+      .eq('rtn_code', '1')
+      .eq('simulate_paid', false)
+      .eq('amount_twd', order.period_amount_twd)
+      .maybeSingle();
+    if (first.error || !first.data) {
+      log.error({ sourceEventId: auth.sourceEventId }, 'ecpay plus first authorization unavailable');
+      return 'retry';
+    }
+    firstAuthorizationAt = new Date(String(first.data.process_at));
+  }
+  const { start, end } = paidPeriodFor(auth.processAt, firstAuthorizationAt);
   let result: unknown;
   try {
     const written = await db.rpc('record_plus_membership_event', {

@@ -271,7 +271,33 @@ grace-period extension (`supabase/migrations/20260923050000_plus_membership_temp
 `docs/payments/plus-recurring-admission.md`). A transient retry warning must
 not be translated into that effective failure.
 
-Before choosing a paid-period mapping, #107/#112/Product Owner must resolve:
+### Approved ECPay monthly period policy (#276)
+
+The lead decision recorded on #276 on 2026-11-22 JST defines each successful
+authorization's half-open access interval as `[ProcessDate, period_end)`.
+The order's anchor is the **Asia/Taipei calendar day of its first successful
+authorization**, retained through every renewal. The next scheduled charge is
+in the following calendar month on that anchor day, clamped to that month's
+last day ([ECPay Aio recurring schedule](https://developers.ecpay.com.tw/2868/)).
+`period_end` is **00:00 Asia/Taipei two calendar days after that charge date**.
+`PLUS_PERIOD_SETTLEMENT_BUFFER_DAYS = 2` in `src/lib/payments/ecpay/period.ts`
+is the explicit settlement buffer for undocumented batch timing, notification
+lag, and reconciliation cadence; it is part of the paid interval, not an
+implicit grace extension. A missed renewal expires at that exclusive end.
+For example, a 2027-01-31 Asia/Taipei authorization ends at 2027-03-02 00:00
+Asia/Taipei; the 2027-02-28 Asia/Taipei renewal retains anchor 31 and ends at
+2027-04-02 00:00 Asia/Taipei. Authoritative failure/terminal cutoffs still apply.
+Renewals use the persisted first successful receipt; if it is missing, ingestion
+retries until read-back recovers it rather than guessing from the renewal date.
+
+After verified ECPay cancellation, `plus-cancel` reads back and ingests every
+successful `ExecLog` entry before reading the stream's paid-period summary.
+If read-back fails or ingestion needs retry, the handler logs an error and
+returns a retryable error without recording a cancellation cutoff. The order
+stays `cancel_requested` and remains visible to reconciliation until read-back
+and ingestion succeed.
+
+Remaining #107/#112/Product Owner policy questions:
 
 - If a scheduled renewal is missed or fails and a later scheduled charge
   succeeds, does the successful payment cover only from its actual success
@@ -280,10 +306,6 @@ Before choosing a paid-period mapping, #107/#112/Product Owner must resolve:
 - If a latest failed authorization is manually reauthorized after its due date,
   what timestamp and exact half-open period does the charge buy? Does that
   replace/overlap a cycle or begin a new one?
-- For a monthly plan started on January 29–31, February may charge on its last
-  day and later months may return to the original anchor. What is the paid
-  access period at each boundary? Do not assume a fixed 30 days or simply use
-  `ProcessDate` to the next month-end.
 - When the finite 999th Aio authorization completes, does membership end, is a
   new consent and new subscription required, or is this provider path unsuitable?
   Do not auto-create a successor contract or imply seamless perpetual renewal.

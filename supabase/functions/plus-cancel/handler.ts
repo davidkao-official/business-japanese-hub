@@ -26,6 +26,7 @@ import {
 import { buildPeriodCancelFields } from '../../../src/lib/payments/ecpay/period.ts'
 import { verifyCheckMac } from '../../../src/lib/payments/ecpay/checkmac.ts'
 import { ECPAY_URLS } from '../../../src/lib/payments/ecpay/urls.ts'
+import { readBackPlusOrder, type PlusEcpayOrder } from '../_shared/plus-ecpay-ingest.ts'
 
 export interface PlusCancelDeps {
   env: Env
@@ -63,13 +64,31 @@ export async function handlePlusCancel(
   const sourceSystem = `ecpay_aio_period:${env.ecpayEnv}`
   const order = await db
     .from('plus_membership_ecpay_order')
-    .select('merchant_trade_no,status,updated_at')
+    .select('merchant_trade_no,user_id,plan_code,environment,period_amount_twd,status,updated_at')
     .eq('user_id', userId)
     .eq('environment', env.ecpayEnv)
     .in('status', ['active', 'cancel_requested'])
     .maybeSingle()
   if (order.error) return noStore(jsonResult(503, { error: UNAVAILABLE }))
-  if (!order.data) return noStore(jsonResult(404, { error: 'no active subscription' }))
+  if (!order.data) {
+    const canceled = await db.from('plus_membership_ecpay_order')
+      .select('merchant_trade_no')
+      .eq('user_id', userId)
+      .eq('environment', env.ecpayEnv)
+      .eq('status', 'canceled')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (canceled.error) return noStore(jsonResult(503, { error: UNAVAILABLE }))
+    if (!canceled.data) return noStore(jsonResult(404, { error: 'no active subscription' }))
+    const summary = await db.from('plus_membership_stream_summary')
+      .select('period_end')
+      .eq('source_system', sourceSystem)
+      .eq('source_subscription_id', canceled.data.merchant_trade_no)
+      .maybeSingle()
+    if (summary.error || !summary.data?.period_end) return noStore(jsonResult(503, { error: UNAVAILABLE }))
+    return noStore(jsonResult(200, { status: 'canceled', accessUntil: summary.data.period_end }))
+  }
 
   const merchantTradeNo = String(order.data.merchant_trade_no)
   let occurredAt = String(order.data.updated_at)
@@ -128,6 +147,19 @@ export async function handlePlusCancel(
   ) {
     log.error({ merchantTradeNo, rtnCode }, 'ecpay plus cancel rejected')
     return noStore(jsonResult(502, { error: 'provider cancel failed' }))
+  }
+
+  // Recover charges made before the provider stopped billing before freezing
+  // the access cutoff. Keep cancel_requested open for reconciliation on failure.
+  try {
+    const read = await readBackPlusOrder(deps, order.data as unknown as PlusEcpayOrder)
+    if (read.kind === 'failed' || read.retry) throw new Error('order read-back incomplete')
+  } catch (error) {
+    log.error(
+      { merchantTradeNo, error: error instanceof Error ? error.message : String(error) },
+      'ecpay plus cancel read-back failed; retry required',
+    )
+    return noStore(jsonResult(503, { error: UNAVAILABLE }))
   }
 
   const summary = await db
