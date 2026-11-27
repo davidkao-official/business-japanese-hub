@@ -35,7 +35,7 @@ describe('learning runtime route identities', () => {
       learnUnit?.learn.steps
         .flatMap((step) => step.title)
         .find((part) => part.text.includes(text))
-    expect(findStepTitlePart('承接')).toMatchObject({ lang: 'ja' })
+    expect(findStepTitlePart('受け止め')).toMatchObject({ lang: 'ja' })
     expect(findStepTitlePart('転換')).toMatchObject({ lang: 'ja' })
     expect(findStepTitlePart('収束')).toMatchObject({ lang: 'ja' })
     expect(findStepTitlePart('Pivot')).toMatchObject({ lang: 'en' })
@@ -46,20 +46,23 @@ describe('learning runtime route identities', () => {
     expect(getLearningUnitByLearnSlug(COURSE_CORRECTION_PRACTICE_SLUG)).toBeUndefined()
   })
 
-  it('keeps authored Japanese, Traditional Chinese, and English exercise runs tagged', () => {
+  it('projects the Japanese chapter explanations with their authored language', () => {
     const unit = getLearningUnitByPracticeSlug(COURSE_CORRECTION_PRACTICE_SLUG)
-    const exerciseWithChineseExplanation = unit?.practice.exercises.find((exercise) =>
+    const meetingExercise = unit?.practice.exercises.find((exercise) =>
       exercise.question.some((part) => part.text.includes('プロジェクト進捗会議')),
     )
     const exerciseWithEmbeddedEnglish = unit?.practice.exercises.find((exercise) =>
       exercise.question.some((part) => part.text.includes('Pivot')),
     )
 
-    expect(exerciseWithChineseExplanation?.question.some((part) => part.lang === 'ja')).toBe(true)
-    expect(exerciseWithChineseExplanation?.explanation?.some((part) => part.lang === 'zh-TW')).toBe(true)
-    expect(exerciseWithChineseExplanation?.explanation?.find((part) => part.text === 'framing')).toMatchObject({
-      lang: 'en',
-    })
+    expect(meetingExercise?.question.some((part) => part.lang === 'ja')).toBe(true)
+    expect(unit?.learn.transfer.body).toEqual([expect.objectContaining({ lang: 'ja' })])
+    expect(unit?.learn.sequence.some((part) => part.lang === 'zh-TW')).toBe(false)
+    expect(unit?.practice.exercises).toHaveLength(4)
+    for (const exercise of unit!.practice.exercises) {
+      expect(exercise.explanation?.some((part) => part.lang === 'ja')).toBe(true)
+      expect(exercise.explanation?.some((part) => part.lang === 'zh-TW')).toBe(false)
+    }
 
     expect(exerciseWithEmbeddedEnglish?.question.find((part) => part.text === 'Pivot')).toMatchObject({
       lang: 'en',
