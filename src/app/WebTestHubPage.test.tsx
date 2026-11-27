@@ -1472,7 +1472,7 @@ describe('SPI mixed practice (#204)', () => {
     expect(new Set(answered.map((entry) => entry.category)).size).toBe(3)
     for (const [index, input] of attempts.entries()) {
       expect(input.questionVersion).toBe(answered[index]!.version)
-      expect(input.revision).toBe('2eb5d0868363c8160693b6410386521054ffcf5c4636125f1f9e74111c0d22ad')
+      expect(input.revision).toBe('abeda021f0fef4edfc96c9d7e9c307f4863c32e71c5c5abad91aa0f337bba60c')
     }
 
     fireEvent.click(within(completion).getByRole('button', { name: 'もう一度解く' }))
