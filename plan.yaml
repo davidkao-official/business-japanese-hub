@@ -1,0 +1,280 @@
+# Owner snapshot: 2026-11-22 JST; product authority remains docs/product-contract.md.
+# PASS is scoped to its dated receipt; watch may report STALE at a later HEAD.
+# Decision deadlines are proposed review dates, not approved launch commitments.
+schema_version: 1
+project: Business Japanese Hub
+state: ACTIVE
+owner_decisions:
+  - id: D-MERCHANT
+    question: "是否辦理 ECPay 特約賣家升級，滿足定期定額資格？ https://github.com/davidkao-official/business-japanese-hub/issues/111#issuecomment-6449954643"
+    options: [辦理升級並私下確認資格, 暫緩且保持 checkout 關閉]
+    recommendation: 辦理升級並私下確認資格
+    deadline: 2026-12-07 JST
+    state: OPEN
+  - id: D-REGISTRATION
+    question: "稅籍／商業登記及適用義務是否已由負責人與專業人員確認？ https://github.com/davidkao-official/business-japanese-hub/issues/112"
+    options: [完成專業確認與必要登記, 暫緩收費]
+    recommendation: 完成專業確認與必要登記
+    deadline: 2026-12-07 JST
+    state: OPEN
+  - id: D-CONSENT
+    question: "是否核准 recurring 條款、解約／退款／通知及 consent revision？ https://github.com/davidkao-official/business-japanese-hub/issues/112"
+    options: [核准經審閱的確切版本, 退回修訂且保持 checkout 關閉]
+    recommendation: 核准經審閱的確切版本
+    deadline: 2026-12-07 JST
+    state: OPEN
+  - id: D-UAT-IDENTITY
+    question: "Plus UAT 採 a/b/c 哪條身分路徑？a/c 仍需另行授權，不得自行造會員。 https://github.com/davidkao-official/business-japanese-hub/issues/166#issuecomment-6394710301"
+    options: [a 合成限時授權須另行批准, b 完成107後真實付款, c 建立可稽核admin授權功能須另立範圍]
+    recommendation: b 完成107後真實付款
+    deadline: 2026-12-07 JST
+    state: OPEN
+  - id: D-RELEASE-SWITCH
+    question: "執行並驗證兩個 Pages Production Branch 改為 release？方向已於 2026-11-07 JST 核准，尚未生效。 https://github.com/davidkao-official/business-japanese-hub/issues/186#issuecomment-6697929069"
+    options: [Owner安排切換與驗證, 保持待執行且每次main合併另取production授權]
+    recommendation: Owner安排切換與驗證
+    deadline: 2026-12-07 JST
+    state: OPEN
+  - id: D-STAGING
+    question: "提供已選免費方案的 staging Supabase project 以跑 ECPay E2E？選擇已作，建立／免費資格待確認。 https://github.com/davidkao-official/business-japanese-hub/issues/166#issuecomment-6550751763"
+    options: [Owner建立並私下提供stage設定, 暫緩stage E2E與billing啟用]
+    recommendation: Owner建立並私下提供stage設定
+    deadline: 2026-12-07 JST
+    state: OPEN
+  - id: D-DESIGN-READY
+    question: "確認 S3/S4 Ready 與下一個 S3a 範圍？2026-11-07 JST 已委派，2026-11-22 JST 稽核又列待定，須調和兩筆紀錄。 https://github.com/davidkao-official/business-japanese-hub/issues/190#issuecomment-6697927983 https://github.com/davidkao-official/business-japanese-hub/issues/190#issuecomment-7071186757"
+    options: [確認S3a後依S3至S4至S5執行, 暫緩設計實作]
+    recommendation: 確認S3a後依S3至S4至S5執行
+    deadline: 2026-12-07 JST
+    state: OPEN
+  - id: D-TAMATEBAKO
+    question: "玉手箱選日文言語＋計數，或另含英語？須核准原創／非官方定位，非 Early Access blocker。 https://github.com/davidkao-official/business-japanese-hub/issues/118#issuecomment-5811537346"
+    options: [日文言語與計數並核准非官方定位, 另含英語且先定義domain對應, 延後第二題型家族]
+    recommendation: 延後第二題型家族
+    deadline: 2026-12-07 JST
+    state: OPEN
+  - id: D-SPI-IMPORT
+    question: "是否核准將2026-11-22 SPI稽核修正（private authoring PR #6，revision abeda021，53題ID不變）匯入production並發布？Lead驗收與validator已通過。 https://github.com/davidkao-official/business-japanese-hub/issues/253"
+    options: [核准匯入並於匯入後跑雙站smoke, 暫緩且production維持現行題庫]
+    recommendation: 核准匯入並於匯入後跑雙站smoke
+    deadline: 2026-12-07 JST
+    state: OPEN
+workstreams:
+  - id: LAUNCH
+    title: Plus Early Access 上線驗收
+    outcome: N1 合格外國學習者看懂 Plus 價值，能付費學習、保存並回來繼續。
+    lead: Product Owner / BJH lead
+    phases: [{id: gates, title: 收斂產品與外部門檻}, {id: accept, title: Owner正式上線驗收}]
+    current_phase: gates
+    next_step: 依下列六項 gate 收齊對應 lane 的實測收據，再由 Owner 決定是否開放收費。
+    references:
+      - {label: 唯一最終launch驗收, url: "https://github.com/davidkao-official/business-japanese-hub/issues/111"}
+    criteria:
+      - id: LAUNCH-OFFER
+        requirement: /plus 清楚說明實際可用的 Plus 學習價值與 NT$299／月，沒有自動切換 NT$399 或虛構 Reading／Workplace 庫存。
+        judge: Owner 在正式站檢查 offer、可用內容與 checkout 金額一致
+        status: PENDING
+        watch: [src/**, docs/product-contract.md]
+      - id: LAUNCH-LOOP
+        requirement: 真實 Plus 會員完成 SPI入口→Practice→解答／解説→保存→My Learning→正確版本回訪。
+        judge: Owner 依187與179記錄真實會員操作、重載與回訪收據
+        status: BLOCKED
+        status_detail: Free UAT 不等於 Plus UAT；待 D-UAT-IDENTITY 與真實 access。
+      - id: LAUNCH-JAPANESE
+        requirement: V1 介面與實際學習材料／解説以日文供 N1 外國學習者使用，沒有未完成的非日文 locale。
+        judge: 日文內容審閱者與Owner逐一走過本次launch內容及介面
+        status: PENDING
+      - id: LAUNCH-STATE
+        requirement: 正常會員重新登入後能讀回自己的解答、錯題、收藏與進度；資料不足顯示真實空狀態，不製造mastery。
+        judge: 179授權A/B帳號驗證持久化、隔離與My Learning回訪
+        status: BLOCKED
+        status_detail: 待正常身分、真實access與確切production測試授權。
+      - id: LAUNCH-LIFECYCLE
+        requirement: 首扣、續扣、失敗續期、解約及退款／爭議處置與批准政策一致，只有server驗證結果能改變access。
+        judge: 107的stage與正式授權驗收收據，覆蓋各lifecycle情境
+        status: BLOCKED
+      - id: LAUNCH-EXTERNAL
+        requirement: 商戶／法務／consent／必要email與support、部署及回復門檻均有批准與實證，未解決項明列並阻止收費。
+        judge: Owner核對112、97、186的確切版本與通知送達收據
+        status: BLOCKED
+  - id: SPI
+    title: SPI → Practice → My Learning（Acquisition／Subscription Justification）
+    outcome: 免費使用者能開始練習並回訪；合法會員能使用已發布擴充題庫。
+    lead: BJH lead / Content Owner
+    phases: [{id: free, title: 免費價值迴路}, {id: member, title: Plus題庫與真實會員驗收}]
+    current_phase: member
+    next_step: 待D-SPI-IMPORT匯入稽核修正；以真實Plus身分開啟一題新增非言語題並回訪既有錯題，補320px／keyboard QA。
+    references:
+      - {label: 真實value spine, url: "https://github.com/davidkao-official/business-japanese-hub/issues/187"}
+      - {label: 非言語題庫擴充, url: "https://github.com/davidkao-official/business-japanese-hub/issues/253"}
+    criteria:
+      - id: SPI-FREE-RETURN
+        requirement: 從SPI單元註冊後確認信回到正式單元；答錯保存後My Learning列出錯題並回到相同question/version。
+        judge: Lead以正常帳號在正式站執行231的五步signup UAT
+        status: PASS
+        verified_at: 2026-10-25 JST
+        verified_sha: 99402a8
+        evidence:
+          - {label: Free signup UAT, url: "https://github.com/davidkao-official/business-japanese-hub/issues/231#issuecomment-6393015242"}
+        watch: [src/**, packages/platform-auth/**, supabase/**]
+      - id: SPI-RELEASE
+        requirement: 已批准非言語批次先匯入server再發布對應catalog；總數53題，三項HOLD不計入可用題；兩站smoke通過。
+        judge: Lead核對253的匯入結果、catalog與exact-SHA雙站smoke
+        status: PASS
+        verified_at: 2026-10-23 JST
+        verified_sha: 6e2b621
+        evidence:
+          - {label: Body-free release receipt, url: "https://github.com/davidkao-official/business-japanese-hub/issues/253#issuecomment-6366919457"}
+        watch: [src/practice-web-test/**, scripts/private-content/**, supabase/**]
+      - id: SPI-MEMBER-QA
+        requirement: 合法Plus會員可開新增非言語題並回到既有review；320px表格、鍵盤操作與圖表替代內容均可用。
+        judge: 授權會員依253實測新題及既有review，QA在320px與鍵盤完成作答
+        status: BLOCKED
+        status_detail: 253收據明列會員檢查與320px／keyboard QA尚未完成。
+  - id: COMMERCE
+    title: 定期會員／ECPay 與 legal／consent
+    outcome: 扣款、access、解約與對客承諾相符，歷史Book交易保留可稽核。
+    lead: BJH lead / Merchant Owner / Legal reviewer
+    phases: [{id: stage, title: Stage E2E}, {id: production, title: 核准後部署與啟用}]
+    current_phase: stage
+    next_step: Owner提供stage project及商戶／consent前提，驗證已合併的checkout、callback、cancel與reconcile。
+    context:
+      - 2026-11-01 JST收據：briefs 1–7及解約按鈕已合併；新migration／functions尚未部署Supabase，checkout不得據此啟用。
+      - 2026-11-22 JST pre-deploy review：BLOCKER #275（CheckMacValue，draft PR #277已驗收）與#270須隨backend一起出貨；majors在#276，M1期間計算已由lead決定（錨定扣款日＋2日結算緩衝）。
+    references:
+      - {label: 最新付款與外部gate清單, url: "https://github.com/davidkao-official/business-japanese-hub/issues/111#issuecomment-6449954643"}
+      - {label: Recurring contract, url: "https://github.com/davidkao-official/business-japanese-hub/issues/107"}
+      - {label: 法務與同意, url: "https://github.com/davidkao-official/business-japanese-hub/issues/112"}
+    criteria:
+      - id: COMMERCE-E2E
+        requirement: Stage覆蓋首扣／續扣、重複及遺漏通知、read-back、失敗到期無寬限、期末解約；client或重播不能mint access。
+        judge: Lead執行111 brief 8，對照provider結果、receipt及server access逐項記錄
+        status: BLOCKED
+        status_detail: 待D-STAGING；code合併不是provider E2E。
+        watch: [supabase/**, src/**, packages/**]
+      - id: COMMERCE-CONSENT
+        requirement: Checkout綁定已批准consent revision，金額由server決定；條款、續扣／解約／退款與必要通知一致且有送達證據。
+        judge: Legal reviewer批准確切版本，Owner以正常流程核對畫面、server receipt與email
+        status: BLOCKED
+        status_detail: 待D-MERCHANT、D-REGISTRATION、D-CONSENT。
+      - id: COMMERCE-DEPLOY
+        requirement: 核准後部署20261027090000及所需functions／secrets，安排reconcile；啟用前denial與會員access正確，歷史Book紀錄仍可查。
+        judge: Deployment Owner核對97／186授權前後inventory與107正常付款／拒絕收據
+        status: BLOCKED
+  - id: RELEASE
+    title: Production release control 與 readiness
+    outcome: 合併與發布可分開控制，前後端版本可歸因，真實使用者資料隔離可證明。
+    lead: Deployment Owner / BJH lead
+    phases: [{id: control, title: 啟用並驗證release控制}, {id: readiness, title: 授權production驗收}]
+    current_phase: control
+    next_step: Owner執行兩站release branch切換並驗證；每次實際release仍須確切SHA、backend影響與回復界線。
+    references:
+      - {label: Release control, url: "https://github.com/davidkao-official/business-japanese-hub/issues/186"}
+      - {label: Production readiness, url: "https://github.com/davidkao-official/business-japanese-hub/issues/97"}
+      - {label: 真實身分驗收矩陣, url: "https://github.com/davidkao-official/business-japanese-hub/issues/179"}
+    criteria:
+      - id: RELEASE-SMOKE
+        requirement: 兩個canonical frontend在25c9273的production deployment smoke均通過。
+        judge: Lead執行pnpm smoke:deployment:production並核對兩站served SHA
+        status: PASS
+        verified_at: 2026-11-01 09:55 JST
+        verified_sha: 25c92739c956230d620ac3fa6018b3f38c408880
+        evidence:
+          - {label: Exact-production smoke receipt, url: "https://github.com/davidkao-official/business-japanese-hub/issues/111#issuecomment-6449954643"}
+        status_detail: 僅此兩站frontend smoke；不是新backend部署、會員E2E或未來release授權。
+        watch: [src/**, apps/career-game/**, packages/**, public/**, scripts/**, vite.config.*, package.json, pnpm-lock.yaml, .github/**]
+      - id: RELEASE-CONTROL
+        requirement: 兩站Pages production branch均為release；main合併不發布production，只有批准SHA晉升release才發布；Supabase與billing另取授權。
+        judge: Deployment Owner提供兩站設定readback及一次授權發布事件的前後版本證據
+        status: BLOCKED
+        status_detail: 2026-11-07 JST方向已批准，未執行；main合併仍可能發布production。
+      - id: RELEASE-AUTHENTICATED
+        requirement: 授權release有migration／Edge／frontend前後inventory與回復界線；179的A/B隔離、重登入保存、stale/version與拒絕路徑逐項有結果。
+        judge: Deployment Owner及Lead依97／179以正常身分與真實access驗收，缺項明列HOLD
+        status: BLOCKED
+        status_detail: 待D-UAT-IDENTITY、access與本次確切production測試授權。
+  - id: JAPANESE
+    title: Japanese-first 介面與日文解説
+    outcome: 不同母語的N1合格者能用日文理解材料、理由與回饋。
+    lead: BJH lead / Japanese content reviewer
+    phases: [{id: converge, title: 補齊UI與content contracts}, {id: accept, title: 實際內容審閱}]
+    current_phase: converge
+    next_step: 完成八個SPI分類label的i18n，依已批准重建方向在current main補Workplace日文core。
+    references:
+      - {label: Japanese-first UI, url: "https://github.com/davidkao-official/business-japanese-hub/issues/194"}
+      - {label: 日文解説重建方向, url: "https://github.com/davidkao-official/business-japanese-hub/issues/195#issuecomment-6697928342"}
+    criteria:
+      - id: JAPANESE-UI
+        requirement: 練習分類及使用者介面文案走ja i18n，V1固定ja且無language selector；沒有raw key或未完成locale可進入。
+        judge: QA走Practice／Read／Learn／My Learning並檢查分類與窄版header
+        status: PENDING
+        status_detail: 2026-11-22 JST稽核S1部分完成；八個SPI分類label改走ja i18n的draft PR #274已通過CI，待合併授權。
+        watch: [src/i18n/**, src/practice-web-test/**, src/components/Header.tsx]
+      - id: JAPANESE-CORE
+        requirement: 發布的Reading／Workplace／Practice材料有必需日文coreExplanation及適用分析；可選母語overlay不能取代日文core。
+        judge: 內容審閱者檢查本次材料，Lead以各domain validator拒絕缺日文core的輸入
+        status: PENDING
+        status_detail: 195舊candidate不延續；Read／Workplace contracts於2026-11-22 JST驗收通過，sample解説draft PR #279已核准待合併授權；meeting-japanese舊Book章節仍為zh-TW解説（#280）。
+        watch: [src/reading/**, src/**, src/practice-web-test/**, scripts/private-content/**]
+  - id: DESIGN
+    title: Source & Gloss 分階段收斂
+    outcome: 原文、解説與學習紀錄在成熟一致的桌面／手機介面中清楚可辨。
+    lead: BJH lead / Design Owner
+    phases: [{id: foundation, title: S0–S2基礎}, {id: shell, title: S3 Shell}, {id: primitives, title: S4 Primitives}, {id: surfaces, title: 後續surface驗收}]
+    current_phase: shell
+    next_step: 調和D-DESIGN-READY後先做S3a appearance錯誤通知及跨tab穩定，再續S3／S4。
+    context:
+      - 2026-11-22 JST於25c9273的稽核只判斷source；S0／S2 code DONE，S1／S3／S4 PARTIAL，視覺驗收與release權限另計。
+    references:
+      - {label: Stage audit, url: "https://github.com/davidkao-official/business-japanese-hub/issues/190#issuecomment-7071186757"}
+      - {label: 視覺權威, url: "https://github.com/davidkao-official/business-japanese-hub/blob/25c9273/docs/design-system.md"}
+    criteria:
+      - id: DESIGN-FOUNDATION
+        requirement: S0 B1/B3修復及S2四層tokens、local dark、lang roles、600/1024斷點、單一Reader palette與emitted-CSS順序均存在於source。
+        judge: 190所連結read-only Sol source diagnosis，含reader與workplace樣式測試的檢查
+        status: PASS
+        verified_at: 2026-11-22 08:34 JST
+        verified_sha: 25c92739c956230d620ac3fa6018b3f38c408880
+        evidence:
+          - {label: S0／S2 code-scope audit, url: "https://github.com/davidkao-official/business-japanese-hub/issues/190#issuecomment-7071186757"}
+        watch: [src/**, apps/career-game/**]
+      - id: DESIGN-SHELL
+        requirement: S3 header／位置標示、appearance失敗通知與跨tab穩定、320px account control、tab bar／その他Dialog、focus bar與footer符合設計規範。
+        judge: Design Owner在桌面及320px實際操作、鍵盤走訪，依design-system的S3逐項驗收
+        status: PENDING
+        status_detail: S3部分完成；Ready待D-DESIGN-READY調和。
+        watch: [src/components/**, src/styles/**, src/i18n/**]
+      - id: DESIGN-PRIMITIVES
+        requirement: S4 Button／Field／Tabs／Notice／ListRow／Dialog、ChoiceRow／OutcomeVerdict／AnswerInput／Representation在實際surface呈現正確狀態與focus。
+        judge: Design Owner依design-system檢查實際消費頁面及鍵盤／手機操作
+        status: PENDING
+        status_detail: S4部分完成；S0／S2 code PASS不代表S3／S4或全站視覺PASS。
+        watch: [src/components/**, src/styles/**, apps/career-game/**]
+  - id: EXPANSION
+    title: Business Reading（Engagement）與 Work in Japan（Retention）
+    outcome: 使用者持續讀懂日本商業資料，入社後仍有實用練習與回訪理由。
+    lead: Content Owner / BJH lead
+    phases: [{id: editorial, title: 選定合法且已審閱的最小slice}, {id: value, title: 真實practice／save／return驗收}]
+    current_phase: editorial
+    next_step: 各選一個批准的private item／revision與learner outcome，重用既有runtime及save seam；不要求launch前填滿catalog。
+    references:
+      - {label: Reading slice, url: "https://github.com/davidkao-official/business-japanese-hub/issues/122"}
+      - {label: Workplace slice, url: "https://github.com/davidkao-official/business-japanese-hub/issues/124"}
+    criteria:
+      - id: EXPANSION-READING
+        requirement: 一個rights-cleared商業閱讀slice串起原文→語彙／logic解説→理解練習→save／review→正確revision回訪與下一篇；save不冒充理解。
+        judge: Content Owner審閱來源權利與日文品質，合法會員在手機／桌面完成122流程
+        status: BLOCKED
+        status_detail: 待確切內容／rights批准、publication floor與正常會員access；既有renderer不等於完整value slice。
+        watch: [src/reading/**, supabase/functions/content-delivery/**, supabase/functions/reading-saves/**]
+      - id: EXPANSION-WORKPLACE
+        requirement: 一個入社後情境具日文語用解説與bounded practice／rubric，能save／review並回訪正確revision與下一能力；save不冒充mastery。
+        judge: Content Owner審閱情境與rubric，合法會員依124在手機／桌面完成practice與回訪
+        status: BLOCKED
+        status_detail: 待批准private item、日文core、publication floor及會員access；沿用現有Learn runtime。
+        watch: [src/**, supabase/functions/content-delivery/**, supabase/functions/workplace-saves/**]
+      - id: EXPANSION-DELIVERY
+        requirement: 兩slice的private body／assets只由server依publication與membership授權送出，不進public Git／frontend artifacts；retired revision不誤連新內容。
+        judge: Lead核對hosted clean checkout的check:public-content-boundary與授權member／denial及retired-reference實測
+        status: BLOCKED
+        status_detail: 實際publication／production／內容權利須另批，local build不是私有內容隔離證據。

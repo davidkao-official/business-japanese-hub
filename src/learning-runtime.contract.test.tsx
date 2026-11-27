@@ -77,7 +77,7 @@ describe('Issue #110 — reusable Learn and Practice presentation surfaces', () 
     expect(
       await screen.findByRole('heading', { level: 1, name: /議論を本筋に戻す/i }),
     ).toBeInTheDocument()
-    expect(screen.queryByText(/承接\s*→\s*Pivot\s*→\s*收斂/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/受け止め\s*→\s*Pivot\s*→\s*収束/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/\$\s*12|12\s*USD/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /購入|purchase|buy/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /購入|purchase|buy/i })).not.toBeInTheDocument()
@@ -97,7 +97,7 @@ describe('Issue #110 — reusable Learn and Practice presentation surfaces', () 
     expect(
       screen.getByRole('heading', { level: 1, name: /議論を本筋に戻す/i }),
     ).toBeInTheDocument()
-    expect(screen.queryByText(/承接\s*→\s*Pivot\s*→\s*收斂/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/受け止め\s*→\s*Pivot\s*→\s*収束/i)).not.toBeInTheDocument()
   })
 
   it('renders the entitled Learn body and generic Practice activity for an existing owner', async () => {
@@ -110,9 +110,9 @@ describe('Issue #110 — reusable Learn and Practice presentation surfaces', () 
       repository,
     })
 
-    await waitFor(() => expect(document.querySelector('.learning-unit-page__sequence')).toHaveTextContent(/承接\s*→\s*Pivot\s*→\s*收斂/i))
+    await waitFor(() => expect(document.querySelector('.learning-unit-page__sequence')).toHaveTextContent(/受け止め\s*→\s*Pivot\s*→\s*収束/i))
     const visibleSequence = document.querySelector('.learning-unit-page__sequence [aria-hidden="true"]')!
-    expect(visibleSequence.querySelector('[lang="zh-TW"]')).toHaveTextContent('承接')
+    expect(visibleSequence.querySelector('[lang="ja"]')).toHaveTextContent('受け止め')
     expect(visibleSequence.querySelector('[lang="en"]')).toHaveTextContent('Pivot')
     expect(
       screen.getByRole('link', { name: '言い換えを練習する' }),

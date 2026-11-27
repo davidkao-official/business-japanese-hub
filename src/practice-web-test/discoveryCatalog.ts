@@ -1,4 +1,6 @@
 import { DEFAULT_LOCALE, type Locale } from '../i18n/locales'
+import { jaLearningUi } from '../i18n/learningUi'
+import type { LearningUiStrings } from '../i18n/learningUi'
 import type { PrivatePracticeQuestionBankRelease } from '../content-delivery/privatePracticeQuestionBank'
 import { isBrowserSupportedQuestion } from './runtime'
 
@@ -8,7 +10,16 @@ export type PracticeDiscoveryMode = 'untimed-learning' | 'timed-practice'
 
 type RegisteredCategory = {
   label: string
-  labelJa: string
+  labelJaKey: keyof Pick<LearningUiStrings,
+    | 'webCategoryVocabularyInContext'
+    | 'webCategorySemanticRelation'
+    | 'webCategorySentenceLogic'
+    | 'webCategoryReadingInference'
+    | 'webCategoryPercentageProfitLoss'
+    | 'webCategoryRateAndWork'
+    | 'webCategorySetsAndCounting'
+    | 'webCategoryConditionsAndOrdering'
+  >
   modes: readonly PracticeDiscoveryMode[]
 }
 
@@ -28,16 +39,16 @@ const DISCOVERABLE_PRACTICE_CONTENT: Record<string, RegisteredFamily & { testFam
     label: 'SPI',
     domains: {
       verbal: {
-        'vocabulary-in-context': { label: '文脈語彙', labelJa: '文脈と語句の意味', modes: ['untimed-learning'] },
-        'semantic-relation': { label: '語句關係', labelJa: '二語の関係', modes: ['untimed-learning'] },
-        'sentence-logic': { label: '句子邏輯', labelJa: '文の論理', modes: ['untimed-learning'] },
-        'reading-inference': { label: '閱讀推論', labelJa: '長文の推論', modes: ['untimed-learning'] },
+        'vocabulary-in-context': { label: '文脈語彙', labelJaKey: 'webCategoryVocabularyInContext', modes: ['untimed-learning'] },
+        'semantic-relation': { label: '語句關係', labelJaKey: 'webCategorySemanticRelation', modes: ['untimed-learning'] },
+        'sentence-logic': { label: '句子邏輯', labelJaKey: 'webCategorySentenceLogic', modes: ['untimed-learning'] },
+        'reading-inference': { label: '閱讀推論', labelJaKey: 'webCategoryReadingInference', modes: ['untimed-learning'] },
       },
       nonverbal: {
-        'percentage-profit-loss': { label: '百分比與損益', labelJa: '割合と損益', modes: ['untimed-learning'] },
-        'rate-and-work': { label: '速率與工作量', labelJa: '速さと仕事算', modes: ['untimed-learning'] },
-        'sets-and-counting': { label: '集合與計數', labelJa: '集合と場合の数', modes: ['untimed-learning'] },
-        'conditions-and-ordering': { label: '條件與排序', labelJa: '推論（条件と順序）', modes: ['untimed-learning'] },
+        'percentage-profit-loss': { label: '百分比與損益', labelJaKey: 'webCategoryPercentageProfitLoss', modes: ['untimed-learning'] },
+        'rate-and-work': { label: '速率與工作量', labelJaKey: 'webCategoryRateAndWork', modes: ['untimed-learning'] },
+        'sets-and-counting': { label: '集合與計數', labelJaKey: 'webCategorySetsAndCounting', modes: ['untimed-learning'] },
+        'conditions-and-ordering': { label: '條件與排序', labelJaKey: 'webCategoryConditionsAndOrdering', modes: ['untimed-learning'] },
       },
     },
   },
@@ -193,7 +204,9 @@ export function practiceDiscoveryCategoryLabel(
   locale: Locale = DEFAULT_LOCALE,
 ): string | undefined {
   const definition = registeredCategory(contentId, testFamily, domain, category)
-  return locale === 'zh-TW' || locale === 'zh-CN' ? definition?.label : definition?.labelJa
+  return definition
+    ? locale === 'zh-TW' || locale === 'zh-CN' ? definition.label : jaLearningUi[definition.labelJaKey]
+    : undefined
 }
 
 /** Strictly validates the committed public projection before navigation uses it. */

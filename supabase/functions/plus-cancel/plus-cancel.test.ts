@@ -6,6 +6,7 @@ import type { DbClient } from '../_shared/db.ts'
 import type { HandlerRequest } from '../_shared/http.ts'
 import { createMockDb, fakeLogger, testEnv } from '../_shared/testing.ts'
 import { handlePlusCancel, type PlusCancelDeps } from './handler.ts'
+import { handlePlusPeriodReconcile } from '../plus-period-reconcile/handler.ts'
 
 const MTN = 'BJHP0123456789ABCDEF'
 const HASH_KEY = 'test-hash-key'
@@ -162,6 +163,17 @@ describe('Plus cancel Edge handler', () => {
     expect(rpcCalls).toEqual([])
   })
 
+  it('returns 404 for a legacy canceled order without stop evidence', async () => {
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'verified-user' } },
+      plus_membership_ecpay_order: { singleData: [null, { ...ACTIVE_ORDER, status: 'canceled' }] },
+    })
+    const transport = fakeTransport({})
+    const result = await handlePlusCancel(request('POST', 'Bearer token'), deps({ db: mock.db, transport }))
+    expect(result.status).toBe(404)
+    expect(transport.post).not.toHaveBeenCalled()
+  })
+
   it('persists the provider stop and returns the known paid window without freezing a terminal cutoff', async () => {
     const { db, rpcCalls, filters } = fakeDb({ order: ACTIVE_ORDER, summary: SUMMARY })
     const log = fakeLogger()
@@ -298,6 +310,43 @@ describe('Plus cancel Edge handler', () => {
       expect.objectContaining({ merchantTradeNo: MTN }),
       'ecpay plus cancel read-back failed; using recorded paid period',
     )
+  })
+
+  it('reconciles a failed read-back after returning the recorded paid window', async () => {
+    const providerCanceledAt = '2026-11-01T00:00:00.000Z'
+    const canceledOrder = { ...ACTIVE_ORDER, status: 'canceled', provider_canceled_at: providerCanceledAt }
+    const mock = createMockDb({
+      'auth:getUser': { data: { id: 'verified-user' } },
+      plus_membership_ecpay_order: { singleData: [ACTIVE_ORDER, null, canceledOrder] },
+      plus_membership_stream_summary: { data: SUMMARY },
+      'rpc:confirm_plus_ecpay_customer_cancel': { data: { provider_canceled_at: providerCanceledAt } },
+      'rpc:claim_plus_ecpay_reconcile_order': { rpcResults: [{ data: canceledOrder }, { data: null }] },
+    })
+    const fields = await providerResponse()
+    const transport = fakeTransport(fields)
+    vi.mocked(transport.post)
+      .mockResolvedValueOnce({ status: 200, body: new URLSearchParams(fields).toString() })
+      .mockRejectedValueOnce(new Error('read-back failed'))
+    const cancelDeps = deps({ db: mock.db, transport })
+    const cancel = () => handlePlusCancel(request('POST', 'Bearer token'), cancelDeps)
+    const first = await cancel()
+    expect(first.status).toBe(200)
+    expect(JSON.parse(first.body)).toEqual({ status: 'canceled', accessUntil: PERIOD_END })
+    expect(mock.rpcCalls('confirm_plus_ecpay_customer_cancel')).toHaveLength(1)
+    expect(mock.rpcCalls('complete_plus_ecpay_cancel_readback')).toHaveLength(0)
+
+    const reconcile = await handlePlusPeriodReconcile({
+      method: 'POST', url: 'https://example.test/reconcile',
+      headers: { 'x-scheduled-job-secret': 'test-scheduled-secret' }, bodyText: '',
+    }, cancelDeps)
+    expect(JSON.parse(reconcile.body)).toEqual({ checked: 1, ingested: 0, failed: 0 })
+    expect(mock.rpcCalls('complete_plus_ecpay_cancel_readback')).toHaveLength(1)
+
+    const retry = await cancel()
+    expect(retry.status).toBe(200)
+    expect(JSON.parse(retry.body)).toEqual({ status: 'canceled', accessUntil: PERIOD_END })
+    expect(mock.rpcCalls('confirm_plus_ecpay_customer_cancel')).toHaveLength(1)
+    expect(mock.rpcCalls('record_plus_membership_event')).toHaveLength(0)
   })
 
   it('treats the already-terminated provider result as success', async () => {

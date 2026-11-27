@@ -6,6 +6,16 @@
 
 **Production boundary:** until the deployment owner verifies a separate release control, **every merge to `main` is a potential production release**, including docs-only changes. GitHub CI, preview success, Oracle review, or an unchanged runtime diff does not authorize production. Read [#186](https://github.com/davidkao-official/business-japanese-hub/issues/186) and [#97](https://github.com/davidkao-official/business-japanese-hub/issues/97) before any merge or production-affecting action.
 
+## Multi-agent coordination（兩個 AI team 共用本 repo）
+
+tachiko（Claude lead + Codex workers）與 David 的 Codex 同時開發本 repo。溝通只用 GitHub：
+
+- **誰負責什麼**：issue／PR 上的 label `team:tachiko`／`team:david`。動工前先查 `gh issue list --label team:<team>` 與 `gh pr list --search "<issue#>"`；沒有 label 也沒有 PR 才是空的，先加上自己的 team label 再開始。
+- **目前狀態**：[#166 的 `agent-status:v1` 留言](https://github.com/davidkao-official/business-japanese-hub/issues/166#issuecomment-7075703533)，原地更新、不往下追加；各 team 開工與收工時更新自己的段落。
+- **提議、請求、意見不同**：在 #166 或該 issue／PR 留言；不要直接改對方的 branch 或 PR。
+- **收尾規則**：同一問題來回兩輪沒有共識，就停下交給人決定（tachiko 方：Owner；David 方：David）。
+- **合併**：沒有 Owner 對該次合併的核准，不 merge 到 `main`；PR 保持 draft。
+
 ## 專案身份
 
 - Business Japanese Hub 是 **web-first、subscription-based 的日本求職與日本職場日文學習服務**。
@@ -116,6 +126,7 @@ Current goal：
 
 ## 文件地圖
 
+- `plan.yaml` — Owner-facing plan、可判定的驗收條件、既有證據與待決事項；不取代 canonical authority 或 release 授權。
 - `README.md` — 專案入口。
 - `docs/product-contract.md` — **highest product/commercial authority**。
 - `docs/design-system.md` — **visual / interaction design authority（Source & Gloss）**：tokens、type roles、marks、shell、components、surface grammars、states、implementation sequence。先前 Quiet Editorial／#77／#155 視覺方向已 superseded。

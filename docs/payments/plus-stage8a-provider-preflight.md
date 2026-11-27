@@ -292,8 +292,9 @@ retries until read-back recovers it rather than guessing from the renewal date.
 
 After verified ECPay cancellation, `plus-cancel` reads back and ingests every
 successful `ExecLog` entry before reading the stream's paid-period summary.
-If read-back fails or ingestion needs retry, cancellation continues with the
-recorded paid period and emits an error-level log for operator follow-up.
+If read-back fails or ingestion needs retry, the handler returns 200 with the
+recorded paid-through date and leaves the order queued for reconciliation.
+A legacy canceled order without verified stop evidence returns 404.
 
 Remaining #107/#112/Product Owner policy questions:
 
