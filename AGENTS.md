@@ -126,6 +126,7 @@ Current goal：
 
 ## 文件地圖
 
+- `plan.yaml` — Owner-facing plan、可判定的驗收條件、既有證據與待決事項；不取代 canonical authority 或 release 授權。
 - `README.md` — 專案入口。
 - `docs/product-contract.md` — **highest product/commercial authority**。
 - `docs/design-system.md` — **visual / interaction design authority（Source & Gloss）**：tokens、type roles、marks、shell、components、surface grammars、states、implementation sequence。先前 Quiet Editorial／#77／#155 視覺方向已 superseded。
