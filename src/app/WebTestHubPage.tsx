@@ -791,10 +791,38 @@ function RepresentationView({ representation, label, labelledBy }: { representat
   const caption = labelledBy ? null : <figcaption>{label}</figcaption>
 
   if (representation.kind === 'equation') return <figure {...figureLabel}>{caption}<pre lang="ja">{representation.expression}</pre></figure>
-  if (representation.kind === 'table') return <figure {...figureLabel}>{caption}<table><thead><tr>{representation.columns.map((column) => <th lang="ja" key={column} scope="col">{column}</th>)}</tr></thead><tbody>{representation.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td lang="ja" key={`${rowIndex}-${cellIndex}`}>{cell}</td>)}</tr>)}</tbody></table></figure>
+  if (representation.kind === 'table' || representation.kind === 'logic-grid') {
+    const columns = representation.columns.map((column) => <th lang="ja" key={column} scope="col">{column}</th>)
+    return (
+      <figure {...figureLabel}>
+        {caption}
+        <div className="web-test-hub__representation-scroll" role="region" aria-label={label} tabIndex={0}>
+          <table>
+            <thead>
+              <tr>{representation.kind === 'logic-grid' && <th scope="col">{ui.webGridRow}</th>}{columns}</tr>
+            </thead>
+            <tbody>
+              {representation.kind === 'table'
+                ? representation.rows.map((row, rowIndex) => (
+                  <tr key={rowIndex}>{row.map((cell, cellIndex) => <td lang="ja" key={cellIndex}>{cell}</td>)}</tr>
+                ))
+                : representation.rows.map((row) => (
+                  <tr key={row}>
+                    <th scope="row" lang="ja">{row}</th>
+                    {representation.columns.map((column) => {
+                      const value = representation.cells.find((cell) => cell.row === row && cell.column === column)?.value ?? 'unknown'
+                      return <td key={column}>{({ yes: ui.webYes, no: ui.webNo, unknown: ui.webUnknown })[value]}</td>
+                    })}
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </figure>
+    )
+  }
   if (representation.kind === 'diagram') { const labels = new Map(representation.nodes.map((node) => [node.id, node.label])); return <figure {...figureLabel}><figcaption lang="ja">{representation.altText}</figcaption><ul>{representation.nodes.map((node) => <li lang="ja" key={node.id}>{node.label}</li>)}</ul>{representation.edges.map((edge, index) => <p lang="ja" key={`${edge.from}-${edge.to}-${index}`}>{labels.get(edge.from) ?? edge.from} → {labels.get(edge.to) ?? edge.to}{edge.label ? `：${edge.label}` : ''}</p>)}</figure> }
   if (representation.kind === 'elimination') return <figure {...figureLabel}>{caption}<ul>{representation.candidates.map((candidate) => <li lang="ja" key={candidate}>{candidate}</li>)}</ul><ol>{representation.steps.map((step) => <li lang="ja" key={step}>{step}</li>)}</ol></figure>
-  if (representation.kind === 'logic-grid') return <figure {...figureLabel}>{caption}<table><thead><tr><th scope="col">{ui.webGridRow}</th>{representation.columns.map((column) => <th lang="ja" key={column} scope="col">{column}</th>)}</tr></thead><tbody>{representation.rows.map((row) => <tr key={row}><th scope="row" lang="ja">{row}</th>{representation.columns.map((column) => <td key={column}>{({ yes: ui.webYes, no: ui.webNo, unknown: ui.webUnknown })[representation.cells.find((cell) => cell.row === row && cell.column === column)?.value ?? 'unknown']}</td>)}</tr>)}</tbody></table></figure>
   return <figure {...figureLabel}><figcaption lang="ja">{representation.label}</figcaption><p lang="ja">{representation.content}</p></figure>
 }
 

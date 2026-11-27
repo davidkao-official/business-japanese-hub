@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { build } from 'vite'
 
 let outputDirectory = ''
@@ -9,12 +9,20 @@ let builtHtml = ''
 let builtCss = ''
 
 beforeAll(async () => {
+  // tachi-run copies the source without .git; supply the same build input as Pages.
+  vi.stubEnv('CF_PAGES_COMMIT_SHA', '3333333333333333333333333333333333333333')
   outputDirectory = mkdtempSync(join(tmpdir(), 'bjh-career-game-appearance-'))
-  await build({
-    configFile: join(process.cwd(), 'vite.career-game.config.ts'),
-    logLevel: 'silent',
-    build: { outDir: outputDirectory, emptyOutDir: true, minify: false },
-  })
+  // This temporary appearance build also runs in source-only test containers.
+  vi.stubEnv('CF_PAGES_COMMIT_SHA', '3333333333333333333333333333333333333333')
+  try {
+    await build({
+      configFile: join(process.cwd(), 'vite.career-game.config.ts'),
+      logLevel: 'silent',
+      build: { outDir: outputDirectory, emptyOutDir: true, minify: false },
+    })
+  } finally {
+    vi.unstubAllEnvs()
+  }
 
   builtHtml = readFileSync(join(outputDirectory, 'index.html'), 'utf8')
   const cssFiles = readdirSync(join(outputDirectory, 'assets')).filter((file) => file.endsWith('.css'))
@@ -25,6 +33,7 @@ beforeAll(async () => {
 }, 30_000)
 
 afterAll(() => {
+  vi.unstubAllEnvs()
   if (outputDirectory) rmSync(outputDirectory, { recursive: true, force: true })
 })
 

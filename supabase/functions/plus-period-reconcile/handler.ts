@@ -7,7 +7,7 @@
  * through the SAME ingest path the callback uses, so receipts stay idempotent.
  * Provider stop (ExecStatus 0 terminated / 2 completed) needs no lifecycle
  * event: no renewal arrives, so access lapses at period_end by itself — the
- * order row is simply closed.
+ * order row is closed only after a verified Cancel acknowledgement.
  */
 import { createDefaultEcpayTransport, type EcpayTransport } from '../../../src/lib/payments/ecpay/adapter.ts';
 import type { DbClient } from '../_shared/db.ts';
@@ -21,7 +21,7 @@ import {
   type HandlerResult,
 } from '../_shared/http.ts';
 import type { Logger } from '../_shared/log.ts';
-import { readBackPlusOrder, type PlusEcpayOrder } from '../_shared/plus-ecpay-ingest.ts';
+import { persistPlusCustomerCancel, readBackPlusOrder, requestPlusEcpayStop, stopPlusEcpayOrder, type PlusEcpayOrder } from '../_shared/plus-ecpay-ingest.ts';
 
 export interface PlusPeriodReconcileDeps {
   env: Env;
@@ -40,9 +40,9 @@ interface PlusEcpayOrderRow extends PlusEcpayOrder {
   created_at: string;
 }
 
-const OPEN_STATUSES = ['pending', 'active', 'cancel_requested'];
 const STALE_PENDING_MS = 24 * 60 * 60 * 1000;
 const RECONCILE_BATCH_SIZE = 1000;
+const RECONCILE_BUDGET_MS = 60_000;
 
 export async function handlePlusPeriodReconcile(
   req: HandlerRequest,
@@ -64,26 +64,10 @@ export async function handlePlusPeriodReconcile(
   }
   const ecpayEnv = env.ecpayEnv;
 
-  const { data, error } = await db
-    .from('plus_membership_ecpay_order')
-    .select('merchant_trade_no,user_id,plan_code,environment,period_amount_twd,status,created_at')
-    .eq('environment', ecpayEnv)
-    .in('status', OPEN_STATUSES)
-    .order('created_at', { ascending: true })
-    .limit(RECONCILE_BATCH_SIZE);
-  if (error) return jsonResult(500, { error: 'query failed' });
-
-  const orders = (data ?? []) as unknown as PlusEcpayOrderRow[];
-  if (orders.length === RECONCILE_BATCH_SIZE) {
-    log.warn(
-      { count: RECONCILE_BATCH_SIZE },
-      'plus period reconcile batch is full; later orders wait for the next run',
-    );
-  }
   let checked = 0;
   let ingested = 0;
   let failed = 0;
-  const at = now();
+  const startedAt = now().getTime();
 
   const updateStatus = async (merchantTradeNo: string, status: string): Promise<void> => {
     const result = await db.rpc('set_plus_ecpay_order_status', {
@@ -92,25 +76,43 @@ export async function handlePlusPeriodReconcile(
     });
     if (result.error) {
       failed++;
-      log.warn(
+      log.error(
         { merchantTradeNo, status, error: result.error.message },
         'plus period order status update failed',
       );
     }
   };
 
-  for (const order of orders) {
+  for (; checked < RECONCILE_BATCH_SIZE;) {
+    if (now().getTime() - startedAt >= RECONCILE_BUDGET_MS) {
+      log.warn({ checked }, 'plus period reconcile time budget reached; unclaimed orders remain due');
+      break;
+    }
+    const claim = await db.rpc('claim_plus_ecpay_reconcile_order', { p_environment: ecpayEnv });
+    if (claim.error) return jsonResult(500, { error: 'query failed' });
+    if (!claim.data) break;
+    let order = claim.data as unknown as PlusEcpayOrderRow;
     checked++;
+    // Recover a user cancellation interrupted after the request was persisted.
+    // Do not turn it into an evidence-free, permanently closed order.
+    if (order.status === 'cancel_requested') {
+      const confirmation = await requestPlusEcpayStop({ env, db, log, transport, now }, order.merchant_trade_no);
+      if (!confirmation || !await persistPlusCustomerCancel({ db, log }, order.merchant_trade_no, confirmation)) {
+        failed++;
+        continue;
+      }
+      order = { ...order, status: 'canceled' };
+    }
     const stalePending =
       order.status === 'pending' &&
-      at.getTime() - new Date(order.created_at).getTime() > STALE_PENDING_MS;
+      now().getTime() - new Date(order.created_at).getTime() > STALE_PENDING_MS;
 
     const read = await readBackPlusOrder({ env, db, log, transport, now }, order);
     if (read.kind === 'failed') {
       failed++;
-      // ECPay does not know a checkout abandoned before its page; a stale
-      // pending order that cannot be queried is closed on that basis alone.
-      if (stalePending) await updateStatus(order.merchant_trade_no, 'ended');
+      if (stalePending && await stopPlusEcpayOrder({ env, db, log, transport, now }, order.merchant_trade_no)) {
+        await updateStatus(order.merchant_trade_no, 'ended');
+      }
       continue;
     }
     // A charge that could not be ingested must keep its order open, or the next
@@ -121,19 +123,38 @@ export async function handlePlusPeriodReconcile(
     }
     ingested += read.authorizations;
 
+    if (order.status === 'canceled') {
+      if (!['0', '2'].includes(read.execStatus)) {
+        failed++;
+        log.error({ merchantTradeNo: order.merchant_trade_no }, 'ecpay plus canceled order read-back is not stopped');
+        continue;
+      }
+      const completed = await db.rpc('complete_plus_ecpay_cancel_readback', {
+        p_merchant_trade_no: order.merchant_trade_no,
+      });
+      if (completed.error) failed++;
+      continue;
+    }
+
     if (order.status === 'pending') {
       if (
         stalePending &&
-        (read.authorizations === 0 || read.execStatus === '0' || read.execStatus === '2')
+        (read.authorizations === 0 || ['0', '2', '3'].includes(read.execStatus))
       ) {
-        await updateStatus(order.merchant_trade_no, 'ended');
+        if (await stopPlusEcpayOrder({ env, db, log, transport, now }, order.merchant_trade_no)) {
+          await updateStatus(order.merchant_trade_no, 'ended');
+        } else failed++;
       }
       continue;
     }
 
-    if (read.execStatus === '0' || read.execStatus === '2') {
+    // ExecStatus 3 is paused (2892), not an irreversible stop. Cancel it too.
+    if (['0', '2', '3'].includes(read.execStatus)) {
+      if (!await stopPlusEcpayOrder({ env, db, log, transport, now }, order.merchant_trade_no)) {
+        failed++;
+        continue;
+      }
       if (order.status === 'active') await updateStatus(order.merchant_trade_no, 'ended');
-      else if (order.status === 'cancel_requested') await updateStatus(order.merchant_trade_no, 'canceled');
     }
   }
 

@@ -271,7 +271,32 @@ grace-period extension (`supabase/migrations/20260923050000_plus_membership_temp
 `docs/payments/plus-recurring-admission.md`). A transient retry warning must
 not be translated into that effective failure.
 
-Before choosing a paid-period mapping, #107/#112/Product Owner must resolve:
+### Approved ECPay monthly period policy (#276)
+
+The lead decision recorded on #276 on 2026-11-22 JST defines each successful
+authorization's half-open access interval as `[ProcessDate, period_end)`.
+The order's anchor is the **Asia/Taipei calendar day of its first successful
+authorization**, retained through every renewal. The next scheduled charge is
+in the following calendar month on that anchor day, clamped to that month's
+last day ([ECPay Aio recurring schedule](https://developers.ecpay.com.tw/2868/)).
+`period_end` is **00:00 Asia/Taipei two calendar days after that charge date**.
+`PLUS_PERIOD_SETTLEMENT_BUFFER_DAYS = 2` in `src/lib/payments/ecpay/period.ts`
+is the explicit settlement buffer for undocumented batch timing, notification
+lag, and reconciliation cadence; it is part of the paid interval, not an
+implicit grace extension. A missed renewal expires at that exclusive end.
+For example, a 2027-01-31 Asia/Taipei authorization ends at 2027-03-02 00:00
+Asia/Taipei; the 2027-02-28 Asia/Taipei renewal retains anchor 31 and ends at
+2027-04-02 00:00 Asia/Taipei. Authoritative failure/terminal cutoffs still apply.
+Renewals use the persisted first successful receipt; if it is missing, ingestion
+retries until read-back recovers it rather than guessing from the renewal date.
+
+After verified ECPay cancellation, `plus-cancel` reads back and ingests every
+successful `ExecLog` entry before reading the stream's paid-period summary.
+If read-back fails or ingestion needs retry, the handler returns 200 with the
+recorded paid-through date and leaves the order queued for reconciliation.
+A legacy canceled order without verified stop evidence returns 404.
+
+Remaining #107/#112/Product Owner policy questions:
 
 - If a scheduled renewal is missed or fails and a later scheduled charge
   succeeds, does the successful payment cover only from its actual success
@@ -280,10 +305,6 @@ Before choosing a paid-period mapping, #107/#112/Product Owner must resolve:
 - If a latest failed authorization is manually reauthorized after its due date,
   what timestamp and exact half-open period does the charge buy? Does that
   replace/overlap a cycle or begin a new one?
-- For a monthly plan started on January 29–31, February may charge on its last
-  day and later months may return to the original anchor. What is the paid
-  access period at each boundary? Do not assume a fixed 30 days or simply use
-  `ProcessDate` to the next month-end.
 - When the finite 999th Aio authorization completes, does membership end, is a
   new consent and new subscription required, or is this provider path unsuitable?
   Do not auto-create a successor contract or imply seamless perpetual renewal.
@@ -527,3 +548,80 @@ Repository authority: `AGENTS.md`, `docs/product-contract.md`,
 `docs/legal-tax-launch-brief.md`, `docs/deployment.md`,
 `supabase/migrations/20260922370000_plus_membership_lifecycle_observation_admission.sql`,
 and `supabase/migrations/20260923050000_plus_membership_temporal_access_windows.sql`.
+
+## #276 M3/M4/M7 adapter correction — 2026-11-22 JST
+
+The adapter closes an order only after an HTTP 200, CheckMac-verified,
+merchant/order-bound CreditCardPeriodAction `Cancel` response with `RtnCode=1`
+or `90100149`. The [official action contract](https://developers.ecpay.com.tw/2900/)
+defines `1` as success, `90100149` as an already-disabled order, and says a
+successfully canceled order cannot be re-enabled. No other failure, including
+an undocumented not-found code, releases the local row. Unconfirmed stops log
+at error level and retain the row for reconciliation.
+
+The [official query contract](https://developers.ecpay.com.tw/2892/) defines
+`ExecStatus=3` as paused, alongside 0 terminated, 1 executing, and 2 completed.
+Reconciliation explicitly cancels paused orders before closing them; pause
+alone is not an irreversible stop. A non-member with an active/cancel-requested
+order gets `409 subscription open` and is directed to the existing cancel
+panel before starting a new order with another card.
+
+The CheckMac-verified server ReturnURL (never the browser return) supplies
+`TradeNo`, `TradeAmt`, and `PaymentDate` for first-period admission without
+waiting for ExecLog. The additive authorization binder serializes on the order
+and aliases later query entries by the documented per-charge `TradeNo` (or
+known `gwsr`), comparing shared immutable charge facts. It preserves one receipt,
+one lifecycle identity, and the stored ordinal. When ExecLog omits the first
+charge, earlier recorded successes still make the second charge a renewal.
+Period computation remains owned by the separate M1 work.
+
+Operator query (service-role/operator SQL only): new charges on closed or
+duplicate orders log an error before attempting Cancel, and remain visible
+whether Cancel succeeded (`not_mapped`) or needs retry (`NULL`). Refund review
+is manual; this patch never refunds a charge.
+
+```sql
+select r.source_event_id, r.merchant_trade_no, o.status, r.amount_twd,
+       r.trade_no, r.process_at, r.lifecycle_result
+from public.plus_membership_ecpay_receipt r
+join public.plus_membership_ecpay_order o using (merchant_trade_no)
+where r.kind = 'authorization' and r.rtn_code = '1' and not r.simulate_paid
+  and (r.lifecycle_result = 'not_mapped'
+       or (r.lifecycle_result is null and o.status in ('pending', 'canceled', 'ended')))
+order by r.received_at;
+```
+
+### Fair retry scheduling and delayed pre-stop authorizations (#282 / #281)
+
+`claim_plus_ecpay_reconcile_order` atomically claims one due order in its own
+environment with `FOR UPDATE SKIP LOCKED`, then moves its next attempt one hour
+forward **before** provider I/O. Failed/unconfirmed stops remain open and retry,
+but cannot occupy every oldest-first batch. Claims leave the business
+`updated_at` untouched. Each invocation stops claiming after 60 seconds or
+1,000 attempts; the current bounded provider operation may finish afterward.
+Unclaimed orders remain due, and a crashed claim becomes eligible again after
+its lease. This fixes starvation without a destructive pending-order cleanup;
+checkout rate limiting and account-specific provider limits remain separate.
+
+For a customer cancellation, persist the first verified merchant/order-bound
+Cancel acknowledgement as a `cancel` receipt and `provider_canceled_at` before
+read-back. Cancel supplies no provider stop timestamp, so this is the server's
+observed acknowledgement boundary, not a claim about the exact internal
+provider execution time. Retries preserve that boundary and the original hash.
+An interrupted final read-back stays queued even though billing is stopped.
+Only a successful stopped-order read-back completes that recovery work.
+
+Customer billing stop alone does **not** emit an irreversible membership cutoff
+based on an incomplete last-known period. Existing verified paid windows expire
+naturally. A delayed, valid authorization whose provider processing time is at
+or before the recorded stop may extend its original stream using #281's first
+authorization anchor and settlement-buffer calculation. A post-stop charge,
+duplicate pending checkout, or legacy closed row without stop evidence is still
+quarantined/stopped for operator handling. Receipt identity, amount and signature
+checks are unchanged. Existing refund/reversal/dispute and scheduled terminal
+facts still clamp access; none are deleted, overridden or restored by this path.
+
+The new migration must precede deployment of `plus-cancel`,
+`plus-period-reconcile`, and callback/shared-ingest consumers. This is source
+integration and deterministic verification, not merchant/policy approval,
+real-money activation or a claim of live-provider end-to-end verification.

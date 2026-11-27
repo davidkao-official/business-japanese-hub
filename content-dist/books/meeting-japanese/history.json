@@ -19,6 +19,16 @@
       "status": "published",
       "releasedAt": "2026-08-20",
       "createdAt": "2026-09-03T21:53:13.798Z"
+    },
+    {
+      "id": "meeting-japanese@e1-r5-9e377c476c8f",
+      "slug": "meeting-japanese",
+      "editionNumber": 1,
+      "revision": 5,
+      "contentHash": "9e377c476c8fcf21fee83f7d953399f8ed6603ed05847773da92c1c3d22aa20a",
+      "status": "published",
+      "releasedAt": "2026-08-20",
+      "createdAt": "2026-11-22T05:22:15.667Z"
     }
   ]
 }

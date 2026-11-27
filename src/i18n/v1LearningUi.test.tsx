@@ -45,7 +45,19 @@ describe('Japanese learning interface', () => {
   })
 
   it('uses draft Japanese category labels by default and retains dormant Chinese labels', () => {
-    expect(practiceDiscoveryCategoryLabel('practice-web-test-spi-v1', 'spi', 'verbal', 'semantic-relation')).toBe('二語の関係')
+    const categoryLabels = [
+      ['verbal', 'vocabulary-in-context', 'webCategoryVocabularyInContext'],
+      ['verbal', 'semantic-relation', 'webCategorySemanticRelation'],
+      ['verbal', 'sentence-logic', 'webCategorySentenceLogic'],
+      ['verbal', 'reading-inference', 'webCategoryReadingInference'],
+      ['nonverbal', 'percentage-profit-loss', 'webCategoryPercentageProfitLoss'],
+      ['nonverbal', 'rate-and-work', 'webCategoryRateAndWork'],
+      ['nonverbal', 'sets-and-counting', 'webCategorySetsAndCounting'],
+      ['nonverbal', 'conditions-and-ordering', 'webCategoryConditionsAndOrdering'],
+    ] as const
+    for (const [domain, category, key] of categoryLabels) {
+      expect(practiceDiscoveryCategoryLabel('practice-web-test-spi-v1', 'spi', domain, category)).toBe(jaLearningUi[key])
+    }
     expect(practiceDiscoveryCategoryLabel('practice-web-test-spi-v1', 'spi', 'verbal', 'semantic-relation', 'zh-TW')).toBe('語句關係')
     expect(practiceDiscoveryCategoryLabel('practice-web-test-spi-v1', 'spi', 'verbal', 'private-editorial-label')).toBeUndefined()
   })

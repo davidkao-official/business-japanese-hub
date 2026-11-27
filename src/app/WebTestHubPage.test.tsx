@@ -249,7 +249,8 @@ describe('Web Test discovery and runner-entry routes', () => {
 
     fireEvent.click(within(completion).getByRole('button', { name: 'もう一度解く' }))
     await screen.findByText('1／2 問目')
-    expect(screen.getByRole('heading', { name: /分速 80m で歩くと/ })).toHaveFocus()
+    // The reloaded question renders before its focus effect has necessarily run.
+    await waitFor(() => expect(screen.getByRole('heading', { name: /分速 80m で歩くと/ })).toHaveFocus())
     expect(screen.getAllByRole('radio').every((radio) => !(radio as HTMLInputElement).checked)).toBe(true)
     expect(screen.queryByRole('heading', { name: '練習が終わりました' })).not.toBeInTheDocument()
     const restartedCompletion = await completeSampleUnit()
@@ -548,15 +549,17 @@ describe('Web Test discovery and runner-entry routes', () => {
     const release = preparePrivatePracticeQuestionBankRelease('practice-web-test-fixture', nonProprietaryPracticeQuestionBankFixture)
     if (!release.ok) throw new Error(release.reason)
     const sourceQuestion = release.value.payload.questionBank.questions[0]!
+    const tableColumns = ['項目', '一月', '二月', '三月', '四月', '五月', '六月', '七月']
+    const gridColumns = ['職位', '担当部署', '勤務場所', '出勤時刻', '退勤時刻', '担当業務']
     const first = {
       ...sourceQuestion,
       id: 'synthetic-ordering-01',
       testFamily: 'spi' as const,
       category: 'vocabulary-in-context',
       promptJa: '表示を順番に並べてください。',
-      promptRepresentation: { kind: 'table' as const, columns: ["項目"], rows: [['合成問題']] },
+      promptRepresentation: { kind: 'table' as const, columns: tableColumns, rows: [['合成問題', '1', '2', '3', '4', '5', '6', '7']] },
       answer: { input: { kind: 'ordering' as const, choices: [{ id: 'one', textJa: '一番', representation: { kind: 'equation' as const, expression: '1' } }, { id: 'two', textJa: '二番', representation: { kind: 'diagram' as const, altText: '合成図', nodes: [{ id: 'a', label: '起点' }, { id: 'b', label: '終点' }], edges: [{ from: 'a', to: 'b', label: '進む' }] } }] }, expectedAnswer: { kind: 'ordering' as const, choiceIds: ['two', 'one'] }, scoring: { kind: 'exact-order' as const } },
-      coreExplanation: { concise: '順序を確認します。', whatIsAskedJa: '二番を先にすることが求められています。', representation: { kind: 'logic-grid' as const, columns: ['職位'], rows: ['甲'], cells: [{ row: '甲', column: '職位', value: 'yes' as const }] } },
+      coreExplanation: { concise: '順序を確認します。', whatIsAskedJa: '二番を先にすることが求められています。', representation: { kind: 'logic-grid' as const, columns: gridColumns, rows: ['甲'], cells: [{ row: '甲', column: '職位', value: 'yes' as const }] } },
       itemAnalysis: { ...sourceQuestion.itemAnalysis, diagnosticCheckpoints: { registryVersion: 1, ids: ['synthetic-checkpoint-01', 'synthetic-checkpoint-02'] } },
     }
     const second = {
@@ -583,7 +586,11 @@ describe('Web Test discovery and runner-entry routes', () => {
     const rendered = renderWebTestAt('/practice/web-test/spi/verbal/vocabulary-in-context?mode=untimed-learning', { session: { id: 'synthetic-member' } })
     await waitFor(() => expect(screen.getByText("1／2 問目")).toBeInTheDocument())
     expect(screen.getByRole('figure', { name: "問題の図・表" })).toBeInTheDocument()
+    const promptRegion = screen.getByRole('region', { name: '問題の図・表' })
+    expect(promptRegion).toHaveAttribute('tabindex', '0')
+    expect(within(within(promptRegion).getByRole('table')).getByRole('columnheader', { name: '七月' })).toHaveAttribute('scope', 'col')
     expect(screen.getByRole('figure', { name: "一番の図・表" })).toBeInTheDocument()
+    expect(screen.getByText('合成図')).toHaveAttribute('lang', 'ja')
     expect(screen.getByText('起点 → 終点：進む')).toBeInTheDocument()
     expect(screen.queryByText('合成提示。')).not.toBeInTheDocument()
     expect(screen.queryByText('選択')).not.toBeInTheDocument()
@@ -598,7 +605,11 @@ describe('Web Test discovery and runner-entry routes', () => {
       expect(screen.queryByText(text)).not.toBeInTheDocument()
     }
     expect(screen.queryByText(/選擇|合成備註/)).not.toBeInTheDocument()
-    expect(screen.getByRole('rowheader', { name: '甲' })).toBeInTheDocument()
+    const explanationRegion = screen.getByRole('region', { name: '解き方' })
+    expect(explanationRegion).toHaveAttribute('tabindex', '0')
+    const grid = within(within(explanationRegion).getByRole('table'))
+    expect(grid.getByRole('columnheader', { name: '担当業務' })).toHaveAttribute('scope', 'col')
+    expect(grid.getByRole('rowheader', { name: '甲' })).toHaveAttribute('scope', 'row')
     expect(screen.getByText('該当')).toBeInTheDocument()
     expect(localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('zh-TW')
     expect(screen.getByText('請輸入三。')).toHaveAttribute('lang', 'ja')

@@ -85,7 +85,7 @@ export function SpiExplainerPage() {
 
         <Section index={2}>
           <p>{ui.spiExplainerVariantsBody}</p>
-          <div className="spi-explainer__table-wrap"><table><thead><tr><th>{ui.spiExplainerVariantTypeColumn}</th><th>{ui.spiExplainerVariantAudienceColumn}</th><th>{ui.spiExplainerVariantContentColumn}</th></tr></thead><tbody><tr><th scope="row">SPI-U</th><td>{ui.spiExplainerUniversityGraduateAudience}</td><td>{ui.spiExplainerVariantContentDescription}</td></tr><tr><th scope="row">SPI-G</th><td>{ui.spiExplainerMidCareerAudience}</td><td>{ui.spiExplainerVariantContentDescription}</td></tr><tr><th scope="row">SPI-H</th><td>{ui.spiExplainerHighSchoolGraduateAudience}</td><td>{ui.spiExplainerVariantContentDescription}</td></tr></tbody></table></div>
+          <div className="spi-explainer__table-wrap" role="region" aria-label={ui.spiExplainerVariantsTableLabel} tabIndex={0}><table><thead><tr><th>{ui.spiExplainerVariantTypeColumn}</th><th>{ui.spiExplainerVariantAudienceColumn}</th><th>{ui.spiExplainerVariantContentColumn}</th></tr></thead><tbody><tr><th scope="row">SPI-U</th><td>{ui.spiExplainerUniversityGraduateAudience}</td><td>{ui.spiExplainerVariantContentDescription}</td></tr><tr><th scope="row">SPI-G</th><td>{ui.spiExplainerMidCareerAudience}</td><td>{ui.spiExplainerVariantContentDescription}</td></tr><tr><th scope="row">SPI-H</th><td>{ui.spiExplainerHighSchoolGraduateAudience}</td><td>{ui.spiExplainerVariantContentDescription}</td></tr></tbody></table></div>
           <p className="spi-explainer__warning">{ui.spiExplainerMidCareerPreparationWarning}</p>
         </Section>
 

@@ -109,14 +109,14 @@ function firstTable(chapter: Chapter): TableBlock | undefined {
   return chapter.blocks.find((block): block is TableBlock => block.type === 'table')
 }
 
-function mixedPivotText(text: string): LearningTextBlock {
+function mixedPivotText(text: string, language: LearningTextLanguage): LearningTextBlock {
   const pivotIndex = text.indexOf('Pivot')
-  if (pivotIndex < 0) return asBlock(text, 'zh-TW')
+  if (pivotIndex < 0) return asBlock(text, language)
 
   return [
-    asText(text.slice(0, pivotIndex), 'zh-TW'),
+    asText(text.slice(0, pivotIndex), language),
     asText('Pivot', 'en'),
-    asText(text.slice(pivotIndex + 'Pivot'.length), 'zh-TW'),
+    asText(text.slice(pivotIndex + 'Pivot'.length), language),
   ]
 }
 
@@ -238,12 +238,12 @@ function createAdmittedLearningUnit(): LearningUnitRouteData | undefined {
     },
     learn: {
       lead: asBlock(intro?.text ?? admittedChapter.summary, language),
-      sequence: mixedPivotText(callout.title),
+      sequence: mixedPivotText(callout.title, language),
       steps,
       transfer: {
         label: asText('Transfer to work', 'en'),
         title: asText(admittedChapter.subtitle, language),
-        body: asBlock(callout.text, 'zh-TW'),
+        body: asBlock(callout.text, language),
       },
       practiceAction: [
         asText('前往 ', 'zh-TW'),
