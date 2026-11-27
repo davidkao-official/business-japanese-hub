@@ -10,6 +10,8 @@ import { useAuth } from '@business-japanese-hub/platform-auth'
 import type {
   PlusMembershipAccess,
   PlusMembershipAccessRepository,
+  PlusMembershipStatus,
+  PlusSubscriptionProjection,
 } from './access'
 
 export type MembershipAccessState =
@@ -21,11 +23,14 @@ export type MembershipAccessState =
 
 export interface MembershipAccessContextValue {
   state: MembershipAccessState
+  /** `undefined` when the server did not project a subscription (older deployment). */
+  subscription: PlusSubscriptionProjection
   retry(): void
 }
 
 const DEFAULT_VALUE: MembershipAccessContextValue = {
   state: { kind: 'unavailable' },
+  subscription: undefined,
   retry: () => {},
 }
 
@@ -41,6 +46,7 @@ interface MembershipResult {
   requestKey: number
   userId: string
   access: PlusMembershipAccess
+  subscription: PlusSubscriptionProjection
 }
 
 export function MembershipAccessProvider({
@@ -61,12 +67,24 @@ export function MembershipAccessProvider({
 
     void repository
       .getAccess(userId)
-      .then((access) => {
-        if (!cancelled) setResult({ requestKey: refreshKey, userId, access })
+      .then((status: PlusMembershipStatus) => {
+        if (!cancelled) {
+          setResult({
+            requestKey: refreshKey,
+            userId,
+            access: status.access,
+            subscription: status.subscription,
+          })
+        }
       })
       .catch(() => {
         if (!cancelled) {
-          setResult({ requestKey: refreshKey, userId, access: 'unavailable' })
+          setResult({
+            requestKey: refreshKey,
+            userId,
+            access: 'unavailable',
+            subscription: undefined,
+          })
         }
       })
 
@@ -85,12 +103,18 @@ export function MembershipAccessProvider({
     return stateForAccess(result.access)
   }, [authLoading, userId, repository, refreshKey, result])
 
+  const subscription = useMemo<PlusSubscriptionProjection>(() => {
+    if (result?.requestKey !== refreshKey || result.userId !== userId) return undefined
+    return result.subscription
+  }, [userId, refreshKey, result])
+
   const value = useMemo<MembershipAccessContextValue>(
     () => ({
       state,
+      subscription,
       retry: () => setRefreshKey((current) => current + 1),
     }),
-    [state],
+    [state, subscription],
   )
 
   return <MembershipAccessContext.Provider value={value}>{children}</MembershipAccessContext.Provider>

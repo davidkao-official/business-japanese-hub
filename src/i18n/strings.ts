@@ -197,6 +197,7 @@ export interface AppStrings {
       doneUntil: string
       done: string
       noSubscription: string
+      lapsedNote: string
       failed: string
     }
     audienceTitle: string
@@ -631,6 +632,7 @@ const ja: AppStrings = {
       doneUntil: '解約しました。{date} まで Plus を利用できます。',
       done: '解約しました。',
       noSubscription: 'このアカウントには解約できる定期課金がありません。',
+      lapsedNote: 'お支払いを確認できていないため、現在 Plus はご利用いただけません。解約すると今後の請求の再試行も止まります。',
       failed: '解約を完了できませんでした。時間をおいて再度お試しください。',
     },
     audienceTitle: '対象となる方',
@@ -1067,6 +1069,7 @@ const en: AppStrings = {
       doneUntil: 'Your subscription is cancelled. You can use Plus until {date}.',
       done: 'Your subscription is cancelled.',
       noSubscription: 'This account has no recurring subscription to cancel.',
+      lapsedNote: 'We could not confirm your payment, so Plus is not available right now. Cancelling also stops future payment retries.',
       failed: 'We could not complete the cancellation. Please try again later.',
     },
     audienceTitle: 'Who it is for',
@@ -1503,6 +1506,7 @@ const zhTW: AppStrings = {
       doneUntil: '已解約。在 {date} 之前仍可使用 Plus。',
       done: '已解約。',
       noSubscription: '這個帳號沒有可解約的定期扣款。',
+      lapsedNote: '由於無法確認付款，目前無法使用 Plus。解約後也會停止之後的付款重試。',
       failed: '無法完成解約，請稍後再試。',
     },
     audienceTitle: '適合誰',

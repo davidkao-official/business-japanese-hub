@@ -37,13 +37,13 @@ describe('Plus membership browser reader', () => {
         baseUrl: 'https://edge.test/functions/v1',
         fetchImpl,
       }),
-    ).resolves.toBe('active')
+    ).resolves.toEqual({ access: 'active', subscription: undefined })
     await expect(
       fetchPlusMembershipAccess(async () => jwtFor('member-1'), 'member-1', {
         baseUrl: 'https://edge.test/functions/v1',
         fetchImpl,
       }),
-    ).resolves.toBe('non-member')
+    ).resolves.toEqual({ access: 'non-member', subscription: undefined })
 
     expect(fetchImpl).toHaveBeenNthCalledWith(
       1,
@@ -56,6 +56,74 @@ describe('Plus membership browser reader', () => {
     )
   })
 
+  it('carries the subscription projection beside the access state', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access: 'active',
+          subscription: { status: 'cancel_requested', accessUntil: '2026-12-01T00:00:00.000Z' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ access: 'non-member', subscription: { status: 'canceled', accessUntil: null } }),
+      )
+
+    await expect(
+      fetchPlusMembershipAccess(async () => jwtFor('member-1'), 'member-1', {
+        baseUrl: 'https://edge.test/functions/v1',
+        fetchImpl,
+      }),
+    ).resolves.toEqual({
+      access: 'active',
+      subscription: { status: 'cancel_requested', accessUntil: '2026-12-01T00:00:00.000Z' },
+    })
+    await expect(
+      fetchPlusMembershipAccess(async () => jwtFor('member-1'), 'member-1', {
+        baseUrl: 'https://edge.test/functions/v1',
+        fetchImpl,
+      }),
+    ).resolves.toEqual({
+      access: 'non-member',
+      subscription: { status: 'canceled', accessUntil: null },
+    })
+  })
+
+  it('distinguishes an absent subscription field (unknown) from an explicit null', async () => {
+    const baseUrl = 'https://edge.test/functions/v1'
+
+    await expect(
+      fetchPlusMembershipAccess(async () => jwtFor('member-1'), 'member-1', {
+        baseUrl,
+        fetchImpl: vi.fn().mockResolvedValue(jsonResponse({ access: 'active' })),
+      }),
+    ).resolves.toEqual({ access: 'active', subscription: undefined })
+
+    await expect(
+      fetchPlusMembershipAccess(async () => jwtFor('member-1'), 'member-1', {
+        baseUrl,
+        fetchImpl: vi.fn().mockResolvedValue(jsonResponse({ access: 'active', subscription: null })),
+      }),
+    ).resolves.toEqual({ access: 'active', subscription: null })
+  })
+
+  it('treats a malformed subscription projection as unknown', async () => {
+    const baseUrl = 'https://edge.test/functions/v1'
+    for (const subscription of [
+      'active',
+      { status: 'forged', accessUntil: null },
+      { status: 'active', accessUntil: 42 },
+      { accessUntil: null },
+    ]) {
+      await expect(
+        fetchPlusMembershipAccess(async () => jwtFor('member-1'), 'member-1', {
+          baseUrl,
+          fetchImpl: vi.fn().mockResolvedValue(jsonResponse({ access: 'active', subscription })),
+        }),
+      ).resolves.toEqual({ access: 'active', subscription: undefined })
+    }
+  })
+
   it('does not send a prior-session bearer for a different current owner', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(jsonResponse({ access: 'active' }))
 
@@ -64,7 +132,7 @@ describe('Plus membership browser reader', () => {
         baseUrl: 'https://edge.test/functions/v1',
         fetchImpl,
       }),
-    ).resolves.toBe('unavailable')
+    ).resolves.toEqual({ access: 'unavailable', subscription: undefined })
 
     expect(fetchImpl).not.toHaveBeenCalled()
   })
@@ -76,19 +144,19 @@ describe('Plus membership browser reader', () => {
         baseUrl,
         fetchImpl: vi.fn(),
       }),
-    ).resolves.toBe('unavailable')
+    ).resolves.toEqual({ access: 'unavailable', subscription: undefined })
     await expect(
       fetchPlusMembershipAccess(async () => jwtFor('member-1'), 'member-1', {
         baseUrl,
         fetchImpl: vi.fn().mockResolvedValue(jsonResponse({ access: 'active' }, false, 503)),
       }),
-    ).resolves.toBe('unavailable')
+    ).resolves.toEqual({ access: 'unavailable', subscription: undefined })
     await expect(
       fetchPlusMembershipAccess(async () => jwtFor('member-1'), 'member-1', {
         baseUrl,
         fetchImpl: vi.fn().mockResolvedValue(jsonResponse({ access: 'forged' })),
       }),
-    ).resolves.toBe('unavailable')
+    ).resolves.toEqual({ access: 'unavailable', subscription: undefined })
     const rejectedBody = jsonResponse({ access: 'active' })
     rejectedBody.json = vi.fn().mockRejectedValue(new Error('malformed response'))
     await expect(
@@ -96,13 +164,13 @@ describe('Plus membership browser reader', () => {
         baseUrl,
         fetchImpl: vi.fn().mockResolvedValue(rejectedBody),
       }),
-    ).resolves.toBe('unavailable')
+    ).resolves.toEqual({ access: 'unavailable', subscription: undefined })
     await expect(
       fetchPlusMembershipAccess(async () => jwtFor('member-1'), 'member-1', {
         baseUrl,
         fetchImpl: vi.fn().mockRejectedValue(new Error('network unavailable')),
       }),
-    ).resolves.toBe('unavailable')
+    ).resolves.toEqual({ access: 'unavailable', subscription: undefined })
   })
 
   it('does not treat local storage or another client flag as access authority', async () => {
@@ -114,7 +182,7 @@ describe('Plus membership browser reader', () => {
         baseUrl: 'https://edge.test/functions/v1',
         fetchImpl,
       }),
-    ).resolves.toBe('non-member')
+    ).resolves.toEqual({ access: 'non-member', subscription: undefined })
   })
 
   it('times out token acquisition, cleans up its timer, and never dispatches after a late token', async () => {
@@ -127,7 +195,7 @@ describe('Plus membership browser reader', () => {
         fetchImpl,
       })
       await vi.advanceTimersByTimeAsync(10_000)
-      await expect(lookup).resolves.toBe('unavailable')
+      await expect(lookup).resolves.toEqual({ access: 'unavailable', subscription: undefined })
 
       token.resolve(jwtFor('member-1'))
       await flushPromises()
@@ -155,7 +223,7 @@ describe('Plus membership browser reader', () => {
 
       const requestOptions = fetchImpl.mock.calls[0]?.[1] as RequestInit
       await vi.advanceTimersByTimeAsync(3_000)
-      await expect(lookup).resolves.toBe('unavailable')
+      await expect(lookup).resolves.toEqual({ access: 'unavailable', subscription: undefined })
       expect(requestOptions.signal?.aborted).toBe(true)
 
       fetchResult.reject(new Error('late transport failure'))
@@ -191,7 +259,7 @@ describe('Plus membership browser reader', () => {
       expect(response.json).toHaveBeenCalledTimes(1)
 
       await vi.advanceTimersByTimeAsync(4_000)
-      await expect(lookup).resolves.toBe('unavailable')
+      await expect(lookup).resolves.toEqual({ access: 'unavailable', subscription: undefined })
       body.reject(new Error('late body failure'))
       await flushPromises()
       expect(vi.getTimerCount()).toBe(0)
@@ -206,6 +274,6 @@ describe('Plus membership browser reader', () => {
         baseUrl: 'https://edge.test/functions/v1',
         fetchImpl: vi.fn(),
       }),
-    ).resolves.toBe('unavailable')
+    ).resolves.toEqual({ access: 'unavailable', subscription: undefined })
   })
 })
