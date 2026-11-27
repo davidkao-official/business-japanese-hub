@@ -4,7 +4,7 @@ import type { SessionUser } from '@business-japanese-hub/platform-auth'
 import { renderWithAppProviders } from '../test/appProviders'
 import {
   HttpPlusMembershipAccessRepository,
-  type PlusMembershipAccess,
+  type PlusMembershipStatus,
   type PlusMembershipAccessRepository,
 } from '../lib/membership/access'
 import { PlusAccessBoundary } from './PlusAccessBoundary'
@@ -39,7 +39,7 @@ async function flushPromises(): Promise<void> {
 
 describe('PlusAccessBoundary', () => {
   it('renders public/free content without consulting membership state', () => {
-    const repository = { getAccess: vi.fn().mockResolvedValue('non-member') }
+    const repository = { getAccess: vi.fn().mockResolvedValue({ access: 'non-member', subscription: undefined }) }
     const view = renderBoundary(repository, null, 'public')
 
     expect(view.container.querySelector('[data-access-state="public"]')).not.toBeNull()
@@ -61,7 +61,7 @@ describe('PlusAccessBoundary', () => {
   it('keeps a signed-in non-member locked even if local storage claims active access', async () => {
     window.localStorage.setItem('plus-membership', 'active')
     const view = renderBoundary(
-      { getAccess: vi.fn().mockResolvedValue('non-member') },
+      { getAccess: vi.fn().mockResolvedValue({ access: 'non-member', subscription: undefined }) },
       { id: 'user-1', email: 'reader@example.com' },
     )
 
@@ -75,7 +75,7 @@ describe('PlusAccessBoundary', () => {
 
   it('renders active Plus content only after the repository returns an active server projection', async () => {
     const view = renderBoundary(
-      { getAccess: vi.fn().mockResolvedValue('active') },
+      { getAccess: vi.fn().mockResolvedValue({ access: 'active', subscription: undefined }) },
       { id: 'member-1', email: 'member@example.com' },
     )
 
@@ -91,9 +91,9 @@ describe('PlusAccessBoundary', () => {
   })
 
   it('keeps content locked while checking and when membership is unavailable', async () => {
-    let resolveAccess!: (value: PlusMembershipAccess) => void
+    let resolveAccess!: (value: PlusMembershipStatus) => void
     const checkingView = renderBoundary(
-      { getAccess: vi.fn(() => new Promise<PlusMembershipAccess>((resolve) => {
+      { getAccess: vi.fn(() => new Promise<PlusMembershipStatus>((resolve) => {
         resolveAccess = resolve
       })) },
       { id: 'user-2', email: 'reader@example.com' },
@@ -102,14 +102,14 @@ describe('PlusAccessBoundary', () => {
     expect(checkingView.container.querySelector('[data-access-state="checking"]')).not.toBeNull()
     expect(screen.queryByText('Unlocked Plus content')).not.toBeInTheDocument()
     await waitFor(() => expect(resolveAccess).toBeTypeOf('function'))
-    resolveAccess('non-member')
+    resolveAccess({ access: 'non-member', subscription: undefined })
     await waitFor(() =>
       expect(checkingView.container.querySelector('[data-access-state="non-member"]')).not.toBeNull(),
     )
     checkingView.unmount()
 
     const unavailableView = renderBoundary(
-      { getAccess: vi.fn().mockResolvedValue('unavailable') },
+      { getAccess: vi.fn().mockResolvedValue({ access: 'unavailable', subscription: undefined }) },
       { id: 'user-3', email: 'reader@example.com' },
     )
     await waitFor(() =>

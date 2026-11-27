@@ -8,13 +8,12 @@
  *
  * Algorithm (§5, authoritative):
  *   all params EXCEPT CheckMacValue
- *     → sort keys alphabetically
+ *     → sort keys alphabetically, case-insensitively (official PHP SDK strcasecmp)
  *     → join `k1=v1&k2=v2`
  *     → prepend `HashKey=<hashKey>&` and append `&HashIV=<hashIV>`
- *     → ECPay-compatible URL encode (encodeURIComponent semantics, then apply
- *       the documented substitutions %2d→-, %5f→_, %2e→., %21→!, %2a→*, %28→(,
- *       %29→))
- *     → lowercase the whole encoded string
+ *     → form URL encode (space→+, escape ~ and '), then lowercase
+ *     → documented substitutions %2d→-, %5f→_, %2e→., %21→!, %2a→*, %28→(,
+ *       %29→)
  *     → SHA-256
  *     → uppercase
  *
@@ -31,10 +30,8 @@ import { sha256Hex } from '../crypto.ts';
 export { sha256Hex };
 
 /**
- * The documented substitution step (§5). Applied to the output of a URL encoder;
- * on `encodeURIComponent` output these are no-ops (encodeURIComponent never
- * produces those escapes), but they normalize .NET-style encoders that do. Kept
- * as its own function so the substitution table is unit-testable in isolation.
+ * The documented substitution step (§5), applied after URL encoding and
+ * lowercasing to match the official PHP SDK's UrlService::ecpayUrlEncode.
  */
 export function applyEcpayEncodeSubstitutions(encoded: string): string {
   return encoded
@@ -48,14 +45,16 @@ export function applyEcpayEncodeSubstitutions(encoded: string): string {
 }
 
 /**
- * ECPay-compatible URL encoding: `encodeURIComponent` semantics followed by the
- * documented substitutions. `encodeURIComponent` does not escape `- _ . ! ~ * ' ( )`,
- * so on its own output the substitutions are no-ops; they are applied so the
- * result is identical regardless of which encoder produced the escaped input
- * (e.g. .NET `HttpUtility.UrlEncode`, which escapes those characters).
+ * ECPay/.NET-compatible URL encoding, including lowercase and substitutions.
+ * Source: https://github.com/ECPay/SDK_PHP/blob/ac385aa38c6ae10ad515f33dac4667106182c282/src/Services/UrlService.php
  */
 export function ecpayUrlEncode(input: string): string {
-  return applyEcpayEncodeSubstitutions(encodeURIComponent(input));
+  const encoded = encodeURIComponent(input)
+    .replace(/%20/g, '+')
+    .replace(/~/g, '%7E')
+    .replace(/'/g, '%27')
+    .toLowerCase();
+  return applyEcpayEncodeSubstitutions(encoded);
 }
 
 /**
@@ -85,10 +84,14 @@ export async function canonicalCheckMacString(
 ): Promise<string> {
   const keys = Object.keys(params)
     .filter((key) => key !== 'CheckMacValue')
-    .sort();
+    .sort((a, b) => {
+      const first = a.toLowerCase();
+      const second = b.toLowerCase();
+      return first < second ? -1 : first > second ? 1 : 0;
+    });
   const joined = keys.map((key) => `${key}=${params[key]}`).join('&');
   const withSecrets = `HashKey=${hashKey}&${joined}&HashIV=${hashIV}`;
-  return ecpayUrlEncode(withSecrets).toLowerCase();
+  return ecpayUrlEncode(withSecrets);
 }
 
 /**

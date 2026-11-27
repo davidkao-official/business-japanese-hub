@@ -22,6 +22,6 @@ Deno.serve(async (req) => {
     (url, key) => createClient(url, key) as unknown as DbClient,
     env,
   )
-  const result = await handlePlusMembership(request, plusMembershipDeps(db))
+  const result = await handlePlusMembership(request, plusMembershipDeps(db, env))
   return toResponse(withCorsHeaders(result, cors.headers))
 })

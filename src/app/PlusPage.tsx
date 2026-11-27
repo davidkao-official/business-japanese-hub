@@ -132,6 +132,7 @@ function PlusCheckoutPanel() {
   const [busy, setBusy] = useState(false)
   const [closed, setClosed] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [subscriptionOpen, setSubscriptionOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -189,11 +190,14 @@ function PlusCheckoutPanel() {
     setBusy(true)
     setClosed(false)
     setFailed(false)
+    setSubscriptionOpen(false)
     const result = await startPlusCheckout(getAccessToken, consentRevision)
     if (result.kind === 'redirect') {
       submitHostedCheckout(result.action, result.fields)
     } else if (result.kind === 'already-member') {
       retry()
+    } else if (result.kind === 'subscription-open') {
+      setSubscriptionOpen(true)
     } else if (result.kind === 'closed') {
       setClosed(true)
     } else {
@@ -214,6 +218,7 @@ function PlusCheckoutPanel() {
         />
         <span>{checkout.consent}</span>
       </label>
+      {subscriptionOpen ? <p role="alert">{checkout.subscriptionOpen}</p> : null}
       {closed ? <p>{checkout.closed}</p> : null}
       {failed ? <p role="alert">{checkout.failed}</p> : null}
       <button
@@ -236,13 +241,19 @@ function PlusCheckoutPanel() {
 function PlusCancelPanel() {
   const cancel = useStrings().plus.cancel
   const locale = useLocale()
-  const { state } = useMembershipAccess()
+  const { state, subscription, retry } = useMembershipAccess()
   const { getAccessToken } = useAuth()
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<PlusCancelResult | null>(null)
+  // Read the clock once for this render tree instead of calling Date.now()
+  // during render.
+  const [now] = useState(() => Date.now())
 
-  if (state.kind !== 'active-member') return null
+  const isMember = state.kind === 'active-member'
+  // Unknown or unavailable access keeps the previous behaviour: only an active
+  // member sees the panel, unless a local cancel result already exists.
+  if (!result && !isMember && state.kind !== 'non-member') return null
 
   const confirm = async () => {
     if (busy) return
@@ -252,31 +263,98 @@ function PlusCancelPanel() {
     setBusy(false)
   }
 
-  const accessDate = result?.kind === 'canceled' && result.accessUntil
-    ? new Date(result.accessUntil)
-    : null
-  const doneText =
-    result?.kind === 'canceled'
-      ? accessDate && !Number.isNaN(accessDate.getTime())
-        ? cancel.doneUntil.replace(
-            '{date}',
-            new Intl.DateTimeFormat(locale, {
-              dateStyle: 'long',
-              timeZone: 'Asia/Taipei',
-            }).format(accessDate),
-          )
-        : cancel.done
-      : null
+  // A date that has already passed means no paid time remains, so the panel
+  // must not promise future access.
+  const untilText = (value: string | null): string | null => {
+    if (!value) return null
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime()) || date.getTime() <= now) return null
+    return cancel.doneUntil.replace(
+      '{date}',
+      new Intl.DateTimeFormat(locale, {
+        dateStyle: 'long',
+        timeZone: 'Asia/Taipei',
+      }).format(date),
+    )
+  }
+
+  if (result) {
+    const doneText = result.kind === 'canceled' ? untilText(result.accessUntil) ?? cancel.done : null
+    return (
+      <div className="plus-checkout plus-cancel">
+        <h3>{cancel.title}</h3>
+        <p>{cancel.body}</p>
+        {doneText ? (
+          <p>{doneText}</p>
+        ) : result.kind === 'no-subscription' ? (
+          <p>{cancel.noSubscription}</p>
+        ) : confirming ? (
+          <>
+            <p>{cancel.confirm}</p>
+            <button
+              type="button"
+              className="btn btn--secondary"
+              disabled={busy}
+              onClick={() => void confirm()}
+            >
+              {busy ? cancel.busy : cancel.confirmCta}
+            </button>
+            <button
+              type="button"
+              className="btn btn--secondary"
+              disabled={busy}
+              onClick={() => setConfirming(false)}
+            >
+              {cancel.back}
+            </button>
+          </>
+        ) : (
+          <>
+            {result.kind === 'failed' && <p role="alert">{cancel.failed}</p>}
+            <button type="button" className="btn btn--secondary" onClick={() => setConfirming(true)}>
+              {cancel.cta}
+            </button>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  // The server confirmed there is no subscription.
+  if (subscription === null) return null
+
+  // Only an active member can be promised the remaining period: a later
+  // revocation or refund can end a non-member's access early.
+  if (subscription && subscription !== 'unavailable' && subscription.status === 'canceled') {
+    const doneText = isMember ? untilText(subscription.accessUntil) : null
+    if (!doneText) return null
+    return (
+      <div className="plus-checkout plus-cancel">
+        <h3>{cancel.title}</h3>
+        <p>{cancel.body}</p>
+        <p>{doneText}</p>
+      </div>
+    )
+  }
+
+  // Without the field (an older deployment) only an active member sees the
+  // panel, exactly as before.
+  if (subscription === undefined && !isMember) return null
 
   return (
     <div className="plus-checkout plus-cancel">
       <h3>{cancel.title}</h3>
       <p>{cancel.body}</p>
-      {doneText ? (
-        <p>{doneText}</p>
-      ) : result?.kind === 'no-subscription' ? (
-        <p>{cancel.noSubscription}</p>
-      ) : confirming ? (
+      {subscription === 'unavailable' && (
+        <div className="plus-cancel__notice" role="status">
+          <span aria-hidden="true">?</span>
+          <p>{cancel.statusUnavailable}</p>
+          <button type="button" className="btn btn--secondary" onClick={retry}>
+            {cancel.retry}
+          </button>
+        </div>
+      )}
+      {confirming ? (
         <>
           <p>{cancel.confirm}</p>
           <button
@@ -298,7 +376,7 @@ function PlusCancelPanel() {
         </>
       ) : (
         <>
-          {result?.kind === 'failed' && <p role="alert">{cancel.failed}</p>}
+          {!isMember && subscription !== 'unavailable' && <p>{cancel.lapsedNote}</p>}
           <button type="button" className="btn btn--secondary" onClick={() => setConfirming(true)}>
             {cancel.cta}
           </button>

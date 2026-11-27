@@ -128,13 +128,14 @@ describe('Plus checkout Edge handler', () => {
     expect(rpc).not.toHaveBeenCalled()
   })
 
-  it('maps an active membership RPC error to conflict', async () => {
+  it('tells a non-member with an open subscription to cancel first', async () => {
     const { db } = dbWith({ error: { message: 'plus ecpay order already active' } })
     const result = await handlePlusCheckout(
       request('POST', 'Bearer valid-session'),
       deps(db),
     )
     expect(result.status).toBe(409)
+    expect(body(result)).toEqual({ error: 'subscription open' })
   })
 
   it('creates a signed stage checkout using the verified identity and consent revision', async () => {
