@@ -107,6 +107,15 @@ describe('Plus membership browser reader', () => {
     ).resolves.toEqual({ access: 'active', subscription: null })
   })
 
+  it.each(['active', 'non-member'])('preserves %s access when the subscription read is unavailable', async (access) => {
+    await expect(
+      fetchPlusMembershipAccess(async () => jwtFor('member-1'), 'member-1', {
+        baseUrl: 'https://edge.test/functions/v1',
+        fetchImpl: vi.fn().mockResolvedValue(jsonResponse({ access, subscription: 'unavailable' })),
+      }),
+    ).resolves.toEqual({ access, subscription: 'unavailable' })
+  })
+
   it('treats a malformed subscription projection as unknown', async () => {
     const baseUrl = 'https://edge.test/functions/v1'
     for (const subscription of [

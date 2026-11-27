@@ -20,9 +20,9 @@ export interface PlusSubscription {
 
 /**
  * `undefined` means the server did not send the field (an older deployment),
- * `null` means the server could not project a subscription.
+ * `null` means no subscription, and `'unavailable'` means the read failed.
  */
-export type PlusSubscriptionProjection = PlusSubscription | null | undefined
+export type PlusSubscriptionProjection = PlusSubscription | null | 'unavailable' | undefined
 
 export interface PlusMembershipStatus {
   access: PlusMembershipAccess
@@ -57,11 +57,12 @@ export function parsePlusMembershipAccess(value: unknown): PlusMembershipAccess 
 }
 
 /**
- * A missing field is `undefined` (unknown), an explicit `null` is a failed
- * projection, and a malformed value is treated as unknown so the panel falls
+ * A missing field is `undefined` (unknown), an explicit `null` means no
+ * subscription, and a malformed value is treated as unknown so the panel falls
  * back to its access-only behaviour.
  */
 export function parsePlusSubscription(value: unknown): PlusSubscriptionProjection {
+  if (value === 'unavailable') return value
   if (value === null) return null
   if (!value || typeof value !== 'object') return undefined
   const { status, accessUntil } = value as { status?: unknown; accessUntil?: unknown }

@@ -198,6 +198,8 @@ export interface AppStrings {
       done: string
       noSubscription: string
       lapsedNote: string
+      statusUnavailable: string
+      retry: string
       failed: string
     }
     audienceTitle: string
@@ -633,6 +635,8 @@ const ja: AppStrings = {
       done: '解約しました。',
       noSubscription: 'このアカウントには解約できる定期課金がありません。',
       lapsedNote: 'お支払いを確認できていないため、現在 Plus はご利用いただけません。解約すると今後の請求の再試行も止まります。',
+      statusUnavailable: '定期課金の状態を読み込めませんでした。もう一度確認するか、このまま解約手続きに進めます。',
+      retry: '定期課金の状態を再確認する',
       failed: '解約を完了できませんでした。時間をおいて再度お試しください。',
     },
     audienceTitle: '対象となる方',
@@ -1070,6 +1074,8 @@ const en: AppStrings = {
       done: 'Your subscription is cancelled.',
       noSubscription: 'This account has no recurring subscription to cancel.',
       lapsedNote: 'We could not confirm your payment, so Plus is not available right now. Cancelling also stops future payment retries.',
+      statusUnavailable: 'We could not load your subscription status. You can check again or continue to cancellation.',
+      retry: 'Check subscription status again',
       failed: 'We could not complete the cancellation. Please try again later.',
     },
     audienceTitle: 'Who it is for',
@@ -1507,6 +1513,8 @@ const zhTW: AppStrings = {
       done: '已解約。',
       noSubscription: '這個帳號沒有可解約的定期扣款。',
       lapsedNote: '由於無法確認付款，目前無法使用 Plus。解約後也會停止之後的付款重試。',
+      statusUnavailable: '無法讀取定期扣款狀態。你可以重新確認，或繼續解約手續。',
+      retry: '重新確認定期扣款狀態',
       failed: '無法完成解約，請稍後再試。',
     },
     audienceTitle: '適合誰',

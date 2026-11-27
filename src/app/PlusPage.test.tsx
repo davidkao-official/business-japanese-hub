@@ -205,7 +205,7 @@ describe('PlusPage', () => {
     expect(screen.queryByText(getStrings('ja').plus.cancel.lapsedNote)).not.toBeInTheDocument()
   })
 
-  it('renders nothing when the server could not project a subscription', async () => {
+  it('renders nothing when the server confirms no subscription', async () => {
     const membershipAccessRepository = membershipRepository('active', null)
     renderWithAppProviders(<PlusPage />, {
       session: { id: 'u-1', email: 'reader@example.com' },
@@ -214,6 +214,66 @@ describe('PlusPage', () => {
 
     await waitFor(() => expect(membershipAccessRepository.getAccess).toHaveBeenCalled())
     expect(screen.queryByText(getStrings('ja').plus.cancel.body)).not.toBeInTheDocument()
+  })
+
+  it('keeps cancellation reachable for a lapsed subscriber while the read is unavailable', async () => {
+    cancelPlusMembershipMock.mockResolvedValue({ kind: 'canceled', accessUntil: null })
+    renderWithAppProviders(<PlusPage />, {
+      session: { id: 'u-1', email: 'reader@example.com' },
+      membershipAccessRepository: membershipRepository('non-member', 'unavailable'),
+      initialEntries: ['/plus'],
+    })
+
+    const cancel = getStrings('ja').plus.cancel
+    expect(await screen.findByText(cancel.statusUnavailable)).toBeInTheDocument()
+    expect(screen.getByText(cancel.statusUnavailable).closest('[role="status"]')).toHaveClass('plus-cancel__notice')
+    expect(screen.getByRole('button', { name: cancel.retry })).toBeInTheDocument()
+    expect(screen.queryByText(cancel.lapsedNote)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: cancel.cta }))
+    fireEvent.click(screen.getByRole('button', { name: cancel.confirmCta }))
+    expect(await screen.findByText(cancel.done)).toBeInTheDocument()
+  })
+
+  it('retries the subscription read and returns to the successful empty state', async () => {
+    const getAccess = vi.fn()
+      .mockResolvedValueOnce({ access: 'non-member', subscription: 'unavailable' })
+      .mockResolvedValueOnce({ access: 'non-member', subscription: null })
+    renderWithAppProviders(<PlusPage />, {
+      session: { id: 'u-1', email: 'reader@example.com' },
+      membershipAccessRepository: { getAccess },
+    })
+
+    const cancel = getStrings('ja').plus.cancel
+    fireEvent.click(await screen.findByRole('button', { name: cancel.retry }))
+    await waitFor(() => expect(getAccess).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(screen.queryByText(cancel.statusUnavailable)).not.toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: cancel.cta })).not.toBeInTheDocument()
+  })
+
+  it('uses the existing no-subscription handling after a never-subscribed user cancels through an unavailable read', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ error: 'no active subscription' }), { status: 404 },
+    ))
+    vi.stubEnv('VITE_EDGE_FUNCTIONS_BASE_URL', 'https://edge.test/functions/v1')
+    cancelPlusMembershipMock.mockImplementation(async (getAccessToken) => {
+      const actual = await vi.importActual<typeof import('../lib/membership/cancel')>('../lib/membership/cancel')
+      return actual.cancelPlusMembership(getAccessToken, fetchImpl)
+    })
+    try {
+      renderWithAppProviders(<PlusPage />, {
+        session: { id: 'u-1', email: 'reader@example.com' },
+        membershipAccessRepository: membershipRepository('non-member', 'unavailable'),
+      })
+
+      const cancel = getStrings('ja').plus.cancel
+      fireEvent.click(await screen.findByRole('button', { name: cancel.cta }))
+      fireEvent.click(screen.getByRole('button', { name: cancel.confirmCta }))
+      expect(await screen.findByText(cancel.noSubscription)).toBeInTheDocument()
+      expect(fetchImpl).toHaveBeenCalledWith('https://edge.test/functions/v1/plus-cancel', expect.objectContaining({ method: 'POST' }))
+      expect(screen.queryByRole('button', { name: cancel.cta })).not.toBeInTheDocument()
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('shows the plain cancellation result for a lapsed non-member', async () => {
