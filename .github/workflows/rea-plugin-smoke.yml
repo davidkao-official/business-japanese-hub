@@ -1,0 +1,42 @@
+name: REA plugin smoke
+
+on:
+  pull_request:
+    paths:
+      - ".agents/plugins/marketplace.json"
+      - ".codex/config.toml"
+      - "scripts/verify-rea-mcp.mjs"
+      - ".github/workflows/rea-plugin-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  rea-mcp-smoke:
+    name: Start REA MCP and call binary_session
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup supported Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26.13.0
+
+      - name: Install isolated REA runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          smoke_dir="${RUNNER_TEMP}/rea-smoke"
+          mkdir -p "${smoke_dir}"
+          cd "${smoke_dir}"
+          npm init -y >/dev/null
+          npm install --no-save --omit=optional \
+            rea-agents@6.8.0 \
+            @modelcontextprotocol/client@2.3.1
+          cp "${GITHUB_WORKSPACE}/scripts/verify-rea-mcp.mjs" ./verify-rea-mcp.mjs
+          node ./verify-rea-mcp.mjs "${smoke_dir}/node_modules/rea-agents/scripts/rea.mjs"

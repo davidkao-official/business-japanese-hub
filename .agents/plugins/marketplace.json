@@ -1,0 +1,21 @@
+{
+  "name": "business-japanese-hub",
+  "interface": {
+    "displayName": "Business Japanese Hub"
+  },
+  "plugins": [
+    {
+      "name": "rea",
+      "source": {
+        "source": "npm",
+        "package": "rea-agents",
+        "version": "6.8.0"
+      },
+      "policy": {
+        "installation": "INSTALLED_BY_DEFAULT",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
