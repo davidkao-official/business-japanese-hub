@@ -15,7 +15,7 @@ A repository change can pass source review without being authorized for producti
 | Content publication | Exact approved private revision is imported/published through its publication contract | Billing is enabled or learning value is proven |
 | Billing activation | Exact admitted provider/customer/legal/receipt lifecycle is ready for real recurring charges | Product launch acceptance |
 
-Until the deployment owner verifies a separate release control, **every `main` merge is production-sensitive, including docs-only merges**. #181 demonstrated a docs-only merge that redeployed 17 production Edge Functions. Follow [#186](https://github.com/davidkao-official/business-japanese-hub/issues/186), [#97](https://github.com/davidkao-official/business-japanese-hub/issues/97), and the current [#166](https://github.com/davidkao-official/business-japanese-hub/issues/166) handoff before any merge.
+**Every `main` merge triggers a production release, including docs-only merges.** Follow [#186](https://github.com/davidkao-official/business-japanese-hub/issues/186), [#97](https://github.com/davidkao-official/business-japanese-hub/issues/97), and the current [#166](https://github.com/davidkao-official/business-japanese-hub/issues/166) handoff before any merge.
 
 Keep evidence categories distinct: source/unit/DB tests; exact hosted build; canonical frontend served SHA; live migration ledger; live Edge inventory/source attribution; authenticated production behavior; and real recurring-payment evidence. `Supabase Preview: SKIPPED` is never deployment proof.
 
@@ -24,26 +24,6 @@ Keep evidence categories distinct: source/unit/DB tests; exact hosted build; can
 The PayPal/USD Book catalog, Book checkout, finance, email/outbox, scheduler, first-revenue and Book golden-path commands later in this runbook are retained as **historical one-time Book operational procedures and audit context**. They are not a Business Japanese Hub Plus recurring-membership activation recipe. Do not migrate historical Book Orders/Payments/Refunds/Entitlements into memberships or infer Plus access from them.
 
 For current Plus admission, use [#107](https://github.com/davidkao-official/business-japanese-hub/issues/107) and [#112](https://github.com/davidkao-official/business-japanese-hub/issues/112), together with [`docs/payments/plus-recurring-admission.md`](payments/plus-recurring-admission.md) and [`docs/payments/plus-stage8a-provider-preflight.md`](payments/plus-stage8a-provider-preflight.md); do not duplicate that provider preflight here.
-
-**Supabase production release control is proposed and inactive.** Before any
-production migration or Edge Function release, use the owner-authorized
-[controlled release contract](supabase-release-control.md); its toggle-only
-decision does not authorize a release.
-
-### Pre-merge compatibility while Supabase production auto-deploy is disabled
-
-Before admitting a `main` candidate during this period, record an explicit
-pre-merge disposition proving it is safe with the **currently active** Supabase
-backend, identified by its production migration ledger and full deployed
-function/version/config inventory, and the actual active Library and Career
-Game production SHAs and publication floors. If separately authorized reads
-cannot establish that baseline, hold the merge. This check must precede the
-merge because both Cloudflare projects continue to deploy from `main`; a later
-backend-release check cannot prevent an incompatible frontend from going live.
-If a candidate needs new backend behavior, split it into a backward-compatible
-expand merge, separately authorized backend release and verification, then a
-separately authorized frontend-activation merge. Keep Cloudflare automatic
-deployment enabled and its project settings unchanged.
 
 ## 1. Canonical frontends: two Cloudflare Pages projects
 
@@ -219,18 +199,21 @@ ownership and in-product access gates still are not DRM for those releases.
 This does not apply to future proprietary/member content: its source and
 delivery boundary are defined in `docs/private-content-delivery.md`.
 
-## 2. Production Supabase activation
+## 2. Production Supabase release and activation
 
-Do not perform production writes until the intended Supabase project and
-credentials are explicitly identified. Never use `supabase db reset --linked`
-on production.
+Supabase migrations and Edge Functions deploy automatically on every push to
+`main` via [Deploy Supabase production](../.github/workflows/supabase-deploy.yml).
+The workflow uses `SUPABASE_ACCESS_TOKEN` from the GitHub `production` environment.
+See the [Supabase release runbook](supabase-release-control.md) for the release
+sequence and how to inspect failures.
 
-For controlled production migrations and Edge Function releases, follow the
-proposed, inactive [Supabase release-control contract](supabase-release-control.md).
-The commands below are legacy launch-runbook examples: they are conditional
-procedures, not an authorization or a complete release plan. Do not execute
-them as a batch for a governed release; use only the exact commands and scope
-separately authorized for that release.
+Cloudflare and Supabase deploy concurrently. Migrations must be backward-compatible
+with the frontend currently live. Expand the schema first, then drop or rename
+objects in a later PR after no live code uses them. Verify new backend behavior
+in production before merging frontend code that requires it.
+
+The procedures below cover validation and activation outside the automated
+release. Never use `supabase db reset --linked` on production.
 
 ### 2.1 Exact-head local gates
 
@@ -248,24 +231,6 @@ pnpm validate:db
 
 The DB gate must use the [owned disposable validation runbook](db-validation.md).
 Never substitute raw local reset/start/stop commands when the guard refuses.
-
-### 2.2 Link and preflight the intended project
-
-These link and dry-run examples are conditional read/preflight steps. A
-production link or authenticated read still requires owner authorization for
-the exact project, operator and read scope under the release-control contract.
-The local `project_id` is not proof of the linked target.
-
-```bash
-supabase login
-supabase link --project-ref <production-project-ref>
-supabase migration list --linked
-supabase db push --linked --dry-run
-```
-
-If the first-sale migration reports duplicate pending Orders or another
-financial inconsistency, stop and reconcile those facts manually. Migrations
-must never guess or discard financial state merely to proceed.
 
 ### 2.3 Server-only secrets
 
@@ -379,26 +344,6 @@ is active or any table is populated. A later migration repeats the empty-table
 check as defense in depth; it cannot roll back earlier migrations that already
 committed. Do not activate the new lifecycle RPC between migrations. The plan
 catalog is excluded because it is configuration, not lifecycle evidence.
-
-### 2.6 Apply migrations and deploy Edge Functions
-
-These are conditional command examples, not release authority. The migration
-dry run must match the entire separately approved pending delta; deploy Edge
-Functions with one explicitly approved slug per command. Do not use a blanket
-`functions deploy` command.
-
-```bash
-supabase db push --linked
-supabase functions deploy <approved-slug> \
-  --project-ref <production-project-ref> --use-api --jobs 1
-```
-
-Deploy using the JWT settings committed in `supabase/config.toml`. Both
-`career-game-progress` and `library-learning-evidence` require verified JWTs;
-their service-role persistence RPCs are not browser-executable.
-`product-analytics` deliberately uses `verify_jwt=false` for anonymous Phase A
-events, validates an exact non-authoritative vocabulary, and writes only
-sanitized logs.
 
 ### 2.6 Configure scheduled jobs
 
@@ -580,9 +525,9 @@ Inspect finance state, payment events, outbox state, scheduler health, and logs.
 
 ## 5. Rollback and observability
 
-Before any Cloudflare rollback, consult the latest reviewed backend release
-receipt and its per-product minimum compatible frontend rollback target and
-publication revision/floor. Review the proposed Library or Career Game target
+Before any Cloudflare rollback, consult the latest backend workflow run and
+the minimum compatible frontend revision and publication floor for that product.
+Review the proposed Library or Career Game target
 against the **current** database schema, Edge API/function versions and
 publication state. Do not use ordinary rollback for a target below that floor
 or when the floor/target is unknown. Stop and require a fresh compatibility
