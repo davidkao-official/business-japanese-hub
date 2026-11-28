@@ -5,11 +5,13 @@ import { APPEARANCE_STORAGE_KEY } from './appearance'
 import { AppearanceProvider, useAppearance } from './AppearanceContext'
 
 function Probe() {
-  const { preference, effectiveTheme, setPreference } = useAppearance()
+  const { preference, effectiveTheme, storageNotice, setPreference } = useAppearance()
   return (
     <div>
       <span data-testid="preference">{preference}</span>
       <span data-testid="effective">{effectiveTheme}</span>
+      <span data-testid="notice">{storageNotice ?? 'none'}</span>
+      <input aria-label="answer" />
       <button type="button" onClick={() => setPreference('light')}>
         choose light
       </button>
@@ -142,6 +144,7 @@ describe('AppearanceProvider', () => {
     expect(screen.getByTestId('preference')).toHaveTextContent('system')
     expect(screen.getByTestId('effective')).toHaveTextContent('light')
     expect(document.documentElement.dataset.theme).toBe('light')
+    expect(screen.getByTestId('notice')).toHaveTextContent('invalidStored')
   })
 
   it('fails safe to system when storage read throws', () => {
@@ -153,6 +156,7 @@ describe('AppearanceProvider', () => {
 
     expect(screen.getByTestId('preference')).toHaveTextContent('system')
     expect(screen.getByTestId('effective')).toHaveTextContent('light')
+    expect(screen.getByTestId('notice')).toHaveTextContent('readFailed')
   })
 
   it('keeps an explicit preference for the session when storage writes fail', () => {
@@ -166,20 +170,40 @@ describe('AppearanceProvider', () => {
     expect(screen.getByTestId('preference')).toHaveTextContent('dark')
     expect(screen.getByTestId('effective')).toHaveTextContent('dark')
     expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(screen.getByTestId('notice')).toHaveTextContent('writeFailed')
   })
 
-  it('syncs an explicit preference from another tab via the storage event', () => {
+  it('does not change this tab or an in-progress answer when another tab writes or clears storage', () => {
     renderProbe()
     expect(screen.getByTestId('preference')).toHaveTextContent('system')
+    const answer = screen.getByRole('textbox', { name: 'answer' })
+    fireEvent.change(answer, { target: { value: '42' } })
+    answer.focus()
 
     window.localStorage.setItem(APPEARANCE_STORAGE_KEY, 'dark')
     act(() => {
       window.dispatchEvent(new StorageEvent('storage', { key: APPEARANCE_STORAGE_KEY }))
+      window.dispatchEvent(new StorageEvent('storage', { key: null }))
     })
 
+    expect(screen.getByTestId('preference')).toHaveTextContent('system')
+    expect(screen.getByTestId('effective')).toHaveTextContent('light')
+    expect(answer).toHaveValue('42')
+    expect(answer).toHaveFocus()
+    // A fresh mount, rather than an in-progress page, reads the saved choice.
+  })
+
+  it('retains a failed session choice after another tab writes and clears the notice after a successful retry', () => {
+    const write = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied') })
+    renderProbe()
+    fireEvent.click(screen.getByRole('button', { name: 'choose dark' }))
+    act(() => window.dispatchEvent(new StorageEvent('storage', { key: APPEARANCE_STORAGE_KEY, newValue: 'light' })))
     expect(screen.getByTestId('preference')).toHaveTextContent('dark')
-    expect(screen.getByTestId('effective')).toHaveTextContent('dark')
-    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(screen.getByTestId('notice')).toHaveTextContent('writeFailed')
+    write.mockRestore()
+    fireEvent.click(screen.getByRole('button', { name: 'choose light' }))
+    expect(screen.getByTestId('notice')).toHaveTextContent('none')
+    expect(storedValue()).toBe('light')
   })
 
   it('starts each test from a neutral document theme (no leakage)', () => {

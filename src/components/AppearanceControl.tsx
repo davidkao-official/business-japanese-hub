@@ -10,8 +10,9 @@ import type { AppearancePreference } from '../lib/appearance/appearance'
  */
 export function AppearanceControl() {
   const strings = useStrings()
-  const { preference, setPreference } = useAppearance()
+  const { preference, setPreference, storageNotice } = useAppearance()
   const groupId = useId()
+  const noticeId = `${groupId}-notice`
 
   const options: ReadonlyArray<{ value: AppearancePreference; label: string }> = [
     { value: 'system', label: strings.appearance.system },
@@ -20,26 +21,38 @@ export function AppearanceControl() {
   ]
 
   return (
-    <div role="radiogroup" aria-label={strings.appearance.label} className="appearance-control">
-      {options.map((option) => (
-        <label
-          key={option.value}
-          className={`appearance-control__option${
-            preference === option.value ? ' appearance-control__option--active' : ''
-          }`}
-        >
-          <input
-            type="radio"
-            id={`${groupId}-${option.value}`}
-            name={`appearance-${groupId}`}
-            value={option.value}
-            checked={preference === option.value}
-            onChange={() => setPreference(option.value)}
-            className="appearance-control__input"
-          />
-          <span className="appearance-control__label">{option.label}</span>
-        </label>
-      ))}
+    <div className="appearance-preference">
+      <div
+        role="radiogroup"
+        aria-label={strings.appearance.label}
+        aria-describedby={storageNotice ? noticeId : undefined}
+        className="appearance-control"
+      >
+        {options.map((option) => (
+          <label
+            key={option.value}
+            className={`appearance-control__option${
+              preference === option.value ? ' appearance-control__option--active' : ''
+            }`}
+          >
+            <input
+              type="radio"
+              id={`${groupId}-${option.value}`}
+              name={`appearance-${groupId}`}
+              value={option.value}
+              checked={preference === option.value}
+              onChange={() => setPreference(option.value)}
+              className="appearance-control__input"
+            />
+            <span className="appearance-control__label">{option.label}</span>
+          </label>
+        ))}
+      </div>
+      {storageNotice && (
+        <p id={noticeId} role="status" className="appearance-preference__notice">
+          {strings.appearance[storageNotice]}
+        </p>
+      )}
     </div>
   )
 }

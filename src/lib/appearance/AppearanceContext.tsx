@@ -1,20 +1,20 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
-  APPEARANCE_STORAGE_KEY,
-  readStoredPreference,
+  readAppearancePreference,
   resolveEffectiveTheme,
   subscribeSystemTheme,
   systemPrefersDark,
   writeStoredPreference,
 } from './appearance'
-import type { AppearancePreference, EffectiveTheme } from './appearance'
+import type { AppearancePreference, AppearanceStorageNotice, EffectiveTheme } from './appearance'
 
 export interface AppearanceContextValue {
-  /** The user's saved preference (`system` is the default). */
+  /** This tab's preference (`system` is the default), even if saving failed. */
   preference: AppearancePreference
   /** The rendered theme after resolving `system` against the OS. */
   effectiveTheme: EffectiveTheme
+  storageNotice: AppearanceStorageNotice | null
   setPreference: (preference: AppearancePreference) => void
 }
 
@@ -39,11 +39,11 @@ function applyEffectiveTheme(effective: EffectiveTheme): void {
 }
 
 export function AppearanceProvider({ children }: { children: ReactNode }) {
-  const [preference, setPreferenceState] = useState<AppearancePreference>(() =>
-    readStoredPreference(),
-  )
+  const [initialPreference] = useState(readAppearancePreference)
+  const [preference, setPreferenceState] = useState(initialPreference.preference)
+  const [storageNotice, setStorageNotice] = useState(initialPreference.notice)
   const [effectiveTheme, setEffectiveTheme] = useState<EffectiveTheme>(() =>
-    resolveEffectiveTheme(readStoredPreference(), systemPrefersDark()),
+    resolveEffectiveTheme(initialPreference.preference, systemPrefersDark()),
   )
 
   // Keep <html data-theme> aligned with the effective theme (initial paint and
@@ -60,33 +60,19 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     return subscribeSystemTheme(applyOs)
   }, [preference])
 
-  // Cross-tab sync: reconcile when another tab writes/clears the preference.
-  // Same-tab changes update context state directly in `setPreference`; we never
-  // re-read storage after our own write, because a failed write would otherwise
-  // let the read fall back to `system` and silently undo the in-memory choice.
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const reconcile = () => {
-      const stored = readStoredPreference()
-      setPreferenceState(stored)
-      setEffectiveTheme(resolveEffectiveTheme(stored, systemPrefersDark()))
-    }
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === APPEARANCE_STORAGE_KEY || event.key === null) reconcile()
-    }
-    window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
-  }, [])
+  // Keep the current tab stable while reading, answering or editing (§5.5).
+  // Other tabs can persist a choice for the next load; they must not change
+  // this tab's appearance or undo a session choice after a failed write.
 
   const setPreference = useCallback((next: AppearancePreference) => {
     setPreferenceState(next)
     setEffectiveTheme(resolveEffectiveTheme(next, systemPrefersDark()))
-    writeStoredPreference(next)
+    setStorageNotice(writeStoredPreference(next) ? null : 'writeFailed')
   }, [])
 
   const value = useMemo(
-    () => ({ preference, effectiveTheme, setPreference }),
-    [preference, effectiveTheme, setPreference],
+    () => ({ preference, effectiveTheme, storageNotice, setPreference }),
+    [preference, effectiveTheme, storageNotice, setPreference],
   )
 
   return <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>

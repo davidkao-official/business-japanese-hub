@@ -108,6 +108,9 @@ export interface AppStrings {
     system: string
     light: string
     dark: string
+    readFailed: string
+    invalidStored: string
+    writeFailed: string
   }
   storefront: {
     catalog: string
@@ -541,6 +544,9 @@ const ja: AppStrings = {
     system: 'システム',
     light: 'ライト',
     dark: 'ダーク',
+    readFailed: '外観設定を読み込めなかったため、システム設定を使用しています。',
+    invalidStored: '保存された外観設定を確認できなかったため、システム設定を使用しています。',
+    writeFailed: '外観設定を保存できませんでした。このタブでは選択した外観を使用します。',
   },
   storefront: {
     catalog: 'すべての書籍',
@@ -988,6 +994,9 @@ const en: AppStrings = {
     system: 'System',
     light: 'Light',
     dark: 'Dark',
+    readFailed: 'Your appearance preference could not be read. Using the system setting.',
+    invalidStored: 'Your saved appearance preference was not recognized. Using the system setting.',
+    writeFailed: 'Your appearance preference could not be saved. Your choice still applies in this tab.',
   },
   storefront: {
     catalog: 'All books',
@@ -1428,6 +1437,9 @@ const zhTW: AppStrings = {
     system: '系統',
     light: '亮色',
     dark: '深色',
+    readFailed: '無法讀取外觀設定，目前使用系統設定。',
+    invalidStored: '儲存的外觀設定無法辨識，目前使用系統設定。',
+    writeFailed: '無法儲存外觀設定，此分頁仍會使用你選擇的外觀。',
   },
   storefront: {
     catalog: '所有書籍',
@@ -1863,7 +1875,12 @@ const zhCN: AppStrings = {
     label: '显示语言',
     options: { ja: '日本語', 'zh-TW': '繁體中文', 'zh-CN': '简体中文', en: 'English' },
   },
-  appearance: { label: '外观', system: '跟随系统', light: '浅色', dark: '深色' },
+  appearance: {
+    label: '外观', system: '跟随系统', light: '浅色', dark: '深色',
+    readFailed: '无法读取外观设置，目前使用系统设置。',
+    invalidStored: '已保存的外观设置无法识别，目前使用系统设置。',
+    writeFailed: '无法保存外观设置，此标签页仍会使用你选择的外观。',
+  },
   storefront: {
     ...zhTW.storefront,
     catalog: '全部书籍', viewDetails: '查看详情', featured: '精选内容', free: '免费', owned: '已拥有',

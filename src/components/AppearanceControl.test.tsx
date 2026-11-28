@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppearanceProvider } from '../lib/appearance/AppearanceContext'
 import { AppearanceControl } from './AppearanceControl'
+
+afterEach(() => vi.restoreAllMocks())
 
 function renderControl() {
   return render(
@@ -12,6 +14,25 @@ function renderControl() {
 }
 
 describe('AppearanceControl', () => {
+  it('describes an invalid saved preference without blocking the controls', () => {
+    window.localStorage.setItem('business-japanese-hub.appearance', 'invalid')
+    renderControl()
+    const status = screen.getByRole('status')
+    expect(status).toHaveTextContent('保存された外観設定を確認できなかったため')
+    expect(screen.getByRole('radiogroup')).toHaveAttribute('aria-describedby', status.id)
+    expect(screen.getByRole('radio', { name: 'システム' })).toBeChecked()
+  })
+
+  it('reports a failed save and keeps the selected control focused', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied') })
+    renderControl()
+    const dark = screen.getByRole('radio', { name: 'ダーク' })
+    dark.focus()
+    fireEvent.click(dark)
+    expect(screen.getByRole('status')).toHaveTextContent('外観設定を保存できませんでした')
+    expect(dark).toBeChecked()
+    expect(dark).toHaveFocus()
+  })
   it('exposes all three preferences as a labelled radio group', () => {
     renderControl()
 
